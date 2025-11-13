@@ -239,14 +239,14 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
         {isManualMode && (
           <div className="card-aurora">
             <h3 className="text-lg font-semibold mb-4 text-aurora-primary-dark text-center">How are you feeling today?</h3>
-            <div className="grid grid-cols-4 gap-1 w-60 sm:w-72 mx-auto">
+            <div className="flex flex-wrap justify-center gap-3 sm:gap-4 max-w-sm mx-auto">
               {MANUAL_EMOTIONS.map(emotion => {
                 const isSelected = selectedEmotions.some(e => e.emotion === emotion.name);
                 return (
                   <button
                     key={emotion.name}
                     onClick={() => handleManualEmotionToggle(emotion)}
-                    className={`relative p-1.5 sm:p-2 rounded-full aspect-square transition-all duration-300 hover:scale-105 ${
+                    className={`relative p-2 sm:p-3 rounded-full w-16 h-16 sm:w-20 sm:h-20 flex flex-col items-center justify-center transition-all duration-300 hover:scale-105 ${
                       isSelected
                         ? 'shadow-xl transform scale-105'
                         : 'hover:shadow-lg'
@@ -254,22 +254,18 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
                     style={{
                       background: isSelected 
                         ? `linear-gradient(135deg, ${emotion.color}80, ${emotion.color})`
-                        : '#E5E7EB',
-                      minHeight: '50px',
-                      maxHeight: '50px'
+                        : '#E5E7EB'
                     }}
                     aria-label={`Select ${emotion.label} emotion`}
                   >
-                    <div className="flex flex-col items-center justify-center h-full">
-                      <div className={`text-xs sm:text-sm font-medium ${
-                        isSelected ? 'text-white' : 'text-gray-600'
-                      }`}>
-                        {emotion.label}
-                      </div>
+                    <div className={`text-[10px] sm:text-xs font-medium text-center leading-tight ${
+                      isSelected ? 'text-white' : 'text-gray-600'
+                    }`}>
+                      {emotion.label}
                     </div>
                     {isSelected && (
-                      <div className="absolute -top-0.5 -right-0.5 w-3 h-3 sm:w-4 sm:h-4 bg-white rounded-full flex items-center justify-center shadow-lg">
-                        <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-aurora-secondary-green rounded-full"></div>
+                      <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-white rounded-full flex items-center justify-center shadow-lg">
+                        <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-aurora-secondary-green rounded-full"></div>
                       </div>
                     )}
                   </button>
