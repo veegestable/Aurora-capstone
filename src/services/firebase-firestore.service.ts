@@ -149,7 +149,7 @@ export const firestoreService = {
     try {
       const scheduleRef = doc(db, 'schedules', scheduleId);
       
-      const updatePayload = {
+      const updatePayload: any = {
         ...updateData,
         updated_at: Timestamp.now()
       };

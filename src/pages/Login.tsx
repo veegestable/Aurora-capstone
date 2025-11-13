@@ -16,15 +16,24 @@ export default function Login() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccessMessage('');
 
     try {
       if (isSignUp) {
-        await signUp(formData.email, formData.password, formData.fullName, formData.role);
+        const result = await signUp(formData.email, formData.password, formData.fullName, formData.role);
+        if (result.success) {
+          setSuccessMessage(result.message);
+          setIsSignUp(false); // Switch to login mode
+          setFormData(prev => ({ ...prev, password: '', fullName: '', role: 'student' })); // Clear sensitive fields
+        } else {
+          setError(result.message);
+        }
       } else {
         await signIn(formData.email, formData.password);
       }
@@ -33,6 +42,18 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleModeSwitch = () => {
+    setIsSignUp(!isSignUp);
+    setError('');
+    setSuccessMessage('');
+    setFormData(prev => ({ 
+      ...prev, 
+      password: '', 
+      fullName: '', 
+      role: 'student' 
+    }));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -63,7 +84,7 @@ export default function Login() {
               className="h-16 w-auto"
             />
           </div>
-          <p className="text-aurora-primary-light/90 text-lg font-medium">
+          <p className="text-center text-white/90 text-lg font-medium leading-relaxed">
             AI-powered mental health platform designed to help students map and track their emotional landscape effectively
           </p>
         </div>
@@ -72,25 +93,25 @@ export default function Login() {
         <div className="grid grid-cols-3 gap-4 mb-8">
           <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
             <Brain className="w-6 h-6 text-aurora-accent-green mx-auto mb-2" />
-            <p className="text-xs text-aurora-primary-light font-medium">Mood Tracking</p>
+            <p className="text-xs text-white/80 font-medium">Mood Tracking</p>
           </div>
           <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
             <Users className="w-6 h-6 text-aurora-accent-orange mx-auto mb-2" />
-            <p className="text-xs text-aurora-primary-light font-medium">Counselor Support</p>
+            <p className="text-xs text-white/80 font-medium">Counselor Support</p>
           </div>
           <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
             <Heart className="w-6 h-6 text-aurora-accent-pink mx-auto mb-2" />
-            <p className="text-xs text-aurora-primary-light font-medium">Wellness Tools</p>
+            <p className="text-xs text-white/80 font-medium">Wellness Tools</p>
           </div>
         </div>
 
         {/* Auth Form */}
         <div className="card-aurora">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-aurora-primary-dark">
+            <h2 className="text-2xl font-bold text-aurora-primary-dark font-primary">
               {isSignUp ? 'Create Account' : 'Welcome Back'}
             </h2>
-            <p className="text-aurora-primary-dark/70 mt-2">
+            <p className="text-aurora-subtitle mt-2">
               {isSignUp ? 'Join Aurora to start your wellness journey' : 'Sign in to continue your wellness journey'}
             </p>
           </div>
@@ -98,6 +119,12 @@ export default function Login() {
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm" role="alert">
               {error}
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm" role="alert">
+              {successMessage}
             </div>
           )}
 
@@ -196,7 +223,7 @@ export default function Login() {
 
           <div className="mt-6 text-center">
             <button
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={handleModeSwitch}
               className="text-aurora-secondary-blue hover:text-aurora-secondary-green text-sm font-medium transition-colors"
             >
               {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
@@ -223,7 +250,7 @@ export default function Login() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8 text-sm text-aurora-primary-light/60">
+        <div className="text-center mt-8 text-sm text-white/60">
           <p>Aurora Mental Health Platform</p>
         </div>
       </div>

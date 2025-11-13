@@ -81,19 +81,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, fullName: string, role: 'student' | 'counselor') => {
     try {
       console.log('🔥 Signing up user:', email);
-      const userProfile = await authService.signUp({
+      await authService.signUp({
         email,
         password,
         fullName,
         role
       });
       
-      setUser(convertUserProfile(userProfile));
+      // Don't set user - they need to log in manually
       console.log('✅ Sign up successful - account created for:', email);
       
       return {
         success: true,
-        message: 'Account created successfully! You are now signed in.'
+        message: 'Account created successfully! Please log in with your credentials.'
       };
     } catch (error) {
       console.error('❌ Sign up error:', error);

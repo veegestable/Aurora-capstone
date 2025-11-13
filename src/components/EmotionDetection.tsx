@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { Camera, Upload, Bot, Target, Check } from 'lucide-react';
 
 interface DetectedEmotion {
   emotion: string;
@@ -114,7 +115,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
   };
 
   // Mock emotion analysis (replace with actual AI service like Azure Face API or AWS Rekognition)
-  const mockEmotionAnalysis = async (imageData: string): Promise<DetectedEmotion[]> => {
+  const mockEmotionAnalysis = async (_imageData: string): Promise<DetectedEmotion[]> => {
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 2000));
     
@@ -136,7 +137,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
 
   return (
     <div className="card">
-      <h3 className="text-xl font-semibold mb-4">AI Emotion Detection</h3>
+      <h3 className="text-xl text-aurora-primary-light font-semibold mb-4">AI Emotion Detection</h3>
       
       {!useCamera && !capturedImage && (
         <div className="flex flex-col gap-4">
@@ -146,7 +147,8 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
               className="btn btn-primary btn-lg flex-col py-6"
               disabled={isCapturing}
             >
-              📸 Take Selfie
+              <Camera className="w-5 h-5 mb-1" />
+              Take Selfie
               <span className="text-sm opacity-80">Use camera</span>
             </button>
             
@@ -154,7 +156,8 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
               onClick={() => fileInputRef.current?.click()}
               className="btn btn-secondary btn-lg flex-col py-6"
             >
-              📁 Upload Photo
+              <Upload className="w-5 h-5 mb-1" />
+              Upload Photo
               <span className="text-sm opacity-80">From gallery</span>
             </button>
           </div>
@@ -193,7 +196,8 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
               onClick={capturePhoto}
               className="btn btn-success btn-lg"
             >
-              📸 Capture Photo
+              <Camera className="w-4 h-4 mr-2" />
+              Capture Photo
             </button>
             <button
               onClick={stopCamera}
@@ -218,7 +222,10 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
               <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
                 <div className="text-center text-white">
                   <div className="spinner mx-auto mb-2"></div>
-                  <p>🤖 AI is analyzing emotions...</p>
+                  <p className="flex items-center justify-center gap-2">
+                    <Bot className="w-4 h-4" />
+                    AI is analyzing emotions...
+                  </p>
                 </div>
               </div>
             )}
@@ -226,7 +233,10 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
 
           {detectedEmotions.length > 0 && (
             <div className="w-full">
-              <h4 className="font-semibold mb-3">🎯 Detected Emotions:</h4>
+              <h4 className="font-semibold mb-3 flex items-center gap-2">
+                <Target className="w-4 h-4" />
+                Detected Emotions:
+              </h4>
               <div className="space-y-2">
                 {detectedEmotions.map((emotion, index) => (
                   <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -262,7 +272,8 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
               }}
               className="btn btn-secondary"
             >
-              📸 Take Another
+              <Camera className="w-4 h-4 mr-2" />
+              Take Another
             </button>
             {detectedEmotions.length > 0 && (
               <button
@@ -274,7 +285,8 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                 }}
                 className="btn btn-success"
               >
-                ✅ Save to Mood Log
+                <Check className="w-4 h-4 mr-2" />
+                Save to Mood Log
               </button>
             )}
           </div>

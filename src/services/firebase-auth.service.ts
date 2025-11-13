@@ -63,7 +63,10 @@ export const authService = {
       
       await setDoc(doc(db, 'users', user.uid), userProfile);
       
-      console.log('✅ User created successfully');
+      // Sign out user immediately to require manual login
+      await auth.signOut();
+      
+      console.log('✅ User created successfully - please log in');
       return userProfile;
     } catch (error: any) {
       console.error('❌ Signup error:', error.message);

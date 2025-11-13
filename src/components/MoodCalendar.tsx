@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { moodService } from '../services/mood.service';
@@ -52,7 +52,13 @@ export default function MoodCalendar() {
       );
       
       console.log('Mood data loaded:', data); // Debug log
-      setMoodData(Array.isArray(data) ? data : []);
+      
+      // Safely handle data - Firebase returns the correct structure
+      if (Array.isArray(data)) {
+        setMoodData(data as MoodEntry[]);
+      } else {
+        setMoodData([]);
+      }
     } catch (error) {
       console.error('Error loading mood data:', error);
       setMoodData([]);
@@ -169,28 +175,7 @@ export default function MoodCalendar() {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
 
-  const getMoodSummary = (moods: MoodEntry[]) => {
-    if (!moods || moods.length === 0) return null;
-    
-    const allEmotions = moods.flatMap(mood => {
-      if (!mood || !mood.emotions || !Array.isArray(mood.emotions)) return [];
-      return mood.emotions;
-    });
-    
-    const emotionCounts: Record<string, number> = {};
-    
-    allEmotions.forEach(emotion => {
-      if (emotion && emotion.emotion && typeof emotion.confidence === 'number') {
-        emotionCounts[emotion.emotion] = (emotionCounts[emotion.emotion] || 0) + emotion.confidence;
-      }
-    });
-    
-    const entries = Object.entries(emotionCounts);
-    if (entries.length === 0) return null;
-    
-    const topEmotion = entries.reduce((a, b) => a[1] > b[1] ? a : b);
-    return topEmotion[0];
-  };
+
 
   const calendarDays = generateCalendarDays();
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

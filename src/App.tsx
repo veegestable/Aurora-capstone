@@ -18,7 +18,7 @@ function AppContent() {
             className="h-16 w-auto mx-auto mb-4 opacity-80"
           />
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-aurora-blue-500 mx-auto"></div>
-          <p className="mt-4 text-aurora-primary-dark font-medium">Loading Aurora...</p>
+          <p className="mt-4 text-aurora-primary-dark font-medium font-secondary">Loading Aurora...</p>
         </div>
       </div>
     );

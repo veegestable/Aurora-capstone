@@ -65,8 +65,10 @@ module.exports = {
         }
       },
       fontFamily: {
-        'aurora': ['Euclid Circular A', 'Inter', 'system-ui', 'sans-serif'],
         'heading': ['Buenos Aires', 'Inter', 'system-ui', 'sans-serif'],
+        'body': ['Euclid Circular A', 'Inter', 'system-ui', 'sans-serif'],
+        'accent': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        'aurora': ['Buenos Aires', 'Euclid Circular A', 'Inter', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
         'aurora-gradient': 'linear-gradient(135deg, #4A90E2 0%, #010632 100%)',

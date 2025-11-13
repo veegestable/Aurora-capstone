@@ -12,6 +12,7 @@ export default function StudentDashboard() {
   const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('mood');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [dynamicBackground, setDynamicBackground] = useState<string | undefined>();
 
   const tabs = [
     { id: 'mood', label: 'Mood Check-in', icon: Heart },
@@ -27,6 +28,14 @@ export default function StudentDashboard() {
     setRefreshKey((prev) => prev + 1);
     // Optionally switch to calendar tab to see the new entry
     setActiveTab('calendar');
+  };
+
+  // Reset background when switching away from mood tab
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    if (tabId !== 'mood') {
+      setDynamicBackground(undefined);
+    }
   };
 
   return (
@@ -75,7 +84,7 @@ export default function StudentDashboard() {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabChange(tab.id)}
                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-medium transition-all ${
                       activeTab === tab.id
                         ? 'bg-aurora-secondary-blue text-white shadow-aurora'
@@ -92,25 +101,29 @@ export default function StudentDashboard() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-aurora-primary-light/10 to-aurora-blue-500/10 pb-20 lg:pb-0">
-          <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
+        <main 
+          className="flex-1 overflow-hidden bg-gradient-to-br from-aurora-primary-light/10 to-aurora-blue-500/10 pb-20 lg:pb-0 transition-all duration-500"
+          style={{
+            background: dynamicBackground || undefined
+          }}
+        >
+          <div className="h-full overflow-y-auto">
+            <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-3 sm:py-4 lg:py-6">
             {activeTab === 'mood' && (
               <div>
-                <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2">Daily Mood Check-In</h2>
-                  <p className="text-sm sm:text-base text-aurora-primary-dark/70">
-                    Let's capture how you're feeling today. Use AI detection or select emotions manually.
-                  </p>
-                </div>
-                <MoodCheckIn onMoodLogged={handleMoodLogged} />
+                
+                <MoodCheckIn 
+                  onMoodLogged={handleMoodLogged} 
+                  onBackgroundChange={setDynamicBackground}
+                />
               </div>
             )}
 
             {activeTab === 'calendar' && (
               <div>
                 <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2">Mood Calendar</h2>
-                  <p className="text-sm sm:text-base text-aurora-primary-dark/70">
+                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Mood Calendar</h2>
+                  <p className="text-aurora-subtitle">
                     View your emotional journey through time. Click on any day to see detailed mood information.
                   </p>
                 </div>
@@ -121,8 +134,8 @@ export default function StudentDashboard() {
             {activeTab === 'analytics' && (
               <div>
                 <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2">Mood Analytics</h2>
-                  <p className="text-sm sm:text-base text-aurora-primary-dark/70">
+                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Mood Analytics</h2>
+                  <p className="text-aurora-subtitle">
                     Track your emotional patterns and insights over time.
                   </p>
                 </div>
@@ -133,8 +146,8 @@ export default function StudentDashboard() {
             {activeTab === 'schedule' && (
               <div>
                 <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2">Academic Schedule</h2>
-                  <p className="text-sm sm:text-base text-aurora-primary-dark/70">
+                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Academic Schedule</h2>
+                  <p className="text-aurora-subtitle">
                     Manage your academic events and see how they relate to your mood patterns.
                   </p>
                 </div>
@@ -145,14 +158,15 @@ export default function StudentDashboard() {
             {activeTab === 'notifications' && (
               <div>
                 <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2">Notifications</h2>
-                  <p className="text-sm sm:text-base text-aurora-primary-dark/70">
+                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Notifications</h2>
+                  <p className="text-aurora-subtitle">
                     Stay updated with reminders, check-in alerts, and important messages.
                   </p>
                 </div>
                 <NotificationPanel />
               </div>
             )}
+            </div>
           </div>
         </main>
       </div>
@@ -165,7 +179,7 @@ export default function StudentDashboard() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={`flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1 transition-all ${
                   activeTab === tab.id
                     ? 'text-aurora-secondary-green'

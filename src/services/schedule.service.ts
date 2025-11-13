@@ -1,16 +1,10 @@
-const API_BASE_URL = 'http://localhost:3001';
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { 'Authorization': `Bearer ${token}` })
-  };
-};
+// Firebase-based schedule service for Aurora
+import { firestoreService } from './firebase-firestore.service';
+import { auth } from '../config/firebase';
 
 export interface ScheduleData {
   title?: string;
-  event_type: string;
+  event_type: 'exam' | 'deadline' | 'meeting' | 'other';
   event_date: string;
   description?: string;
 }
@@ -18,72 +12,99 @@ export interface ScheduleData {
 export const scheduleService = {
   async createSchedule(userId: string, data: ScheduleData) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/schedules`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          user_id: userId,
-          ...data
-        })
-      });
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      console.log('🔥 Creating schedule for user:', user.uid);
       
-      if (!response.ok) throw new Error('Failed to create schedule');
-      return await response.json();
+      const schedule = await firestoreService.createSchedule({
+        title: data.title || '',
+        description: data.description || '',
+        event_date: new Date(data.event_date),
+        event_type: data.event_type
+      }, user.uid);
+      
+      console.log('✅ Schedule created successfully');
+      return {
+        id: schedule.id,
+        title: data.title || '',
+        description: data.description || '',
+        event_date: data.event_date,
+        event_type: data.event_type
+      };
     } catch (error) {
-      console.error('Error creating schedule:', error);
+      console.error('❌ Error creating schedule:', error);
       throw error;
     }
   },
 
-  async getSchedules(userId?: string, startDate?: string, endDate?: string) {
+  async getSchedules(_userId?: string, startDate?: string, endDate?: string) {
     try {
-      const params = new URLSearchParams();
-      if (userId) params.append('userId', userId);
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      console.log('🔥 Fetching schedules for user:', user.uid);
       
-      const response = await fetch(`${API_BASE_URL}/api/schedules?${params}`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch schedules');
-      }
-
-      return await response.json();
+      const startDateObj = startDate ? new Date(startDate) : undefined;
+      const endDateObj = endDate ? new Date(endDate) : undefined;
+      
+      const schedules = await firestoreService.getSchedules(
+        user.uid, 
+        startDateObj, 
+        endDateObj
+      );
+      
+      // Convert schedules to expected format
+      const formattedSchedules = schedules.map((schedule: any) => ({
+        id: schedule.id,
+        title: schedule.title || '',
+        description: schedule.description || '',
+        event_date: schedule.event_date instanceof Date 
+          ? schedule.event_date.toISOString() 
+          : new Date(schedule.event_date.toDate()).toISOString(),
+        event_type: schedule.event_type
+      }));
+      
+      console.log('✅ Schedules fetched:', formattedSchedules.length, 'entries');
+      return formattedSchedules;
     } catch (error) {
-      console.error('Error fetching schedules:', error);
+      console.error('❌ Error fetching schedules:', error);
       throw error;
     }
   },
 
   async updateSchedule(scheduleId: string, data: Partial<ScheduleData>) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/schedules/${scheduleId}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data)
-      });
+      console.log('🔥 Updating schedule:', scheduleId);
       
-      if (!response.ok) throw new Error('Failed to update schedule');
-      return await response.json();
+      const updateData: any = { ...data };
+      if (data.event_date) {
+        updateData.event_date = new Date(data.event_date);
+      }
+      
+      await firestoreService.updateSchedule(scheduleId, updateData);
+      
+      console.log('✅ Schedule updated successfully');
+      return {
+        id: scheduleId,
+        ...data
+      };
     } catch (error) {
-      console.error('Error updating schedule:', error);
+      console.error('❌ Error updating schedule:', error);
       throw error;
     }
   },
 
   async deleteSchedule(scheduleId: string) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/schedules/${scheduleId}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
+      console.log('🔥 Deleting schedule:', scheduleId);
       
-      if (!response.ok) throw new Error('Failed to delete schedule');
-      return await response.json();
+      await firestoreService.deleteSchedule(scheduleId);
+      
+      console.log('✅ Schedule deleted successfully');
+      return { message: 'Schedule deleted successfully' };
     } catch (error) {
-      console.error('Error deleting schedule:', error);
+      console.error('❌ Error deleting schedule:', error);
       throw error;
     }
   }
