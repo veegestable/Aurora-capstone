@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authService, UserResponse, AuthResponse } from '../services/auth.service';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../config/firebase';
+import { authService, UserProfile } from '../services/firebase-auth.service';
 
 interface User {
   id: string;
@@ -18,13 +20,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper function to convert UserResponse to User
-const convertUserResponse = (userResponse: UserResponse): User => {
+// Helper function to convert UserProfile to User
+const convertUserProfile = (userProfile: UserProfile): User => {
   return {
-    id: userResponse.id,
-    full_name: userResponse.full_name,
-    email: userResponse.email,
-    role: userResponse.role as 'student' | 'counselor' // Type assertion
+    id: userProfile.uid,
+    full_name: userProfile.full_name,
+    email: userProfile.email,
+    role: userProfile.role
   };
 };
 
@@ -32,35 +34,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const initAuth = async () => {
-    console.log('Initializing auth...');
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        const currentUser = await authService.getCurrentUser();
-        console.log('Current user:', currentUser);
-        setUser(convertUserResponse(currentUser));
-      }
-    } catch (error) {
-      console.log('Auth initialization error:', error);
-      localStorage.removeItem('token');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    initAuth();
+    console.log('🔥 Setting up Firebase auth listener...');
+    
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('🔥 Auth state changed:', firebaseUser?.email);
+      
+      if (firebaseUser) {
+        // User is signed in
+        try {
+          const userProfile = await authService.getCurrentUser();
+          if (userProfile) {
+            setUser(convertUserProfile(userProfile));
+            console.log('✅ User authenticated:', userProfile.email);
+          }
+        } catch (error) {
+          console.error('❌ Error getting user profile:', error);
+          setUser(null);
+        }
+      } else {
+        // User is signed out
+        setUser(null);
+        console.log('🔐 User signed out');
+      }
+      
+      setLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
-      console.log('🔐 Signing in user:', email);
-      const response: AuthResponse = await authService.signIn({ email, password });
+      console.log('🔥 Signing in user:', email);
+      const userProfile = await authService.signIn({ email, password });
       
-      localStorage.setItem('token', response.token);
-      setUser(convertUserResponse(response.user));
-      console.log('✅ Sign in successful:', response.user);
+      setUser(convertUserProfile(userProfile));
+      console.log('✅ Sign in successful:', userProfile.email);
     } catch (error) {
       console.error('❌ Sign in error:', error);
       throw error;
@@ -69,31 +80,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, fullName: string, role: 'student' | 'counselor') => {
     try {
-      console.log('📝 Signing up user:', email);
-      const response = await authService.signUp({
+      console.log('🔥 Signing up user:', email);
+      const userProfile = await authService.signUp({
         email,
         password,
         fullName,
         role
       });
       
+      setUser(convertUserProfile(userProfile));
       console.log('✅ Sign up successful - account created for:', email);
       
-      // DON'T auto-login after signup
-      // Just return success message
       return {
         success: true,
-        message: 'Account created successfully! Please sign in with your credentials.'
+        message: 'Account created successfully! You are now signed in.'
       };
     } catch (error) {
       console.error('❌ Sign up error:', error);
-      throw error;
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Sign up failed'
+      };
     }
   };
 
-  const signOut = () => {
-    localStorage.removeItem('token');
-    setUser(null);
+  const signOut = async () => {
+    try {
+      await authService.signOut();
+      setUser(null);
+      console.log('✅ Sign out successful');
+    } catch (error) {
+      console.error('❌ Sign out error:', error);
+    }
   };
 
   const value = {
