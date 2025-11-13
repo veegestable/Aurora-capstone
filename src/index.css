@@ -1,0 +1,414 @@
+/* Aurora Mental Health App - Custom Styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Aurora Brand Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Aurora Brand Colors */
+  --aurora-primary-dark: #010632;
+  --aurora-primary-light: #E4E3DF;
+  --aurora-blue-main: #4A90E2;
+  --aurora-blue-light: #6B8FFF;
+  --aurora-blue-dark: #2563EB;
+  
+  /* Aurora Secondary Colors */
+  --aurora-secondary-green: #5ABA1C;
+  --aurora-secondary-blue: #3257FE;
+  --aurora-secondary-dark-green: #00713B;
+  --aurora-secondary-dark-blue: #00136F;
+  
+  /* Aurora Gradients */
+  --aurora-gradient-main: linear-gradient(135deg, #3257FE 0%, #010632 100%);
+  --aurora-gradient-light: linear-gradient(135deg, #E4E3DF 0%, #F0F4FF 100%);
+  --aurora-gradient-hero: linear-gradient(135deg, #010632 0%, #3257FE 50%, #5ABA1C 100%);
+  --aurora-gradient-success: linear-gradient(135deg, #5ABA1C 0%, #00713B 100%);
+  
+  /* Updated Emotion Colors from Palette */
+  --mood-joy: #FFA900;
+  --mood-love: #FF55B8;
+  --mood-surprise: #FF7105;
+  --mood-anger: #F90038;
+  --mood-fear: #920FFE;
+  --mood-sadness: #086FE6;
+  --mood-disgust: #19BF20;
+  --mood-neutral: #CAC1C4;
+  
+  /* Mood Intensities */
+  --intensity-low: 0.3;
+  --intensity-medium: 0.6;
+  --intensity-high: 1.0;
+  
+  /* UI Colors */
+  --primary: #6366f1;
+  --primary-dark: #4f46e5;
+  --secondary: #8b5cf6;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+  
+  /* Neutrals */
+  --white: #ffffff;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+  
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  
+  /* Border Radius */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.6;
+  color: var(--aurora-primary-dark);
+  background: var(--aurora-gradient-light);
+  min-height: 100vh;
+}
+
+/* Aurora Components */
+@layer components {
+  .btn-aurora {
+    background: linear-gradient(135deg, #3257FE 0%, #5ABA1C 100%);
+    @apply hover:shadow-lg text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 shadow-aurora;
+  }
+  
+  .btn-aurora:hover {
+    background: linear-gradient(135deg, #00136F 0%, #00713B 100%);
+    transform: translateY(-1px);
+  }
+  
+  .btn-aurora-secondary {
+    background: linear-gradient(135deg, #5ABA1C 0%, #00713B 100%);
+    @apply hover:shadow-lg text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 shadow-aurora;
+  }
+  
+  .btn-aurora-secondary:hover {
+    background: linear-gradient(135deg, #00713B 0%, #5ABA1C 100%);
+    transform: translateY(-1px);
+  }
+  
+  .btn-aurora-outline {
+    @apply border-2 border-aurora-secondary-blue text-aurora-secondary-blue hover:bg-aurora-secondary-blue hover:text-white font-medium py-2 px-4 rounded-lg transition-all duration-200;
+  }
+  
+  .card-aurora {
+    @apply bg-white rounded-xl shadow-aurora p-6 backdrop-blur-sm bg-opacity-90;
+  }
+  
+  .gradient-aurora {
+    background: var(--aurora-gradient-main);
+  }
+  
+  .gradient-aurora-light {
+    background: var(--aurora-gradient-light);
+  }
+  
+  .gradient-aurora-primary {
+    background: linear-gradient(135deg, #3257FE 0%, #010632 100%);
+  }
+  
+  .text-gradient-aurora {
+    @apply bg-gradient-to-r from-aurora-secondary-blue to-aurora-primary-dark bg-clip-text text-transparent;
+  }
+}
+
+/* Utility Classes */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+}
+
+.card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-xl);
+  margin-bottom: var(--space-lg);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-sm) var(--space-lg);
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  gap: var(--space-sm);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--white);
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+.btn-secondary {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.btn-secondary:hover {
+  background: var(--gray-200);
+}
+
+.btn-success {
+  background: var(--success);
+  color: var(--white);
+}
+
+.btn-lg {
+  padding: var(--space-md) var(--space-xl);
+  font-size: 1rem;
+}
+
+.form-group {
+  margin-bottom: var(--space-lg);
+}
+
+.form-label {
+  display: block;
+  margin-bottom: var(--space-sm);
+  font-weight: 500;
+  color: var(--gray-700);
+}
+
+.form-input {
+  width: 100%;
+  padding: var(--space-md);
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgb(99 102 241 / 0.1);
+}
+
+.form-select {
+  width: 100%;
+  padding: var(--space-md);
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  background: var(--white);
+  cursor: pointer;
+}
+
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-lg { font-size: 1.125rem; }
+.text-xl { font-size: 1.25rem; }
+.text-2xl { font-size: 1.5rem; }
+.text-3xl { font-size: 1.875rem; }
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: var(--space-sm); }
+.gap-4 { gap: var(--space-md); }
+.gap-6 { gap: var(--space-lg); }
+
+.grid { display: grid; }
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.mb-2 { margin-bottom: var(--space-sm); }
+.mb-4 { margin-bottom: var(--space-md); }
+.mb-6 { margin-bottom: var(--space-lg); }
+.mt-4 { margin-top: var(--space-md); }
+.mt-6 { margin-top: var(--space-lg); }
+
+.p-4 { padding: var(--space-md); }
+.p-6 { padding: var(--space-lg); }
+.px-4 { padding-left: var(--space-md); padding-right: var(--space-md); }
+.py-2 { padding-top: var(--space-sm); padding-bottom: var(--space-sm); }
+
+.rounded { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.rounded-full { border-radius: 9999px; }
+
+.shadow-md { box-shadow: var(--shadow-md); }
+.shadow-lg { box-shadow: var(--shadow-lg); }
+
+/* Mood Colors */
+.mood-joy { background-color: var(--mood-joy); }
+.mood-love { background-color: var(--mood-love); }
+.mood-surprise { background-color: var(--mood-surprise); }
+.mood-anger { background-color: var(--mood-anger); }
+.mood-fear { background-color: var(--mood-fear); }
+.mood-sadness { background-color: var(--mood-sadness); }
+.mood-disgust { background-color: var(--mood-disgust); }
+.mood-neutral { background-color: var(--mood-neutral); }
+
+/* Calendar Styles */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.calendar-day {
+  background: var(--white);
+  padding: var(--space-md);
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.calendar-day:hover {
+  background: var(--gray-50);
+}
+
+.calendar-day-number {
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+}
+
+.mood-indicators {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.mood-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  opacity: var(--intensity-medium);
+}
+
+/* Analytics Charts */
+.chart-container {
+  position: relative;
+  height: 300px;
+  margin: var(--space-lg) 0;
+}
+
+/* Loading States */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--gray-200);
+  border-top: 4px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 var(--space-sm);
+  }
+  
+  .card {
+    padding: var(--space-lg);
+  }
+  
+  .grid-cols-3 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  
+  .grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: var(--gray-100);
+  }
+  
+  .card {
+    background: var(--gray-800);
+    color: var(--gray-100);
+  }
+  
+  .form-input, .form-select {
+    background: var(--gray-700);
+    border-color: var(--gray-600);
+    color: var(--gray-100);
+  }
+  
+  .calendar-day {
+    background: var(--gray-700);
+    color: var(--gray-100);
+  }
+  
+  .calendar-day:hover {
+    background: var(--gray-600);
+  }
+}
