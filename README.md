@@ -27,21 +27,20 @@ Aurora is a comprehensive mental health tracking application designed to help st
 - **Lucide React** for icons
 
 ### Backend
-- **Node.js** with Express.js
-- **TypeScript** for type safety
-- **MongoDB** with Mongoose ODM
-- **JWT** authentication
-- **bcryptjs** for password hashing
+- **Firebase** for authentication and database
+- **Firestore** for real-time data storage
+- **Firebase Auth** for user management
 
 ### Database
-- **MongoDB** (Local development)
-- **MongoDB Atlas** ready for production
+- **Firebase Firestore** (Cloud-hosted NoSQL database)
+- **Real-time data synchronization**
+- **Scalable and secure**
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+ 
-- MongoDB Community Server (for local development)
+- Node.js 18+
+- Firebase account
 - Git
 
 ### Installation
@@ -54,49 +53,28 @@ Aurora is a comprehensive mental health tracking application designed to help st
 
 2. **Install dependencies**
    ```bash
-   # Install frontend dependencies
    npm install
-   
-   # Install backend dependencies
-   cd server
-   npm install
-   cd ..
    ```
 
-3. **Environment Setup**
+3. **Firebase Setup**
    ```bash
    # Copy environment file
    cp .env.example .env
    ```
    
-   Edit `.env` with your configuration:
+   Edit `.env` with your Firebase configuration:
    ```env
-   MONGODB_URI=mongodb://localhost:27017/aurora
-   JWT_SECRET=your_super_secret_jwt_key_here
-   PORT=3001
-   NODE_ENV=development
+   VITE_FIREBASE_API_KEY=your_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
    ```
 
-4. **Start MongoDB**
+4. **Run the application**
    ```bash
-   # Windows
-   net start MongoDB
-   
-   # Or check if running
-   sc query MongoDB
-   ```
-
-5. **Run the application**
-   ```bash
-   # Start both frontend and backend
-   npm run dev:all
-   
-   # Or start separately:
-   # Terminal 1: Frontend
    npm run dev
-   
-   # Terminal 2: Backend
-   npm run server:watch
    ```
 
 6. **Access the app**
@@ -118,15 +96,10 @@ Aurora1/
 ├── src/                    # Frontend React app
 │   ├── components/         # Reusable UI components
 │   ├── pages/             # Main application pages
-│   ├── services/          # API service functions
+│   ├── services/          # Firebase service functions
 │   ├── contexts/          # React context providers
+│   ├── config/            # Firebase configuration
 │   └── utils/             # Helper utilities
-├── server/                # Backend Express app
-│   ├── config/            # Database and app configuration
-│   ├── models/            # MongoDB/Mongoose models
-│   ├── routes/            # API route handlers
-│   ├── middleware/        # Express middleware
-│   └── services/          # Business logic services
 ├── public/                # Static assets
 └── docs/                  # Documentation files
 ```
@@ -139,18 +112,6 @@ npm run dev                 # Start Vite dev server
 npm run build              # Build for production
 npm run preview           # Preview production build
 
-# Backend development
-npm run server:watch      # Start backend with hot reload
-npm run server           # Start backend (production mode)
-
-# Full stack development
-npm run dev:all          # Start both frontend and backend
-
-# Database utilities
-cd server
-npm run check-mongodb    # Check MongoDB connection
-npm run test-db         # Test database connection
-
 # Code quality
 npm run lint            # Run ESLint
 npm run typecheck       # TypeScript type checking
@@ -158,55 +119,52 @@ npm run typecheck       # TypeScript type checking
 
 ## 🌐 Production Deployment
 
-### MongoDB Atlas Setup
-1. Create a MongoDB Atlas account
-2. Create a new cluster (free M0 tier available)
-3. Get connection string and update `.env`:
+### Firebase Setup for Production
+1. Create a Firebase project at https://console.firebase.google.com
+2. Enable Authentication and Firestore Database
+3. Set up Firestore security rules for your application
+4. Deploy using Firebase Hosting or your preferred hosting service
+5. Update environment variables in your deployment platform:
    ```env
-   MONGODB_ATLAS_URI=mongodb+srv://username:password@cluster.mongodb.net/aurora
+   VITE_FIREBASE_API_KEY=your_production_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
    ```
 
-### Environment Variables
-```env
-# Production
-NODE_ENV=production
-MONGODB_ATLAS_URI=your_atlas_connection_string
-JWT_SECRET=your_production_secret_key
-PORT=3001
-```
-
-## 📊 Database Schema
+## 📊 Firestore Database Structure
 
 ### Users Collection
-```javascript
+```typescript
 {
-  _id: ObjectId,
-  email: String,
-  password: String (hashed),
-  full_name: String,
+  uid: string,
+  email: string,
+  fullName: string,
   role: 'student' | 'counselor',
-  avatar_url: String,
-  created_at: Date,
-  updated_at: Date
+  avatarUrl?: string,
+  createdAt: Timestamp,
+  updatedAt: Timestamp
 }
 ```
 
 ### MoodLogs Collection
-```javascript
+```typescript
 {
-  _id: ObjectId,
-  user_id: String,
+  id: string,
+  userId: string,
   emotions: [{
-    emotion: String,
-    confidence: Number,
-    color: String
+    emotion: string,
+    confidence: number,
+    color: string
   }],
-  notes: String,
-  log_date: Date,
-  energy_level: Number,
-  stress_level: Number,
-  detection_method: 'manual' | 'ai',
-  created_at: Date
+  notes?: string,
+  logDate: Timestamp,
+  energyLevel: number,
+  stressLevel: number,
+  detectionMethod: 'manual' | 'ai',
+  createdAt: Timestamp
 }
 ```
 
