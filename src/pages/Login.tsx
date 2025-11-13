@@ -90,18 +90,18 @@ export default function Login() {
         </div>
 
         {/* Features Preview */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
-            <Brain className="w-6 h-6 text-aurora-accent-green mx-auto mb-2" />
-            <p className="text-xs text-white/80 font-medium">Mood Tracking</p>
+        <div className="flex justify-between gap-2 sm:grid sm:grid-cols-3 sm:gap-4 mb-8">
+          <div className="flex-1 text-center p-2 sm:p-4 bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl border border-white/20">
+            <Brain className="w-4 h-4 sm:w-6 sm:h-6 text-aurora-accent-green mx-auto mb-1 sm:mb-2" />
+            <p className="text-[9px] sm:text-xs text-white/80 font-medium leading-tight">Mood Tracking</p>
           </div>
-          <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
-            <Users className="w-6 h-6 text-aurora-accent-orange mx-auto mb-2" />
-            <p className="text-xs text-white/80 font-medium">Counselor Support</p>
+          <div className="flex-1 text-center p-2 sm:p-4 bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl border border-white/20">
+            <Users className="w-4 h-4 sm:w-6 sm:h-6 text-aurora-accent-orange mx-auto mb-1 sm:mb-2" />
+            <p className="text-[9px] sm:text-xs text-white/80 font-medium leading-tight">Counselor Support</p>
           </div>
-          <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
-            <Heart className="w-6 h-6 text-aurora-accent-pink mx-auto mb-2" />
-            <p className="text-xs text-white/80 font-medium">Wellness Tools</p>
+          <div className="flex-1 text-center p-2 sm:p-4 bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl border border-white/20">
+            <Heart className="w-4 h-4 sm:w-6 sm:h-6 text-aurora-accent-pink mx-auto mb-1 sm:mb-2" />
+            <p className="text-[9px] sm:text-xs text-white/80 font-medium leading-tight">Wellness Tools</p>
           </div>
         </div>
 
