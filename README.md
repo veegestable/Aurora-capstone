@@ -77,9 +77,9 @@ Aurora is a comprehensive mental health tracking application designed to help st
    npm run dev
    ```
 
-6. **Access the app**
+5. **Access the app**
    - Frontend: http://localhost:5173
-   - Backend API: http://localhost:3001
+   - All backend services are handled by Firebase (Authentication, Firestore, Storage)
 
 ## 📱 Aurora Design System
 
