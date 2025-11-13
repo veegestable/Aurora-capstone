@@ -2,18 +2,12 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { moodService } from '../services/mood.service';
+import { MoodData } from '../services/firebase-firestore.service';
 
-interface MoodEntry {
+interface MoodEntry extends MoodData {
   id: string;
-  emotions: Array<{
-    emotion: string;
-    confidence: number;
-    color: string;
-  }>;
-  log_date: string;
-  energy_level: number;
-  stress_level: number;
-  notes?: string;
+  created_at: Date;
+  log_date: Date;
 }
 
 interface CalendarDay {
@@ -53,9 +47,9 @@ export default function MoodCalendar() {
       
       console.log('Mood data loaded:', data); // Debug log
       
-      // Safely handle data - Firebase returns the correct structure
+      // Firebase returns the correct structure with proper types
       if (Array.isArray(data)) {
-        setMoodData(data as MoodEntry[]);
+        setMoodData(data);
       } else {
         setMoodData([]);
       }
@@ -97,7 +91,8 @@ export default function MoodCalendar() {
       const dateString = date.toISOString().split('T')[0];
       const dayMoods = moodData.filter(mood => {
         if (!mood || !mood.log_date) return false;
-        return mood.log_date.split('T')[0] === dateString;
+        const moodDateString = mood.log_date.toISOString().split('T')[0];
+        return moodDateString === dateString;
       });
       
       const blendedColor = getBlendedColor(dayMoods);
@@ -372,7 +367,7 @@ export default function MoodCalendar() {
                     </div>
                   </div>
                   <div className="text-xs text-gray-500">
-                    {mood.log_date ? new Date(mood.log_date).toLocaleTimeString([], {
+                    {mood.log_date ? mood.log_date.toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit'
                     }) : 'Unknown time'}
@@ -449,7 +444,7 @@ export default function MoodCalendar() {
       </div>
 
       {/* Debug Info (remove in production) */}
-      {process.env.NODE_ENV === 'development' && (
+      {import.meta.env.DEV && (
         <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
           <h5 className="font-medium text-yellow-800 mb-2">Debug Info:</h5>
           <p className="text-sm text-yellow-700">

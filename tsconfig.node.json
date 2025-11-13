@@ -10,9 +10,14 @@
     "moduleDetection": "force",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "outDir": "./dist/vite"
+    "outDir": "./dist/vite",
+    "types": []
   },
   "include": [
     "vite.config.ts"
+  ],
+  "exclude": [
+    "server",
+    "node_modules"
   ]
 }

@@ -839,3 +839,36 @@ p {
     z-index: auto;
   }
 }
+
+/* Aurora Loading Animations */
+@keyframes aurora-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+@keyframes aurora-float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-10px) rotate(1deg); }
+  66% { transform: translateY(5px) rotate(-1deg); }
+}
+
+@keyframes aurora-pulse-gradient {
+  0%, 100% { 
+    background: linear-gradient(45deg, rgba(74, 144, 226, 0.1), rgba(50, 87, 254, 0.2));
+  }
+  50% { 
+    background: linear-gradient(45deg, rgba(50, 87, 254, 0.2), rgba(156, 39, 176, 0.1));
+  }
+}
+
+.animate-aurora-glow {
+  animation: aurora-glow 2s ease-in-out infinite;
+}
+
+.animate-aurora-float {
+  animation: aurora-float 3s ease-in-out infinite;
+}
+
+.animate-aurora-pulse-gradient {
+  animation: aurora-pulse-gradient 4s ease-in-out infinite;
+}

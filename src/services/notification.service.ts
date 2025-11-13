@@ -1,4 +1,4 @@
-interface NotificationData {
+export interface NotificationData {
   title: string;
   message: string;
   type: 'reminder' | 'alert' | 'info';

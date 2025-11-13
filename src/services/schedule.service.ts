@@ -10,7 +10,7 @@ export interface ScheduleData {
 }
 
 export const scheduleService = {
-  async createSchedule(userId: string, data: ScheduleData) {
+  async createSchedule(_userId: string, data: ScheduleData) {
     try {
       const user = auth.currentUser;
       if (!user) throw new Error('User not authenticated');
