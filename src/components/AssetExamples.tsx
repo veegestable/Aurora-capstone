@@ -1,5 +1,5 @@
 // Aurora Assets - Example usage component
-import React from 'react';
+import * as React from 'react';
 
 // Example of how to import and use assets in Aurora
 // You can copy this pattern for your actual components
@@ -21,7 +21,7 @@ export const AssetExamples: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-bold text-gray-800">Aurora Assets Example</h2>
-      
+
       {/* Logo Usage */}
       <div className="border rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-3">Logos</h3>
@@ -68,12 +68,12 @@ export const AssetExamples: React.FC = () => {
       {/* Background Image Examples */}
       <div className="border rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-3">Background Images</h3>
-        <div 
+        <div
           className="h-32 rounded-lg bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center"
-          // Example: style={{ backgroundImage: 'url(/images/aurora-bg.jpg)' }}
+        // Example: style={{ backgroundImage: 'url(/images/aurora-bg.jpg)' }}
         >
           <p className="text-white text-center">
-            Add background images to public/images/<br/>
+            Add background images to public/images/<br />
             <span className="text-sm opacity-80">Use: style={`{backgroundImage: 'url(/images/bg.jpg)'}`}</span>
           </p>
         </div>

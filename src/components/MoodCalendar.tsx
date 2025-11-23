@@ -33,20 +33,20 @@ export default function MoodCalendar() {
 
   const loadMoodData = async () => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-      
+
       const data = await moodService.getMoodLogs(
         user.id,
         startOfMonth.toISOString(),
         endOfMonth.toISOString()
       );
-      
+
       console.log('Mood data loaded:', data); // Debug log
-      
+
       // Firebase returns the correct structure with proper types
       if (Array.isArray(data)) {
         setMoodData(data);
@@ -76,27 +76,27 @@ export default function MoodCalendar() {
   const generateCalendarDays = (): CalendarDay[] => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    
+
     const firstDayOfMonth = new Date(year, month, 1);
     const firstDayOfCalendar = new Date(firstDayOfMonth);
     firstDayOfCalendar.setDate(firstDayOfCalendar.getDate() - firstDayOfCalendar.getDay());
-    
+
     const days: CalendarDay[] = [];
     const today = new Date();
-    
+
     for (let i = 0; i < 42; i++) {
       const date = new Date(firstDayOfCalendar);
       date.setDate(firstDayOfCalendar.getDate() + i);
-      
+
       const dateString = date.toISOString().split('T')[0];
       const dayMoods = moodData.filter(mood => {
         if (!mood || !mood.log_date) return false;
         const moodDateString = mood.log_date.toISOString().split('T')[0];
         return moodDateString === dateString;
       });
-      
+
       const blendedColor = getBlendedColor(dayMoods);
-      
+
       days.push({
         date,
         moods: dayMoods,
@@ -105,37 +105,37 @@ export default function MoodCalendar() {
         blendedColor
       });
     }
-    
+
     return days;
   };
 
   const getBlendedColor = (moods: MoodEntry[]): string | undefined => {
     if (!moods || moods.length === 0) return undefined;
-    
+
     // Collect all emotions with their colors and confidence
     const colorData: Array<{ color: string; confidence: number }> = [];
-    
+
     moods.forEach(mood => {
       // Add null checks for mood and emotions
       if (!mood || !mood.emotions || !Array.isArray(mood.emotions)) {
         console.warn('Invalid mood data:', mood);
         return;
       }
-      
+
       mood.emotions.forEach(emotion => {
         if (emotion && emotion.color && typeof emotion.confidence === 'number') {
           colorData.push({ color: emotion.color, confidence: emotion.confidence });
         }
       });
     });
-    
+
     if (colorData.length === 0) return undefined;
     if (colorData.length === 1) return colorData[0].color;
-    
+
     // Calculate weighted average color
     let totalWeight = 0;
     let r = 0, g = 0, b = 0;
-    
+
     colorData.forEach(({ color, confidence }) => {
       const rgb = hexToRgb(color);
       if (rgb) {
@@ -145,25 +145,44 @@ export default function MoodCalendar() {
         totalWeight += confidence;
       }
     });
-    
+
     if (totalWeight === 0) return colorData[0].color;
-    
+
     r = Math.round(r / totalWeight);
     g = Math.round(g / totalWeight);
     b = Math.round(b / totalWeight);
-    
+
     return `rgb(${r}, ${g}, ${b})`;
   };
 
   const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
     if (!hex || typeof hex !== 'string') return null;
-    
+
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? {
       r: parseInt(result[1], 16),
       g: parseInt(result[2], 16),
       b: parseInt(result[3], 16)
     } : null;
+  };
+
+  const getColorWithAlpha = (color: string, alpha: number) => {
+    // Check if it's already an rgb/rgba string
+    if (color.startsWith('rgb')) {
+      // Extract numbers
+      const match = color.match(/\d+/g);
+      if (match && match.length >= 3) {
+        return `rgba(${match[0]}, ${match[1]}, ${match[2]}, ${alpha})`;
+      }
+    }
+
+    // Check if it's a hex
+    const rgb = hexToRgb(color);
+    if (rgb) {
+      return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+    }
+
+    return color;
   };
 
   const formatMonthYear = (date: Date) => {
@@ -194,7 +213,7 @@ export default function MoodCalendar() {
           <CalendarIcon className="w-6 h-6 text-teal-600" />
           <h3 className="text-xl font-bold text-gray-900">Mood Calendar</h3>
         </div>
-        
+
         <div className="flex items-center space-x-4">
           <button
             onClick={() => navigateMonth('prev')}
@@ -203,11 +222,11 @@ export default function MoodCalendar() {
           >
             <ChevronLeft className="w-5 h-5 text-gray-600" />
           </button>
-          
+
           <h4 className="text-lg font-semibold text-gray-800 min-w-[180px] text-center">
             {formatMonthYear(currentDate)}
           </h4>
-          
+
           <button
             onClick={() => navigateMonth('next')}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -265,7 +284,7 @@ export default function MoodCalendar() {
             {day}
           </div>
         ))}
-        
+
         {/* Calendar days */}
         {calendarDays.map((day, index) => (
           <div
@@ -279,7 +298,7 @@ export default function MoodCalendar() {
               ${day.moods.length > 0 ? 'shadow-md' : 'bg-white hover:bg-gray-50'}
             `}
             style={{
-              backgroundColor: day.blendedColor ? `${day.blendedColor}15` : undefined,
+              backgroundColor: day.blendedColor ? getColorWithAlpha(day.blendedColor, 0.2) : undefined,
               borderColor: day.blendedColor || undefined
             }}
           >
@@ -291,7 +310,7 @@ export default function MoodCalendar() {
               `}>
                 {day.date.getDate()}
               </span>
-              
+
               {day.moods.length > 0 && (
                 <div className="flex flex-col items-center mt-1 space-y-1">
                   <div className="flex gap-1">
@@ -300,7 +319,7 @@ export default function MoodCalendar() {
                       const firstEmotion = mood?.emotions?.[0];
                       const color = firstEmotion?.color || '#gray-400';
                       const emotionNames = mood?.emotions?.map(e => e?.emotion).filter(Boolean).join(', ') || 'Unknown';
-                      
+
                       return (
                         <div
                           key={moodIndex}
@@ -327,26 +346,26 @@ export default function MoodCalendar() {
       {selectedDay && selectedDay.moods.length > 0 && (
         <div className="mt-6 p-6 bg-gradient-to-r from-teal-50 to-blue-50 rounded-xl border border-teal-100">
           <h5 className="font-bold text-gray-900 mb-4 text-lg">
-            📅 {selectedDay.date.toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
+            📅 {selectedDay.date.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
             })}
           </h5>
-          
+
           <div className="space-y-4">
             {selectedDay.moods.map((mood, index) => {
               // Add safety checks for mood details
               if (!mood || !mood.emotions) return null;
-              
+
               return (
                 <div key={index} className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm">
                   <div className="flex items-center space-x-4">
                     <div className="flex gap-1">
                       {mood.emotions.slice(0, 4).map((emotion, emotionIndex) => {
                         if (!emotion || !emotion.color) return null;
-                        
+
                         return (
                           <div
                             key={emotionIndex}
@@ -376,7 +395,7 @@ export default function MoodCalendar() {
               );
             })}
           </div>
-          
+
           {selectedDay.moods[0]?.notes && (
             <div className="mt-4 p-4 bg-white rounded-lg border-l-4 border-blue-300">
               <p className="text-sm text-gray-700 italic">
@@ -412,7 +431,7 @@ export default function MoodCalendar() {
           </div>
           <div className="text-center p-4 bg-green-50 rounded-lg">
             <div className="text-2xl font-bold text-green-600">
-              {moodData.filter(mood => 
+              {moodData.filter(mood =>
                 mood?.emotions?.some(e => e && ['joy', 'love', 'surprise'].includes(e.emotion))
               ).length}
             </div>
@@ -442,21 +461,6 @@ export default function MoodCalendar() {
           </div>
         </div>
       </div>
-
-      {/* Debug Info (remove in production) */}
-      {import.meta.env.DEV && (
-        <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-          <h5 className="font-medium text-yellow-800 mb-2">Debug Info:</h5>
-          <p className="text-sm text-yellow-700">
-            Loaded {moodData.length} mood entries for {formatMonthYear(currentDate)}
-          </p>
-          {moodData.length > 0 && (
-            <pre className="text-xs text-yellow-600 mt-2 overflow-x-auto">
-              {JSON.stringify(moodData[0], null, 2)}
-            </pre>
-          )}
-        </div>
-      )}
     </div>
   );
 }

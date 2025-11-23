@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef, type ChangeEvent } from 'react';
 import { Camera, Upload, Bot, Target, Check } from 'lucide-react';
 
 interface DetectedEmotion {
@@ -28,7 +28,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [detectedEmotions, setDetectedEmotions] = useState<DetectedEmotion[]>([]);
   const [useCamera, setUseCamera] = useState(false);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -36,14 +36,14 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
   const startCamera = async () => {
     try {
       setIsCapturing(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          width: 640, 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: 640,
           height: 480,
           facingMode: 'user'
-        } 
+        }
       });
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
@@ -70,10 +70,10 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
     if (videoRef.current && canvasRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
-      
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
+
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0);
@@ -85,7 +85,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -100,7 +100,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
 
   const analyzeEmotion = async (imageData: string) => {
     setIsAnalyzing(true);
-    
+
     try {
       // Mock AI emotion detection (replace with actual AI service)
       const mockEmotions = await mockEmotionAnalysis(imageData);
@@ -118,7 +118,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
   const mockEmotionAnalysis = async (_imageData: string): Promise<DetectedEmotion[]> => {
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
     // Mock multiple emotions with varying confidence
     const possibleEmotions = [
       { emotion: 'joy', confidence: Math.random() * 0.4 + 0.3, color: EMOTION_COLORS.joy },
@@ -127,7 +127,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
       { emotion: 'surprise', confidence: Math.random() * 0.2 + 0.05, color: EMOTION_COLORS.surprise },
       { emotion: 'love', confidence: Math.random() * 0.3 + 0.1, color: EMOTION_COLORS.love }
     ];
-    
+
     // Return emotions above confidence threshold
     return possibleEmotions
       .filter(emotion => emotion.confidence > 0.15)
@@ -138,7 +138,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
   return (
     <div className="card">
       <h3 className="text-xl text-aurora-primary-light font-semibold mb-4">AI Emotion Detection</h3>
-      
+
       {!useCamera && !capturedImage && (
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
@@ -151,7 +151,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
               Take Selfie
               <span className="text-sm opacity-80">Use camera</span>
             </button>
-            
+
             <button
               onClick={() => fileInputRef.current?.click()}
               className="btn btn-secondary btn-lg flex-col py-6"
@@ -161,7 +161,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
               <span className="text-sm opacity-80">From gallery</span>
             </button>
           </div>
-          
+
           <input
             ref={fileInputRef}
             type="file"
@@ -169,7 +169,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
             onChange={handleFileUpload}
             className="hidden"
           />
-          
+
           <div className="p-4 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800">
               <strong>AI will detect:</strong> Multiple emotions, confidence levels, and assign mood colors for your calendar
@@ -190,7 +190,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
               🔴 Live
             </div>
           </div>
-          
+
           <div className="flex gap-4">
             <button
               onClick={capturePhoto}

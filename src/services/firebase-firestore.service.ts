@@ -103,6 +103,28 @@ export const firestoreService = {
     }
   },
 
+  async updateMoodLog(logId: string, updateData: Partial<MoodData>) {
+    try {
+      const logRef = doc(db, 'mood_logs', logId);
+
+      const updatePayload: any = {
+        ...updateData,
+        updated_at: Timestamp.now()
+      };
+
+      if (updateData.log_date) {
+        updatePayload.log_date = Timestamp.fromDate(updateData.log_date);
+      }
+
+      await updateDoc(logRef, updatePayload);
+      console.log('✅ Mood log updated');
+      return { id: logId, ...updatePayload };
+    } catch (error: any) {
+      console.error('❌ Error updating mood log:', error);
+      throw error;
+    }
+  },
+
   // Schedules
   async createSchedule(scheduleData: Omit<ScheduleData, 'user_id'>, userId: string) {
     try {
@@ -156,7 +178,7 @@ export const firestoreService = {
   async updateSchedule(scheduleId: string, updateData: Partial<ScheduleData>) {
     try {
       const scheduleRef = doc(db, 'schedules', scheduleId);
-      
+
       const updatePayload: any = {
         ...updateData,
         updated_at: Timestamp.now()

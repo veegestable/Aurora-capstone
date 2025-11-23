@@ -45,9 +45,9 @@ export default function StudentDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             <div className="flex items-center space-x-3">
-              <img 
-                src={logoLight} 
-                alt="Aurora Mental Health Platform" 
+              <img
+                src={logoLight}
+                alt="Aurora Mental Health Platform"
                 className="h-6 sm:h-8 w-auto"
               />
               <h1 className="text-lg sm:text-xl font-bold text-white hidden xs:block">Aurora</h1>
@@ -85,11 +85,10 @@ export default function StudentDashboard() {
                   <button
                     key={tab.id}
                     onClick={() => handleTabChange(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-medium transition-all ${
-                      activeTab === tab.id
-                        ? 'bg-aurora-secondary-blue text-white shadow-aurora'
-                        : 'text-white/70 hover:text-white hover:bg-aurora-secondary-green/20'
-                    }`}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-medium transition-all ${activeTab === tab.id
+                      ? 'bg-aurora-secondary-blue text-white shadow-aurora'
+                      : 'text-white/70 hover:text-white hover:bg-aurora-secondary-green/20'
+                      }`}
                   >
                     <Icon className="w-5 h-5" />
                     <span>{tab.label}</span>
@@ -101,7 +100,7 @@ export default function StudentDashboard() {
         </aside>
 
         {/* Main Content */}
-        <main 
+        <main
           className="flex-1 overflow-hidden bg-gradient-to-br from-aurora-primary-light/10 to-aurora-blue-500/10 pb-20 lg:pb-0 transition-all duration-500"
           style={{
             background: dynamicBackground || undefined
@@ -109,63 +108,63 @@ export default function StudentDashboard() {
         >
           <div className="h-full overflow-y-auto">
             <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-3 sm:py-4 lg:py-6">
-            {activeTab === 'mood' && (
-              <div>
-                
-                <MoodCheckIn 
-                  onMoodLogged={handleMoodLogged} 
-                  onBackgroundChange={setDynamicBackground}
-                />
-              </div>
-            )}
+              {activeTab === 'mood' && (
+                <div>
 
-            {activeTab === 'calendar' && (
-              <div>
-                <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Mood Calendar</h2>
-                  <p className="text-aurora-subtitle">
-                    View your emotional journey through time. Click on any day to see detailed mood information.
-                  </p>
+                  <MoodCheckIn
+                    onMoodLogged={handleMoodLogged}
+                    onBackgroundChange={setDynamicBackground}
+                  />
                 </div>
-                <MoodCalendar key={refreshKey} />
-              </div>
-            )}
-            
-            {activeTab === 'analytics' && (
-              <div>
-                <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Mood Analytics</h2>
-                  <p className="text-aurora-subtitle">
-                    Track your emotional patterns and insights over time.
-                  </p>
+              )}
+
+              {activeTab === 'calendar' && (
+                <div>
+                  <div className="mb-4 sm:mb-6">
+                    <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Mood Calendar</h2>
+                    <p className="text-aurora-subtitle">
+                      View your emotional journey through time. Click on any day to see detailed mood information.
+                    </p>
+                  </div>
+                  <MoodCalendar key={refreshKey} />
                 </div>
-                <Analytics key={refreshKey} />
-              </div>
-            )}
-            
-            {activeTab === 'schedule' && (
-              <div>
-                <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Academic Schedule</h2>
-                  <p className="text-aurora-subtitle">
-                    Manage your academic events and see how they relate to your mood patterns.
-                  </p>
+              )}
+
+              {activeTab === 'analytics' && (
+                <div>
+                  <div className="mb-4 sm:mb-6">
+                    <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Mood Analytics</h2>
+                    <p className="text-aurora-subtitle">
+                      Track your emotional patterns and insights over time.
+                    </p>
+                  </div>
+                  <Analytics key={refreshKey} />
                 </div>
-                <ScheduleManager />
-              </div>
-            )}
-            
-            {activeTab === 'notifications' && (
-              <div>
-                <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Notifications</h2>
-                  <p className="text-aurora-subtitle">
-                    Stay updated with reminders, check-in alerts, and important messages.
-                  </p>
+              )}
+
+              {activeTab === 'schedule' && (
+                <div>
+                  <div className="mb-4 sm:mb-6">
+                    <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Academic Schedule</h2>
+                    <p className="text-aurora-subtitle">
+                      Manage your academic events and see how they relate to your mood patterns.
+                    </p>
+                  </div>
+                  <ScheduleManager />
                 </div>
-                <NotificationPanel />
-              </div>
-            )}
+              )}
+
+              {activeTab === 'notifications' && (
+                <div>
+                  <div className="mb-4 sm:mb-6">
+                    <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Notifications</h2>
+                    <p className="text-aurora-subtitle">
+                      Stay updated with reminders, check-in alerts, and important messages.
+                    </p>
+                  </div>
+                  <NotificationPanel />
+                </div>
+              )}
             </div>
           </div>
         </main>
@@ -180,11 +179,10 @@ export default function StudentDashboard() {
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
-                className={`flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1 transition-all ${
-                  activeTab === tab.id
-                    ? 'text-aurora-secondary-green'
-                    : 'text-white/70'
-                }`}
+                className={`flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1 transition-all ${activeTab === tab.id
+                  ? 'text-aurora-secondary-green'
+                  : 'text-white/70'
+                  }`}
               >
                 <Icon className={`w-5 h-5 mb-1 ${activeTab === tab.id ? 'text-aurora-secondary-green' : 'text-white/70'}`} />
                 <span className={`text-xs font-medium truncate ${activeTab === tab.id ? 'text-aurora-secondary-green' : 'text-white/70'}`}>
