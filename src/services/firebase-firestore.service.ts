@@ -235,12 +235,18 @@ export const firestoreService = {
       );
 
       const querySnapshot = await getDocs(q);
-      const notifications = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        scheduled_for: doc.data().scheduled_for.toDate(),
-        created_at: doc.data().created_at.toDate()
-      }));
+      const notifications = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          user_id: data.user_id,
+          type: data.type,
+          message: data.message,
+          status: data.status,
+          scheduled_for: data.scheduled_for?.toDate() || new Date(),
+          created_at: data.created_at?.toDate() || new Date()
+        } as NotificationData & { id: string; created_at: Date };
+      });
 
       console.log('✅ Retrieved', notifications.length, 'notifications');
       return notifications;

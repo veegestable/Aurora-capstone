@@ -5,15 +5,8 @@ export interface NotificationData {
   scheduled_for: string;
 }
 
-const API_BASE_URL = 'http://localhost:3001';
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { 'Authorization': `Bearer ${token}` })
-  };
-};
+import { firestoreService } from './firebase-firestore.service';
+import { Timestamp } from 'firebase/firestore';
 
 export interface Notification {
   id: string;
@@ -27,53 +20,40 @@ export interface Notification {
 export const notificationService = {
   async getNotifications(userId: string): Promise<Notification[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/notifications?userId=${userId}`, {
-        headers: getAuthHeaders(),
-      });
+      const notifications = await firestoreService.getNotifications(userId);
+      return notifications.map(n => {
+        // Handle Firestore Timestamp
+        const scheduledFor = n.scheduled_for instanceof Timestamp ? n.scheduled_for.toDate() : new Date(n.scheduled_for);
+        const createdAt = n.created_at instanceof Timestamp ? n.created_at.toDate() : new Date(n.created_at);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      return result;
+        return {
+          id: n.id,
+          type: n.type,
+          message: n.message,
+          status: n.status,
+          scheduled_for: scheduledFor.toISOString(),
+          created_at: createdAt.toISOString()
+        };
+      }) as Notification[];
     } catch (error) {
       console.error('Get notifications error:', error);
-      return []; // Return empty array on error
+      return [];
     }
   },
 
   async getUnreadCount(userId: string): Promise<number> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/notifications/unread-count?userId=${userId}`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      return result.count || 0;
+      const notifications = await firestoreService.getNotifications(userId);
+      return notifications.filter(n => n.status !== 'read').length;
     } catch (error) {
       console.error('Get unread count error:', error);
-      return 0; // Return 0 on error
+      return 0;
     }
   },
 
   async markAsRead(notificationId: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
+      await firestoreService.markNotificationAsRead(notificationId);
     } catch (error) {
       console.error('Mark as read error:', error);
       throw error;
@@ -87,19 +67,24 @@ export const notificationService = {
     scheduled_for: string;
   }): Promise<Notification> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/notifications`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data),
-      });
+      const result = await firestoreService.createNotification({
+        type: data.type,
+        message: data.message,
+        status: 'pending',
+        scheduled_for: new Date(data.scheduled_for)
+      }, data.userId);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
+      const scheduledFor = result.scheduled_for instanceof Timestamp ? result.scheduled_for.toDate() : new Date(result.scheduled_for);
+      const createdAt = result.created_at instanceof Timestamp ? result.created_at.toDate() : new Date(result.created_at);
 
-      const result = await response.json();
-      return result;
+      return {
+        id: result.id,
+        type: result.type,
+        message: result.message,
+        status: result.status,
+        scheduled_for: scheduledFor.toISOString(),
+        created_at: createdAt.toISOString()
+      } as Notification;
     } catch (error) {
       console.error('Create notification error:', error);
       throw error;
