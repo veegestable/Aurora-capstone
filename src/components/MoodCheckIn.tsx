@@ -92,15 +92,7 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
     }
   };
 
-  const adjustEmotionIntensity = (emotionName: string, delta: number) => {
-    setSelectedEmotions(prev =>
-      prev.map(emotion =>
-        emotion.emotion === emotionName
-          ? { ...emotion, confidence: Math.max(0.1, Math.min(1, emotion.confidence + delta)) }
-          : emotion
-      )
-    );
-  };
+
 
   const getBlendedColor = () => {
     if (selectedEmotions.length === 0) return '#f3f4f6';
@@ -214,9 +206,9 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
 
   return (
     <div
-      className="mood-checkin-container transition-all duration-500 overflow-y-auto lg:overflow-y-visible"
+      className="mood-checkin-container transition-all duration-500 overflow-y-auto lg:overflow-y-visible pb-24 lg:pb-0"
     >
-      <div className="max-w-4xl mx-auto p-3 lg:p-4 min-h-full lg:min-h-0 lg:pb-0 pb-6">
+      <div className="max-w-4xl mx-auto p-3 lg:p-4 min-h-full lg:min-h-0">
         <div className="text-center mb-3 lg:mb-4">
           <h1 className="text-xl lg:text-2xl font-bold text-aurora-primary-dark mb-1">Daily Mood Check-In</h1>
           <p className="text-sm text-aurora-primary-dark/70">How are you feeling today? Let's capture your emotions.</p>
@@ -316,45 +308,44 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
 
               <div className="space-y-3">
                 {selectedEmotions.map((emotion, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-aurora-primary-light/10 rounded-lg backdrop-blur-sm">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-5 h-5 rounded-full"
-                        style={{ backgroundColor: emotion.color }}
-                      />
-                      <span className="font-medium capitalize text-aurora-primary-dark">{emotion.emotion}</span>
+                  <div key={index} className="flex flex-col p-4 bg-aurora-primary-light/10 rounded-lg backdrop-blur-sm gap-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-5 h-5 rounded-full"
+                          style={{ backgroundColor: emotion.color }}
+                        />
+                        <span className="font-medium capitalize text-aurora-primary-dark">{emotion.emotion}</span>
+                      </div>
+                      <span className="text-sm font-bold text-aurora-primary-dark/70">
+                        {Math.round(emotion.confidence * 100)}%
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => adjustEmotionIntensity(emotion.emotion, -0.1)}
-                        className="w-8 h-8 rounded-full bg-aurora-primary-light/20 hover:bg-aurora-primary-light/30 flex items-center justify-center text-aurora-primary-dark transition-colors"
-                        disabled={emotion.confidence <= 0.1}
-                        aria-label={`Decrease ${emotion.emotion} intensity`}
-                      >
-                        −
-                      </button>
-
-                      <div className="flex items-center gap-2">
-                        <div className="w-20 bg-aurora-primary-light/20 rounded-full h-2">
-                          <div
-                            className="bg-aurora-secondary-green h-2 rounded-full transition-all duration-200"
-                            style={{ width: `${emotion.confidence * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-medium w-10 text-aurora-primary-dark/70">
-                          {Math.round(emotion.confidence * 100)}%
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => adjustEmotionIntensity(emotion.emotion, 0.1)}
-                        className="w-8 h-8 rounded-full bg-aurora-primary-light/20 hover:bg-aurora-primary-light/30 flex items-center justify-center text-aurora-primary-dark transition-colors"
-                        disabled={emotion.confidence >= 1}
-                        aria-label={`Increase ${emotion.emotion} intensity`}
-                      >
-                        +
-                      </button>
+                      <span className="text-xs text-aurora-primary-dark/50">Low</span>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1.0"
+                        step="0.1"
+                        value={emotion.confidence}
+                        onChange={(e) => {
+                          const newConfidence = parseFloat(e.target.value);
+                          setSelectedEmotions(prev =>
+                            prev.map(item =>
+                              item.emotion === emotion.emotion
+                                ? { ...item, confidence: newConfidence }
+                                : item
+                            )
+                          );
+                        }}
+                        className="w-full h-2 bg-aurora-primary-light/20 rounded-lg appearance-none cursor-pointer slider"
+                        style={{
+                          background: `linear-gradient(to right, ${emotion.color} 0%, ${emotion.color} ${emotion.confidence * 100}%, #e2e8f0 ${emotion.confidence * 100}%, #e2e8f0 100%)`
+                        }}
+                      />
+                      <span className="text-xs text-aurora-primary-dark/50">High</span>
                     </div>
                   </div>
                 ))}
@@ -369,9 +360,12 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
               <h3 className="text-lg font-semibold mb-4 text-aurora-primary-dark">How's Your Energy?</h3>
               <div className="space-y-3">
                 <div>
-                  <label htmlFor="energy-level" className="text-sm font-medium text-aurora-primary-dark mb-2 flex items-center gap-1">
-                    <Zap className="w-4 h-4" />
-                    Energy Level: {energyLevel}/10
+                  <label htmlFor="energy-level" className="text-sm font-medium text-aurora-primary-dark mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4" />
+                      Energy Level
+                    </div>
+                    <span className="text-lg">{energyLevel <= 3 ? '🔋' : energyLevel <= 7 ? '⚡️' : '🚀'}</span>
                   </label>
                   <input
                     id="energy-level"
@@ -393,9 +387,12 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
                 </div>
 
                 <div>
-                  <label htmlFor="stress-level" className="text-sm font-medium text-aurora-primary-dark mb-2 flex items-center gap-1">
-                    <Frown className="w-4 h-4" />
-                    Stress Level: {stressLevel}/10
+                  <label htmlFor="stress-level" className="text-sm font-medium text-aurora-primary-dark mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Frown className="w-4 h-4" />
+                      Stress Level
+                    </div>
+                    <span className="text-lg">{stressLevel <= 3 ? '😌' : stressLevel <= 7 ? '😐' : '🤯'}</span>
                   </label>
                   <input
                     id="stress-level"
@@ -462,25 +459,25 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
             </div>
           )}
 
-          {/* Submit Button */}
-          <div className="text-center pt-2 lg:pt-3">
+          {/* Sticky Bottom Action Bar */}
+          <div className="fixed bottom-20 left-0 right-0 flex justify-center z-50 pointer-events-none px-4 lg:static lg:p-0 lg:pt-3">
             <button
               onClick={handleSubmit}
               disabled={selectedEmotions.length === 0 || isSubmitting}
-              className={`px-8 py-4 rounded-xl font-semibold text-lg transition-all ${selectedEmotions.length === 0 || isSubmitting
-                ? 'bg-aurora-primary-light/30 text-aurora-primary-dark/50 cursor-not-allowed'
-                : 'btn-aurora shadow-aurora hover:shadow-xl transform hover:scale-105'
+              className={`pointer-events-auto w-full max-w-sm px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-2xl border-2 border-white/20 backdrop-blur-sm ${selectedEmotions.length === 0 || isSubmitting
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-aurora-secondary-blue text-white hover:shadow-aurora hover:-translate-y-1 active:scale-95'
                 }`}
             >
               {isSubmitting ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Saving Your Mood...
+                  Saving...
                 </div>
               ) : (
-                <span className="flex items-center gap-2">
+                <span className="flex items-center justify-center gap-2">
                   <Target className="w-5 h-5" />
-                  {existingLogId ? 'Update Mood Check-In' : 'Complete Mood Check-In'}
+                  {existingLogId ? 'Update Check-In' : 'Complete Check-In'}
                 </span>
               )}
             </button>
