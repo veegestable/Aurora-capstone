@@ -238,41 +238,27 @@ export default function MoodCalendar() {
       </div>
 
       {/* Emotion Legend */}
-      <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg">
-        <h4 className="font-semibold text-gray-700 mb-3">Emotion Colors</h4>
-        <div className="grid grid-cols-4 gap-3 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-            <span className='text-gray-900'>Joy</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-pink-400"></div>
-            <span className='text-gray-900'>Love</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-            <span className='text-gray-900'>Sadness</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-            <span className='text-gray-900'>Anger</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-            <span className='text-gray-900'>Fear</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-orange-400"></div>
-            <span className='text-gray-900'>Surprise</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            <span className='text-gray-900'>Disgust</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-            <span className='text-gray-900'>Neutral</span>
-          </div>
+      <div className="mb-8 p-6 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-100 shadow-sm">
+        <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 ml-1">Emotion Guide</h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Joy', color: 'bg-yellow-400', ring: 'ring-yellow-200' },
+            { label: 'Love', color: 'bg-pink-400', ring: 'ring-pink-200' },
+            { label: 'Sadness', color: 'bg-blue-500', ring: 'ring-blue-200' },
+            { label: 'Anger', color: 'bg-red-500', ring: 'ring-red-200' },
+            { label: 'Fear', color: 'bg-purple-500', ring: 'ring-purple-200' },
+            { label: 'Surprise', color: 'bg-orange-400', ring: 'ring-orange-200' },
+            { label: 'Disgust', color: 'bg-green-500', ring: 'ring-green-200' },
+            { label: 'Neutral', color: 'bg-gray-400', ring: 'ring-gray-200' },
+          ].map((emotion) => (
+            <div
+              key={emotion.label}
+              className="group flex items-center gap-3 p-3 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 hover:-translate-y-0.5 transition-all duration-300 cursor-default"
+            >
+              <div className={`w-4 h-4 rounded-full ${emotion.color} ring-4 ${emotion.ring} ring-opacity-40 group-hover:ring-opacity-70 transition-all`}></div>
+              <span className="text-sm font-bold text-gray-700 group-hover:text-gray-900 transition-colors">{emotion.label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -291,7 +277,7 @@ export default function MoodCalendar() {
             key={index}
             onClick={() => setSelectedDay(day)}
             className={`
-              relative p-3 h-20 cursor-pointer transition-all duration-200 rounded-lg border-2
+              relative p-2 md:p-3 aspect-square cursor-pointer transition-all duration-200 rounded-lg border-2
               ${day.isCurrentMonth ? 'hover:shadow-lg hover:scale-105' : 'opacity-40'}
               ${day.isToday ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-200' : 'border-gray-100'}
               ${selectedDay?.date.toDateString() === day.date.toDateString() ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : ''}

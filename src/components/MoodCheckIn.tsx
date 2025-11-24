@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { EmotionDetection } from './EmotionDetection';
 import { moodService } from '../services/mood.service';
 import { useAuth } from '../contexts/AuthContext';
-import { Zap, Frown, Target } from 'lucide-react';
+import { Zap, Frown, Target, Sparkles, MousePointerClick } from 'lucide-react';
 
 interface DetectedEmotion {
   emotion: string;
@@ -223,24 +223,33 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
         </div>
 
         {/* Mode Toggle */}
-        <div className="flex justify-center mb-3 lg:mb-4">
-          <div className="flex bg-aurora-primary-light/20 rounded-lg p-1 backdrop-blur-sm">
+        <div className="flex justify-center mb-6 lg:mb-8">
+          <div className="relative flex bg-gray-100/50 p-1.5 rounded-full border border-gray-200 shadow-inner backdrop-blur-sm">
+            {/* Sliding Background Pill */}
+            <div
+              className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-full shadow-sm transition-all duration-300 ease-out ${isManualMode ? 'translate-x-[calc(100%+6px)]' : 'translate-x-0'
+                }`}
+            />
+
             <button
               onClick={() => setIsManualMode(false)}
-              className={`px-4 py-2 rounded text-sm font-medium transition-all ${!isManualMode
-                ? 'bg-white shadow-aurora text-aurora-secondary-blue'
-                : 'text-aurora-primary-dark/70 hover:text-aurora-primary-dark'
+              className={`relative z-10 flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 ${!isManualMode
+                ? 'text-aurora-secondary-blue'
+                : 'text-gray-500 hover:text-gray-700'
                 }`}
             >
+              <Sparkles className={`w-4 h-4 ${!isManualMode ? 'animate-pulse' : ''}`} />
               AI Detection
             </button>
+
             <button
               onClick={() => setIsManualMode(true)}
-              className={`px-4 py-2 rounded text-sm font-medium transition-all ${isManualMode
-                ? 'bg-white shadow-aurora text-aurora-secondary-blue'
-                : 'text-aurora-primary-dark/70 hover:text-aurora-primary-dark'
+              className={`relative z-10 flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 ${isManualMode
+                ? 'text-aurora-secondary-blue'
+                : 'text-gray-500 hover:text-gray-700'
                 }`}
             >
+              <MousePointerClick className="w-4 h-4" />
               Manual Selection
             </button>
           </div>

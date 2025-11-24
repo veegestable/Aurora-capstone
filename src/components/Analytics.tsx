@@ -317,7 +317,7 @@ export default function Analytics() {
       </div>
 
       {/* Streak Card */}
-      <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-2xl p-6 text-white shadow-lg flex items-center justify-between">
+      <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-2xl p-4 md:p-6 text-white shadow-lg flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-white/20 rounded-full backdrop-blur-sm">
             <Flame className="w-8 h-8 text-white fill-white" />
@@ -337,7 +337,7 @@ export default function Analytics() {
       </div>
 
       {/* Time of Day Stats */}
-      <div className="bg-gradient-to-r from-purple-300 to-purple-400 rounded-2xl p-6 text-white shadow-lg">
+      <div className="bg-gradient-to-r from-purple-300 to-purple-400 rounded-2xl p-4 md:p-6 text-white shadow-lg">
         <h4 className="text-lg font-semibold mb-6">When you usually log mood</h4>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div className="flex flex-col items-center gap-2">
@@ -358,8 +358,8 @@ export default function Analytics() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-teal-100 rounded-lg">
               <Calendar className="w-5 h-5 text-teal-600" />
@@ -369,7 +369,7 @@ export default function Analytics() {
           <p className="text-3xl font-bold text-gray-900">{stats.totalCheckIns}</p>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-cyan-100 rounded-lg">
               <Smile className="w-5 h-5 text-cyan-600" />
@@ -379,7 +379,7 @@ export default function Analytics() {
           <p className="text-3xl font-bold text-gray-900">{stats.uniqueEmotions}</p>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-orange-100 rounded-lg">
               <TrendingUp className="w-5 h-5 text-orange-600" />
@@ -396,7 +396,7 @@ export default function Analytics() {
           </p>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-100 rounded-lg">
               <AlertCircle className="w-5 h-5 text-blue-600" />
@@ -408,7 +408,7 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
           <h4 className="text-lg font-semibold text-gray-900 mb-4">Top Emotions</h4>
           <div className="space-y-3">
             {stats.topEmotions.map(({ emotion, count, color }) => (
@@ -437,7 +437,7 @@ export default function Analytics() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
           <h4 className="text-lg font-semibold text-gray-900 mb-4">Mood & Events</h4>
           {stats.eventCorrelation.length === 0 ? (
             <p className="text-gray-600 text-center py-8">
@@ -468,7 +468,7 @@ export default function Analytics() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+      <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
         <h4 className="text-lg font-semibold text-gray-900 mb-4">Weekly Intensity Trend</h4>
         <div className="flex items-end gap-2 h-48">
           {stats.weeklyTrend.map(({ week, averageIntensity }, index) => {
