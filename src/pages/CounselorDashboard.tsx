@@ -39,14 +39,14 @@ export default function CounselorDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             <div className="flex items-center space-x-3">
-              <img 
-                src={logoLight} 
-                alt="Aurora Mental Health Platform" 
+              <img
+                src={logoLight}
+                alt="Aurora Mental Health Platform"
                 className="h-6 sm:h-8 w-auto"
               />
               <h1 className="text-lg sm:text-xl font-bold text-white hidden xs:block font-primary">Aurora - Counselor</h1>
             </div>
-            
+
             <div className="flex items-center space-x-2 sm:space-x-4">
               <div className="flex items-center space-x-2">
                 <div className="w-7 h-7 sm:w-8 sm:h-8 gradient-aurora-primary rounded-full flex items-center justify-center ring-2 ring-aurora-blue-500/20">
@@ -79,11 +79,10 @@ export default function CounselorDashboard() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-medium transition-all ${
-                      activeTab === tab.id
-                        ? 'bg-aurora-secondary-blue text-white shadow-aurora'
-                        : 'text-white/70 hover:text-white hover:bg-aurora-secondary-green/20'
-                    }`}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-medium transition-all ${activeTab === tab.id
+                      ? 'bg-aurora-secondary-blue text-white shadow-aurora'
+                      : 'text-white/70 hover:text-white hover:bg-aurora-secondary-green/20'
+                      }`}
                   >
                     <Icon className="w-5 h-5" />
                     <span>{tab.label}</span>
@@ -137,7 +136,7 @@ export default function CounselorDashboard() {
                 </div>
               </div>
             )}
-            
+
             {activeTab === 'analytics' && (
               <div>
                 <div className="mb-4 sm:mb-6">
@@ -155,7 +154,7 @@ export default function CounselorDashboard() {
                 </div>
               </div>
             )}
-            
+
             {activeTab === 'messages' && (
               <div>
                 <div className="mb-4 sm:mb-6">
@@ -173,7 +172,7 @@ export default function CounselorDashboard() {
                 </div>
               </div>
             )}
-            
+
             {activeTab === 'settings' && (
               <div>
                 <div className="mb-4 sm:mb-6">
@@ -204,11 +203,10 @@ export default function CounselorDashboard() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1 transition-all ${
-                  activeTab === tab.id
-                    ? 'text-aurora-secondary-green'
-                    : 'text-white/70'
-                }`}
+                className={`flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1 transition-all ${activeTab === tab.id
+                  ? 'text-aurora-secondary-green'
+                  : 'text-white/70'
+                  }`}
               >
                 <Icon className={`w-5 h-5 mb-1 ${activeTab === tab.id ? 'text-aurora-secondary-green' : 'text-white/70'}`} />
                 <span className={`text-xs font-medium truncate ${activeTab === tab.id ? 'text-aurora-secondary-green' : 'text-white/70'}`}>
