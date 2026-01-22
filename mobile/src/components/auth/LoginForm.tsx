@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../stores/AuthContext';
 import { router } from 'expo-router';
-import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
-import { Card } from '../ui/Card';
+import { Button } from '../common/Button';
+import { Input } from '../common/Input';
+import { Card } from '../common/Card';
 
 export default function LoginForm() {
     const { signIn, signUp } = useAuth();

@@ -1,10 +1,2 @@
-import { View } from 'react-native';
-import Analytics from '../../components/Analytics';
-
-export default function AnalyticsPage() {
-    return (
-        <View className="flex-1 bg-white p-4">
-            <Analytics />
-        </View>
-    );
-}
+import AnalyticsScreen from '../../src/pages/dashboard/AnalyticsScreen';
+export default AnalyticsScreen;

@@ -1,0 +1,6 @@
+Testing endpoints...
+https://sh00py-aurora-ai-backend.hf.space/api/predict [POST]: 405 Method Not Allowed
+https://sh00py-aurora-ai-backend.hf.space/predict [POST]: 405 Method Not Allowed
+https://sh00py-aurora-ai-backend.hf.space/run/predict [POST]: 405 Method Not Allowed
+https://sh00py-aurora-ai-backend.hf.space/call/predict [POST]: 405 Method Not Allowed
+https://sh00py-aurora-ai-backend.hf.space/gradio_api/call/predict [POST]: 405 Method Not Allowed

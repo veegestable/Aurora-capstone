@@ -11,7 +11,7 @@ import {
   updateDoc,
   deleteDoc
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db } from './firebase';
 
 export interface MoodData {
   user_id: string;

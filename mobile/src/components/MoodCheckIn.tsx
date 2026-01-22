@@ -3,11 +3,11 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Platform, I
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { EmotionDetection } from './EmotionDetection';
 import { moodService } from '../services/mood.service';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../stores/AuthContext';
 import { Sparkles, MousePointerClick, Zap, Frown, Target, ClipboardList, ArrowLeft } from 'lucide-react-native';
-import { Button } from './ui/Button';
-import { Card } from './ui/Card';
-import { router } from 'expo-router';
+import { Button } from './common/Button';
+import { Card } from './common/Card';
+import { useRouter } from 'expo-router';
 
 
 interface DetectedEmotion {
@@ -110,11 +110,13 @@ const MANUAL_EMOTIONS = [
 type CheckInMode = 'manual' | 'camera';
 
 export function MoodCheckIn() {
+    const router = useRouter();
     const { user } = useAuth();
     const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>([]);
     const [notes, setNotes] = useState('');
     const [isManualMode, setIsManualMode] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSubmitted, setIsSubmitted] = useState(false);
     const [energyLevel, setEnergyLevel] = useState(5);
     const [stressLevel, setStressLevel] = useState(3);
     const [existingLogId, setExistingLogId] = useState<string | null>(null);
@@ -213,6 +215,25 @@ export function MoodCheckIn() {
         }
     };
 
+    const getMoodMessage = () => {
+        const primaryEmotion = selectedEmotions[0]?.emotion.toLowerCase();
+        const negativeEmotions = ['sadness', 'anger', 'fear', 'disgust'];
+
+        if (negativeEmotions.includes(primaryEmotion)) {
+            return {
+                title: "It's okay not to be okay.",
+                message: "Remember to take deep breaths. Try a mindfulness exercise to help center yourself.",
+                isPositive: false
+            };
+        }
+
+        return {
+            title: "Keep up the great vibes!",
+            message: "You're doing amazing! Hold onto this feeling and carry it with you.",
+            isPositive: true
+        };
+    };
+
     const handleSubmit = async () => {
         if (selectedEmotions.length === 0) {
             Alert.alert('Error', 'Please select at least one emotion');
@@ -244,18 +265,17 @@ export function MoodCheckIn() {
 
             if (existingLogId) {
                 await moodService.updateMoodLog(existingLogId, moodData);
-                Alert.alert('Success', 'Mood log updated!');
             } else {
                 const newLog = await moodService.createMoodLog(moodData);
                 setExistingLogId(newLog.id);
-                Alert.alert('Success', 'Mood logged!');
             }
-            setCurrentStep(1); // Reset to first step
-            await loadDailyMood(); // Reload the latest data to reflect changes
-            // router.replace('/dashboard/calendar'); // Optional
+
+            // Instead of resetting, show the success view
+            setIsSubmitting(false);
+            setIsSubmitted(true);
+            await loadDailyMood(); // Reload to ensure we have the latest state (e.g. ID)
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to check in');
-        } finally {
             setIsSubmitting(false);
         }
     };
@@ -294,8 +314,51 @@ export function MoodCheckIn() {
         </View>
     );
 
+    if (isSubmitted) {
+        const moodMessage = getMoodMessage();
+        return (
+            <View className="flex-1 bg-gray-50 items-center justify-center p-6">
+                <View className="bg-white p-8 rounded-3xl shadow-lg w-full items-center space-y-6">
+                    <View className={`p-6 rounded-full ${moodMessage.isPositive ? 'bg-yellow-100' : 'bg-blue-100'}`}>
+                        {moodMessage.isPositive ?
+                            <Sparkles size={48} color="#EAB308" /> :
+                            <Ionicons name="leaf-outline" size={48} color="#3B82F6" />
+                        }
+                    </View>
+
+                    <View className="space-y-2 text-center items-center">
+                        <Text className="text-2xl font-bold text-gray-900 text-center">{moodMessage.title}</Text>
+                        <Text className="text-gray-600 text-center text-lg leading-6">{moodMessage.message}</Text>
+                    </View>
+
+                    <View className="w-full space-y-3 pt-4">
+                        <Button
+                            variant="primary"
+                            size="lg"
+                            className="w-full"
+                            onPress={() => router.replace('/dashboard/calendar')}
+                        >
+                            Back to Dashboard
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="lg"
+                            className="w-full"
+                            onPress={() => setIsSubmitted(false)}
+                        >
+                            Edit Log
+                        </Button>
+                    </View>
+                </View>
+            </View>
+        );
+    }
+
     return (
-        <ScrollView className="flex-1 bg-gray-50 pb-20">
+        <ScrollView
+            className="flex-1 bg-gray-50"
+            contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
+        >
             <View className="p-4 pt-8">
                 <Text className="text-2xl font-bold text-gray-900 text-center mb-1">
                     {currentStep === 1 && "How are you feeling?"}
@@ -354,7 +417,7 @@ export function MoodCheckIn() {
                         )}
 
                         {selectedEmotions.length > 0 && (
-                            <Card className="p-4 bg-white/80">
+                            <Card className="p-4 bg-white/80 mt-6">
                                 <Text className="font-semibold mb-4 text-gray-700">Intensity</Text>
                                 {selectedEmotions.map((emotion, index) => (
                                     <View key={index} className="mb-2">
@@ -499,7 +562,7 @@ export function MoodCheckIn() {
             </View>
 
             {/* NAVIGATION BUTTONS */}
-            <View className="flex-row gap-4 mt-8 mb-10">
+            <View className="flex-row gap-4 mt-8 mb-10 px-4">
                 {currentStep > 1 && (
                     <TouchableOpacity
                         onPress={handleBack}

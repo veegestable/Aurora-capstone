@@ -1,9 +1,12 @@
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { TouchableOpacity, Text, ActivityIndicator, TouchableOpacityProps, View } from 'react-native';
+
+// Fix for React 19 type mismatch
+const CompatibleTouchableOpacity = TouchableOpacity as React.ComponentType<TouchableOpacityProps & React.RefAttributes<View>>;
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-interface ButtonProps extends React.ComponentProps<typeof TouchableOpacity> {
+interface ButtonProps extends TouchableOpacityProps {
     variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
     size?: 'sm' | 'md' | 'lg';
     children: React.ReactNode;
@@ -51,7 +54,7 @@ export function Button({
     };
 
     return (
-        <TouchableOpacity
+        <CompatibleTouchableOpacity
             className={twMerge(
                 baseStyles,
                 variants[variant],
@@ -70,6 +73,6 @@ export function Button({
                     {children}
                 </Text>
             )}
-        </TouchableOpacity>
+        </CompatibleTouchableOpacity>
     );
 }

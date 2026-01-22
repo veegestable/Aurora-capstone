@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Image, SafeAreaView, Platform, Text, TouchableOpacity } from 'react-native';
+import { View, Image, Platform, Text, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LogOut } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../stores/AuthContext';
 
 export default function DashboardHeader() {
     const { user, signOut } = useAuth();

@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Image, Modal, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Image, Modal, Alert, StatusBar, Platform } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 // import { Camera, Upload, Scan, X, Check } from 'lucide-react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Button } from './ui/Button';
+import { Button } from './common/Button';
 
 interface DetectedEmotion {
     emotion: string;
@@ -49,20 +49,30 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
         }
     };
 
+    const closeCamera = () => {
+        setIsCameraVisible(false);
+        if (Platform.OS === 'android') {
+            // Small delay to ensure Modal animation doesn't conflict with StatusBar update
+            setTimeout(() => {
+                StatusBar.setHidden(false);
+                StatusBar.setTranslucent(true);
+                StatusBar.setBackgroundColor('transparent');
+                StatusBar.setBarStyle('light-content');
+            }, 100);
+        }
+    };
+
     const uploadPhoto = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             allowsEditing: true,
-            aspect: [4, 3],
+            aspect: [3, 4], // Portrait aspect ratio for selfies
             quality: 0.8,
-            base64: true,
-
         });
 
-        if (!result.canceled && result.assets[0].base64) {
-            const imageData = `data:image/jpeg;base64,${result.assets[0].base64}`;
-            setCapturedImage(imageData);
-            analyzeEmotion(imageData);
+        if (!result.canceled && result.assets[0].uri) {
+            setCapturedImage(result.assets[0].uri);
+            analyzeEmotion(result.assets[0].uri);
         }
     };
 
@@ -70,40 +80,40 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
         if (cameraRef.current) {
             const photo = await cameraRef.current.takePictureAsync({
                 quality: 0.8,
-                base64: true,
             });
-            if (photo?.base64) {
-                const imageData = `data:image/jpeg;base64,${photo.base64}`;
-                setCapturedImage(imageData);
-                setIsCameraVisible(false);
-                analyzeEmotion(imageData);
+            if (photo?.uri) {
+                setCapturedImage(photo.uri);
+                closeCamera();
+                analyzeEmotion(photo.uri);
             }
         }
     };
 
     // AI Emotion Analysis
-    const getEmotionAnalysis = async (base64Image: string): Promise<DetectedEmotion[]> => {
+    const getEmotionAnalysis = async (imageUri: string): Promise<DetectedEmotion[]> => {
         const API_URL = process.env.EXPO_PUBLIC_EMOTION_API_URL;
 
         if (!API_URL) {
             throw new Error('API URL is not configured');
         }
 
-        // Clean base64 string if needed (remove data:image/jpeg;base64, prefix)
-        const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, "");
-
         try {
-            console.log('Sending request to:', `${API_URL}/predict`);
+            console.log('Sending request to:', `${API_URL}/api/emotion/analyze-upload`);
 
-            // Try standard Gradio/HF Space structure first
-            const response = await fetch(`${API_URL}/predict`, {
+            const formData = new FormData();
+            formData.append('file', {
+                uri: imageUri,
+                name: 'photo.jpg',
+                type: 'image/jpeg',
+            } as any);
+
+            const response = await fetch(`${API_URL}/api/emotion/analyze-upload`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Content-Type': 'multipart/form-data',
                 },
-                body: JSON.stringify({
-                    data: [cleanBase64]
-                }),
+                body: formData,
             });
 
             if (!response.ok) {
@@ -114,45 +124,23 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
             const result = await response.json();
             console.log('API Response:', result);
 
-            // Parse Gradio response format: { data: [{ label: 'joy', score: 0.9 }, ...] } or similar
-            // Adjust parsing based on actual response structure. 
-            // Assuming the model returns a list of emotions with scores.
-
-            let predictions: any[] = [];
-
-            // Case 1: Gradio { data: [ { label: 'joy', score: 0.9 }, ... ] } -- usually data[0] is the result
-            if (result.data && Array.isArray(result.data)) {
-                // Often Gradio returns the output of the function in data array.
-                // If the function returns a dictionary of probabilities:
-                if (typeof result.data[0] === 'object') {
-                    // Normalize format to [ { label, score } ]
-                    // If it's a dictionary like { 'joy': 0.9, 'sadness': 0.1 }
-                    if (!result.data[0].label) {
-                        predictions = Object.entries(result.data[0]).map(([label, score]) => ({
-                            label,
-                            score: Number(score)
-                        }));
-                    } else {
-                        // Already list of objects?
-                        predictions = result.data; // check structure
-                    }
-                }
-            } else if (Array.isArray(result)) {
-                // Direct array response
-                predictions = result;
+            if (!result.success || !result.face_detected) {
+                if (!result.face_detected) throw new Error('No face detected in the image.');
+                throw new Error(result.error || 'Unknown API error');
             }
 
-            // Map to DetectedEmotion interface
-            return predictions.map((p: any) => {
-                const emotionName = p.label || p.emotion || 'unknown';
-                return {
-                    emotion: emotionName.toLowerCase(),
-                    confidence: p.score || p.confidence || 0,
-                    color: EMOTION_COLORS[emotionName.toLowerCase()] || EMOTION_COLORS.neutral
-                };
-            })
-                // Filter and Sort
-                .filter(e => e.confidence > 0.05)
+            // Parse response format: { emotions: { 'happiness': 98.5, 'neutral': 1.5, ... } }
+            let predictions: DetectedEmotion[] = [];
+
+            if (result.emotions) {
+                predictions = Object.entries(result.emotions).map(([emotion, score]) => ({
+                    emotion: emotion.toLowerCase(),
+                    confidence: (score as number) / 100, // Convert percentage to 0-1
+                    color: EMOTION_COLORS[emotion.toLowerCase()] || EMOTION_COLORS.neutral
+                }));
+            }
+
+            return predictions
                 .sort((a, b) => b.confidence - a.confidence)
                 .slice(0, 3);
 
@@ -162,15 +150,18 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
         }
     };
 
-    const analyzeEmotion = async (imageData: string) => {
+    const analyzeEmotion = async (imageUri: string) => {
         setIsAnalyzing(true);
         try {
-            const emotions = await getEmotionAnalysis(imageData);
+            // Check if it's a data URI (old behavior) or file URI
+            // if it is a data URI, we might need to assume it won't work with this new API approach easily
+            // unless we convert it. But capture/upload now provide URIs.
+            const emotions = await getEmotionAnalysis(imageUri);
             setDetectedEmotions(emotions);
             onEmotionDetected(emotions);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Emotion analysis failed:', error);
-            Alert.alert('Analysis Failed', 'Could not detect emotions. Please try again.');
+            Alert.alert('Analysis Failed', error.message || 'Could not detect emotions. Please try again.');
         } finally {
             setIsAnalyzing(false);
         }
@@ -200,7 +191,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                 </View>
             ) : (
                 <View className="items-center w-full">
-                    <View className="relative w-full h-64 rounded-xl overflow-hidden mb-4">
+                    <View className="relative w-full aspect-[3/4] bg-gray-100 rounded-xl overflow-hidden mb-4">
                         <Image
                             source={{ uri: capturedImage }}
                             className="w-full h-full"
@@ -267,15 +258,16 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
             <Modal visible={isCameraVisible} animationType="slide">
                 <View className="flex-1 bg-black">
                     {permission?.granted ? (
-                        <CameraView
-                            ref={cameraRef}
-                            style={{ flex: 1 }}
-                            facing={facing}
-                        >
-                            <View className="flex-1 bg-transparent justify-end pb-10">
+                        <View style={{ flex: 1 }}>
+                            <CameraView
+                                ref={cameraRef}
+                                style={{ flex: 1 }}
+                                facing={facing}
+                            />
+                            <View className="absolute inset-0 justify-end pb-10 custom-overlay" pointerEvents="box-none">
                                 <View className="flex-row justify-center items-center gap-8">
                                     <TouchableOpacity
-                                        onPress={() => setIsCameraVisible(false)}
+                                        onPress={closeCamera}
                                         className="p-4 bg-white/20 rounded-full"
                                     >
                                         <Ionicons name="close" size={24} color="white" />
@@ -294,7 +286,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                                     </TouchableOpacity>
                                 </View>
                             </View>
-                        </CameraView>
+                        </View>
                     ) : (
                         <View className="flex-1 items-center justify-center">
                             <Text className="text-white mb-4">Camera permission is required</Text>
@@ -302,7 +294,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                                 Grant Permission
                             </Button>
                             <TouchableOpacity
-                                onPress={() => setIsCameraVisible(false)}
+                                onPress={closeCamera}
                                 className="mt-8 p-4 bg-white/20 rounded-full"
                             >
                                 <Ionicons name="close" size={24} color="white" />

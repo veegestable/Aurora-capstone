@@ -1,10 +1,2 @@
-import { View } from 'react-native';
-import { MoodCheckIn } from '../../components/MoodCheckIn';
-
-export default function MoodPage() {
-    return (
-        <View className="flex-1 bg-white">
-            <MoodCheckIn />
-        </View>
-    );
-}
+import MoodScreen from '../../src/pages/dashboard/MoodScreen';
+export default MoodScreen;

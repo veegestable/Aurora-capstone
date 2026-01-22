@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Alert, FlatList } from 'react-native';
 import { Plus, Calendar, Trash2, Edit2, X, Clock } from 'lucide-react-native';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../stores/AuthContext';
 import { scheduleService, ScheduleData } from '../services/schedule.service';
-import { Button } from './ui/Button';
+import { Card } from './common/Card';
+import { Button } from './common/Button';
 
 interface Schedule {
     id: string;

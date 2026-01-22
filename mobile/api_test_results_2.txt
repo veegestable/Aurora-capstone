@@ -1,0 +1,19 @@
+Testing endpoints...
+https://sh00py-aurora-ai-backend.hf.space/api/predict [GET]: 404 Not Found
+https://sh00py-aurora-ai-backend.hf.space/api/predict [OPTIONS]: 200 OK
+Response: 
+https://sh00py-aurora-ai-backend.hf.space/predict [GET]: 404 Not Found
+https://sh00py-aurora-ai-backend.hf.space/predict [OPTIONS]: 200 OK
+Response: 
+https://sh00py-aurora-ai-backend.hf.space/run/predict [GET]: 404 Not Found
+https://sh00py-aurora-ai-backend.hf.space/run/predict [OPTIONS]: 200 OK
+Response: 
+https://sh00py-aurora-ai-backend.hf.space/call/predict [GET]: 404 Not Found
+https://sh00py-aurora-ai-backend.hf.space/call/predict [OPTIONS]: 200 OK
+Response: 
+https://sh00py-aurora-ai-backend.hf.space/config [GET]: 404 Not Found
+https://sh00py-aurora-ai-backend.hf.space/config [OPTIONS]: 200 OK
+Response: 
+https://sh00py-aurora-ai-backend.hf.space/info [GET]: 404 Not Found
+https://sh00py-aurora-ai-backend.hf.space/info [OPTIONS]: 200 OK
+Response: 

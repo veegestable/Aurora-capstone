@@ -1,6 +1,6 @@
 // Firebase-based mood service for Aurora
 import { firestoreService } from './firebase-firestore.service';
-import { auth } from '../config/firebase';
+import { auth } from './firebase';
 
 export const moodService = {
   async createMoodLog(moodData: any) {

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, X } from 'lucide-react-native';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../stores/AuthContext';
 import { moodService } from '../services/mood.service';
 import { MoodData } from '../services/firebase-firestore.service';
-import { Card } from './ui/Card';
+import { Card } from './common/Card';
 
 interface MoodEntry extends MoodData {
     id: string;

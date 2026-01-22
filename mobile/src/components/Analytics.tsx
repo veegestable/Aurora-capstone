@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { View, Text, ScrollView } from 'react-native';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../stores/AuthContext';
 import { moodService } from '../services/mood.service';
 import { scheduleService } from '../services/schedule.service';
 import { BarChart3, TrendingUp, Calendar, Zap, Frown, Sparkles, Lightbulb } from 'lucide-react-native';
-import { Card } from './ui/Card';
+import { Card } from './common/Card';
 
 export default function Analytics() {
     const { user } = useAuth();

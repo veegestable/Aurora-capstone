@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>AURORA Emotion Detection</title>
+        <link rel="stylesheet" href="/style.css">
+    </head>
+    <body>
+        <div class="container">
+            <h1>🎭 AURORA Emotion Detection</h1>
+            <p class="subtitle">Upload an image with a face to detect emotions</p>
+            
+            <div class="upload-box" id="dropZone">
+                <div class="upload-content">
+                    <span class="upload-icon">📷</span>
+                    <p>Drag & drop an image here, or click to select</p>
+                    <input type="file" id="imageInput" accept="image/*" hidden>
+                </div>
+                <img id="preview" class="preview-image">
+            </div>
+            
+            <button id="analyzeBtn" class="analyze-btn" disabled>
+                <span class="btn-text">Analyze Emotion</span>
+                <span class="btn-loading" hidden>Analyzing...</span>
+            </button>
+            
+            <div id="result" class="result-box"></div>
+        </div>
+        
+        <script src="/app.js"></script>
+    </body>
+</html>

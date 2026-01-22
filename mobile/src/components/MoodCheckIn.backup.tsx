@@ -3,10 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Platform, I
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { EmotionDetection } from './EmotionDetection';
 import { moodService } from '../services/mood.service';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../stores/AuthContext';
 import { Sparkles, MousePointerClick, Zap, Frown, Target, ClipboardList, ArrowLeft } from 'lucide-react-native';
-import { Button } from './ui/Button';
-import { Card } from './ui/Card';
+import { Button } from './common/Button';
+import { Card } from './common/Card';
 import { router } from 'expo-router';
 
 

@@ -7,7 +7,7 @@ import {
   User
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { auth, db } from './firebase';
 
 export interface SignUpData {
   email: string;
@@ -36,21 +36,21 @@ export const authService = {
   async signUp(data: SignUpData): Promise<UserProfile> {
     try {
       console.log('🔥 Creating Firebase user:', data.email);
-      
+
       // Create user with Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(
-        auth, 
-        data.email, 
+        auth,
+        data.email,
         data.password
       );
-      
+
       const user = userCredential.user;
-      
+
       // Update display name
       await updateProfile(user, {
         displayName: data.fullName
       });
-      
+
       // Create user profile in Firestore
       const userProfile: UserProfile = {
         uid: user.uid,
@@ -60,12 +60,12 @@ export const authService = {
         created_at: new Date(),
         updated_at: new Date()
       };
-      
+
       await setDoc(doc(db, 'users', user.uid), userProfile);
-      
+
       // Sign out user immediately to require manual login
       await auth.signOut();
-      
+
       console.log('✅ User created successfully - please log in');
       return userProfile;
     } catch (error: any) {
@@ -78,22 +78,22 @@ export const authService = {
   async signIn(data: SignInData): Promise<UserProfile> {
     try {
       console.log('🔥 Signing in user:', data.email);
-      
+
       const userCredential = await signInWithEmailAndPassword(
         auth,
         data.email,
         data.password
       );
-      
+
       const user = userCredential.user;
-      
+
       // Get user profile from Firestore
       const userDoc = await getDoc(doc(db, 'users', user.uid));
-      
+
       if (!userDoc.exists()) {
         throw new Error('User profile not found');
       }
-      
+
       const userProfile = userDoc.data() as UserProfile;
       console.log('✅ User signed in successfully');
       return userProfile;

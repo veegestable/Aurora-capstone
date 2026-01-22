@@ -1,6 +1,8 @@
 // Firebase configuration for Aurora Mental Health App
 import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+// @ts-ignore
+import { getAuth, Auth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -20,7 +22,10 @@ let auth: Auth;
 
 if (getApps().length === 0) {
     app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
+    // Initialize Auth with AsyncStorage persistence
+    auth = initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage)
+    });
 } else {
     app = getApp();
     auth = getAuth(app);
