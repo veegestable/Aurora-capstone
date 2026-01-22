@@ -361,7 +361,7 @@ export function MoodCheckIn() {
         >
             <View className="p-4 pt-8">
                 <Text className="text-2xl font-bold text-gray-900 text-center mb-1">
-                    {currentStep === 1 && "How are you feeling?"}
+                    {currentStep === 1 && `Hey ${user?.full_name ? user.full_name.split(' ')[0] : 'there'}, How are you feeling today?`}
                     {currentStep === 2 && "What's affecting you?"}
                     {currentStep === 3 && "Any final thoughts?"}
                 </Text>

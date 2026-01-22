@@ -16,6 +16,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string, role: 'student' | 'counselor') => Promise<{ success: boolean; message: string }>;
   signOut: () => void;
+  updateUser: (data: { full_name?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -115,12 +116,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateUser = async (data: { full_name?: string }) => {
+    if (!user) return;
+    try {
+      await authService.updateProfile(user.id, data);
+      setUser(prev => prev ? { ...prev, ...data } : null);
+      console.log('✅ User updated locally');
+    } catch (error) {
+      console.error('❌ Update user error:', error);
+      throw error;
+    }
+  };
+
   const value = {
     user,
     loading,
     signIn,
     signUp,
-    signOut
+    signOut,
+    updateUser
   };
 
   return (

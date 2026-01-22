@@ -6,7 +6,7 @@ import {
   updateProfile,
   User
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 export interface SignUpData {
@@ -110,6 +110,34 @@ export const authService = {
       console.log('✅ User signed out successfully');
     } catch (error: any) {
       console.error('❌ Signout error:', error.message);
+    }
+  },
+
+  // Update user profile
+  async updateProfile(uid: string, data: Partial<UserProfile>): Promise<void> {
+    try {
+      console.log('🔥 Updating user profile:', uid, data);
+
+      const updates: any = {
+        updated_at: new Date()
+      };
+
+      if (data.full_name) {
+        updates.full_name = data.full_name;
+
+        // Also update Firebase Auth profile if name is changed
+        const user = auth.currentUser;
+        if (user) {
+          await updateProfile(user, {
+            displayName: data.full_name
+          });
+        }
+      }
+
+      await updateDoc(doc(db, 'users', uid), updates);
+      console.log('✅ User profile updated successfully');
+    } catch (error: any) {
+      console.error('❌ Update profile error:', error.message);
       throw new Error(error.message);
     }
   },

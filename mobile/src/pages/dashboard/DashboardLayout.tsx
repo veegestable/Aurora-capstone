@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import { SwipeableTabs } from '../../components/navigation/SwipeableTabs';
-import { Heart, Calendar, BarChart3, ClipboardList, Bell } from 'lucide-react-native';
+import { Heart, Calendar, BarChart3, ClipboardList, Settings } from 'lucide-react-native';
 
 // Define options outside to prevent re-creation on every render
 const SCREEN_OPTIONS = {
@@ -77,10 +77,10 @@ export default function DashboardLayout() {
                     }}
                 />
                 <SwipeableTabs.Screen
-                    name="notifications"
+                    name="settings"
                     options={{
-                        title: 'Alerts',
-                        tabBarIcon: ({ color }: { color: string }) => <Bell size={24} color={color} />,
+                        title: 'Settings',
+                        tabBarIcon: ({ color }: { color: string }) => <Settings size={24} color={color} />,
                     }}
                 />
             </SwipeableTabs>
