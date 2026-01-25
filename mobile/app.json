@@ -39,7 +39,8 @@
           "cameraPermission": "Allow Aurora to access your camera to detect emotions.",
           "microphonePermission": "Allow Aurora to access your microphone."
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

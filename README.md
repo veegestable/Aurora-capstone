@@ -1,172 +1,115 @@
 # Aurora Mental Health Tracking App 🌅
 
-Aurora is a comprehensive mental health tracking application designed to help students monitor their emotional well-being and connect with counselors for support.
+Aurora is a comprehensive mental health tracking ecosystem designed to help students monitor their emotional well-being and connect with counselors.
+
+> **Project Structure**: This repository is a **Monorepo** containing both the Web Dashboard (React) and Mobile Application (React Native).
 
 ## 🎯 Features
 
-### For Students
-- **Mood Check-in**: Daily emotional state tracking with multiple emotion detection
-- **Mood Calendar**: Visual representation of mood patterns over time
-- **Analytics**: Insights into emotional trends and patterns
-- **Schedule Management**: Track academic deadlines and events
-- **Notifications**: Reminders for mood check-ins and important events
+### Mobile App (Student Focus)
+- **AI Camera**: Emotion detection using facial analysis
+- **Mood Check-in**: Daily tracking with intensity sliders
+- **Context Tracking**: Academic load, sleep, and stress factors
+- **Journal**: Personal reflection notes
+- **Visual Analytics**: Weekly and monthly mood charts
 
-### For Counselors
-- **Student Dashboard**: Overview of all assigned students
-- **Analytics**: Aggregate mood data and trends
-- **Communication**: Direct messaging with students
-- **Report Generation**: Detailed mental health reports
+### Web Dashboard (Counselor Focus)
+- **Student Overview**: Monitor assigned students
+- **Risk Alerts**: Auto-flagging of high-stress/low-mood patterns
+- **Analytics**: Aggregate data visualization
+- **Management**: Student assignment & reporting
+
+---
 
 ## 🛠️ Tech Stack
 
-### Frontend
-- **React 18** with TypeScript
-- **Vite** for fast development and building
-- **TailwindCSS** for styling with Aurora brand system
-- **React Router** for navigation
-- **Lucide React** for icons
+### Mobile App (`/mobile`)
+- **Framework**: React Native (Expo)
+- **Styling**: NativeWind (TailwindCSS for Native)
+- **Camera**: Expo Camera
+- **Navigation**: Expo Router
+- **Icons**: Ionicons
 
-### Backend
-- **Firebase** for authentication and database
-- **Firestore** for real-time data storage
-- **Firebase Auth** for user management
+### Web Dashboard (`/`)
+- **Framework**: React 18 + Vite
+- **Styling**: TailwindCSS
+- **Navigation**: React Router
 
-### Database
-- **Firebase Firestore** (Cloud-hosted NoSQL database)
-- **Real-time data synchronization**
-- **Scalable and secure**
+### Backend & Data (Shared)
+- **Firebase Auth**: User authentication
+- **Firestore**: Real-time NoSQL database
+- **Cloud Functions**: Backend logic
+
+---
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Node.js 18+
-- Firebase account
-- Git
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/aurora-mental-health.git
-   cd aurora-mental-health
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Firebase Setup**
-   ```bash
-   # Copy environment file
-   cp .env.example .env
-   ```
-   
-   Edit `.env` with your Firebase configuration:
-   ```env
-   VITE_FIREBASE_API_KEY=your_api_key
-   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your_project_id
-   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   VITE_FIREBASE_APP_ID=your_app_id
-   ```
-
-4. **Run the application**
-   ```bash
-   npm run dev
-   ```
-
-5. **Access the app**
-   - Frontend: http://localhost:5173
-   - All backend services are handled by Firebase (Authentication, Firestore, Storage)
-
-## 📱 Aurora Design System
-
-Aurora uses a custom design system with:
-- **Primary Colors**: Deep navy (#010632) and aurora blue (#3257FE)
-- **Secondary Colors**: Success green (#5ABA1C) and accent blue
-- **Emotion Colors**: Specific colors for each emotion (joy, calm, anger, etc.)
-- **Responsive Design**: Mobile-first with desktop sidebar and mobile bottom navigation
-
-## 🗂️ Project Structure
-
-```
-Aurora1/
-├── src/                    # Frontend React app
-│   ├── components/         # Reusable UI components
-│   ├── pages/             # Main application pages
-│   ├── services/          # Firebase service functions
-│   ├── contexts/          # React context providers
-│   ├── config/            # Firebase configuration
-│   └── utils/             # Helper utilities
-├── public/                # Static assets
-└── docs/                  # Documentation files
-```
-
-## 🔧 Development Commands
-
+### 1. Unified Setup (Root)
+First, clone the repository:
 ```bash
-# Frontend development
-npm run dev                 # Start Vite dev server
-npm run build              # Build for production
-npm run preview           # Preview production build
-
-# Code quality
-npm run lint            # Run ESLint
-npm run typecheck       # TypeScript type checking
+git clone https://github.com/yourusername/aurora-mental-health.git
+cd aurora-mental-health
 ```
 
-## 🌐 Production Deployment
-
-### Firebase Setup for Production
-1. Create a Firebase project at https://console.firebase.google.com
-2. Enable Authentication and Firestore Database
-3. Set up Firestore security rules for your application
-4. Deploy using Firebase Hosting or your preferred hosting service
-5. Update environment variables in your deployment platform:
-   ```env
-   VITE_FIREBASE_API_KEY=your_production_api_key
-   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your_project_id
-   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   VITE_FIREBASE_APP_ID=your_app_id
-   ```
-
-## 📊 Firestore Database Structure
-
-### Users Collection
-```typescript
-{
-  uid: string,
-  email: string,
-  fullName: string,
-  role: 'student' | 'counselor',
-  avatarUrl?: string,
-  createdAt: Timestamp,
-  updatedAt: Timestamp
-}
+### 2. Mobile App Setup
+Navigate to the mobile directory:
+```bash
+cd mobile
+npm install
 ```
 
-### MoodLogs Collection
-```typescript
-{
-  id: string,
-  userId: string,
-  emotions: [{
-    emotion: string,
-    confidence: number,
-    color: string
-  }],
-  notes?: string,
-  logDate: Timestamp,
-  energyLevel: number,
-  stressLevel: number,
-  detectionMethod: 'manual' | 'ai',
-  createdAt: Timestamp
-}
+**Running the Mobile App:**
+```bash
+npx expo start -c
 ```
+*   Scan the QR code with **Expo Go** (Android/iOS) or run on an Emulator.
+*   **Note**: Camera features require a physical device or a configured emulator with camera support.
+
+### 3. Web Dashboard Setup
+Navigate to the root directory (if you are in mobile, go back up):
+```bash
+cd ..
+npm install
+```
+
+**Running the Web App:**
+```bash
+npm run dev
+```
+*   Access at: `http://localhost:5173`
+
+---
+
+## �️ Project Structure
+
+```
+Aurora/
+├── mobile/                 # 📱 React Native App (Student)
+│   ├── app/                # Expo Router screens
+│   ├── components/         # Mobile components
+│   └── assets/             # Mobile assets
+│
+├── src/                    # 💻 React Web App (Counselor)
+│   ├── components/         # Web components
+│   ├── pages/             # Dashboard pages
+│   └── services/          # Firebase logic
+│
+├── public/                # Static assets
+└── firebase/              # Firebase config
+```
+
+## 🌐 Environment Setup
+
+You need to configure Firebase credentials. Create a `.env` file in **both** the root and `mobile/` directories (using `.env.example` as a template).
+
+```env
+EXPO_PUBLIC_FIREBASE_API_KEY=...
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=...
+# ... other Firebase config
+```
+*(Note: Mobile uses `EXPO_PUBLIC_` prefix for variables to be exposed in the app)*
+
+---
 
 ## 🤝 Contributing
 
@@ -179,20 +122,6 @@ npm run typecheck       # TypeScript type checking
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-For support and questions:
-- Check the [Documentation](./docs/)
-- Open an issue on GitHub
-- Contact the development team
-
-## 🙏 Acknowledgments
-
-- Built with ❤️ for mental health awareness
-- Icons by [Lucide](https://lucide.dev/)
-- Styling powered by [TailwindCSS](https://tailwindcss.com/)
-- Database by [MongoDB](https://mongodb.com/)
 
 ---
 
