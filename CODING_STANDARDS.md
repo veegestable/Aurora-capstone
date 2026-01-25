@@ -5,7 +5,7 @@ This document outlines the coding standards and best practices for the Aurora Ca
 ## 1. Core Technologies & Strict Mode
 - **Typescript**: All code must be written in TypeScript.
   - **Strict Mode**: `strict: true` is enabled in `tsconfig.json`. Do not disable it.
-  - **No `any`**: Avoid using `any`. Use specific types or `unknown` with proper type narrowing.
+  - **No New `any`**: **STOP** adding new `any` types. It disables safety and causes crashes. Use `unknown` or define a proper interface. Refactor existing `any` when modifying legacy code.
   - **Interfaces vs Types**: Prefer `interface` for object definitions and `type` for unions/primitives.
 
 ## 2. React Components
