@@ -4,9 +4,74 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 /* Note: Buenos Aires and Euclid Circular A are custom fonts - add local font files or CDN links */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-aurora-primary-dark: var(--aurora-primary-dark);
+  --color-aurora-primary-light: var(--aurora-primary-light);
+  --color-aurora-blue-main: var(--aurora-blue-main);
+  --color-aurora-blue-light: var(--aurora-blue-light);
+  --color-aurora-blue-dark: var(--aurora-blue-dark);
+  
+  --color-aurora-secondary-green: var(--aurora-secondary-green);
+  --color-aurora-secondary-blue: var(--aurora-secondary-blue);
+  --color-aurora-secondary-dark-green: var(--aurora-secondary-dark-green);
+  --color-aurora-secondary-dark-blue: var(--aurora-secondary-dark-blue);
+  
+  --color-aurora-emotions-joy: var(--mood-joy);
+  --color-aurora-emotions-sadness: var(--mood-sadness);
+  --color-aurora-emotions-fear: var(--mood-fear);
+  --color-aurora-emotions-disgust: var(--mood-disgust);
+  --color-aurora-emotions-anger: var(--mood-anger);
+  --color-aurora-emotions-love: var(--mood-love);
+  --color-aurora-emotions-surprise: var(--mood-surprise);
+  --color-aurora-emotions-neutral: var(--mood-neutral);
+  
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
+  --font-aurora: "Buenos Aires", "Euclid Circular A", "Inter", system-ui, sans-serif;
+  
+  --background-image-aurora-gradient: var(--aurora-gradient-main);
+  --background-image-aurora-light: var(--aurora-gradient-light);
+  --background-image-aurora-hero: var(--aurora-gradient-hero);
+  
+  --shadow-aurora: 0 10px 25px -5px rgba(74, 144, 226, 0.3), 0 8px 10px -6px rgba(74, 144, 226, 0.1);
+  --shadow-aurora-lg: 0 20px 25px -5px rgba(74, 144, 226, 0.4), 0 10px 10px -5px rgba(74, 144, 226, 0.2);
+
+    /* Missing Aurora Blue Scale */
+  --color-aurora-blue-50: #F0F4FF;
+  --color-aurora-blue-100: #E4ECFF;
+  --color-aurora-blue-200: #C7D7FF;
+  --color-aurora-blue-300: #9BB5FF;
+  --color-aurora-blue-400: #6B8FFF;
+  --color-aurora-blue-500: #4A90E2;
+  --color-aurora-blue-600: #3B7BF6;
+  --color-aurora-blue-700: #2563EB;
+  --color-aurora-blue-800: #1E40AF;
+  --color-aurora-blue-900: #010632;
+
+  /* Missing Accent Colors */
+  --color-aurora-accent-green: #4CAF50;
+  --color-aurora-accent-orange: #FF9800;
+  --color-aurora-accent-red: #F44336;
+  --color-aurora-accent-purple: #9C27B0;
+  --color-aurora-accent-pink: #E91E63;
+  
+  /* Missing Gray Scale */
+  --color-aurora-gray-50: #F9FAFB;
+  --color-aurora-gray-100: #F3F4F6;
+  --color-aurora-gray-200: #E5E7EB;
+  --color-aurora-gray-300: #D1D5DB;
+  --color-aurora-gray-400: #9CA3AF;
+  --color-aurora-gray-500: #6B7280;
+  --color-aurora-gray-600: #4B5563;
+  --color-aurora-gray-700: #374151;
+  --color-aurora-gray-800: #1F2937;
+  --color-aurora-gray-900: #111827;
+  
+  /* Missing Font */
+  --font-accent: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", "Arial", sans-serif;
+}
 
 :root {
   /* Aurora Typography - As specified in font.png */
