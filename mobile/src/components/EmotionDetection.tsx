@@ -168,7 +168,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
     };
 
     return (
-        <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <View className="bg-white rounded-xl p-4 shadow-xs border border-gray-100">
             <Text className="text-xl font-semibold text-gray-900 mb-4">AI Emotion Detection</Text>
 
             {!capturedImage ? (

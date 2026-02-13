@@ -401,7 +401,7 @@ export function MoodCheckIn() {
                                         <TouchableOpacity
                                             key={emotion.name}
                                             onPress={() => handleManualEmotionToggle(emotion)}
-                                            className={`items-center justify-center w-24 h-24 rounded-2xl ${isSelected ? 'border-2 border-blue-500 bg-blue-50' : 'bg-white border border-gray-100 shadow-sm'}`}
+                                            className={`items-center justify-center w-24 h-24 rounded-2xl ${isSelected ? 'border-2 border-blue-500 bg-blue-50' : 'bg-white border border-gray-100 shadow-xs'}`}
                                         >
                                             <Image
                                                 source={emotion.image}

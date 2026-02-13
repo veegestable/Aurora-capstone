@@ -86,7 +86,7 @@ export default function Analytics() {
         <ScrollView className="flex-1 space-y-4 pb-8">
             {/* AI Insights Card */}
             {insights.length > 0 && (
-                <View className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100 shadow-sm mb-2">
+                <View className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100 shadow-xs mb-2">
                     <View className="flex-row items-center gap-2 mb-3">
                         <Sparkles size={20} color="#4F46E5" />
                         <Text className="text-lg font-bold text-indigo-900">AI Mood Insights</Text>
@@ -106,28 +106,28 @@ export default function Analytics() {
 
             <View className="flex-row flex-wrap justify-between">
                 {/* Streak Card */}
-                <View className="w-[48%] bg-orange-50 p-4 rounded-xl border border-orange-100 shadow-sm mb-4">
+                <View className="w-[48%] bg-orange-50 p-4 rounded-xl border border-orange-100 shadow-xs mb-4">
                     <TrendingUp size={24} color="#F97316" className="mb-2" />
                     <Text className="text-3xl font-bold text-gray-900">{stats.streak}</Text>
                     <Text className="text-orange-700 font-medium">Day Streak</Text>
                 </View>
 
                 {/* Total Logs */}
-                <View className="w-[48%] bg-blue-50 p-4 rounded-xl border border-blue-100 shadow-sm mb-4">
+                <View className="w-[48%] bg-blue-50 p-4 rounded-xl border border-blue-100 shadow-xs mb-4">
                     <Calendar size={24} color="#3B82F6" className="mb-2" />
                     <Text className="text-3xl font-bold text-gray-900">{stats.totalLogs}</Text>
                     <Text className="text-blue-700 font-medium">Total Check-ins</Text>
                 </View>
 
                 {/* Avg Energy */}
-                <View className="w-[48%] bg-yellow-50 p-4 rounded-xl border border-yellow-100 shadow-sm mb-4">
+                <View className="w-[48%] bg-yellow-50 p-4 rounded-xl border border-yellow-100 shadow-xs mb-4">
                     <Zap size={24} color="#EAB308" className="mb-2" />
                     <Text className="text-3xl font-bold text-gray-900">{stats.averageEnergy}/10</Text>
                     <Text className="text-yellow-700 font-medium">Avg Energy</Text>
                 </View>
 
                 {/* Avg Stress */}
-                <View className="w-[48%] bg-purple-50 p-4 rounded-xl border border-purple-100 shadow-sm mb-4">
+                <View className="w-[48%] bg-purple-50 p-4 rounded-xl border border-purple-100 shadow-xs mb-4">
                     <Frown size={24} color="#A855F7" className="mb-2" />
                     <Text className="text-3xl font-bold text-gray-900">{stats.averageStress}/10</Text>
                     <Text className="text-purple-700 font-medium">Avg Stress</Text>

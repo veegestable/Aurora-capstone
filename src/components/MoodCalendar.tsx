@@ -196,7 +196,7 @@ export default function MoodCalendar() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="bg-white rounded-xl shadow-xs p-6">
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
           <p className="ml-4 text-gray-600">Loading mood calendar...</p>
@@ -206,7 +206,7 @@ export default function MoodCalendar() {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
+    <div className="bg-white rounded-xl shadow-xs p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
@@ -238,24 +238,24 @@ export default function MoodCalendar() {
       </div>
 
       {/* Emotion Legend */}
-      <div className="mb-8 p-6 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-100 shadow-sm">
+      <div className="mb-8 p-6 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-100 shadow-xs">
         <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 ml-1">Emotion Guide</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Joy', color: 'bg-yellow-400', ring: 'ring-yellow-200' },
-            { label: 'Love', color: 'bg-pink-400', ring: 'ring-pink-200' },
-            { label: 'Sadness', color: 'bg-blue-500', ring: 'ring-blue-200' },
-            { label: 'Anger', color: 'bg-red-500', ring: 'ring-red-200' },
-            { label: 'Fear', color: 'bg-purple-500', ring: 'ring-purple-200' },
-            { label: 'Surprise', color: 'bg-orange-400', ring: 'ring-orange-200' },
-            { label: 'Disgust', color: 'bg-green-500', ring: 'ring-green-200' },
-            { label: 'Neutral', color: 'bg-gray-400', ring: 'ring-gray-200' },
+            { label: 'Joy', color: 'bg-yellow-400', ring: 'ring-yellow-200/40', ringHover: 'group-hover:ring-yellow-200/70' },
+            { label: 'Love', color: 'bg-pink-400', ring: 'ring-pink-200/40', ringHover: 'group-hover:ring-pink-200/70' },
+            { label: 'Sadness', color: 'bg-blue-500', ring: 'ring-blue-200/40', ringHover: 'group-hover:ring-blue-200/70' },
+            { label: 'Anger', color: 'bg-red-500', ring: 'ring-red-200/40', ringHover: 'group-hover:ring-red-200/70' },
+            { label: 'Fear', color: 'bg-purple-500', ring: 'ring-purple-200/40', ringHover: 'group-hover:ring-purple-200/70' },
+            { label: 'Surprise', color: 'bg-orange-400', ring: 'ring-orange-200/40', ringHover: 'group-hover:ring-orange-200/70' },
+            { label: 'Disgust', color: 'bg-green-500', ring: 'ring-green-200/40', ringHover: 'group-hover:ring-green-200/70' },
+            { label: 'Neutral', color: 'bg-gray-400', ring: 'ring-gray-200/40', ringHover: 'group-hover:ring-gray-200/70' },
           ].map((emotion) => (
             <div
               key={emotion.label}
-              className="group flex items-center gap-3 p-3 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 hover:-translate-y-0.5 transition-all duration-300 cursor-default"
+              className="group flex items-center gap-3 p-3 rounded-xl bg-white border border-gray-100 shadow-xs hover:shadow-md hover:border-gray-200 hover:-translate-y-0.5 transition-all duration-300 cursor-default"
             >
-              <div className={`w-4 h-4 rounded-full ${emotion.color} ring-4 ${emotion.ring} ring-opacity-40 group-hover:ring-opacity-70 transition-all`}></div>
+              <div className={`w-4 h-4 rounded-full ${emotion.color} ring-4 ${emotion.ring} ${emotion.ringHover} transition-all`} />
               <span className="text-sm font-bold text-gray-700 group-hover:text-gray-900 transition-colors">{emotion.label}</span>
             </div>
           ))}
@@ -309,7 +309,7 @@ export default function MoodCalendar() {
                       return (
                         <div
                           key={moodIndex}
-                          className="w-2 h-2 rounded-full shadow-sm"
+                          className="w-2 h-2 rounded-full shadow-xs"
                           style={{ backgroundColor: color }}
                           title={emotionNames}
                         />
@@ -346,7 +346,7 @@ export default function MoodCalendar() {
               if (!mood || !mood.emotions) return null;
 
               return (
-                <div key={index} className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm">
+                <div key={index} className="flex items-center justify-between p-4 bg-white rounded-lg shadow-xs">
                   <div className="flex items-center space-x-4">
                     <div className="flex gap-1">
                       {mood.emotions.slice(0, 4).map((emotion, emotionIndex) => {
@@ -355,7 +355,7 @@ export default function MoodCalendar() {
                         return (
                           <div
                             key={emotionIndex}
-                            className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                            className="w-4 h-4 rounded-full border-2 border-white shadow-xs"
                             style={{ backgroundColor: emotion.color }}
                             title={`${emotion.emotion || 'Unknown'}: ${Math.round((emotion.confidence || 0) * 100)}%`}
                           />

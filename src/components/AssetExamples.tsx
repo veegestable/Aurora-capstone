@@ -68,10 +68,7 @@ export const AssetExamples: React.FC = () => {
       {/* Background Image Examples */}
       <div className="border rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-3">Background Images</h3>
-        <div
-          className="h-32 rounded-lg bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center"
-        // Example: style={{ backgroundImage: 'url(/images/aurora-bg.jpg)' }}
-        >
+        <div className="h-32 rounded-lg bg-linear-to-br from-blue-400 to-purple-500 flex items-center justify-center">
           <p className="text-white text-center">
             Add background images to public/images/<br />
             <span className="text-sm opacity-80">Use: style={`{backgroundImage: 'url(/images/bg.jpg)'}`}</span>

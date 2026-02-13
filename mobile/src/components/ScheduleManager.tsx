@@ -134,7 +134,7 @@ export default function ScheduleManager() {
                 <Text className="text-xl font-bold text-gray-900">Upcoming Events</Text>
                 <TouchableOpacity
                     onPress={() => setShowForm(true)}
-                    className="bg-teal-500 rounded-full w-10 h-10 items-center justify-center shadow-sm"
+                    className="bg-teal-500 rounded-full w-10 h-10 items-center justify-center shadow-xs"
                 >
                     <Plus color="white" size={24} />
                 </TouchableOpacity>
@@ -153,7 +153,7 @@ export default function ScheduleManager() {
                 renderItem={({ item }) => {
                     const styles = EVENT_TYPE_STYLES[item.event_type];
                     return (
-                        <View className={`mb-3 p-4 rounded-xl border-l-4 ${styles.bg} border-gray-100 border-l-${styles.text.split('-')[1]}-500 shadow-sm`}>
+                        <View className={`mb-3 p-4 rounded-xl border-l-4 ${styles.bg} border-gray-100 border-l-${styles.text.split('-')[1]}-500 shadow-xs`}>
                             <View className="flex-row justify-between items-start">
                                 <View className="flex-1">
                                     <View className="flex-row items-center mb-1">
@@ -169,10 +169,10 @@ export default function ScheduleManager() {
                                 </View>
 
                                 <View className="flex-row gap-2">
-                                    <TouchableOpacity onPress={() => handleEdit(item)} className="p-2 bg-white rounded-full shadow-sm">
+                                    <TouchableOpacity onPress={() => handleEdit(item)} className="p-2 bg-white rounded-full shadow-xs">
                                         <Edit2 size={16} color="#4B5563" />
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => handleDelete(item.id)} className="p-2 bg-white rounded-full shadow-sm">
+                                    <TouchableOpacity onPress={() => handleDelete(item.id)} className="p-2 bg-white rounded-full shadow-xs">
                                         <Trash2 size={16} color="#EF4444" />
                                     </TouchableOpacity>
                                 </View>

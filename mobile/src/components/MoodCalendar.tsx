@@ -151,7 +151,7 @@ export default function MoodCalendar() {
     return (
         <View className="flex-1">
             {/* Calendar Card */}
-            <View className="bg-white rounded-3xl shadow-sm border border-gray-100 p-4 mb-4">
+            <View className="bg-white rounded-3xl shadow-xs border border-gray-100 p-4 mb-4">
                 {/* Header */}
                 <View className="flex-row items-center justify-between mb-6 px-2">
                     <TouchableOpacity onPress={() => navigateMonth('prev')} className="p-2">
@@ -223,7 +223,7 @@ export default function MoodCalendar() {
 
             {/* Selected Day Details Section */}
             {selectedDay && selectedDay.moods.length > 0 ? (
-                <View className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
+                <View className="bg-white p-5 rounded-3xl shadow-xs border border-gray-100">
                     <Text className="font-bold text-lg text-gray-900 mb-4">
                         {selectedDay.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                     </Text>
@@ -261,7 +261,7 @@ export default function MoodCalendar() {
                     ))}
                 </View>
             ) : selectedDay && (
-                <View className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 items-center py-8">
+                <View className="bg-white p-6 rounded-3xl shadow-xs border border-gray-100 items-center py-8">
                     <Text className="font-bold text-lg text-gray-900 mb-1">
                         {selectedDay.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                     </Text>
