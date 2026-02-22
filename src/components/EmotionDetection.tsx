@@ -1,26 +1,11 @@
 import { useState, useRef, type ChangeEvent } from 'react';
 import { Camera, Upload, Bot, Target, Check } from 'lucide-react';
-
-interface DetectedEmotion {
-  emotion: string;
-  confidence: number;
-  color: string;
-}
+import type { DetectedEmotion } from '../types/mood.types'
+import { EMOTION_COLORS } from '../utils/emotions'
 
 interface EmotionDetectionProps {
   onEmotionDetected: (emotions: DetectedEmotion[]) => void;
 }
-
-const EMOTION_COLORS = {
-  joy: '#FFD700',
-  love: '#FF69B4',
-  surprise: '#FF8C00',
-  anger: '#DC143C',
-  fear: '#8A2BE2',
-  sadness: '#4169E1',
-  disgust: '#32CD32',
-  neutral: '#808080'
-};
 
 export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
   const [isCapturing, setIsCapturing] = useState(false);

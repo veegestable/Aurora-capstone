@@ -1,208 +1,28 @@
-import { useState, useEffect } from 'react';
-import { EmotionDetection } from './EmotionDetection';
-import { moodService } from '../services/mood.service';
-import { useAuth } from '../contexts/AuthContext';
-import { Zap, Frown, Target, Sparkles, MousePointerClick } from 'lucide-react';
-
-interface DetectedEmotion {
-  emotion: string;
-  confidence: number;
-  color: string;
-}
-
-interface MoodCheckInProps {
-  onMoodLogged?: () => void;
-  onBackgroundChange?: (background: string | undefined) => void;
-}
-
-const MANUAL_EMOTIONS = [
-  { name: 'joy', color: '#FFA900', label: 'Joy', emoji: '😊' },
-  { name: 'love', color: '#FF55B8', label: 'Love', emoji: '🥰' },
-  { name: 'surprise', color: '#FF7105', label: 'Surprise', emoji: '😮' },
-  { name: 'anger', color: '#F90038', label: 'Anger', emoji: '😡' },
-  { name: 'fear', color: '#920FFE', label: 'Fear', emoji: '😰' },
-  { name: 'sadness', color: '#086FE6', label: 'Sadness', emoji: '😢' },
-  { name: 'disgust', color: '#19BF20', label: 'Disgust', emoji: '🤢' },
-  { name: 'neutral', color: '#CAC1C4', label: 'Neutral', emoji: '😐' }
-];
+import { EmotionDetection } from './EmotionDetection'
+import { Zap, Frown, Target, Sparkles, MousePointerClick } from 'lucide-react'
+import type { MoodCheckInProps } from '../types/mood.types'
+import { MANUAL_EMOTIONS } from '../utils/emotions'
+import { getBlendedColorWeighted } from '../utils/moodColors'
+import { useMoodCheckIn } from '../hooks/useMoodCheckIn'
 
 export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInProps) {
-  const { user } = useAuth();
-  const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>([]);
-  const [notes, setNotes] = useState('');
-  const [isManualMode, setIsManualMode] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [energyLevel, setEnergyLevel] = useState(5);
-  const [stressLevel, setStressLevel] = useState(3);
-  const [existingLogId, setExistingLogId] = useState<string | null>(null);
-
-  // Check for existing mood log for today
-  useEffect(() => {
-    const checkExistingLog = async () => {
-      if (user) {
-        try {
-          const log = await moodService.getTodayMoodLog(user.id);
-          if (log) {
-            console.log('Found existing mood log:', log);
-            setExistingLogId(log.id);
-            setSelectedEmotions(log.emotions);
-            setNotes(log.notes);
-            setEnergyLevel(log.energy_level);
-            setStressLevel(log.stress_level);
-            setIsManualMode(log.detection_method === 'manual');
-          }
-        } catch (error) {
-          console.error('Error checking existing mood log:', error);
-        }
-      }
-    };
-
-    checkExistingLog();
-  }, [user]);
-
-  // Update background when emotions change
-  useEffect(() => {
-    if (onBackgroundChange) {
-      const background = selectedEmotions.length > 0
-        ? `linear-gradient(135deg, ${getBlendedColorWithAlpha(0.15)}, ${getBlendedColorWithAlpha(0.05)})`
-        : undefined;
-      onBackgroundChange(background);
-    }
-  }, [selectedEmotions, onBackgroundChange]);
-
-  const handleAIEmotionDetected = (emotions: DetectedEmotion[]) => {
-    setSelectedEmotions(emotions);
-    setIsManualMode(false);
-  };
-
-  const handleManualEmotionToggle = (emotion: typeof MANUAL_EMOTIONS[0]) => {
-    const existing = selectedEmotions.find(e => e.emotion === emotion.name);
-
-    if (existing) {
-      // Remove emotion
-      setSelectedEmotions(prev => prev.filter(e => e.emotion !== emotion.name));
-    } else {
-      // Add emotion with default confidence
-      const newEmotion: DetectedEmotion = {
-        emotion: emotion.name,
-        confidence: 0.7, // Default confidence for manual selection
-        color: emotion.color
-      };
-      setSelectedEmotions(prev => [...prev, newEmotion]);
-    }
-  };
-
-
-
-  const getBlendedColor = () => {
-    if (selectedEmotions.length === 0) return '#f3f4f6';
-    if (selectedEmotions.length === 1) return selectedEmotions[0].color;
-
-    // Calculate weighted average color
-    let totalWeight = 0;
-    let r = 0, g = 0, b = 0;
-
-    selectedEmotions.forEach(emotion => {
-      const weight = emotion.confidence;
-      const color = hexToRgb(emotion.color);
-      if (color) {
-        r += color.r * weight;
-        g += color.g * weight;
-        b += color.b * weight;
-        totalWeight += weight;
-      }
-    });
-
-    if (totalWeight === 0) return '#f3f4f6';
-
-    r = Math.round(r / totalWeight);
-    g = Math.round(g / totalWeight);
-    b = Math.round(b / totalWeight);
-
-    return `rgb(${r}, ${g}, ${b})`;
-  };
-
-  const getBlendedColorWithAlpha = (alpha: number) => {
-    if (selectedEmotions.length === 0) return `rgba(243, 244, 246, ${alpha})`;
-
-    const color = getBlendedColor();
-    // Convert rgb() to rgba() with alpha
-    const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-    if (rgbMatch) {
-      const [, r, g, b] = rgbMatch;
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
-
-    // If it's already a hex, convert to rgba
-    const hexColor = hexToRgb(color);
-    if (hexColor) {
-      return `rgba(${hexColor.r}, ${hexColor.g}, ${hexColor.b}, ${alpha})`;
-    }
-
-    return `rgba(243, 244, 246, ${alpha})`;
-  };
-
-  const hexToRgb = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : null;
-  };
-
-  const handleSubmit = async () => {
-    console.log('=== MOOD SUBMIT DEBUG ===');
-    console.log('Selected emotions:', selectedEmotions);
-    console.log('Current user:', user);
-    console.log('User ID:', user?.id);
-    console.log('Auth token in localStorage:', localStorage.getItem('token'));
-
-    if (selectedEmotions.length === 0) {
-      alert('Please select at least one emotion or use AI detection');
-      return;
-    }
-
-    if (!user) {
-      alert('Please log in to save your mood');
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-
-      const moodData = {
-        emotions: selectedEmotions,
-        notes: notes,
-        log_date: new Date(),
-        energy_level: energyLevel,
-        stress_level: stressLevel,
-        detection_method: isManualMode ? 'manual' : 'ai'
-      };
-
-      if (existingLogId) {
-        await moodService.updateMoodLog(existingLogId, moodData);
-        alert('🎉 Mood updated successfully!');
-      } else {
-        const newLog = await moodService.createMoodLog(moodData);
-        setExistingLogId(newLog.id);
-        alert('🎉 Mood logged successfully!');
-      }
-
-      if (onMoodLogged) {
-        onMoodLogged();
-      }
-    } catch (error) {
-      console.error('=== MOOD SUBMIT ERROR ===');
-      console.error('Error object:', error);
-      console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
-
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to log mood: ${errorMessage}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const {
+    selectedEmotions,
+    setSelectedEmotions,
+    notes,
+    setNotes,
+    isManualMode,
+    setIsManualMode,
+    isSubmitting,
+    energyLevel,
+    setEnergyLevel,
+    stressLevel,
+    setStressLevel,
+    existingLogId,
+    handleAIEmotionDetected,
+    handleManualEmotionToggle,
+    handleSubmit,
+  } = useMoodCheckIn({ onMoodLogged, onBackgroundChange })
 
   return (
     <div
@@ -301,7 +121,7 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
                   <span className="text-sm text-aurora-primary-dark/70">Blended color:</span>
                   <div
                     className="w-6 h-6 rounded-full border-2 border-white shadow-md"
-                    style={{ backgroundColor: getBlendedColor() }}
+                    style={{ backgroundColor: getBlendedColorWeighted(selectedEmotions) }}
                   />
                 </div>
               </div>
@@ -441,7 +261,7 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
               <div className="inline-flex items-center gap-3 px-4 py-3 rounded-lg shadow-aurora bg-white/90 backdrop-blur-xs">
                 <div
                   className="w-8 h-8 rounded-full"
-                  style={{ backgroundColor: getBlendedColor() }}
+                  style={{ backgroundColor: getBlendedColorWeighted(selectedEmotions) }}
                 />
                 <div className="text-left">
                   <div className="font-medium text-aurora-primary-dark">

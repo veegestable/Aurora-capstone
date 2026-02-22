@@ -1,198 +1,20 @@
-import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { moodService } from '../services/mood.service';
-import { MoodData } from '../services/firebase-firestore.service';
-
-interface MoodEntry extends MoodData {
-  id: string;
-  created_at: Date;
-  log_date: Date;
-}
-
-interface CalendarDay {
-  date: Date;
-  moods: MoodEntry[];
-  isCurrentMonth: boolean;
-  isToday: boolean;
-  blendedColor?: string;
-}
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react'
+import { getColorWithAlpha } from '../utils/moodColors'
+import { useMoodCalendar } from '../hooks/useMoodCalendar'
 
 export default function MoodCalendar() {
-  const { user } = useAuth();
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [moodData, setMoodData] = useState<MoodEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
+  const {
+    loading,
+    selectedDay,
+    setSelectedDay,
+    navigateMonth,
+    formatMonthYear,
+    calendarDays,
+    currentDate,
+    moodData,
+  } = useMoodCalendar()
 
-  useEffect(() => {
-    if (user) {
-      loadMoodData();
-    }
-  }, [currentDate, user]);
-
-  const loadMoodData = async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-
-      const data = await moodService.getMoodLogs(
-        user.id,
-        startOfMonth.toISOString(),
-        endOfMonth.toISOString()
-      );
-
-      console.log('Mood data loaded:', data); // Debug log
-
-      // Firebase returns the correct structure with proper types
-      if (Array.isArray(data)) {
-        setMoodData(data);
-      } else {
-        setMoodData([]);
-      }
-    } catch (error) {
-      console.error('Error loading mood data:', error);
-      setMoodData([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    setCurrentDate(prev => {
-      const newDate = new Date(prev);
-      if (direction === 'prev') {
-        newDate.setMonth(prev.getMonth() - 1);
-      } else {
-        newDate.setMonth(prev.getMonth() + 1);
-      }
-      return newDate;
-    });
-  };
-
-  const generateCalendarDays = (): CalendarDay[] => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-
-    const firstDayOfMonth = new Date(year, month, 1);
-    const firstDayOfCalendar = new Date(firstDayOfMonth);
-    firstDayOfCalendar.setDate(firstDayOfCalendar.getDate() - firstDayOfCalendar.getDay());
-
-    const days: CalendarDay[] = [];
-    const today = new Date();
-
-    for (let i = 0; i < 42; i++) {
-      const date = new Date(firstDayOfCalendar);
-      date.setDate(firstDayOfCalendar.getDate() + i);
-
-      const dateString = date.toISOString().split('T')[0];
-      const dayMoods = moodData.filter(mood => {
-        if (!mood || !mood.log_date) return false;
-        const moodDateString = mood.log_date.toISOString().split('T')[0];
-        return moodDateString === dateString;
-      });
-
-      const blendedColor = getBlendedColor(dayMoods);
-
-      days.push({
-        date,
-        moods: dayMoods,
-        isCurrentMonth: date.getMonth() === month,
-        isToday: date.toDateString() === today.toDateString(),
-        blendedColor
-      });
-    }
-
-    return days;
-  };
-
-  const getBlendedColor = (moods: MoodEntry[]): string | undefined => {
-    if (!moods || moods.length === 0) return undefined;
-
-    // Collect all emotions with their colors and confidence
-    const colorData: Array<{ color: string; confidence: number }> = [];
-
-    moods.forEach(mood => {
-      // Add null checks for mood and emotions
-      if (!mood || !mood.emotions || !Array.isArray(mood.emotions)) {
-        console.warn('Invalid mood data:', mood);
-        return;
-      }
-
-      mood.emotions.forEach(emotion => {
-        if (emotion && emotion.color && typeof emotion.confidence === 'number') {
-          colorData.push({ color: emotion.color, confidence: emotion.confidence });
-        }
-      });
-    });
-
-    if (colorData.length === 0) return undefined;
-    if (colorData.length === 1) return colorData[0].color;
-
-    // Calculate weighted average color
-    let totalWeight = 0;
-    let r = 0, g = 0, b = 0;
-
-    colorData.forEach(({ color, confidence }) => {
-      const rgb = hexToRgb(color);
-      if (rgb) {
-        r += rgb.r * confidence;
-        g += rgb.g * confidence;
-        b += rgb.b * confidence;
-        totalWeight += confidence;
-      }
-    });
-
-    if (totalWeight === 0) return colorData[0].color;
-
-    r = Math.round(r / totalWeight);
-    g = Math.round(g / totalWeight);
-    b = Math.round(b / totalWeight);
-
-    return `rgb(${r}, ${g}, ${b})`;
-  };
-
-  const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
-    if (!hex || typeof hex !== 'string') return null;
-
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : null;
-  };
-
-  const getColorWithAlpha = (color: string, alpha: number) => {
-    // Check if it's already an rgb/rgba string
-    if (color.startsWith('rgb')) {
-      // Extract numbers
-      const match = color.match(/\d+/g);
-      if (match && match.length >= 3) {
-        return `rgba(${match[0]}, ${match[1]}, ${match[2]}, ${alpha})`;
-      }
-    }
-
-    // Check if it's a hex
-    const rgb = hexToRgb(color);
-    if (rgb) {
-      return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
-    }
-
-    return color;
-  };
-
-  const formatMonthYear = (date: Date) => {
-    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  };
-
-
-
-  const calendarDays = generateCalendarDays();
-  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
   if (loading) {
     return (
@@ -238,7 +60,7 @@ export default function MoodCalendar() {
       </div>
 
       {/* Emotion Legend */}
-      <div className="mb-8 p-6 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-100 shadow-xs">
+      <div className="mb-8 p-6 bg-linear-to-br from-gray-50 to-white rounded-2xl border border-gray-100 shadow-xs">
         <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 ml-1">Emotion Guide</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
@@ -330,7 +152,7 @@ export default function MoodCalendar() {
 
       {/* Selected Day Details */}
       {selectedDay && selectedDay.moods.length > 0 && (
-        <div className="mt-6 p-6 bg-gradient-to-r from-teal-50 to-blue-50 rounded-xl border border-teal-100">
+        <div className="mt-6 p-6 bg-linear-to-r from-teal-50 to-blue-50 rounded-xl border border-teal-100">
           <h5 className="font-bold text-gray-900 mb-4 text-lg">
             📅 {selectedDay.date.toLocaleDateString('en-US', {
               weekday: 'long',

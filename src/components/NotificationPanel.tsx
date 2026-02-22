@@ -98,7 +98,7 @@ export default function NotificationPanel() {
             className="fixed inset-0 z-40"
             onClick={() => setShowPanel(false)}
           />
-          <div className="absolute right-0 mt-2 w-96 max-h-[32rem] overflow-y-auto bg-white rounded-xl shadow-2xl border border-gray-200 z-50">
+          <div className="absolute right-0 mt-2 w-96 max-h-128 overflow-y-auto bg-white rounded-xl shadow-2xl border border-gray-200 z-50">
             <div className="sticky top-0 bg-white border-b border-gray-200 p-4">
               <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
               <p className="text-sm text-gray-600 mt-1">
