@@ -191,7 +191,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                 </View>
             ) : (
                 <View className="items-center w-full">
-                    <View className="relative w-full aspect-[3/4] bg-gray-100 rounded-xl overflow-hidden mb-4">
+                    <View className="relative w-full aspect-3/4 bg-gray-100 rounded-xl overflow-hidden mb-4">
                         <Image
                             source={{ uri: capturedImage }}
                             className="w-full h-full"
