@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Calendar, Trash2, CreditCard as Edit2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { scheduleService, ScheduleData } from '../services/schedule.service';
+import { scheduleService, ScheduleData } from '../services/schedule';
+import { EVENT_TYPE_COLORS } from '../utils/emotions'
 
 interface Schedule {
   id: string;
@@ -10,13 +11,6 @@ interface Schedule {
   event_date: string;
   event_type: 'exam' | 'deadline' | 'meeting' | 'other';
 }
-
-const EVENT_TYPE_COLORS = {
-  exam: 'bg-red-100 text-red-700 border-red-300',
-  deadline: 'bg-orange-100 text-orange-700 border-orange-300',
-  meeting: 'bg-blue-100 text-blue-700 border-blue-300',
-  other: 'bg-gray-100 text-gray-700 border-gray-300',
-};
 
 export default function ScheduleManager() {
   const { user } = useAuth();
