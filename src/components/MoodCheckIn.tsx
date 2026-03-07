@@ -47,7 +47,7 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
               onClick={() => setIsManualMode(false)}
               className={`relative z-10 flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 ${!isManualMode
                 ? 'text-aurora-secondary-blue'
-                : 'text-gray-500 hover:text-gray-700'
+                : 'text-gray-500 hover:text-gray-700 cursor-pointer'
                 }`}
             >
               <Sparkles className={`w-4 h-4 ${!isManualMode ? 'animate-pulse' : ''}`} />
@@ -58,7 +58,7 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
               onClick={() => setIsManualMode(true)}
               className={`relative z-10 flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 ${isManualMode
                 ? 'text-aurora-secondary-blue'
-                : 'text-gray-500 hover:text-gray-700'
+                : 'text-gray-500 hover:text-gray-700 cursor-pointer'
                 }`}
             >
               <MousePointerClick className="w-4 h-4" />
@@ -286,7 +286,7 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
               disabled={selectedEmotions.length === 0 || isSubmitting}
               className={`pointer-events-auto w-full max-w-sm px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-2xl border-2 border-white/20 backdrop-blur-xs ${selectedEmotions.length === 0 || isSubmitting
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-aurora-secondary-blue text-white hover:shadow-aurora hover:-translate-y-1 active:scale-95'
+                : 'bg-aurora-secondary-blue text-white hover:shadow-aurora hover:-translate-y-1 active:scale-95 cursor-pointer'
                 }`}
             >
               {isSubmitting ? (

@@ -39,9 +39,9 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="min-h-screen gradient-aurora-light">
+    <div className="h-screen flex flex-col gradient-aurora-light overflow-hidden">
       {/* Header */}
-      <header className="bg-aurora-primary-dark border-b border-aurora-primary-light/20 mb-0 shadow-aurora">
+      <header className="bg-aurora-primary-dark border-b border-aurora-primary-light/20 mb-0 shrink-0 z-50 shadow-aurora">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             <div className="flex items-center space-x-3">
@@ -64,7 +64,7 @@ export default function StudentDashboard() {
               </div>
               <button
                 onClick={signOut}
-                className="flex items-center space-x-1 sm:space-x-2 text-white/70 hover:text-white transition-colors px-2 sm:px-3 py-2 rounded-md hover:bg-white/10"
+                className="flex items-center space-x-1 sm:space-x-2 text-white/70 cursor-pointer hover:text-white transition-colors px-2 sm:px-3 py-2 rounded-md hover:bg-white/10"
               >
                 <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="text-xs sm:text-sm hidden sm:block">Sign Out</span>
@@ -74,7 +74,7 @@ export default function StudentDashboard() {
         </div>
       </header>
 
-      <div className="flex h-screen">
+      <div className="flex flex-1 overflow-hidden z-60">
         {/* Desktop Sidebar - Hidden on Mobile */}
         <aside className="hidden lg:block w-64 bg-aurora-primary-dark shadow-aurora shrink-0">
           <nav className="h-full px-4 py-6">
@@ -87,7 +87,7 @@ export default function StudentDashboard() {
                     onClick={() => handleTabChange(tab.id)}
                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-medium transition-all ${activeTab === tab.id
                       ? 'bg-aurora-secondary-blue text-white shadow-aurora'
-                      : 'text-white/70 hover:text-white hover:bg-aurora-secondary-green/20'
+                      : 'text-white/70 hover:text-white hover:bg-aurora-secondary-green/20 cursor-pointer'
                       }`}
                   >
                     <Icon className="w-5 h-5" />

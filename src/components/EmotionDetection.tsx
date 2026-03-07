@@ -1,108 +1,115 @@
-import { useState, useRef, type ChangeEvent } from 'react';
-import { Camera, Upload, Bot, Target, Check } from 'lucide-react';
+import { useState, useRef, useEffect, type ChangeEvent } from 'react'
+import { Camera, Upload, Bot, Target, Check } from 'lucide-react'
 import type { DetectedEmotion } from '../types/mood.types'
 import { EMOTION_COLORS } from '../utils/emotions'
 
 interface EmotionDetectionProps {
-  onEmotionDetected: (emotions: DetectedEmotion[]) => void;
+  onEmotionDetected: (emotions: DetectedEmotion[]) => void
 }
 
 export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [detectedEmotions, setDetectedEmotions] = useState<DetectedEmotion[]>([]);
-  const [useCamera, setUseCamera] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [capturedImage, setCapturedImage] = useState<string | null>(null)
+  const [detectedEmotions, setDetectedEmotions] = useState<DetectedEmotion[]>([])
+  const [useCamera, setUseCamera] = useState(false)
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null)
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const startCamera = async () => {
     try {
-      setIsCapturing(true);
+      setIsCapturing(true)
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: 640,
           height: 480,
           facingMode: 'user'
         }
-      });
+      })
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-      setUseCamera(true);
+      setMediaStream(stream)
+      setUseCamera(true)
     } catch (error) {
       console.error('Error accessing camera:', error);
       alert('Unable to access camera. Please check permissions.');
       setIsCapturing(false);
     }
-  };
+  }
 
   const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
-      videoRef.current.srcObject = null;
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop())
+      setMediaStream(null)
     }
-    setIsCapturing(false);
-    setUseCamera(false);
-  };
+
+    if (videoRef.current) videoRef.current.srcObject = null
+
+    setIsCapturing(false)
+    setUseCamera(false)
+  }
+
+  useEffect(() => {
+    if (useCamera && videoRef.current && mediaStream) {
+      videoRef.current.srcObject = mediaStream
+      videoRef.current.play().catch(console.error)
+    }
+  }, [useCamera, mediaStream])
 
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
+      const canvas = canvasRef.current
+      const video = videoRef.current
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
 
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d')
       if (ctx) {
-        ctx.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL('image/jpeg', 0.8);
-        setCapturedImage(imageData);
-        analyzeEmotion(imageData);
-        stopCamera();
+        ctx.drawImage(video, 0, 0)
+        const imageData = canvas.toDataURL('image/jpeg', 0.8)
+        setCapturedImage(imageData)
+        analyzeEmotion(imageData)
+        stopCamera()
       }
     }
-  };
+  }
 
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const file = event.target.files?.[0]
     if (file) {
-      const reader = new FileReader();
+      const reader = new FileReader()
       reader.onload = (e) => {
-        const imageData = e.target?.result as string;
-        setCapturedImage(imageData);
-        analyzeEmotion(imageData);
-      };
-      reader.readAsDataURL(file);
+        const imageData = e.target?.result as string
+        setCapturedImage(imageData)
+        analyzeEmotion(imageData)
+      }
+      reader.readAsDataURL(file)
     }
-  };
+  }
 
   const analyzeEmotion = async (imageData: string) => {
-    setIsAnalyzing(true);
+    setIsAnalyzing(true)
 
     try {
       // Mock AI emotion detection (replace with actual AI service)
-      const mockEmotions = await mockEmotionAnalysis(imageData);
-      setDetectedEmotions(mockEmotions);
-      onEmotionDetected(mockEmotions);
+      const mockEmotions = await mockEmotionAnalysis(imageData)
+      setDetectedEmotions(mockEmotions)
+      onEmotionDetected(mockEmotions)
     } catch (error) {
-      console.error('Emotion analysis failed:', error);
-      alert('Failed to analyze emotions. Please try again.');
+      console.error('Emotion analysis failed:', error)
+      alert('Failed to analyze emotions. Please try again.')
     } finally {
-      setIsAnalyzing(false);
+      setIsAnalyzing(false)
     }
-  };
+  }
 
   // Mock emotion analysis (replace with actual AI service like Azure Face API or AWS Rekognition)
   const mockEmotionAnalysis = async (_imageData: string): Promise<DetectedEmotion[]> => {
     // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 2000))
 
     // Mock multiple emotions with varying confidence
     const possibleEmotions = [
@@ -111,14 +118,14 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
       { emotion: 'neutral', confidence: Math.random() * 0.5 + 0.2, color: EMOTION_COLORS.neutral },
       { emotion: 'surprise', confidence: Math.random() * 0.2 + 0.05, color: EMOTION_COLORS.surprise },
       { emotion: 'love', confidence: Math.random() * 0.3 + 0.1, color: EMOTION_COLORS.love }
-    ];
+    ]
 
     // Return emotions above confidence threshold
     return possibleEmotions
       .filter(emotion => emotion.confidence > 0.15)
       .sort((a, b) => b.confidence - a.confidence)
       .slice(0, 3); // Max 3 emotions
-  };
+  }
 
   return (
     <div className="bg-linear-to-br from-aurora-primary-dark to-aurora-secondary-dark-blue rounded-xl shadow-md p-8 mb-6">
@@ -168,6 +175,9 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
           <div className="relative">
             <video
               ref={videoRef}
+              autoPlay
+              playsInline
+              muted
               className="rounded-lg shadow-md max-w-full"
               style={{ maxWidth: '400px' }}
             />
@@ -280,5 +290,5 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
 
       <canvas ref={canvasRef} className="hidden" />
     </div>
-  );
+  )
 }
