@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { moodService } from '../services/mood.service'
+import { moodService } from '../services/mood'
 import { getBlendedColorWithAlpha } from '../utils/moodColors'
 import type { DetectedEmotion, ManualEmotion } from '../types/mood.types'
 
@@ -95,7 +95,7 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
         log_date: new Date(),
         energy_level: energyLevel,
         stress_level: stressLevel,
-        detection_method: isManualMode ? 'manual' : 'ai',
+        detection_method: (isManualMode ? 'manual' : 'ai') as 'manual' | 'ai',
       }
 
       if (existingLogId) {

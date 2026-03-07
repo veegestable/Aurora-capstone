@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { moodService } from '../services/mood.service'
-import { MoodData } from '../services/firebase-firestore.service'
+import { moodService } from '../services/mood'
+import { MoodData } from '../services/firebase-firestore'
 import { getBlendedColorWeighted } from '../utils/moodColors'
 
 interface MoodEntry extends MoodData {

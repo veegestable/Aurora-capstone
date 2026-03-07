@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Calendar, Trash2, CreditCard as Edit2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { scheduleService, ScheduleData } from '../services/schedule.service';
+import { scheduleService, ScheduleData } from '../services/schedule';
 import { EVENT_TYPE_COLORS } from '../utils/emotions'
 
 interface Schedule {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { counselorService } from '../services/counselor.service';
+import { counselorService } from '../services/counselor';
 import { Users, BarChart3, MessageSquare, Settings, LogOut } from 'lucide-react';
 import logoLight from '../assets/logos/logo light.png';
 
@@ -94,7 +94,7 @@ export default function CounselorDashboard() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-aurora-accent-orange/10 to-aurora-secondary-green/10 pb-20 lg:pb-0">
+        <main className="flex-1 overflow-y-auto bg-linear-to-br from-aurora-accent-orange/10 to-aurora-secondary-green/10 pb-20 lg:pb-0">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
             {activeTab === 'students' && (
               <div>

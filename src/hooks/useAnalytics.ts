@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { moodService } from '../services/mood.service'
-import { scheduleService } from '../services/schedule.service'
+import { moodService } from '../services/mood'
+import { scheduleService } from '../services/schedule'
 import { getEmotionColor } from '../utils/moodColors'
 
 interface MoodLog {

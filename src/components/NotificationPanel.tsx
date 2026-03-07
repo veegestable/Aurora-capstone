@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Bell, BellOff, Check, MessageCircle, Calendar, Smile } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { notificationService } from '../services/notification.service';
+import { notificationService } from '../services/notification';
 
 interface Notification {
   id: string;
