@@ -281,20 +281,7 @@ export default function CounselorHomeScreen() {
                         <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800' }}>
                             Dashboard Overview
                         </Text>
-                        <View style={{
-                            flexDirection: 'row', alignItems: 'center', gap: 6,
-                            backgroundColor: 'rgba(34,197,94,0.1)',
-                            borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5,
-                            borderWidth: 1, borderColor: 'rgba(34,197,94,0.25)',
-                        }}>
-                            <View style={{
-                                width: 8, height: 8, borderRadius: 4,
-                                backgroundColor: AURORA.green,
-                            }} />
-                            <Text style={{ color: AURORA.green, fontSize: 12, fontWeight: '700' }}>
-                                Live
-                            </Text>
-                        </View>
+                        
                     </View>
 
                     {/* Stat Cards Row 1 */}
