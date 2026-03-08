@@ -3,20 +3,29 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { authService, UserProfile } from '../services/firebase-auth.service';
 
+export type CounselorApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 interface User {
   id: string;
   full_name: string;
   email: string;
-  role: 'student' | 'counselor';
+  role: 'admin' | 'counselor' | 'student';
+  approval_status?: CounselorApprovalStatus;
+  preferred_name?: string;
+  department?: string;
+  year_level?: string;
+  bio?: string;
+  avatar_url?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string, role: 'student' | 'counselor') => Promise<{ success: boolean; message: string }>;
+  signUp: (email: string, password: string, fullName: string, role: 'admin' | 'counselor' | 'student') => Promise<{ success: boolean; message: string }>;
   signOut: () => void;
-  updateUser: (data: { full_name?: string }) => Promise<void>;
+  updateUser: (data: { full_name?: string; preferred_name?: string; department?: string; year_level?: string; bio?: string; avatar_url?: string }) => Promise<void>;
+  uploadAvatar: (imageUri: string) => Promise<string>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,7 +36,13 @@ const convertUserProfile = (userProfile: UserProfile): User => {
     id: userProfile.uid,
     full_name: userProfile.full_name,
     email: userProfile.email,
-    role: userProfile.role
+    role: userProfile.role,
+    approval_status: userProfile.approval_status,
+    preferred_name: userProfile.preferred_name,
+    department: userProfile.department,
+    year_level: userProfile.year_level,
+    bio: userProfile.bio,
+    avatar_url: userProfile.avatar_url
   };
 };
 
@@ -80,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, role: 'student' | 'counselor') => {
+  const signUp = async (email: string, password: string, fullName: string, role: 'admin' | 'counselor' | 'student') => {
     try {
       console.log('🔥 Signing up user:', email);
       await authService.signUp({
@@ -116,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateUser = async (data: { full_name?: string }) => {
+  const updateUser = async (data: { full_name?: string; preferred_name?: string; department?: string; year_level?: string; bio?: string; avatar_url?: string }) => {
     if (!user) return;
     try {
       await authService.updateProfile(user.id, data);
@@ -128,13 +143,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const uploadAvatar = async (imageUri: string): Promise<string> => {
+    if (!user) throw new Error('Not authenticated');
+    const url = await authService.uploadAvatar(user.id, imageUri);
+    setUser(prev => prev ? { ...prev, avatar_url: url } : null);
+    return url;
+  };
+
   const value = {
     user,
     loading,
     signIn,
     signUp,
     signOut,
-    updateUser
+    updateUser,
+    uploadAvatar
   };
 
   return (

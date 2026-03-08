@@ -216,10 +216,10 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
 
         {/* Mode Toggle */}
         <div className="flex justify-center mb-6 lg:mb-8">
-          <div className="relative flex bg-gray-100/50 p-1.5 rounded-full border border-gray-200 shadow-inner backdrop-blur-sm">
+          <div className="relative flex bg-gray-100/50 p-1.5 rounded-full border border-gray-200 shadow-inner backdrop-blur-xs">
             {/* Sliding Background Pill */}
             <div
-              className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-full shadow-sm transition-all duration-300 ease-out ${isManualMode ? 'translate-x-[calc(100%+6px)]' : 'translate-x-0'
+              className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-full shadow-xs transition-all duration-300 ease-out ${isManualMode ? 'translate-x-[calc(100%+6px)]' : 'translate-x-0'
                 }`}
             />
 
@@ -308,7 +308,7 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
 
               <div className="space-y-3">
                 {selectedEmotions.map((emotion, index) => (
-                  <div key={index} className="flex flex-col p-4 bg-aurora-primary-light/10 rounded-lg backdrop-blur-sm gap-3">
+                  <div key={index} className="flex flex-col p-4 bg-aurora-primary-light/10 rounded-lg backdrop-blur-xs gap-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div
@@ -424,7 +424,7 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="What's on your mind? Any specific events or thoughts affecting your mood today?"
-                className="w-full p-4 border border-aurora-primary-light/30 rounded-lg focus:ring-2 focus:ring-aurora-blue-500 focus:border-transparent outline-none resize-none text-aurora-primary-dark bg-white/80 backdrop-blur-sm"
+                className="w-full p-4 border border-aurora-primary-light/30 rounded-lg focus:ring-2 focus:ring-aurora-blue-500 focus:border-transparent outline-hidden resize-none text-aurora-primary-dark bg-white/80 backdrop-blur-xs"
                 rows={3}
                 maxLength={500}
               />
@@ -436,9 +436,9 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
 
           {/* Preview */}
           {selectedEmotions.length > 0 && (
-            <div className="bg-aurora-primary-light/10 backdrop-blur-sm rounded-xl p-6 text-center border border-aurora-primary-light/20">
+            <div className="bg-aurora-primary-light/10 backdrop-blur-xs rounded-xl p-6 text-center border border-aurora-primary-light/20">
               <h4 className="text-sm font-medium text-aurora-primary-dark/70 mb-3">Preview: How this will appear on your calendar</h4>
-              <div className="inline-flex items-center gap-3 px-4 py-3 rounded-lg shadow-aurora bg-white/90 backdrop-blur-sm">
+              <div className="inline-flex items-center gap-3 px-4 py-3 rounded-lg shadow-aurora bg-white/90 backdrop-blur-xs">
                 <div
                   className="w-8 h-8 rounded-full"
                   style={{ backgroundColor: getBlendedColor() }}
@@ -464,7 +464,7 @@ export function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInPro
             <button
               onClick={handleSubmit}
               disabled={selectedEmotions.length === 0 || isSubmitting}
-              className={`pointer-events-auto w-full max-w-sm px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-2xl border-2 border-white/20 backdrop-blur-sm ${selectedEmotions.length === 0 || isSubmitting
+              className={`pointer-events-auto w-full max-w-sm px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-2xl border-2 border-white/20 backdrop-blur-xs ${selectedEmotions.length === 0 || isSubmitting
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 : 'bg-aurora-secondary-blue text-white hover:shadow-aurora hover:-translate-y-1 active:scale-95'
                 }`}

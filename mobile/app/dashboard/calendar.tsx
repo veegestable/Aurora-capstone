@@ -1,2 +1,5 @@
-import CalendarScreen from '../../src/pages/dashboard/CalendarScreen';
-export default CalendarScreen;
+import { Redirect } from 'expo-router';
+
+export default function DeprecatedDashboardCalendar() {
+    return <Redirect href="/(student)/history" />;
+}

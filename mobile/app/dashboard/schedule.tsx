@@ -1,2 +1,5 @@
-import ScheduleScreen from '../../src/pages/dashboard/ScheduleScreen';
-export default ScheduleScreen;
+import { Redirect } from 'expo-router';
+
+export default function DeprecatedDashboardSchedule() {
+    return <Redirect href="/(student)/resources" />;
+}

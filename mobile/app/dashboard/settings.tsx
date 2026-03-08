@@ -1,2 +1,5 @@
-import SettingsScreen from '../../src/pages/dashboard/SettingsScreen';
-export default SettingsScreen;
+import { Redirect } from 'expo-router';
+
+export default function DeprecatedDashboardSettings() {
+    return <Redirect href="/(student)/profile" />;
+}

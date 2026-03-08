@@ -136,7 +136,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
   };
 
   return (
-    <div className="card">
+    <div className="bg-linear-to-br from-aurora-primary-dark to-aurora-secondary-dark-blue rounded-xl shadow-md p-8 mb-6">
       <h3 className="text-xl text-aurora-primary-light font-semibold mb-4">AI Emotion Detection</h3>
 
       {!useCamera && !capturedImage && (
@@ -144,7 +144,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
           <div className="grid grid-cols-2 gap-4">
             <button
               onClick={startCamera}
-              className="btn btn-primary btn-lg flex-col py-6"
+              className="inline-flex items-center gap-2 px-8 py-6 bg-indigo-500 hover:bg-indigo-600 text-white font-medium text-base rounded-lg cursor-pointer transition-all hover:-translate-y-px hover:shadow-lg flex-col"
               disabled={isCapturing}
             >
               <Camera className="w-5 h-5 mb-1" />
@@ -154,7 +154,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="btn btn-secondary btn-lg flex-col py-6"
+              className="inline-flex items-center justify-center gap-2 px-8 py-6 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-base rounded-lg cursor-pointer transition-all flex-col"
             >
               <Upload className="w-5 h-5 mb-1" />
               Upload Photo
@@ -194,14 +194,14 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
           <div className="flex gap-4">
             <button
               onClick={capturePhoto}
-              className="btn btn-success btn-lg"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-medium text-base rounded-lg cursor-pointer transition-all"
             >
               <Camera className="w-4 h-4 mr-2" />
               Capture Photo
             </button>
             <button
               onClick={stopCamera}
-              className="btn btn-secondary"
+              className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm rounded-lg cursor-pointer transition-all"
             >
               Cancel
             </button>
@@ -219,7 +219,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
               style={{ maxWidth: '400px' }}
             />
             {isAnalyzing && (
-              <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
                 <div className="text-center text-white">
                   <div className="spinner mx-auto mb-2"></div>
                   <p className="flex items-center justify-center gap-2">
@@ -270,7 +270,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                 setCapturedImage(null);
                 setDetectedEmotions([]);
               }}
-              className="btn btn-secondary"
+              className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm rounded-lg cursor-pointer transition-all"
             >
               <Camera className="w-4 h-4 mr-2" />
               Take Another
@@ -283,7 +283,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                   setCapturedImage(null);
                   setDetectedEmotions([]);
                 }}
-                className="btn btn-success"
+                className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium text-sm rounded-lg cursor-pointer transition-all"
               >
                 <Check className="w-4 h-4 mr-2" />
                 Save to Mood Log

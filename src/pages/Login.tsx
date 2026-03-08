@@ -95,11 +95,11 @@ export default function Login() {
             <Brain className="w-4 h-4 sm:w-6 sm:h-6 text-aurora-accent-green mx-auto mb-1 sm:mb-2" />
             <p className="text-[9px] sm:text-xs text-white/80 font-medium leading-tight">Mood Tracking</p>
           </div>
-          <div className="flex-1 text-center p-2 sm:p-4 bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl border border-white/20">
+          <div className="flex-1 text-center p-2 sm:p-4 bg-white/10 backdrop-blur-xs rounded-lg sm:rounded-xl border border-white/20">
             <Users className="w-4 h-4 sm:w-6 sm:h-6 text-aurora-accent-orange mx-auto mb-1 sm:mb-2" />
             <p className="text-[9px] sm:text-xs text-white/80 font-medium leading-tight">Counselor Support</p>
           </div>
-          <div className="flex-1 text-center p-2 sm:p-4 bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl border border-white/20">
+          <div className="flex-1 text-center p-2 sm:p-4 bg-white/10 backdrop-blur-xs rounded-lg sm:rounded-xl border border-white/20">
             <Heart className="w-4 h-4 sm:w-6 sm:h-6 text-aurora-accent-pink mx-auto mb-1 sm:mb-2" />
             <p className="text-[9px] sm:text-xs text-white/80 font-medium leading-tight">Wellness Tools</p>
           </div>
@@ -141,7 +141,7 @@ export default function Login() {
                   value={formData.fullName}
                   onChange={handleInputChange}
                   autoComplete="name"
-                  className="w-full px-3 py-2 border border-aurora-primary-light/30 rounded-lg focus:ring-2 focus:ring-aurora-blue-500 focus:border-transparent text-aurora-primary-dark bg-white/80 backdrop-blur-sm transition-all"
+                  className="w-full px-3 py-2 border border-aurora-primary-light/30 rounded-lg focus:ring-2 focus:ring-aurora-blue-500 focus:border-transparent text-aurora-primary-dark bg-white/80 backdrop-blur-xs transition-all"
                   placeholder="Enter your full name"
                   required
                 />
@@ -159,7 +159,7 @@ export default function Login() {
                 value={formData.email}
                 onChange={handleInputChange}
                 autoComplete="email"
-                className="w-full px-3 py-2 border border-aurora-primary-light/30 rounded-lg focus:ring-2 focus:ring-aurora-blue-500 focus:border-transparent text-aurora-primary-dark bg-white/80 backdrop-blur-sm transition-all"
+                className="w-full px-3 py-2 border border-aurora-primary-light/30 rounded-lg focus:ring-2 focus:ring-aurora-blue-500 focus:border-transparent text-aurora-primary-dark bg-white/80 backdrop-blur-xs transition-all"
                 placeholder="Enter your email"
                 required
               />
@@ -177,7 +177,7 @@ export default function Login() {
                   value={formData.password}
                   onChange={handleInputChange}
                   autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                  className="w-full px-3 py-2 pr-10 border border-aurora-primary-light/30 rounded-lg focus:ring-2 focus:ring-aurora-blue-500 focus:border-transparent text-aurora-primary-dark bg-white/80 backdrop-blur-sm transition-all"
+                  className="w-full px-3 py-2 pr-10 border border-aurora-primary-light/30 rounded-lg focus:ring-2 focus:ring-aurora-blue-500 focus:border-transparent text-aurora-primary-dark bg-white/80 backdrop-blur-xs transition-all"
                   placeholder="Enter your password"
                   required
                 />
@@ -203,7 +203,7 @@ export default function Login() {
                   name="role"
                   value={formData.role}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-aurora-primary-light/30 rounded-lg focus:ring-2 focus:ring-aurora-blue-500 focus:border-transparent text-aurora-primary-dark bg-white/80 backdrop-blur-sm transition-all"
+                  className="w-full px-3 py-2 border border-aurora-primary-light/30 rounded-lg focus:ring-2 focus:ring-aurora-blue-500 focus:border-transparent text-aurora-primary-dark bg-white/80 backdrop-blur-xs transition-all"
                   required
                 >
                   <option value="student">Student</option>

@@ -10,7 +10,7 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-aurora-blue-50 via-aurora-primary-light to-aurora-blue-100 flex items-center justify-center relative overflow-hidden px-4">
+      <div className="min-h-screen bg-linear-to-br from-aurora-blue-50 via-aurora-primary-light to-aurora-blue-100 flex items-center justify-center relative overflow-hidden px-4">
         {/* Animated background elements - scaled for mobile */}
         <div className="absolute inset-0 opacity-20">
           <div className="absolute top-1/4 left-1/4 w-16 h-16 sm:w-24 sm:h-24 lg:w-32 lg:h-32 bg-aurora-secondary-blue rounded-full blur-2xl sm:blur-3xl animate-aurora-float"></div>
@@ -39,7 +39,7 @@ function AppContent() {
                 {/* Animated ring 1 */}
                 <div className="absolute inset-0 rounded-full border-2 sm:border-3 lg:border-4 border-transparent border-t-aurora-secondary-blue border-r-aurora-accent-purple animate-spin"></div>
                 {/* Animated ring 2 - counter rotation */}
-                <div className="absolute inset-1 rounded-full border-1 sm:border-2 border-transparent border-b-aurora-emotions-joy border-l-aurora-emotions-love animate-spin" style={{ animationDirection: 'reverse', animationDuration: '3s' }}></div>
+                <div className="absolute inset-1 rounded-full border sm:border-2 border-transparent border-b-aurora-emotions-joy border-l-aurora-emotions-love animate-spin" style={{ animationDirection: 'reverse', animationDuration: '3s' }}></div>
                 {/* Inner glow with pulsing gradient */}
                 <div className="absolute inset-2 sm:inset-3 rounded-full animate-aurora-pulse-gradient"></div>
                 {/* Center dot */}

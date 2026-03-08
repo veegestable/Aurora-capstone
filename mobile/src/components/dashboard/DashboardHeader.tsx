@@ -11,7 +11,7 @@ export default function DashboardHeader() {
     const handleSignOut = async () => {
         try {
             await signOut();
-            router.replace('/');
+            router.replace('/login');
         } catch (error) {
             console.error('Sign out failed:', error);
         }

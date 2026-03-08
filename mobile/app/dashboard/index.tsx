@@ -1,2 +1,5 @@
-import MoodScreen from '../../src/pages/dashboard/MoodScreen';
-export default MoodScreen;
+import { Redirect } from 'expo-router';
+
+export default function DeprecatedDashboardIndex() {
+    return <Redirect href="/(student)" />;
+}

@@ -76,7 +76,7 @@ export default function StudentDashboard() {
 
       <div className="flex h-screen">
         {/* Desktop Sidebar - Hidden on Mobile */}
-        <aside className="hidden lg:block w-64 bg-aurora-primary-dark shadow-aurora flex-shrink-0">
+        <aside className="hidden lg:block w-64 bg-aurora-primary-dark shadow-aurora shrink-0">
           <nav className="h-full px-4 py-6">
             <div className="space-y-2">
               {tabs.map((tab) => {
@@ -101,7 +101,7 @@ export default function StudentDashboard() {
 
         {/* Main Content */}
         <main
-          className="flex-1 overflow-hidden bg-gradient-to-br from-aurora-primary-light/10 to-aurora-blue-500/10 pb-20 lg:pb-0 transition-all duration-500"
+          className="flex-1 overflow-hidden bg-linear-to-br from-aurora-primary-light/10 to-aurora-blue-500/10 pb-20 lg:pb-0 transition-all duration-500"
           style={{
             background: dynamicBackground || undefined
           }}

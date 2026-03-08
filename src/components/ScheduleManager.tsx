@@ -124,7 +124,7 @@ export default function ScheduleManager() {
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-hidden"
                 placeholder="e.g., Math Final Exam"
                 required
               />
@@ -137,7 +137,7 @@ export default function ScheduleManager() {
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none resize-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-hidden resize-none"
                 placeholder="Additional details..."
                 rows={3}
               />
@@ -152,7 +152,7 @@ export default function ScheduleManager() {
                   type="datetime-local"
                   value={formData.event_date}
                   onChange={(e) => setFormData({ ...formData, event_date: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-hidden"
                   required
                 />
               </div>
@@ -164,7 +164,7 @@ export default function ScheduleManager() {
                 <select
                   value={formData.event_type}
                   onChange={(e) => setFormData({ ...formData, event_type: e.target.value as any })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-hidden"
                 >
                   <option value="exam">Exam</option>
                   <option value="deadline">Deadline</option>
@@ -204,7 +204,7 @@ export default function ScheduleManager() {
           upcomingEvents.map((schedule) => (
             <div
               key={schedule.id}
-              className={`bg-white rounded-xl p-4 shadow-sm border-2 transition-all hover:shadow-md ${
+              className={`bg-white rounded-xl p-4 shadow-xs border-2 transition-all hover:shadow-md ${
                 EVENT_TYPE_COLORS[schedule.event_type]
               }`}
             >

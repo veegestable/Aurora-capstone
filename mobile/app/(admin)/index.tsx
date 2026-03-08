@@ -1,0 +1,51 @@
+/**
+ * Admin Dashboard - index.tsx
+ * ============================
+ * Route: /(admin)/
+ * Role: ADMIN
+ * 
+ * Main dashboard for administrators showing:
+ * - School-wide wellness overview
+ * - CCS operations summary
+ * - Quick access to management tools
+ */
+
+import React from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Users } from 'lucide-react-native';
+import { AURORA } from '../../src/constants/aurora-colors';
+
+export default function AdminDashboardScreen() {
+    const router = useRouter();
+
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: AURORA.bg }}>
+        <View style={{ flex: 1, padding: 20 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '700', marginBottom: 24 }}>Admin Dashboard</Text>
+            <TouchableOpacity
+                onPress={() => router.push('/(admin)/counselors')}
+                style={{
+                    backgroundColor: AURORA.card,
+                    borderRadius: 14,
+                    padding: 20,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 14,
+                    borderWidth: 1,
+                    borderColor: AURORA.border,
+                }}
+            >
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(45,107,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Users size={24} color={AURORA.blue} />
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>Counselors</Text>
+                    <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 2 }}>Review and approve counselor signups</Text>
+                </View>
+            </TouchableOpacity>
+        </View>
+        </SafeAreaView>
+    );
+}

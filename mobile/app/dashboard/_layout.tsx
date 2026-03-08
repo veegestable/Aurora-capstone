@@ -1,2 +1,5 @@
-import DashboardLayout from '../../src/pages/dashboard/DashboardLayout';
-export default DashboardLayout;
+import { Redirect } from 'expo-router';
+
+export default function DeprecatedDashboardLayout() {
+    return <Redirect href="/(student)" />;
+}

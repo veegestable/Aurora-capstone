@@ -17,6 +17,7 @@ export default function LoginForm() {
         email: '',
         password: '',
         fullName: '',
+        role: 'student' as 'student' | 'counselor',
     });
 
     const updateFormData = (key: string, value: string) => {
@@ -38,7 +39,7 @@ export default function LoginForm() {
 
         try {
             if (isSignUp) {
-                const result = await signUp(formData.email, formData.password, formData.fullName, 'student');
+                const result = await signUp(formData.email, formData.password, formData.fullName, formData.role);
                 if (result.success) {
                     Alert.alert('Success', result.message, [{ text: 'OK', onPress: () => setIsSignUp(false) }]);
                     setFormData(prev => ({ ...prev, password: '' }));
@@ -47,7 +48,7 @@ export default function LoginForm() {
                 }
             } else {
                 await signIn(formData.email, formData.password);
-                router.replace('/dashboard');
+                router.replace('/');
             }
         } catch (err: any) {
             Alert.alert('Error', err.message || 'Authentication failed');
@@ -67,13 +68,35 @@ export default function LoginForm() {
 
             <View className="space-y-4">
                 {isSignUp && (
-                    <Input
-                        label="Full Name"
-                        placeholder="Enter your full name"
-                        value={formData.fullName}
-                        onChangeText={(text) => updateFormData('fullName', text)}
-                        autoCapitalize="words"
-                    />
+                    <>
+                        <Input
+                            label="Full Name"
+                            placeholder="Enter your full name"
+                            value={formData.fullName}
+                            onChangeText={(text) => updateFormData('fullName', text)}
+                            autoCapitalize="words"
+                        />
+                        <View>
+                            <Text className="text-sm font-medium text-gray-700 mb-2">Sign up as</Text>
+                            <View className="flex-row gap-3">
+                                <TouchableOpacity
+                                    onPress={() => updateFormData('role', 'student')}
+                                    className={`flex-1 py-3 px-4 rounded-lg border-2 ${formData.role === 'student' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
+                                >
+                                    <Text className={`text-center font-medium ${formData.role === 'student' ? 'text-blue-600' : 'text-gray-600'}`}>Student</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => updateFormData('role', 'counselor')}
+                                    className={`flex-1 py-3 px-4 rounded-lg border-2 ${formData.role === 'counselor' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
+                                >
+                                    <Text className={`text-center font-medium ${formData.role === 'counselor' ? 'text-blue-600' : 'text-gray-600'}`}>Counselor</Text>
+                                </TouchableOpacity>
+                            </View>
+                            {formData.role === 'counselor' && (
+                                <Text className="text-xs text-amber-600 mt-1">Your account will need admin approval before you can access the counselor dashboard.</Text>
+                            )}
+                        </View>
+                    </>
                 )}
 
                 <Input

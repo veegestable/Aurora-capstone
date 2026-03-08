@@ -70,7 +70,7 @@ export default function CounselorDashboard() {
 
       <div className="flex h-screen">
         {/* Desktop Sidebar - Hidden on Mobile */}
-        <aside className="hidden lg:block w-64 bg-aurora-primary-dark shadow-aurora flex-shrink-0">
+        <aside className="hidden lg:block w-64 bg-aurora-primary-dark shadow-aurora shrink-0">
           <nav className="h-full px-4 py-6">
             <div className="space-y-2">
               {tabs.map((tab) => {
@@ -120,7 +120,7 @@ export default function CounselorDashboard() {
                         </div>
                       ) : (
                         students.map((student: any) => (
-                          <div key={student.id} className="border border-aurora-primary-light/30 rounded-lg p-4 bg-white/50 backdrop-blur-sm hover:bg-white/70 transition-all">
+                          <div key={student.id} className="border border-aurora-primary-light/30 rounded-lg p-4 bg-white/50 backdrop-blur-xs hover:bg-white/70 transition-all">
                             <h3 className="font-medium text-aurora-primary-dark">{student.full_name}</h3>
                             <p className="text-sm text-aurora-primary-dark/60">{student.email}</p>
                             <div className="flex items-center space-x-4 mt-2">

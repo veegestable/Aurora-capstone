@@ -2,9 +2,8 @@ import { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, Image, Modal, Alert, StatusBar, Platform } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-// import { Camera, Upload, Scan, X, Check } from 'lucide-react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Button } from './common/Button';
+import { AURORA } from '../constants/aurora-colors';
 
 interface DetectedEmotion {
     emotion: string;
@@ -17,11 +16,25 @@ interface EmotionDetectionProps {
 }
 
 const EMOTION_COLORS: Record<string, string> = {
-    joy: '#FFD700',      // Happy
-    surprise: '#FF8C00', // Surprise
-    anger: '#DC143C',    // Angry
-    sadness: '#4169E1',  // Sad
-    neutral: '#808080'   // Neutral
+    joy: AURORA.moodHappy,
+    happiness: AURORA.moodHappy,
+    happy: AURORA.moodHappy,
+    surprise: AURORA.moodSurprise,
+    surprised: AURORA.moodSurprise,
+    anger: AURORA.moodAngry,
+    angry: AURORA.moodAngry,
+    sadness: AURORA.moodSad,
+    sad: AURORA.moodSad,
+    neutral: AURORA.moodNeutral,
+    fear: '#9333EA',
+    fearful: '#9333EA',
+    disgust: '#059669',
+    disgusted: '#059669',
+};
+
+const getEmotionColor = (emotionName: string): string => {
+    const normalized = emotionName.toLowerCase().trim();
+    return EMOTION_COLORS[normalized] || AURORA.moodNeutral;
 };
 
 export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
@@ -136,7 +149,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                 predictions = Object.entries(result.emotions).map(([emotion, score]) => ({
                     emotion: emotion.toLowerCase(),
                     confidence: (score as number) / 100, // Convert percentage to 0-1
-                    color: EMOTION_COLORS[emotion.toLowerCase()] || EMOTION_COLORS.neutral
+                    color: getEmotionColor(emotion)
                 }));
             }
 
@@ -168,95 +181,93 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
     };
 
     return (
-        <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <Text className="text-xl font-semibold text-gray-900 mb-4">AI Emotion Detection</Text>
+        <View style={{ backgroundColor: AURORA.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: AURORA.border }}>
+            <Text style={{ fontSize: 20, fontWeight: '600', color: AURORA.textPrimary, marginBottom: 16 }}>AI Emotion Detection</Text>
 
             {!capturedImage ? (
-                <View className="flex-row gap-4">
+                <View style={{ flexDirection: 'row', gap: 16 }}>
                     <TouchableOpacity
                         onPress={startCamera}
-                        className="flex-1 bg-blue-50 p-4 rounded-xl items-center border-2 border-blue-100"
+                        style={{ flex: 1, backgroundColor: 'rgba(45, 107, 255, 0.15)', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(45, 107, 255, 0.3)' }}
                     >
-                        <Ionicons name="camera" size={24} color="#3B82F6" />
-                        <Text className="text-blue-600 font-medium mt-2">Take Selfie</Text>
+                        <Ionicons name="camera" size={24} color={AURORA.blue} />
+                        <Text style={{ color: AURORA.blue, fontWeight: '500', marginTop: 8 }}>Take Selfie</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         onPress={uploadPhoto}
-                        className="flex-1 bg-purple-50 p-4 rounded-xl items-center border-2 border-purple-100"
+                        style={{ flex: 1, backgroundColor: 'rgba(124, 58, 237, 0.15)', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(124, 58, 237, 0.3)' }}
                     >
-                        <Ionicons name="cloud-upload" size={24} color="#8B5CF6" />
-                        <Text className="text-purple-600 font-medium mt-2">Upload Photo</Text>
+                        <Ionicons name="cloud-upload" size={24} color={AURORA.purple} />
+                        <Text style={{ color: AURORA.purple, fontWeight: '500', marginTop: 8 }}>Upload Photo</Text>
                     </TouchableOpacity>
                 </View>
             ) : (
-                <View className="items-center w-full">
-                    <View className="relative w-full aspect-[3/4] bg-gray-100 rounded-xl overflow-hidden mb-4">
+                <View style={{ alignItems: 'center', width: '100%' }}>
+                    <View style={{ position: 'relative', width: '100%', aspectRatio: 3/4, backgroundColor: AURORA.cardAlt, borderRadius: 16, overflow: 'hidden', marginBottom: 16 }}>
                         <Image
                             source={{ uri: capturedImage }}
-                            className="w-full h-full"
+                            style={{ width: '100%', height: '100%' }}
                             resizeMode="cover"
                         />
                         {isAnalyzing && (
-                            <View className="absolute inset-0 bg-black/50 items-center justify-center">
-                                <Text className="text-white font-medium">Analyzing...</Text>
+                            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ color: AURORA.textPrimary, fontWeight: '500' }}>Analyzing...</Text>
                             </View>
                         )}
                     </View>
 
                     {detectedEmotions.length > 0 && (
-                        <View className="w-full mb-4">
-                            <Text className="font-semibold mb-2">Detected Emotions:</Text>
-                            {detectedEmotions.map((emotion, index) => (
-                                <View key={index} className="flex-row items-center mb-2">
-                                    <View
-                                        style={{ backgroundColor: emotion.color }}
-                                        className="w-4 h-4 rounded-full mr-2"
-                                    />
-                                    <Text className="flex-1 capitalize text-gray-700">{emotion.emotion}</Text>
-                                    <View className="flex-row items-center flex-1">
-                                        <View className="flex-1 h-2 bg-gray-200 rounded-full mr-2">
-                                            <View
-                                                className="h-full bg-blue-500 rounded-full"
-                                                style={{ width: `${emotion.confidence * 100}%` }}
-                                            />
+                        <View style={{ width: '100%', marginBottom: 16 }}>
+                            <Text style={{ fontWeight: '600', marginBottom: 12, color: AURORA.textPrimary }}>Detected Emotions:</Text>
+                            {detectedEmotions.map((emotion, index) => {
+                                const emotionColor = emotion.color || getEmotionColor(emotion.emotion);
+                                return (
+                                    <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                                        <View style={{ backgroundColor: emotionColor, width: 16, height: 16, borderRadius: 8, marginRight: 10 }} />
+                                        <Text style={{ flex: 1, textTransform: 'capitalize', color: emotionColor, fontWeight: '600' }}>{emotion.emotion}</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1.2 }}>
+                                            <View style={{ flex: 1, height: 8, backgroundColor: AURORA.cardAlt, borderRadius: 4, marginRight: 10 }}>
+                                                <View style={{ height: '100%', backgroundColor: emotionColor, borderRadius: 4, width: `${emotion.confidence * 100}%` }} />
+                                            </View>
+                                            <View style={{ backgroundColor: `${emotionColor}20`, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, minWidth: 45, alignItems: 'center' }}>
+                                                <Text style={{ fontSize: 12, color: emotionColor, fontWeight: '600' }}>{Math.round(emotion.confidence * 100)}%</Text>
+                                            </View>
                                         </View>
-                                        <Text className="text-xs text-gray-500">{Math.round(emotion.confidence * 100)}%</Text>
                                     </View>
-                                </View>
-                            ))}
+                                );
+                            })}
                         </View>
                     )}
 
-                    <View className="flex-row gap-2 w-full">
-                        <Button
+                    <View style={{ flexDirection: 'row', gap: 8, width: '100%' }}>
+                        <TouchableOpacity
                             onPress={() => {
                                 setCapturedImage(null);
                                 setDetectedEmotions([]);
                             }}
-                            variant="outline"
-                            className="flex-1"
+                            style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: AURORA.border, backgroundColor: AURORA.cardAlt }}
                         >
-                            Take Another
-                        </Button>
+                            <Text style={{ color: AURORA.textSec, fontWeight: '600' }}>Take Another</Text>
+                        </TouchableOpacity>
                         {detectedEmotions.length > 0 && (
-                            <Button
+                            <TouchableOpacity
                                 onPress={() => {
                                     Alert.alert('Success', 'Emotions captured!');
                                     setCapturedImage(null);
                                     setDetectedEmotions([]);
                                 }}
-                                className="flex-1 bg-green-500"
+                                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: AURORA.green }}
                             >
-                                Save
-                            </Button>
+                                <Text style={{ color: AURORA.textPrimary, fontWeight: '600' }}>Save</Text>
+                            </TouchableOpacity>
                         )}
                     </View>
                 </View>
             )}
 
             <Modal visible={isCameraVisible} animationType="slide">
-                <View className="flex-1 bg-black">
+                <View style={{ flex: 1, backgroundColor: 'black' }}>
                     {permission?.granted ? (
                         <View style={{ flex: 1 }}>
                             <CameraView
@@ -264,23 +275,23 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                                 style={{ flex: 1 }}
                                 facing={facing}
                             />
-                            <View className="absolute inset-0 justify-end pb-10 custom-overlay" pointerEvents="box-none">
-                                <View className="flex-row justify-center items-center gap-8">
+                            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', paddingBottom: 40 }} pointerEvents="box-none">
+                                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 32 }}>
                                     <TouchableOpacity
                                         onPress={closeCamera}
-                                        className="p-4 bg-white/20 rounded-full"
+                                        style={{ padding: 16, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 9999 }}
                                     >
                                         <Ionicons name="close" size={24} color="white" />
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
                                         onPress={capturePhoto}
-                                        className="w-20 h-20 bg-white rounded-full border-4 border-gray-300 shadow-lg"
+                                        style={{ width: 80, height: 80, backgroundColor: 'white', borderRadius: 40, borderWidth: 4, borderColor: AURORA.textSec }}
                                     />
 
                                     <TouchableOpacity
                                         onPress={() => setFacing(current => (current === 'back' ? 'front' : 'back'))}
-                                        className="p-4 bg-white/20 rounded-full"
+                                        style={{ padding: 16, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 9999 }}
                                     >
                                         <Ionicons name="camera-reverse" size={24} color="white" />
                                     </TouchableOpacity>
@@ -288,14 +299,17 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                             </View>
                         </View>
                     ) : (
-                        <View className="flex-1 items-center justify-center">
-                            <Text className="text-white mb-4">Camera permission is required</Text>
-                            <Button onPress={requestPermission} variant="outline" className="bg-white">
-                                Grant Permission
-                            </Button>
+                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: AURORA.bg }}>
+                            <Text style={{ color: AURORA.textPrimary, marginBottom: 16 }}>Camera permission is required</Text>
+                            <TouchableOpacity
+                                onPress={requestPermission}
+                                style={{ paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, backgroundColor: AURORA.blue }}
+                            >
+                                <Text style={{ color: AURORA.textPrimary, fontWeight: '600' }}>Grant Permission</Text>
+                            </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={closeCamera}
-                                className="mt-8 p-4 bg-white/20 rounded-full"
+                                style={{ marginTop: 32, padding: 16, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 9999 }}
                             >
                                 <Ionicons name="close" size={24} color="white" />
                             </TouchableOpacity>

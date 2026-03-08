@@ -9,6 +9,11 @@ export default function RootLayout() {
             <AuthProvider>
                 <Stack>
                     <Stack.Screen name="index" options={{ headerShown: false }} />
+                    <Stack.Screen name="pending-counselor" options={{ headerShown: false }} />
+                    <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(counselor)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(student)" options={{ headerShown: false }} />
                     <Stack.Screen name="dashboard" options={{ headerShown: false }} />
                 </Stack>
             </AuthProvider>

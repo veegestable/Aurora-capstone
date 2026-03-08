@@ -30,7 +30,7 @@ export default function LoginScreen() {
                         { icon: Users, label: 'Counselor Support', color: '#F59E0B', bg: '#FEF3C7' },
                         { icon: Heart, label: 'Wellness Tools', color: '#EC4899', bg: '#FCE7F3' }
                     ].map((item, index) => (
-                        <View key={index} className="flex-1 items-center bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                        <View key={index} className="flex-1 items-center bg-white p-3 rounded-xl border border-gray-100 shadow-xs">
                             <View style={{ backgroundColor: item.bg }} className="p-2 rounded-full mb-2">
                                 <item.icon size={20} color={item.color} />
                             </View>

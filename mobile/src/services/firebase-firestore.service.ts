@@ -264,6 +264,21 @@ export const firestoreService = {
     }
   },
 
+  // Users (for admin counselor management)
+  async getUsersByRole(role: 'counselor' | 'student' | 'admin') {
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('role', '==', role)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, any>));
+    } catch (error: any) {
+      console.error('❌ Error fetching users by role:', error);
+      throw error;
+    }
+  },
+
   async markNotificationAsRead(notificationId: string) {
     try {
       const notificationRef = doc(db, 'notifications', notificationId);
