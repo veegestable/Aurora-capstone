@@ -3,12 +3,13 @@
  * ====================================
  * Route: /(counselor)/messages
  * Shows student conversations with unread/priority indicators.
+ * Supports appointment scheduling: counselor can invite students to sessions.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, Image,
-    TextInput, KeyboardAvoidingView, Platform,
+    TextInput, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -16,85 +17,50 @@ import {
     Info, Plus, Send,
 } from 'lucide-react-native';
 import { useAuth } from '../../src/stores/AuthContext';
+import { useMessagesContactStore, type MessageContact } from '../../src/stores/messagesContactStore';
+import { firestoreService } from '../../src/services/firebase-firestore.service';
 import { AURORA } from '../../src/constants/aurora-colors';
+import { LetterAvatar } from '../../src/components/common/LetterAvatar';
+import SendSessionInviteModal, { type SessionInviteData } from '../../src/components/counselor/SendSessionInviteModal';
+import SessionCard, { type SessionCardData } from '../../src/components/counselor/SessionCard';
+import SessionAttendanceModal, { type AttendanceStatus } from '../../src/components/counselor/SessionAttendanceModal';
+import SessionRequestReceivedCard from '../../src/components/counselor/SessionRequestReceivedCard';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type FilterTab = 'All Messages' | 'Unread' | 'Priority';
+type Conversation = MessageContact;
 
-interface Conversation {
-    id: string;
-    name: string;
-    preview: string;
-    time: string;
-    avatar: string;
-    isOnline: boolean;
-    isUnread: boolean;
-    isAlerted: boolean;
-    alertPreview?: string;
-    borderColor?: string;
-}
-
-interface ChatMessage {
+interface TextChatMessage {
     id: string;
     senderId: 'me' | 'them';
+    type: 'text';
     text: string;
     time: string;
 }
 
-// ─── Mock Data ─────────────────────────────────────────────────────────────────
-const CONVERSATIONS: Conversation[] = [
-    {
-        id: '1', name: 'Ethan Caldwell',
-        preview: 'Hey, can we talk about the midt...',
-        time: '2m ago', avatar: 'https://i.pravatar.cc/64?u=ethan_caldwell_c',
-        isOnline: true, isUnread: true, isAlerted: false,
-        borderColor: AURORA.blue,
-    },
-    {
-        id: '2', name: 'Maya Rodriguez',
-        preview: 'Thanks for the resources you sent ove...',
-        time: '1h ago', avatar: 'https://i.pravatar.cc/64?u=maya_rodriguez_c',
-        isOnline: false, isUnread: false, isAlerted: false,
-    },
-    {
-        id: '3', name: 'Liam Vance',
-        preview: "Liam's mood check-in triggered ...",
-        time: '3h ago', avatar: 'https://i.pravatar.cc/64?u=liam_vance_c',
-        isOnline: false, isUnread: true, isAlerted: true,
-        borderColor: AURORA.orange,
-    },
-    {
-        id: '4', name: 'Sophie Chen',
-        preview: 'Is it possible to reschedule our 3PM s...',
-        time: 'Yesterday', avatar: 'https://i.pravatar.cc/64?u=sophie_chen_c',
-        isOnline: false, isUnread: false, isAlerted: false,
-    },
-    {
-        id: '5', name: 'Jordan Smith',
-        preview: "I've completed the goal-setting exerci...",
-        time: 'Oct 24', avatar: 'https://i.pravatar.cc/64?u=jordan_smith_c',
-        isOnline: false, isUnread: false, isAlerted: false,
-    },
-];
+interface SessionChatMessage {
+    id: string;
+    senderId: 'me' | 'them';
+    type: 'session';
+    session: SessionCardData;
+    time: string;
+}
 
-const MOCK_MESSAGES: Record<string, ChatMessage[]> = {
-    '1': [
-        { id: '1', senderId: 'them', text: "Hi! Can we talk about the midterm exam? I'm feeling really anxious about it.", time: '2m ago' },
-    ],
-    '2': [
-        { id: '1', senderId: 'them', text: 'Thanks for the resources you sent over! They were really helpful.', time: '1h ago' },
-        { id: '2', senderId: 'me', text: 'Glad to hear it! Keep up the great work.', time: '1h ago' },
-    ],
-    '3': [
-        { id: '1', senderId: 'them', text: "I've been feeling really low lately. My mood check-in scores have been dropping.", time: '3h ago' },
-    ],
-    '4': [
-        { id: '1', senderId: 'them', text: 'Is it possible to reschedule our 3PM session tomorrow?', time: 'Yesterday' },
-    ],
-    '5': [
-        { id: '1', senderId: 'them', text: "I've completed the goal-setting exercise you assigned. Here are my notes.", time: 'Oct 24' },
-    ],
-};
+interface SessionRequestChatMessage {
+    id: string;
+    senderId: 'me' | 'them';
+    type: 'session_request';
+    sessionRequest: {
+        id: string;
+        sessionId: string | null;
+        preferredTime: string;
+        note: string;
+        status: string;
+    };
+    time: string;
+}
+
+type ChatMessage = TextChatMessage | SessionChatMessage | SessionRequestChatMessage;
 
 // ─── Conversation Row ──────────────────────────────────────────────────────────
 function ConversationRow({
@@ -122,13 +88,7 @@ function ConversationRow({
 
             {/* Avatar */}
             <View style={{ position: 'relative', margin: 12 }}>
-                <Image
-                    source={{ uri: item.avatar }}
-                    style={{
-                        width: 52, height: 52, borderRadius: 26,
-                        backgroundColor: AURORA.cardAlt,
-                    }}
-                />
+                <LetterAvatar name={item.name} size={52} />
                 {item.isOnline && (
                     <View style={{
                         position: 'absolute', bottom: 1, right: 1,
@@ -189,21 +149,181 @@ function ConversationRow({
 // ─── Chat View ─────────────────────────────────────────────────────────────────
 function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => void }) {
     const { user } = useAuth();
+    const conversationId = contact.conversationId || (user?.id ? `${user.id}_${contact.id}` : '');
     const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState<ChatMessage[]>(MOCK_MESSAGES[contact.id] || []);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [loadingMessages, setLoadingMessages] = useState(true);
+    const [sending, setSending] = useState(false);
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const [showInviteModalForSessionRequest, setShowInviteModalForSessionRequest] = useState<string | null>(null);
+    const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+    const [selectedSessionForAttendance, setSelectedSessionForAttendance] = useState<SessionCardData | null>(null);
 
-    const sendMessage = () => {
-        if (!message.trim()) return;
-        setMessages(prev => [...prev, {
-            id: String(Date.now()), senderId: 'me',
-            text: message.trim(),
-            time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        }]);
-        setMessage('');
+    useEffect(() => {
+        if (!conversationId || !user?.id) {
+            setLoadingMessages(false);
+            return;
+        }
+        let cancelled = false;
+        firestoreService.getMessages(conversationId, user.id).then((msgs) => {
+            if (!cancelled) {
+                setMessages(msgs as ChatMessage[]);
+            }
+        }).catch(() => {
+            if (!cancelled) setMessages([]);
+        }).finally(() => {
+            if (!cancelled) setLoadingMessages(false);
+        });
+        return () => { cancelled = true; };
+    }, [conversationId, user?.id]);
+
+    const sendMessage = async () => {
+        const text = message.trim();
+        if (!text || !user?.id || !conversationId || sending) return;
+        setSending(true);
+        try {
+            const msgId = await firestoreService.sendTextMessage(conversationId, user.id, text);
+            setMessages(prev => [...prev, {
+                id: msgId, senderId: 'me', type: 'text',
+                text,
+                time: 'Just now',
+            }]);
+            setMessage('');
+        } catch (e) {
+            console.error('Failed to send message:', e);
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const handleSendSessionInvite = async (data: SessionInviteData) => {
+        if (!user?.id || !conversationId || sending) return;
+        const formatSlot = (d: Date) => ({
+            date: d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            time: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+        });
+        const timeSlots = [
+            data.primaryDate && formatSlot(data.primaryDate),
+            data.alternativeDate && formatSlot(data.alternativeDate),
+            data.finalDate && formatSlot(data.finalDate),
+        ].filter(Boolean) as { date: string; time: string }[];
+        const primary = data.primaryDate!;
+        const sessionData: SessionCardData & { note?: string; timeSlots?: { date: string; time: string }[] } = {
+            id: `session_${Date.now()}`,
+            type: 'invite',
+            title: 'Academic Guidance',
+            counselorName: user.full_name || 'Counselor',
+            date: primary.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            time: primary.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+            location: 'Guidance Office, West Wing',
+            note: data.note,
+            timeSlots: timeSlots.length > 0 ? timeSlots : undefined,
+        };
+        setSending(true);
+        try {
+            const msgId = await firestoreService.sendSessionMessage(conversationId, user.id, sessionData);
+            setMessages(prev => [...prev, {
+                id: msgId, senderId: 'me', type: 'session',
+                session: sessionData,
+                time: 'Just now',
+            }]);
+        } catch (e) {
+            console.error('Failed to send session invite:', e);
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const handlePlusPress = () => setShowInviteModal(true);
+
+    const parsePreferredTimeToSlot = (preferredTime: string): { date: string; time: string } => {
+        const parts = preferredTime.split(', ');
+        if (parts.length < 2) return { date: preferredTime, time: '' };
+        const time = parts[parts.length - 1];
+        const date = parts.slice(1, -1).join(', ');
+        return { date, time };
+    };
+
+    const handleAcceptSessionRequest = async (sessionId: string | null, preferredTime: string) => {
+        if (!sessionId || !preferredTime || sending) return;
+        setSending(true);
+        try {
+            const slot = parsePreferredTimeToSlot(preferredTime);
+            await firestoreService.confirmSlot(sessionId, slot);
+            setMessages(prev => prev.map(m => {
+                if (m.type === 'session_request' && m.sessionRequest.sessionId === sessionId) {
+                    return { ...m, sessionRequest: { ...m.sessionRequest, status: 'confirmed' } };
+                }
+                return m;
+            }));
+        } catch (e) {
+            console.error('Failed to accept session request:', e);
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const handleProposeNewTime = (sessionId: string | null) => {
+        if (sessionId) setShowInviteModalForSessionRequest(sessionId);
+    };
+
+    const handleProposeSlotsFromModal = async (data: SessionInviteData, sessionId: string) => {
+        if (!sessionId || !user?.id || !conversationId || sending) return;
+        const formatSlot = (d: Date | null) => d ? {
+            date: d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            time: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+        } : null;
+        const slots = [
+            data.primaryDate && formatSlot(data.primaryDate),
+            data.alternativeDate && formatSlot(data.alternativeDate),
+            data.finalDate && formatSlot(data.finalDate),
+        ].filter(Boolean) as { date: string; time: string }[];
+        if (slots.length === 0) return;
+        const primary = data.primaryDate!;
+        setSending(true);
+        try {
+            await firestoreService.proposeSlots(sessionId, slots);
+            const sessionData: SessionCardData & { note?: string; timeSlots?: { date: string; time: string }[] } = {
+                id: sessionId,
+                type: 'invite',
+                title: 'Academic Guidance',
+                counselorName: user.full_name || 'Counselor',
+                date: primary.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+                time: primary.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+                location: 'Guidance Office, West Wing',
+                note: data.note,
+                timeSlots: slots,
+            };
+            const msgId = await firestoreService.sendSessionMessage(conversationId, user.id, sessionData);
+            setMessages(prev => [
+                ...prev,
+                { id: msgId, senderId: 'me' as const, type: 'session' as const, session: sessionData, time: 'Just now' },
+            ]);
+            setShowInviteModalForSessionRequest(null);
+        } catch (e) {
+            console.error('Failed to propose slots:', e);
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const handleViewSessionDetails = (sessionData: SessionCardData) => {
+        setSelectedSessionForAttendance(sessionData);
+        setShowAttendanceModal(true);
+    };
+
+    const handleMarkAttendance = (status: AttendanceStatus) => {
+        setShowAttendanceModal(false);
+        setSelectedSessionForAttendance(null);
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: AURORA.bgMessages }}>
+        <>
+        <KeyboardAvoidingView
+            style={{ flex: 1, backgroundColor: AURORA.bgMessages }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
             <SafeAreaView style={{ flex: 1 }}>
                 {/* Header */}
                 <View style={{
@@ -256,8 +376,15 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                     style={{ flex: 1 }}
                     contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 16 }}
                     showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
                 >
-                    {messages.map(msg => {
+                    {loadingMessages ? (
+                        <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                            <ActivityIndicator size="small" color={AURORA.blue} />
+                        </View>
+                    ) : (
+                    messages.map(msg => {
                         const isMe = msg.senderId === 'me';
                         return (
                             <View key={msg.id} style={{ marginBottom: 16 }}>
@@ -273,41 +400,70 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                     alignItems: 'flex-end', gap: 8,
                                 }}>
                                     {!isMe && (
-                                        <Image
-                                            source={{ uri: contact.avatar }}
-                                            style={{ width: 32, height: 32, borderRadius: 16 }}
-                                        />
+                                        <LetterAvatar name={contact.name} size={32} />
                                     )}
-                                    <View style={{
-                                        maxWidth: '78%',
-                                        backgroundColor: isMe ? AURORA.blue : AURORA.card,
-                                        borderRadius: 16,
-                                        borderBottomLeftRadius: isMe ? 16 : 4,
-                                        borderBottomRightRadius: isMe ? 4 : 16,
-                                        paddingHorizontal: 14, paddingVertical: 10,
-                                    }}>
-                                        <Text style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
-                                            {msg.text}
-                                        </Text>
-                                    </View>
+                                    {msg.type === 'text' ? (
+                                        <View style={{
+                                            maxWidth: '78%',
+                                            backgroundColor: isMe ? AURORA.blue : AURORA.card,
+                                            borderRadius: 16,
+                                            borderBottomLeftRadius: isMe ? 16 : 4,
+                                            borderBottomRightRadius: isMe ? 4 : 16,
+                                            paddingHorizontal: 14, paddingVertical: 10,
+                                        }}>
+                                            <Text style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
+                                                {msg.text}
+                                            </Text>
+                                        </View>
+                                    ) : msg.type === 'session_request' && !isMe ? (
+                                        <SessionRequestReceivedCard
+                                            data={{
+                                                sessionId: msg.sessionRequest.sessionId ?? '',
+                                                title: 'Session Request',
+                                                preferredTime: msg.sessionRequest.preferredTime || undefined,
+                                                note: msg.sessionRequest.note,
+                                                status: msg.sessionRequest.status,
+                                            }}
+                                            onAccept={
+                                                msg.sessionRequest.sessionId && msg.sessionRequest.preferredTime
+                                                    ? () => handleAcceptSessionRequest(msg.sessionRequest.sessionId!, msg.sessionRequest.preferredTime)
+                                                    : undefined
+                                            }
+                                            onProposeNewTime={
+                                                msg.sessionRequest.sessionId
+                                                    ? () => handleProposeNewTime(msg.sessionRequest.sessionId)
+                                                    : undefined
+                                            }
+                                        />
+                                    ) : msg.type === 'session' ? (
+                                        <SessionCard
+                                            data={msg.session}
+                                            isFromMe={isMe}
+                                            onViewDetails={() => handleViewSessionDetails(msg.session)}
+                                            onReschedule={() => {}}
+                                        />
+                                    ) : null}
                                 </View>
                             </View>
                         );
-                    })}
+                    })
+                    )}
                 </ScrollView>
 
                 {/* Input Bar */}
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
                     <View style={{
                         flexDirection: 'row', alignItems: 'center',
                         paddingHorizontal: 16, paddingVertical: 12,
                         borderTopWidth: 1, borderTopColor: AURORA.border, gap: 10,
                     }}>
-                        <TouchableOpacity style={{
-                            width: 40, height: 40, borderRadius: 20,
-                            backgroundColor: AURORA.card, alignItems: 'center', justifyContent: 'center',
-                            borderWidth: 1, borderColor: AURORA.border,
-                        }}>
+                        <TouchableOpacity
+                            onPress={handlePlusPress}
+                            style={{
+                                width: 40, height: 40, borderRadius: 20,
+                                backgroundColor: AURORA.card, alignItems: 'center', justifyContent: 'center',
+                                borderWidth: 1, borderColor: AURORA.border,
+                            }}
+                        >
                             <Plus size={18} color={AURORA.textSec} />
                         </TouchableOpacity>
                         <TextInput
@@ -324,6 +480,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                         />
                         <TouchableOpacity
                             onPress={sendMessage}
+                            disabled={sending}
                             style={{
                                 width: 44, height: 44, borderRadius: 22,
                                 backgroundColor: AURORA.blue,
@@ -333,31 +490,114 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                             <Send size={18} color="#FFFFFF" />
                         </TouchableOpacity>
                     </View>
-                </KeyboardAvoidingView>
             </SafeAreaView>
-        </View>
+        </KeyboardAvoidingView>
+
+            {/* Send Session Invite Modal (from + button) */}
+            <SendSessionInviteModal
+                visible={showInviteModal}
+                student={{
+                    id: contact.id,
+                    name: contact.name,
+                    avatar: contact.avatar,
+                    program: contact.program,
+                    studentId: contact.studentId,
+                }}
+                counselorName={user?.full_name}
+                onClose={() => setShowInviteModal(false)}
+                onSend={handleSendSessionInvite}
+            />
+
+            {/* Propose New Time Modal (from session request card) */}
+            {showInviteModalForSessionRequest && (
+                <SendSessionInviteModal
+                    visible={!!showInviteModalForSessionRequest}
+                    student={{
+                        id: contact.id,
+                        name: contact.name,
+                        avatar: contact.avatar,
+                        program: contact.program,
+                        studentId: contact.studentId,
+                    }}
+                    counselorName={user?.full_name}
+                    onClose={() => setShowInviteModalForSessionRequest(null)}
+                    onSend={(data) => handleProposeSlotsFromModal(data, showInviteModalForSessionRequest!)}
+                />
+            )}
+
+            {/* Session Attendance Modal (post-session verification) */}
+            {selectedSessionForAttendance && (
+                <SessionAttendanceModal
+                    visible={showAttendanceModal}
+                    student={{ id: contact.id, name: contact.name, avatar: contact.avatar }}
+                    session={{
+                        date: selectedSessionForAttendance.date,
+                        timeRange: selectedSessionForAttendance.time,
+                    }}
+                    onClose={() => { setShowAttendanceModal(false); setSelectedSessionForAttendance(null); }}
+                    onMarkLater={() => { setShowAttendanceModal(false); setSelectedSessionForAttendance(null); }}
+                    onMarkStatus={handleMarkAttendance}
+                />
+            )}
+        </>
     );
 }
 
 // ─── Main Screen ────────────────────────────────────────────────────────────────
 export default function CounselorMessagesScreen() {
     const { user } = useAuth();
+    const { contacts, setContacts } = useMessagesContactStore();
     const [activeTab, setActiveTab] = useState<FilterTab>('All Messages');
     const [selectedContact, setSelectedContact] = useState<Conversation | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!user?.id) {
+            setLoading(false);
+            return;
+        }
+        let cancelled = false;
+        firestoreService.getConversations(user.id)
+            .then((convos) => {
+                if (!cancelled) setContacts(convos);
+            })
+            .catch(() => {
+                if (!cancelled) setContacts([]);
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [user?.id, setContacts]);
+
+    const refreshConversations = () => {
+        if (!user?.id) return;
+        firestoreService.getConversations(user.id)
+            .then(setContacts)
+            .catch(() => setContacts([]));
+    };
 
     if (selectedContact) {
-        return <ChatView contact={selectedContact} onBack={() => setSelectedContact(null)} />;
+        return (
+            <ChatView
+                contact={selectedContact}
+                onBack={() => {
+                    setSelectedContact(null);
+                    refreshConversations();
+                }}
+            />
+        );
     }
 
     const TABS: FilterTab[] = ['All Messages', 'Unread', 'Priority'];
 
     const filtered = activeTab === 'All Messages'
-        ? CONVERSATIONS
+        ? contacts
         : activeTab === 'Unread'
-            ? CONVERSATIONS.filter(c => c.isUnread)
-            : CONVERSATIONS.filter(c => c.isAlerted);
+            ? contacts.filter(c => c.isUnread)
+            : contacts.filter(c => c.isAlerted);
 
-    const unreadCount = CONVERSATIONS.filter(c => c.isUnread).length;
+    const unreadCount = contacts.filter(c => c.isUnread).length;
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgMessages }}>
@@ -370,13 +610,7 @@ export default function CounselorMessagesScreen() {
                         borderBottomWidth: 1, borderBottomColor: AURORA.border,
                         gap: 12,
                     }}>
-                        <Image
-                            source={{ uri: user?.avatar_url || `https://i.pravatar.cc/50?u=${user?.id}_msg` }}
-                            style={{
-                                width: 46, height: 46, borderRadius: 23,
-                                backgroundColor: AURORA.card,
-                            }}
-                        />
+                        <LetterAvatar name={user?.full_name ?? 'Counselor'} size={46} />
                         <View style={{ flex: 1 }}>
                             <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800' }}>
                                 Messages
@@ -433,10 +667,19 @@ export default function CounselorMessagesScreen() {
                     contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
                 >
-                    {filtered.length === 0 ? (
+                    {loading ? (
                         <View style={{ paddingTop: 60, alignItems: 'center' }}>
-                            <Text style={{ color: AURORA.textMuted, fontSize: 14 }}>
-                                No conversations.
+                            <ActivityIndicator size="large" color={AURORA.blue} />
+                            <Text style={{ color: AURORA.textMuted, fontSize: 14, marginTop: 12 }}>
+                                Loading conversations...
+                            </Text>
+                        </View>
+                    ) : filtered.length === 0 ? (
+                        <View style={{ paddingTop: 60, alignItems: 'center' }}>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 14, textAlign: 'center' }}>
+                                {contacts.length === 0
+                                    ? 'No conversations yet. Invite students from the Risk Center.'
+                                    : 'No conversations match this filter.'}
                             </Text>
                         </View>
                     ) : (

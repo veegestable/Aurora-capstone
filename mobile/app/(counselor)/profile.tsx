@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-    View, Text, ScrollView, TouchableOpacity, Image,
+    View, Text, ScrollView, TouchableOpacity,
     Switch, Alert, ActivityIndicator, Modal, TextInput,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react-native';
 import { useAuth } from '../../src/stores/AuthContext';
 import { AURORA } from '../../src/constants/aurora-colors';
+import { LetterAvatar } from '../../src/components/common/LetterAvatar';
 import { firestoreService } from '../../src/services/firebase-firestore.service';
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -108,14 +109,12 @@ function EditProfileModal({
     visible,
     onClose,
     displayName,
-    avatarUrl,
     onSave,
     onPickAvatar,
 }: {
     visible: boolean;
     onClose: () => void;
     displayName: string;
-    avatarUrl: string;
     onSave: (name: string) => Promise<void>;
     onPickAvatar: (imageUri: string) => Promise<void>;
 }) {
@@ -186,15 +185,8 @@ function EditProfileModal({
 
                     <ScrollView contentContainerStyle={{ padding: 24 }}>
                         <View style={{ alignItems: 'center', marginBottom: 24 }}>
-                            <View style={{ position: 'relative' }}>
-                                <Image
-                                    source={{ uri: avatarUrl }}
-                                    style={{
-                                        width: 100, height: 100, borderRadius: 50,
-                                        backgroundColor: AURORA.card,
-                                        borderWidth: 3, borderColor: AURORA.blue,
-                                    }}
-                                />
+                            <View style={{ position: 'relative', borderWidth: 3, borderColor: AURORA.blue, borderRadius: 53 }}>
+                                <LetterAvatar name={name || displayName} size={100} />
                                 <TouchableOpacity
                                     onPress={handlePickAvatar}
                                     disabled={uploadingAvatar}
@@ -281,8 +273,6 @@ export default function CounselorProfileScreen() {
     const displayName = user?.full_name || 'Counselor';
     const counselorId = 'MSU-IIT ID: 2015-0482';
     const counselorTitle = user?.department || 'Lead Guidance Counselor | Trauma Specialist';
-    const avatarUrl = user?.avatar_url || `https://i.pravatar.cc/110?u=${user?.id}_profile`;
-
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
             <SafeAreaView style={{ flex: 1 }}>
@@ -313,14 +303,9 @@ export default function CounselorProfileScreen() {
                     {/* ── Avatar & Name ─────────────────────────────────── */}
                     <View style={{ alignItems: 'center', paddingTop: 28, paddingBottom: 20 }}>
                         <View style={{ position: 'relative', marginBottom: 16 }}>
-                            <Image
-                                source={{ uri: avatarUrl }}
-                                style={{
-                                    width: 110, height: 110, borderRadius: 55,
-                                    backgroundColor: AURORA.card,
-                                    borderWidth: 3, borderColor: AURORA.blue,
-                                }}
-                            />
+                            <View style={{ borderWidth: 3, borderColor: AURORA.blue, borderRadius: 58 }}>
+                                <LetterAvatar name={displayName} size={110} />
+                            </View>
                             <TouchableOpacity
                                 onPress={() => setShowEditProfile(true)}
                                 style={{
@@ -481,7 +466,6 @@ export default function CounselorProfileScreen() {
                     visible={showEditProfile}
                     onClose={() => setShowEditProfile(false)}
                     displayName={displayName}
-                    avatarUrl={avatarUrl}
                     onSave={async (name) => {
                         await updateUser({ full_name: name });
                     }}

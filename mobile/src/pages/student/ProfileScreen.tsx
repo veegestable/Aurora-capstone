@@ -12,6 +12,7 @@ import {
 } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { AURORA } from '../../constants/aurora-colors';
+import { LetterAvatar } from '../../components/common/LetterAvatar';
 
 // ─── Section Header ───────────────────────────────────────────────────────────
 function SectionHeader({ icon, title }: { icon?: React.ReactNode; title: string }) {
@@ -75,25 +76,6 @@ function ToggleRow({
     );
 }
 
-// ─── Profile Avatar (image or first letter) ────────────────────────────────────
-function ProfileAvatar({ avatarUrl, displayName, size = 44 }: { avatarUrl?: string; displayName: string; size?: number }) {
-    const firstName = displayName?.trim().split(' ')[0] || '?';
-    return (
-        <View style={{
-            width: size, height: size, borderRadius: size / 2,
-            backgroundColor: AURORA.card, borderWidth: size <= 44 ? 2 : 3, borderColor: AURORA.blue,
-            alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-        }}>
-            {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={{ width: size, height: size }} resizeMode="cover" />
-            ) : (
-                <Text style={{ color: AURORA.blue, fontWeight: '700', fontSize: size * 0.4 }}>
-                    {firstName.charAt(0).toUpperCase()}
-                </Text>
-            )}
-        </View>
-    );
-}
 
 // ─── Edit Profile Modal (name + avatar only) ───────────────────────────────────
 function EditProfileModal({
@@ -171,9 +153,8 @@ function EditProfileModal({
                     <ScrollView contentContainerStyle={{ padding: 24 }}>
                         <View style={{ alignItems: 'center', marginBottom: 24 }}>
                             <View style={{ position: 'relative' }}>
-                                <ProfileAvatar
-                                    avatarUrl={user?.avatar_url}
-                                    displayName={user?.preferred_name || user?.full_name || '?'}
+                                <LetterAvatar
+                                    name={user?.preferred_name || user?.full_name || 'Student'}
                                     size={90}
                                 />
                                 <TouchableOpacity
@@ -273,11 +254,12 @@ export default function ProfileScreen() {
                     {/* ── Avatar + Name ─────────────────────────────────────── */}
                     <View style={{ alignItems: 'center', marginBottom: 8, marginTop: 4 }}>
                         <View style={{ position: 'relative', marginBottom: 12 }}>
-                            <ProfileAvatar
-                                avatarUrl={user?.avatar_url}
-                                displayName={user?.preferred_name || user?.full_name || 'Student'}
-                                size={80}
-                            />
+                            <View style={{ borderWidth: 3, borderColor: AURORA.blue, borderRadius: 43 }}>
+                                <LetterAvatar
+                                    name={user?.preferred_name || user?.full_name || 'Student'}
+                                    size={80}
+                                />
+                            </View>
                             <TouchableOpacity
                                 onPress={() => setShowEditProfile(true)}
                                 style={{

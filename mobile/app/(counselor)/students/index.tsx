@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Bell, Search, ChevronDown } from 'lucide-react-native';
 import { AURORA } from '../../../src/constants/aurora-colors';
+import { LetterAvatar } from '../../../src/components/common/LetterAvatar';
 import { firestoreService } from '../../../src/services/firebase-firestore.service';
 import StudentProfileModal from '../../../src/components/counselor/StudentProfileModal';
 
@@ -101,18 +102,8 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
             <View style={{ width: 4, backgroundColor: style.border, alignSelf: 'stretch' }} />
 
             {/* Avatar */}
-            <View style={{ padding: 12 }}>
-                <Image
-                    source={{
-                        uri: student.avatar_url ||
-                            `https://i.pravatar.cc/56?u=${student.id}_student`,
-                    }}
-                    style={{
-                        width: 56, height: 56, borderRadius: 28,
-                        borderWidth: 2, borderColor: style.border,
-                        backgroundColor: AURORA.cardAlt,
-                    }}
-                />
+            <View style={{ padding: 12, borderWidth: 2, borderColor: style.border, borderRadius: 30 }}>
+                <LetterAvatar name={student.full_name ?? 'Student'} size={56} />
             </View>
 
             {/* Info */}

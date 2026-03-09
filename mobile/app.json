@@ -40,7 +40,8 @@
           "microphonePermission": "Allow Aurora to access your microphone."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "@react-native-community/datetimepicker"
     ]
   }
 }

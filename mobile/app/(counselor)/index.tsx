@@ -18,6 +18,7 @@ import {
 import { router } from 'expo-router';
 import { useAuth } from '../../src/stores/AuthContext';
 import { AURORA } from '../../src/constants/aurora-colors';
+import { LetterAvatar } from '../../src/components/common/LetterAvatar';
 import { firestoreService } from '../../src/services/firebase-firestore.service';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -123,13 +124,9 @@ function FlagRow({ item }: { item: FlagItem }) {
             }}
         >
             <View style={{ width: 4, backgroundColor: style.border, alignSelf: 'stretch' }} />
-            <Image
-                source={{ uri: item.avatar }}
-                style={{
-                    width: 48, height: 48, borderRadius: 24,
-                    margin: 12, backgroundColor: AURORA.cardAlt,
-                }}
-            />
+            <View style={{ margin: 12 }}>
+                <LetterAvatar name={item.name} size={48} />
+            </View>
             <View style={{ flex: 1 }}>
                 <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>
                     {item.name}
@@ -202,7 +199,7 @@ export default function CounselorHomeScreen() {
                         program: formatProgram(student.department, student.year_level),
                         time: lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No logs',
                         risk: deriveRiskFromMood(stressLevel, energyLevel) as RiskLevel,
-                        avatar: student.avatar_url || `https://i.pravatar.cc/50?u=${student.id}`,
+                        avatar: '',
                     }))
                     .sort((a, b) => {
                         const order = { 'HIGH RISK': 0, 'MEDIUM': 1, 'RESOLVED': 2 };
@@ -233,14 +230,9 @@ export default function CounselorHomeScreen() {
                     flexDirection: 'row', alignItems: 'center',
                     paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16,
                 }}>
-                    <Image
-                        source={{ uri: user?.avatar_url || `https://i.pravatar.cc/50?u=${user?.id || 'counselor'}` }}
-                        style={{
-                            width: 50, height: 50, borderRadius: 25,
-                            borderWidth: 2, borderColor: AURORA.green,
-                            backgroundColor: AURORA.card,
-                        }}
-                    />
+                    <View style={{ borderWidth: 2, borderColor: AURORA.green, borderRadius: 27 }}>
+                        <LetterAvatar name={user?.full_name ?? 'Counselor'} size={50} />
+                    </View>
                     <View style={{ flex: 1, marginLeft: 12 }}>
                         <Text style={{
                             color: AURORA.textSec, fontSize: 11,

@@ -15,9 +15,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     AlertTriangle, SlidersHorizontal, AlertCircle, X,
 } from 'lucide-react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AURORA } from '../../src/constants/aurora-colors';
+import { LetterAvatar } from '../../src/components/common/LetterAvatar';
 import { firestoreService } from '../../src/services/firebase-firestore.service';
+import { useAuth } from '../../src/stores/AuthContext';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type CaseStatus = 'open' | 'in_progress' | 'resolved';
@@ -134,10 +136,12 @@ function RiskCaseCard({
     riskCase,
     onStatusChange,
     onStudentPress,
+    onInvite,
 }: {
     riskCase: RiskCase;
     onStatusChange: (id: string, status: CaseStatus) => void;
     onStudentPress: (id: string) => void;
+    onInvite: (riskCase: RiskCase) => void;
 }) {
     const sev = getSeverityStyle(riskCase.severity);
     const isLow = riskCase.severity === 'low';
@@ -154,25 +158,7 @@ function RiskCaseCard({
                 onPress={() => onStudentPress(riskCase.id)}
                 activeOpacity={0.8}
             >
-                {riskCase.avatar ? (
-                    <Image
-                        source={{ uri: riskCase.avatar }}
-                        style={{
-                            width: 46, height: 46, borderRadius: 23,
-                            backgroundColor: AURORA.cardAlt,
-                        }}
-                    />
-                ) : (
-                    <View style={{
-                        width: 46, height: 46, borderRadius: 23,
-                        backgroundColor: AURORA.cardAlt,
-                        alignItems: 'center', justifyContent: 'center',
-                    }}>
-                        <Text style={{ color: AURORA.textSec, fontSize: 15, fontWeight: '700' }}>
-                            {riskCase.initials}
-                        </Text>
-                    </View>
-                )}
+                <LetterAvatar name={riskCase.name} size={46} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>
@@ -257,7 +243,7 @@ function RiskCaseCard({
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            onPress={() => onStatusChange(riskCase.id, 'resolved')}
+                            onPress={() => onInvite(riskCase)}
                             style={{
                                 flex: 1, borderRadius: 12, paddingVertical: 12,
                                 backgroundColor: AURORA.blue, alignItems: 'center',
@@ -267,7 +253,7 @@ function RiskCaseCard({
                             }}
                         >
                             <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>
-                                Resolve
+                                Invite:
                             </Text>
                         </TouchableOpacity>
                     </>
@@ -383,7 +369,7 @@ export default function CounselorRiskCenterScreen() {
                                 trigger,
                                 triggerType: type,
                                 status: 'open' as CaseStatus,
-                                avatar: s.avatar_url || `https://i.pravatar.cc/50?u=${s.id}`,
+                                avatar: '',
                                 initials: getInitials(s.full_name || 'S'),
                             } as RiskCase;
                         } catch {
@@ -396,7 +382,7 @@ export default function CounselorRiskCenterScreen() {
                                 trigger: 'No recent mood data.',
                                 triggerType: 'social' as const,
                                 status: 'open' as CaseStatus,
-                                avatar: s.avatar_url || `https://i.pravatar.cc/50?u=${s.id}`,
+                                avatar: '',
                                 initials: getInitials(s.full_name || 'S'),
                             } as RiskCase;
                         }
@@ -423,8 +409,28 @@ export default function CounselorRiskCenterScreen() {
         };
     }, []);
 
+    const router = useRouter();
+    const { user } = useAuth();
+
     const handleStatusChange = (id: string, status: CaseStatus) => {
         setCases((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+    };
+
+    const handleInvite = async (riskCase: RiskCase) => {
+        if (!user?.id) return;
+        try {
+            await firestoreService.addConversation(user.id, {
+                id: riskCase.id,
+                name: riskCase.name,
+                avatar: '',
+                program: riskCase.program,
+                isAlerted: riskCase.severity === 'high',
+                borderColor: riskCase.severity === 'high' ? AURORA.red : riskCase.severity === 'medium' ? AURORA.orange : undefined,
+            }, { name: user.full_name || 'Counselor' });
+            router.push('/(counselor)/messages');
+        } catch (e) {
+            console.error('Failed to add conversation:', e);
+        }
     };
 
     const overview = [
@@ -547,6 +553,7 @@ export default function CounselorRiskCenterScreen() {
                                     riskCase={c}
                                     onStatusChange={handleStatusChange}
                                     onStudentPress={setModalStudentId}
+                                    onInvite={handleInvite}
                                 />
                             ))
                         )}

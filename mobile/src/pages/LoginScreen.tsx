@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, Image } from 'react-native';
+import { View, Text, ScrollView, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { Heart, Brain, Users } from 'lucide-react-native';
 import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,9 +7,18 @@ import LoginForm from '../components/auth/LoginForm';
 
 export default function LoginScreen() {
     return (
-        <SafeAreaView className="flex-1 bg-primary">
-            <Stack.Screen options={{ headerShown: false }} />
-            <ScrollView contentContainerClassName="flex-grow justify-center p-6 pb-12">
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
+            <SafeAreaView className="flex-1 bg-primary">
+                <Stack.Screen options={{ headerShown: false }} />
+                <ScrollView
+                    contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, paddingBottom: 48 }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
                 {/* Header Section */}
                 <View className="items-center mb-8 mt-10">
                     <Image className='mb-2'
@@ -43,7 +52,8 @@ export default function LoginScreen() {
 
                 {/* Auth Form Card */}
                 <LoginForm />
-            </ScrollView>
-        </SafeAreaView>
+                </ScrollView>
+            </SafeAreaView>
+        </KeyboardAvoidingView>
     );
 }

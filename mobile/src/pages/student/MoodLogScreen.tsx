@@ -4,12 +4,14 @@ import {
     Modal, Platform, Animated, Easing
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, TrendingUp, Lightbulb, Camera, MessageSquare, BookOpen, X } from 'lucide-react-native';
+import { Bell, TrendingUp, Lightbulb, Camera, MessageSquare, BookOpen, X, CalendarPlus } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { router } from 'expo-router';
 import { moodService } from '../../services/mood.service';
 import { AURORA } from '../../constants/aurora-colors';
+import { LetterAvatar } from '../../components/common/LetterAvatar';
 import { MoodCheckIn } from '../../components/MoodCheckIn';
+import DashboardSessionRequestModal from '../../components/student/DashboardSessionRequestModal';
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
 const MOOD_EMOTIONS = [
@@ -168,6 +170,7 @@ export default function MoodLogScreen() {
     const { user } = useAuth();
     const [selectedMood, setSelectedMood] = useState<string | null>(null);
     const [showLogModal, setShowLogModal] = useState(false);
+    const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
     const [stats, setStats] = useState({ streak: 7, topEmotion: 'happy' });
     const [insight, setInsight] = useState(
         'Your mood has been simplified for better tracking. Use the camera icon to analyze micro-emotions instantly.'
@@ -218,19 +221,10 @@ export default function MoodLogScreen() {
                     {/* ── Header ─────────────────────────────────────────────── */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                            <View style={{
-                                width: 44, height: 44, borderRadius: 22,
-                                backgroundColor: AURORA.card, borderWidth: 2, borderColor: AURORA.blue,
-                                alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-                            }}>
-                                {user?.avatar_url ? (
-                                    <Image source={{ uri: user.avatar_url }} style={{ width: 44, height: 44 }} resizeMode="cover" />
-                                ) : (
-                                    <Text style={{ color: AURORA.blue, fontWeight: '700', fontSize: 16 }}>
-                                        {firstName.charAt(0).toUpperCase()}
-                                    </Text>
-                                )}
-                            </View>
+                            <LetterAvatar
+                                name={user?.full_name ?? user?.preferred_name ?? 'Student'}
+                                size={44}
+                            />
                             <View>
                                 <Text style={{ color: AURORA.textSec, fontSize: 12, letterSpacing: 1 }}>WELCOME BACK</Text>
                                 <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{user?.preferred_name || user?.full_name || 'Student'}</Text>
@@ -277,16 +271,22 @@ export default function MoodLogScreen() {
                     {/* ── Quick Actions ──────────────────────────────────────── */}
                     <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
                         <QuickActionTile
-                            label="Log Mood"
-                            icon={<Camera size={20} color="#FFFFFF" />}
+                            label="Request a Session"
+                            icon={<CalendarPlus size={20} color="#FFFFFF" />}
                             bgColor={AURORA.blue}
                             wide
+                            onPress={() => setShowSessionRequestModal(true)}
+                        />
+                        <QuickActionTile
+                            label="Log Mood"
+                            icon={<Camera size={18} color="#FFFFFF" />}
+                            bgColor={AURORA.purple}
                             onPress={() => setShowLogModal(true)}
                         />
                         <QuickActionTile
                             label="Messages"
                             icon={<MessageSquare size={18} color="#FFFFFF" />}
-                            bgColor={AURORA.purple}
+                            bgColor="#7C3AED"
                             onPress={() => router.push('/(student)/messages')}
                         />
                         <QuickActionTile
@@ -307,6 +307,16 @@ export default function MoodLogScreen() {
                     <AIInsightCard insight={insight} />
                 </ScrollView>
             </SafeAreaView>
+
+            {/* ── Session Request Modal ──────────────────────────────────────── */}
+            <DashboardSessionRequestModal
+                visible={showSessionRequestModal}
+                studentId={user?.id ?? ''}
+                studentName={user?.full_name}
+                studentAvatar={user?.avatar_url}
+                onClose={() => setShowSessionRequestModal(false)}
+                onSuccess={() => router.push('/(student)/messages')}
+            />
 
             {/* ── Log Mood Modal ─────────────────────────────────────────────── */}
             {showLogModal && (

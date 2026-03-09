@@ -16,6 +16,7 @@ import {
 import Svg, { Polyline, Line, Text as SvgText } from 'react-native-svg';
 import { X } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
+import { LetterAvatar } from '../common/LetterAvatar';
 import { firestoreService } from '../../services/firebase-firestore.service';
 
 const CHART_WIDTH = Dimensions.get('window').width - 48;
@@ -99,12 +100,7 @@ export default function StudentProfileModal({
                     {/* Header with X */}
                     <View style={styles.header}>
                         <View style={styles.studentInfo}>
-                            <Image
-                                source={{
-                                    uri: student.avatar_url || `https://i.pravatar.cc/56?u=${student.id}`,
-                                }}
-                                style={styles.avatar}
-                            />
+                            <LetterAvatar name={student.full_name ?? 'Student'} size={56} />
                             <View>
                                 <Text style={styles.name}>{student.full_name}</Text>
                                 <Text style={styles.program}>{formatProgram(student.department, student.year_level)}</Text>
