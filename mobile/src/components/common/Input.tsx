@@ -7,6 +7,7 @@ interface InputProps extends TextInputProps {
     label?: string;
     error?: string;
     containerClassName?: string;
+    variant?: 'default' | 'glass';
 }
 
 export const Input = forwardRef<TextInput, InputProps>(({
@@ -14,23 +15,40 @@ export const Input = forwardRef<TextInput, InputProps>(({
     error,
     className,
     containerClassName,
+    variant = 'default',
+    placeholderTextColor,
     ...props
 }, ref) => {
+    const isGlass = variant === 'glass';
     return (
         <View className={twMerge("space-y-1.5", containerClassName)}>
             {label && (
-                <Text className="text-gray-700 font-medium text-sm ml-1">
+                <Text
+                    className={twMerge("text-sm ml-1", !isGlass && "text-gray-700")}
+                    style={isGlass ? { color: '#FFFFFF', fontWeight: '600', marginBottom: 6 } : { fontWeight: '500' }}
+                >
                     {label}
                 </Text>
             )}
             <TextInput
                 ref={ref}
+                style={isGlass ? {
+                    color: '#FFFFFF',
+                    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.4)',
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    fontSize: 16,
+                } : undefined}
                 className={twMerge(
-                    "bg-white border text-gray-900 text-base rounded-xl px-4 py-3",
-                    error ? "border-red-500" : "border-gray-200 focus:border-blue-500",
+                    "text-base rounded-xl px-4 py-3 border",
+                    !isGlass && "bg-white border-gray-200 text-gray-900",
+                    error ? "border-red-500" : !isGlass && "focus:border-blue-500",
                     className
                 )}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={placeholderTextColor ?? (isGlass ? "#F8FAFC" : "#9CA3AF")}
                 {...props}
             />
             {error && (

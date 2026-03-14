@@ -12,6 +12,8 @@ import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../../components/common/LetterAvatar';
 import { MoodCheckIn } from '../../components/MoodCheckIn';
 import DashboardSessionRequestModal from '../../components/student/DashboardSessionRequestModal';
+import { AnnouncementSection } from '../../components/announcements/AnnouncementSection';
+import { triggerHaptic } from '../../utils/haptics';
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
 const MOOD_EMOTIONS = [
@@ -29,7 +31,7 @@ function MoodBubble({ mood, selected, onPress }: {
     onPress: () => void;
 }) {
     return (
-        <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ alignItems: 'center', gap: 6 }}>
+        <TouchableOpacity onPress={() => { triggerHaptic('light'); onPress(); }} activeOpacity={0.8} style={{ alignItems: 'center', gap: 6 }}>
             <View style={{
                 width: 58, height: 58, borderRadius: 29,
                 backgroundColor: mood.color,
@@ -59,13 +61,13 @@ function QuickActionTile({
 }) {
     return (
         <TouchableOpacity
-            onPress={onPress}
+            onPress={() => { triggerHaptic('light'); onPress?.(); }}
             activeOpacity={0.75}
             style={{
                 flex: wide ? 2 : 1,
                 backgroundColor: AURORA.card,
                 borderRadius: 18,
-                padding: 16,
+                padding: 12,
                 alignItems: 'center',
                 justifyContent: 'center',
                 minHeight: 84,
@@ -91,23 +93,23 @@ function QuickActionTile({
 function StreakCard({ streak }: { streak: number }) {
     return (
         <View style={{
-            flex: 1, backgroundColor: AURORA.card, borderRadius: 18,
-            padding: 16, borderWidth: 1, borderColor: AURORA.border,
+            flex: 1, backgroundColor: AURORA.card, borderRadius: 12,
+            padding: 10, borderWidth: 1, borderColor: AURORA.border,
         }}>
-            <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>
+            <Text style={{ color: AURORA.textMuted, fontSize: 8, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>
                 STREAK
             </Text>
             <View style={{
-                width: 40, height: 40, borderRadius: 12,
-                backgroundColor: 'rgba(249,115,22,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+                width: 28, height: 28, borderRadius: 8,
+                backgroundColor: 'rgba(249,115,22,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
             }}>
-                <Text style={{ fontSize: 22 }}>🔥</Text>
+                <Text style={{ fontSize: 16 }}>🔥</Text>
             </View>
-            <Text style={{ color: '#FFFFFF', fontSize: 28, fontWeight: '800', lineHeight: 30 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 19, fontWeight: '800', lineHeight: 21 }}>
                 {streak}
             </Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600' }}>Days</Text>
-            <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 4 }}>Daily check-in goal met!</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '600' }}>Days</Text>
+            <Text style={{ color: AURORA.textSec, fontSize: 9, marginTop: 2 }}>Daily check-in goal met!</Text>
         </View>
     );
 }
@@ -116,27 +118,27 @@ function StreakCard({ streak }: { streak: number }) {
 function TrendCard({ topEmotion }: { topEmotion: string }) {
     return (
         <View style={{
-            flex: 1, backgroundColor: AURORA.card, borderRadius: 18,
-            padding: 16, borderWidth: 1, borderColor: AURORA.border,
+            flex: 1, backgroundColor: AURORA.card, borderRadius: 12,
+            padding: 10, borderWidth: 1, borderColor: AURORA.border,
         }}>
-            <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>
+            <Text style={{ color: AURORA.textMuted, fontSize: 8, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>
                 TREND
             </Text>
             <View style={{
-                width: 40, height: 40, borderRadius: 12,
-                backgroundColor: 'rgba(45,107,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+                width: 28, height: 28, borderRadius: 8,
+                backgroundColor: 'rgba(45,107,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
             }}>
-                <TrendingUp size={22} color={AURORA.blue} />
+                <TrendingUp size={16} color={AURORA.blue} />
             </View>
-            <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800', lineHeight: 22 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800', lineHeight: 16 }}>
                 STABLE
             </Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800', lineHeight: 22 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800', lineHeight: 16 }}>
                 {topEmotion.toUpperCase() || 'HAPPY'}
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}>
-                <Text style={{ color: AURORA.amber, fontSize: 11 }}>✦</Text>
-                <Text style={{ color: AURORA.amber, fontSize: 12, fontWeight: '600' }}>Consistency</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 3 }}>
+                <Text style={{ color: AURORA.amber, fontSize: 9 }}>✦</Text>
+                <Text style={{ color: AURORA.amber, fontSize: 10, fontWeight: '600' }}>Consistency</Text>
             </View>
         </View>
     );
@@ -230,7 +232,9 @@ export default function MoodLogScreen() {
                                 <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{user?.preferred_name || user?.full_name || 'Student'}</Text>
                             </View>
                         </View>
-                        <TouchableOpacity style={{
+                        <TouchableOpacity
+                            onPress={() => triggerHaptic('light')}
+                            style={{
                             width: 44, height: 44, borderRadius: 22,
                             backgroundColor: AURORA.card, alignItems: 'center', justifyContent: 'center',
                             borderWidth: 1, borderColor: AURORA.border,
@@ -277,12 +281,12 @@ export default function MoodLogScreen() {
                             wide
                             onPress={() => setShowSessionRequestModal(true)}
                         />
-                        <QuickActionTile
+                        {/* <QuickActionTile
                             label="Log Mood"
                             icon={<Camera size={18} color="#FFFFFF" />}
                             bgColor={AURORA.purple}
                             onPress={() => setShowLogModal(true)}
-                        />
+                        /> */}
                         <QuickActionTile
                             label="Messages"
                             icon={<MessageSquare size={18} color="#FFFFFF" />}
@@ -305,6 +309,9 @@ export default function MoodLogScreen() {
 
                     {/* ── AI Insight ─────────────────────────────────────────── */}
                     <AIInsightCard insight={insight} />
+
+                    {/* ── Announcements (dynamic, from admin/counselor) ───────── */}
+                    <AnnouncementSection role="student" />
                 </ScrollView>
             </SafeAreaView>
 
@@ -334,7 +341,7 @@ export default function MoodLogScreen() {
                         }}>
                             <Text style={{ fontSize: 18, fontWeight: '700', color: AURORA.textPrimary }}>Mood Check-In</Text>
                             <TouchableOpacity
-                                onPress={() => { setShowLogModal(false); setSelectedMood(null); }}
+                                onPress={() => { triggerHaptic('light'); setShowLogModal(false); setSelectedMood(null); }}
                                 style={{ padding: 8 }}
                             >
                                 <X size={22} color={AURORA.textSec} />

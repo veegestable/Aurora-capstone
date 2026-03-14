@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Platform, StyleSheet } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { router } from 'expo-router';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
-import { Card } from '../common/Card';
+import { triggerHaptic } from '../../utils/haptics';
 
 export default function LoginForm() {
     const { signIn, signUp } = useAuth();
@@ -57,19 +58,21 @@ export default function LoginForm() {
         }
     };
 
-    return (
-        <Card className="p-6">
-            <Text className="text-2xl font-bold text-gray-800 text-center mb-2">
+    const isWeb = Platform.OS === 'web';
+    const formContent = (
+        <>
+            <Text className="text-2xl font-bold text-white text-center mb-2">
                 {isSignUp ? 'Create Account' : 'Welcome Back'}
             </Text>
-            <Text className="text-gray-500 text-center mb-6">
+            <Text style={{ color: '#E2E8F0' }} className="text-center mb-6 text-base">
                 {isSignUp ? 'Join Aurora today' : 'Sign in to continue'}
             </Text>
 
-            <View className="space-y-4">
+            <View style={styles.formFields}>
                 {isSignUp && (
                     <>
                         <Input
+                            variant="glass"
                             label="Full Name"
                             placeholder="Enter your full name"
                             value={formData.fullName}
@@ -77,29 +80,42 @@ export default function LoginForm() {
                             autoCapitalize="words"
                         />
                         <View>
-                            <Text className="text-sm font-medium text-gray-700 mb-2">Sign up as</Text>
-                            <View className="flex-row gap-3">
+                            <Text style={styles.roleLabel}>Sign up as</Text>
+                            <View style={styles.roleRow}>
                                 <TouchableOpacity
-                                    onPress={() => updateFormData('role', 'student')}
-                                    className={`flex-1 py-3 px-4 rounded-lg border-2 ${formData.role === 'student' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
+                                    onPress={() => { triggerHaptic('light'); updateFormData('role', 'student'); }}
+                                    style={[
+                                        styles.roleBtn,
+                                        formData.role === 'student' && styles.roleBtnActive,
+                                    ]}
                                 >
-                                    <Text className={`text-center font-medium ${formData.role === 'student' ? 'text-blue-600' : 'text-gray-600'}`}>Student</Text>
+                                    <Text style={[
+                                        styles.roleBtnText,
+                                        formData.role === 'student' && styles.roleBtnTextActive,
+                                    ]}>Student</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    onPress={() => updateFormData('role', 'counselor')}
-                                    className={`flex-1 py-3 px-4 rounded-lg border-2 ${formData.role === 'counselor' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
+                                    onPress={() => { triggerHaptic('light'); updateFormData('role', 'counselor'); }}
+                                    style={[
+                                        styles.roleBtn,
+                                        formData.role === 'counselor' && styles.roleBtnActive,
+                                    ]}
                                 >
-                                    <Text className={`text-center font-medium ${formData.role === 'counselor' ? 'text-blue-600' : 'text-gray-600'}`}>Counselor</Text>
+                                    <Text style={[
+                                        styles.roleBtnText,
+                                        formData.role === 'counselor' && styles.roleBtnTextActive,
+                                    ]}>Counselor</Text>
                                 </TouchableOpacity>
                             </View>
                             {formData.role === 'counselor' && (
-                                <Text className="text-xs text-amber-600 mt-1">Your account will need admin approval before you can access the counselor dashboard.</Text>
+                                <Text className="text-xs text-amber-300 mt-1">Your account will need admin approval before you can access the counselor dashboard.</Text>
                             )}
                         </View>
                     </>
                 )}
 
                 <Input
+                    variant="glass"
                     label="Email"
                     placeholder="Enter your email"
                     value={formData.email}
@@ -110,6 +126,7 @@ export default function LoginForm() {
 
                 <View className="relative">
                     <Input
+                        variant="glass"
                         label="Password"
                         placeholder="Enter your password"
                         value={formData.password}
@@ -118,12 +135,12 @@ export default function LoginForm() {
                     />
                     <TouchableOpacity
                         className="absolute right-4 top-10"
-                        onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                        onPress={() => { triggerHaptic('light'); setIsPasswordVisible(!isPasswordVisible); }}
                     >
                         {isPasswordVisible ? (
-                            <EyeOff size={20} color="#9CA3AF" />
+                            <EyeOff size={20} color="#CBD5E1" />
                         ) : (
-                            <Eye size={20} color="#9CA3AF" />
+                            <Eye size={20} color="#CBD5E1" />
                         )}
                     </TouchableOpacity>
                 </View>
@@ -138,23 +155,106 @@ export default function LoginForm() {
             </View>
 
             <TouchableOpacity
-                onPress={() => setIsSignUp(!isSignUp)}
+                onPress={() => { triggerHaptic('light'); setIsSignUp(!isSignUp); }}
                 className="mt-6 items-center"
             >
-                <Text className="text-blue-600 font-medium">
+                <Text style={{ color: '#93C5FD' }} className="font-medium text-base">
                     {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
                 </Text>
             </TouchableOpacity>
 
             {/* Trust Indicators */}
-            <View className="mt-6 pt-6 border-t border-gray-100 flex-row justify-center space-x-4">
+            <View style={styles.trustSection}>
                 {['Secure', 'Private', 'HIPAA Compliant'].map((text, i) => (
-                    <View key={i} className="flex-row items-center space-x-1">
-                        <View className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-                        <Text className="text-xs text-gray-500">{text}</Text>
+                    <View key={i} style={styles.trustItem}>
+                        <View style={styles.trustDot} />
+                        <Text style={styles.trustText}>{text}</Text>
                     </View>
                 ))}
             </View>
-        </Card>
+        </>
+    );
+
+    return (
+        <View style={styles.wrapper}>
+            {isWeb ? (
+                <View style={[styles.glass, styles.glassFallback]}>{formContent}</View>
+            ) : (
+                <BlurView intensity={60} tint="dark" style={styles.glass}>
+                    <View style={styles.glassOverlay} />
+                    <View style={styles.glassContent}>{formContent}</View>
+                </BlurView>
+            )}
+        </View>
     );
 }
+
+const styles = StyleSheet.create({
+    wrapper: { borderRadius: 24, overflow: 'hidden' },
+    glass: {
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.18)',
+        overflow: 'hidden',
+        position: 'relative',
+    },
+    glassFallback: {
+        backgroundColor: 'rgba(15, 23, 42, 0.85)',
+        padding: 24,
+    },
+    glassOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    },
+    glassContent: { padding: 24 },
+    formFields: { gap: 20 },
+    trustSection: {
+        marginTop: 24,
+        paddingTop: 24,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.35)',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 16,
+    },
+    trustItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    trustDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#34D399',
+    },
+    trustText: {
+        fontSize: 12,
+        color: '#E2E8F0',
+    },
+    roleLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#FFFFFF',
+        marginBottom: 8,
+    },
+    roleRow: { flexDirection: 'row', gap: 12 },
+    roleBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.35)',
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center',
+    },
+    roleBtnActive: {
+        borderColor: 'rgba(96, 165, 250, 0.8)',
+        backgroundColor: 'rgba(59, 130, 246, 0.25)',
+    },
+    roleBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#CBD5E1',
+    },
+    roleBtnTextActive: {
+        color: '#93C5FD',
+    },
+});

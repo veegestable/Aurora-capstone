@@ -6,6 +6,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Info, Wind, RotateCcw } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
+import { triggerHaptic } from '../../utils/haptics';
+import {
+    playAmbientSound,
+    stopAmbientSound,
+    pauseAmbientSound,
+    resumeAmbientSound,
+    type ResourceType,
+} from '../../services/zen-sounds.service';
 
 // ─── Mock Resource Data ───────────────────────────────────────────────────────
 const MOCK_RESOURCES = [
@@ -34,6 +42,18 @@ const BREATHING_PHASES = [
     { name: 'Exhale', instruction: 'Slowly through your mouth', duration: 6 },
 ];
 const TOTAL_DURATION = 4 * 60 + 52; // 4 min 52 sec
+
+// Ambient labels and icons per type
+const AMBIENT_LABELS: Record<string, string> = {
+    Meditation: 'Peaceful Calm',
+    Focus: 'Rain & Focus',
+    Sleep: 'Night Rest',
+};
+const AMBIENT_EMOJI: Record<string, string> = {
+    Meditation: '🌊',
+    Focus: '🌲',
+    Sleep: '🌙',
+};
 
 // ─── Resource Card ────────────────────────────────────────────────────────────
 function ResourceCard({ item, onStart }: {
@@ -72,7 +92,8 @@ function ResourceCard({ item, onStart }: {
                     </View>
                 </View>
                 <TouchableOpacity
-                    onPress={onStart}
+                    onPress={() => { triggerHaptic('light'); onStart(); }}
+                    activeOpacity={0.8}
                     style={{
                         backgroundColor: AURORA.purple, borderRadius: 24,
                         paddingHorizontal: 22, paddingVertical: 10,
@@ -97,6 +118,17 @@ function BreathingExerciseView({
     const [phaseTime, setPhaseTime] = useState(0);
     const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
     const [ambientOn, setAmbientOn] = useState(true);
+    const resourceType = (resource?.type ?? 'Meditation') as ResourceType;
+
+    // Ambient sound: play when on, stop when off or unmount
+    useEffect(() => {
+        if (ambientOn && resource) {
+            playAmbientSound(resourceType, resource.title);
+        } else {
+            stopAmbientSound();
+        }
+        return () => { stopAmbientSound(); };
+    }, [ambientOn, resource?.id]);
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -136,6 +168,10 @@ function BreathingExerciseView({
     const reset = () => {
         setIsPlaying(false);
         setPhaseIdx(0); setPhaseTime(0); setTotalTime(TOTAL_DURATION);
+        if (ambientOn && resource) {
+            stopAmbientSound();
+            playAmbientSound(resourceType, resource.title);
+        }
         setTimeout(() => setIsPlaying(true), 100);
     };
 
@@ -150,14 +186,14 @@ function BreathingExerciseView({
                     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
                     paddingHorizontal: 16, paddingVertical: 12,
                 }}>
-                    <TouchableOpacity onPress={onBack} style={{ padding: 4 }}>
+                    <TouchableOpacity onPress={() => { triggerHaptic('light'); onBack(); }} style={{ padding: 4 }}>
                         <ArrowLeft size={22} color="#FFFFFF" />
                     </TouchableOpacity>
                     <View style={{ alignItems: 'center' }}>
                         <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '700' }}>Breathing Space</Text>
                         <Text style={{ color: AURORA.textSec, fontSize: 11, letterSpacing: 1.5 }}>AURORA MINDFULNESS</Text>
                     </View>
-                    <TouchableOpacity style={{ padding: 4 }}>
+                    <TouchableOpacity onPress={() => triggerHaptic('light')} style={{ padding: 4 }}>
                         <Info size={22} color={AURORA.textSec} />
                     </TouchableOpacity>
                 </View>
@@ -231,7 +267,7 @@ function BreathingExerciseView({
                         {BREATHING_PHASES.map((p, i) => (
                             <TouchableOpacity
                                 key={p.name}
-                                onPress={() => { setPhaseIdx(i); setPhaseTime(0); }}
+                                onPress={() => { triggerHaptic('light'); setPhaseIdx(i); setPhaseTime(0); }}
                                 style={{
                                     flex: 1, paddingVertical: 10, borderRadius: 12,
                                     alignItems: 'center',
@@ -259,15 +295,19 @@ function BreathingExerciseView({
                             backgroundColor: 'rgba(45,107,255,0.2)',
                             alignItems: 'center', justifyContent: 'center', marginRight: 12,
                         }}>
-                            <Text style={{ fontSize: 20 }}>🌲</Text>
+                            <Text style={{ fontSize: 20 }}>{AMBIENT_EMOJI[resourceType] ?? '🌲'}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>Peaceful Forest</Text>
-                            <Text style={{ color: AURORA.textSec, fontSize: 12 }}>Ambient sound active</Text>
+                            <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>
+                                {AMBIENT_LABELS[resourceType] ?? 'Peaceful Forest'}
+                            </Text>
+                            <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
+                                {ambientOn ? 'Ambient sound active' : 'Ambient sound off'}
+                            </Text>
                         </View>
                         <Switch
                             value={ambientOn}
-                            onValueChange={setAmbientOn}
+                            onValueChange={(v) => { triggerHaptic('light'); setAmbientOn(v); }}
                             trackColor={{ false: AURORA.cardAlt, true: AURORA.blue }}
                             thumbColor="#FFFFFF"
                         />
@@ -276,7 +316,15 @@ function BreathingExerciseView({
                     {/* Controls */}
                     <View style={{ flexDirection: 'row', gap: 12 }}>
                         <TouchableOpacity
-                            onPress={() => setIsPlaying(p => !p)}
+                            onPress={() => {
+                            triggerHaptic('light');
+                            setIsPlaying(p => {
+                                if (ambientOn) {
+                                    if (p) pauseAmbientSound(); else resumeAmbientSound();
+                                }
+                                return !p;
+                            });
+                        }}
                             style={{
                                 flex: 1, backgroundColor: AURORA.blue,
                                 borderRadius: 20, paddingVertical: 18,
@@ -288,7 +336,7 @@ function BreathingExerciseView({
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            onPress={reset}
+                            onPress={() => { triggerHaptic('light'); reset(); }}
                             style={{
                                 width: 60, backgroundColor: AURORA.card,
                                 borderRadius: 20, alignItems: 'center', justifyContent: 'center',
@@ -331,7 +379,7 @@ export default function ResourcesScreen() {
                             MSU-IIT CCS
                         </Text>
                     </View>
-                    <TouchableOpacity style={{ padding: 4 }}>
+                    <TouchableOpacity onPress={() => triggerHaptic('light')} style={{ padding: 4 }}>
                         <Search size={22} color={AURORA.textSec} />
                     </TouchableOpacity>
                 </View>
@@ -345,7 +393,7 @@ export default function ResourcesScreen() {
                     {CATEGORIES.map(cat => (
                         <TouchableOpacity
                             key={cat}
-                            onPress={() => setActiveCategory(cat)}
+                            onPress={() => { triggerHaptic('light'); setActiveCategory(cat); }}
                             style={{
                                 paddingVertical: 10, marginRight: 18,
                                 borderBottomWidth: 2,

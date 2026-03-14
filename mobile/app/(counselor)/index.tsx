@@ -13,13 +13,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     Bell, ChevronRight, Users, AlertTriangle,
-    MessageSquare, Calendar, Plus,
+    MessageSquare, Calendar,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../../src/stores/AuthContext';
 import { AURORA } from '../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../src/components/common/LetterAvatar';
 import { firestoreService } from '../../src/services/firebase-firestore.service';
+import { AnnouncementSection } from '../../src/components/announcements/AnnouncementSection';
+import { triggerHaptic } from '../../src/utils/haptics';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type RiskLevel = 'HIGH RISK' | 'MEDIUM' | 'RESOLVED';
@@ -90,20 +92,20 @@ function StatCard({ icon, count, label, cardBg }: StatCardProps) {
         <View style={{
             flex: 1,
             backgroundColor: cardBg || AURORA.card,
-            borderRadius: 18,
-            padding: 18,
+            borderRadius: 14,
+            padding: 14,
             borderWidth: 1,
             borderColor: AURORA.border,
-            minHeight: 155,
+            minHeight: 120,
         }}>
             {icon}
             <Text style={{
-                color: '#FFFFFF', fontSize: 34, fontWeight: '800',
-                marginTop: 12, letterSpacing: -0.5,
+                color: '#FFFFFF', fontSize: 28, fontWeight: '800',
+                marginTop: 8, letterSpacing: -0.5,
             }}>
                 {count}
             </Text>
-            <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 4 }}>
+            <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}>
                 {label}
             </Text>
         </View>
@@ -115,7 +117,10 @@ function FlagRow({ item }: { item: FlagItem }) {
     return (
         <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => router.push({ pathname: '/(counselor)/risk-center', params: { studentId: item.id } })}
+            onPress={() => {
+                triggerHaptic('light');
+                router.push({ pathname: '/(counselor)/risk-center', params: { studentId: item.id } });
+            }}
             style={{
                 flexDirection: 'row', alignItems: 'center',
                 backgroundColor: AURORA.card, borderRadius: 16,
@@ -244,7 +249,9 @@ export default function CounselorHomeScreen() {
                             Hello, {firstName}
                         </Text>
                     </View>
-                    <TouchableOpacity style={{
+                    <TouchableOpacity
+                        onPress={() => triggerHaptic('light')}
+                        style={{
                         width: 42, height: 42, borderRadius: 21,
                         backgroundColor: AURORA.card,
                         alignItems: 'center', justifyContent: 'center',
@@ -281,11 +288,11 @@ export default function CounselorHomeScreen() {
                         <StatCard
                             icon={
                                 <View style={{
-                                    width: 46, height: 46, borderRadius: 23,
+                                    width: 38, height: 38, borderRadius: 19,
                                     backgroundColor: 'rgba(45,107,255,0.15)',
                                     alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                    <Users size={22} color={AURORA.blue} />
+                                    <Users size={18} color={AURORA.blue} />
                                 </View>
                             }
                             count={studentCount}
@@ -294,11 +301,11 @@ export default function CounselorHomeScreen() {
                         <StatCard
                             icon={
                                 <View style={{
-                                    width: 46, height: 46, borderRadius: 23,
+                                    width: 38, height: 38, borderRadius: 19,
                                     backgroundColor: 'rgba(239,68,68,0.2)',
                                     alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                    <AlertTriangle size={22} color={AURORA.red} />
+                                    <AlertTriangle size={18} color={AURORA.red} />
                                 </View>
                             }
                             count={criticalRisks}
@@ -311,17 +318,17 @@ export default function CounselorHomeScreen() {
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 28 }}>
                         <StatCard
                             icon={
-                                <View style={{ position: 'relative', width: 46, height: 46 }}>
+                                <View style={{ position: 'relative', width: 38, height: 38 }}>
                                     <View style={{
-                                        width: 46, height: 46, borderRadius: 23,
+                                        width: 38, height: 38, borderRadius: 19,
                                         backgroundColor: 'rgba(45,107,255,0.12)',
                                         alignItems: 'center', justifyContent: 'center',
                                     }}>
-                                        <MessageSquare size={22} color={AURORA.blue} />
+                                        <MessageSquare size={18} color={AURORA.blue} />
                                     </View>
                                     <View style={{
                                         position: 'absolute', top: 2, right: 2,
-                                        width: 10, height: 10, borderRadius: 5,
+                                        width: 8, height: 8, borderRadius: 4,
                                         backgroundColor: AURORA.blue,
                                         borderWidth: 1.5, borderColor: AURORA.card,
                                     }} />
@@ -333,11 +340,11 @@ export default function CounselorHomeScreen() {
                         <StatCard
                             icon={
                                 <View style={{
-                                    width: 46, height: 46, borderRadius: 23,
+                                    width: 38, height: 38, borderRadius: 19,
                                     backgroundColor: 'rgba(254,189,3,0.12)',
                                     alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                    <Calendar size={22} color={AURORA.amber} />
+                                    <Calendar size={18} color={AURORA.amber} />
                                 </View>
                             }
                             count={8}
@@ -354,7 +361,10 @@ export default function CounselorHomeScreen() {
                             Recent Flags
                         </Text>
                         <TouchableOpacity
-                            onPress={() => router.push('/(counselor)/risk-center')}
+                            onPress={() => {
+                                triggerHaptic('light');
+                                router.push('/(counselor)/risk-center');
+                            }}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                         >
                             <Text style={{ color: AURORA.blue, fontSize: 13, fontWeight: '700' }}>
@@ -379,30 +389,10 @@ export default function CounselorHomeScreen() {
                     ) : (
                         recentFlags.map((item) => <FlagRow key={item.id} item={item} />)
                     )}
-                </ScrollView>
 
-                {/* ── Schedule Consultation CTA ─────────────────────────── */}
-                <View style={{
-                    paddingHorizontal: 20, paddingBottom: 12, paddingTop: 8,
-                    backgroundColor: AURORA.bgDeep,
-                }}>
-                    <TouchableOpacity
-                        activeOpacity={0.85}
-                        style={{
-                            backgroundColor: AURORA.blue, borderRadius: 30,
-                            paddingVertical: 16, flexDirection: 'row',
-                            alignItems: 'center', justifyContent: 'center', gap: 8,
-                            shadowColor: AURORA.blue,
-                            shadowOffset: { width: 0, height: 4 },
-                            shadowOpacity: 0.45, shadowRadius: 14, elevation: 8,
-                        }}
-                    >
-                        <Plus size={20} color="#FFFFFF" />
-                        <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>
-                            Schedule Consultation
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                    {/* ── Announcements (dynamic, from admin/counselor) ───────── */}
+                    <AnnouncementSection role="counselor" showAddButton />
+                </ScrollView>
             </SafeAreaView>
         </View>
     );

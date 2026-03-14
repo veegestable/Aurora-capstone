@@ -11,18 +11,19 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Users } from 'lucide-react-native';
 import { AURORA } from '../../src/constants/aurora-colors';
+import { AnnouncementSection } from '../../src/components/announcements/AnnouncementSection';
 
 export default function AdminDashboardScreen() {
     const router = useRouter();
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: AURORA.bg }}>
-        <View style={{ flex: 1, padding: 20 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 32 }}>
             <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '700', marginBottom: 24 }}>Admin Dashboard</Text>
             <TouchableOpacity
                 onPress={() => router.push('/(admin)/counselors')}
@@ -45,7 +46,9 @@ export default function AdminDashboardScreen() {
                     <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 2 }}>Review and approve counselor signups</Text>
                 </View>
             </TouchableOpacity>
-        </View>
+
+            <AnnouncementSection role="counselor" showAddButton />
+        </ScrollView>
         </SafeAreaView>
     );
 }

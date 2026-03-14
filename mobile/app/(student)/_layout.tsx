@@ -15,6 +15,8 @@ import { useAuth } from '../../src/stores/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import { Home, BookMarked, MessageSquare, Wind, User } from 'lucide-react-native';
 import { AURORA } from '../../src/constants/aurora-colors';
+import { triggerHaptic } from '../../src/utils/haptics';
+import { AnimatedTabBarButton } from '../../src/components/navigation/AnimatedTabBarButton';
 
 export default function StudentLayout() {
     const { user, loading } = useAuth();
@@ -27,22 +29,36 @@ export default function StudentLayout() {
         <>
             <StatusBar style="light" />
             <Tabs
+                screenListeners={{
+                    tabPress: () => triggerHaptic('light'),
+                }}
                 screenOptions={{
                     headerShown: false,
                     tabBarStyle: {
                         backgroundColor: AURORA.navBg,
-                        borderTopWidth: 0.5,
-                        borderTopColor: AURORA.border,
-                        height: 70,
-                        paddingBottom: 10,
-                        paddingTop: 8,
+                        borderTopWidth: 0,
+                        height: 80,
+                        paddingBottom: 16,
+                        paddingTop: 12,
+                        paddingHorizontal: 4,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: -4 },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 12,
+                        elevation: 16,
                     },
                     tabBarActiveTintColor: AURORA.blue,
                     tabBarInactiveTintColor: AURORA.textMuted,
                     tabBarLabelStyle: {
-                        fontSize: 11,
-                        fontWeight: '500',
-                        marginTop: -2,
+                        fontSize: 10,
+                        fontWeight: '600',
+                        marginTop: 4,
+                    },
+                    tabBarIconStyle: {
+                        marginBottom: 0,
+                    },
+                    tabBarItemStyle: {
+                        paddingVertical: 4,
                     },
                 }}
             >
@@ -50,35 +66,60 @@ export default function StudentLayout() {
                     name="index"
                     options={{
                         title: 'Home',
-                        tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+                        tabBarIcon: ({ color, size, focused }) => (
+                            <Home size={focused ? 24 : 22} color={color} />
+                        ),
+                        tabBarButton: (props) => (
+                            <AnimatedTabBarButton {...(props as object)} routeName="index" />
+                        ),
                     }}
                 />
                 <Tabs.Screen
                     name="history"
                     options={{
                         title: 'Journal',
-                        tabBarIcon: ({ color, size }) => <BookMarked size={size} color={color} />,
+                        tabBarIcon: ({ color, size, focused }) => (
+                            <BookMarked size={focused ? 24 : 22} color={color} />
+                        ),
+                        tabBarButton: (props) => (
+                            <AnimatedTabBarButton {...(props as object)} routeName="history" />
+                        ),
                     }}
                 />
                 <Tabs.Screen
                     name="messages"
                     options={{
                         title: 'Messages',
-                        tabBarIcon: ({ color, size }) => <MessageSquare size={size} color={color} />,
+                        tabBarIcon: ({ color, size, focused }) => (
+                            <MessageSquare size={focused ? 24 : 22} color={color} />
+                        ),
+                        tabBarButton: (props) => (
+                            <AnimatedTabBarButton {...(props as object)} routeName="messages" />
+                        ),
                     }}
                 />
                 <Tabs.Screen
                     name="resources"
                     options={{
                         title: 'Zen',
-                        tabBarIcon: ({ color, size }) => <Wind size={size} color={color} />,
+                        tabBarIcon: ({ color, size, focused }) => (
+                            <Wind size={focused ? 24 : 22} color={color} />
+                        ),
+                        tabBarButton: (props) => (
+                            <AnimatedTabBarButton {...(props as object)} routeName="resources" />
+                        ),
                     }}
                 />
                 <Tabs.Screen
                     name="profile"
                     options={{
                         title: 'Profile',
-                        tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+                        tabBarIcon: ({ color, size, focused }) => (
+                            <User size={focused ? 24 : 22} color={color} />
+                        ),
+                        tabBarButton: (props) => (
+                            <AnimatedTabBarButton {...(props as object)} routeName="profile" />
+                        ),
                     }}
                 />
             </Tabs>

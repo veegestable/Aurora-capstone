@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, Image, Modal, Alert, StatusBar, Platform } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Camera, Upload, X, RefreshCw } from 'lucide-react-native';
 import { AURORA } from '../constants/aurora-colors';
 
 interface DetectedEmotion {
@@ -190,7 +190,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                         onPress={startCamera}
                         style={{ flex: 1, backgroundColor: 'rgba(45, 107, 255, 0.15)', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(45, 107, 255, 0.3)' }}
                     >
-                        <Ionicons name="camera" size={24} color={AURORA.blue} />
+                        <Camera size={24} color={AURORA.blue} />
                         <Text style={{ color: AURORA.blue, fontWeight: '500', marginTop: 8 }}>Take Selfie</Text>
                     </TouchableOpacity>
 
@@ -198,7 +198,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                         onPress={uploadPhoto}
                         style={{ flex: 1, backgroundColor: 'rgba(124, 58, 237, 0.15)', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(124, 58, 237, 0.3)' }}
                     >
-                        <Ionicons name="cloud-upload" size={24} color={AURORA.purple} />
+                        <Upload size={24} color={AURORA.purple} />
                         <Text style={{ color: AURORA.purple, fontWeight: '500', marginTop: 8 }}>Upload Photo</Text>
                     </TouchableOpacity>
                 </View>
@@ -281,7 +281,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                                         onPress={closeCamera}
                                         style={{ padding: 16, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 9999 }}
                                     >
-                                        <Ionicons name="close" size={24} color="white" />
+                                        <X size={24} color="white" />
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
@@ -293,7 +293,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                                         onPress={() => setFacing(current => (current === 'back' ? 'front' : 'back'))}
                                         style={{ padding: 16, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 9999 }}
                                     >
-                                        <Ionicons name="camera-reverse" size={24} color="white" />
+                                        <RefreshCw size={24} color="white" />
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -311,7 +311,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                                 onPress={closeCamera}
                                 style={{ marginTop: 32, padding: 16, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 9999 }}
                             >
-                                <Ionicons name="close" size={24} color="white" />
+                                <X size={24} color="white" />
                             </TouchableOpacity>
                         </View>
                     )}

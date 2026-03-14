@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, ActivityIndicator, TouchableOpacityProps, View } from 'react-native';
+import { triggerHaptic } from '../../utils/haptics';
 
 // Fix for React 19 type mismatch
 const CompatibleTouchableOpacity = TouchableOpacity as React.ComponentType<TouchableOpacityProps & React.RefAttributes<View>>;
@@ -20,8 +21,13 @@ export function Button({
     children,
     loading,
     disabled,
+    onPress,
     ...props
 }: ButtonProps) {
+    const handlePress = (e: any) => {
+        if (!disabled && !loading) triggerHaptic('light');
+        onPress?.(e);
+    };
 
     const baseStyles = "flex-row items-center justify-center rounded-xl";
 
@@ -62,6 +68,7 @@ export function Button({
                 disabled || loading ? "opacity-50" : "opacity-100",
                 className
             )}
+            onPress={handlePress}
             disabled={disabled || loading}
             activeOpacity={0.7}
             {...props}

@@ -11,6 +11,8 @@ import { StatusBar } from 'expo-status-bar';
 import { Home, Users, AlertTriangle, MessageSquare, User } from 'lucide-react-native';
 import { AURORA } from '../../src/constants/aurora-colors';
 import { View } from 'react-native';
+import { triggerHaptic } from '../../src/utils/haptics';
+import { AnimatedTabBarButton } from '../../src/components/navigation/AnimatedTabBarButton';
 
 export default function CounselorLayout() {
     const { user, loading } = useAuth();
@@ -23,46 +25,66 @@ export default function CounselorLayout() {
         <>
             <StatusBar style="light" />
             <Tabs
+                screenListeners={{
+                    tabPress: () => triggerHaptic('light'),
+                }}
                 screenOptions={{
                     headerShown: false,
                     tabBarStyle: {
                         backgroundColor: AURORA.navBg,
-                        borderTopWidth: 0.5,
-                        borderTopColor: AURORA.border,
-                        height: 70,
-                        paddingBottom: 10,
-                        paddingTop: 8,
+                        borderTopWidth: 0,
+                        height: 80,
+                        paddingBottom: 16,
+                        paddingTop: 12,
+                        paddingHorizontal: 4,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: -4 },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 12,
+                        elevation: 16,
                     },
                     tabBarActiveTintColor: AURORA.blue,
                     tabBarInactiveTintColor: AURORA.textMuted,
                     tabBarLabelStyle: {
-                        fontSize: 11,
-                        fontWeight: '500',
-                        marginTop: -2,
+                        fontSize: 10,
+                        fontWeight: '600',
+                        marginTop: 4,
                     },
+                    tabBarIconStyle: { marginBottom: 0 },
+                    tabBarItemStyle: { paddingVertical: 4 },
                 }}
             >
                 <Tabs.Screen
                     name="index"
                     options={{
                         title: 'Home',
-                        tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+                        tabBarIcon: ({ color, size, focused }) => (
+                            <Home size={focused ? 24 : 22} color={color} />
+                        ),
+                        tabBarButton: (props) => (
+                            <AnimatedTabBarButton {...(props as object)} routeName="index" />
+                        ),
                     }}
                 />
                 <Tabs.Screen
                     name="students"
                     options={{
                         title: 'Students',
-                        tabBarIcon: ({ color, size }) => <Users size={size} color={color} />,
+                        tabBarIcon: ({ color, size, focused }) => (
+                            <Users size={focused ? 24 : 22} color={color} />
+                        ),
+                        tabBarButton: (props) => (
+                            <AnimatedTabBarButton {...(props as object)} routeName="students" />
+                        ),
                     }}
                 />
                 <Tabs.Screen
                     name="risk-center"
                     options={{
                         title: 'Risks',
-                        tabBarIcon: ({ color, size }) => (
+                        tabBarIcon: ({ color, size, focused }) => (
                             <View style={{ position: 'relative' }}>
-                                <AlertTriangle size={size} color={color} />
+                                <AlertTriangle size={focused ? 24 : 22} color={color} />
                             </View>
                         ),
                         tabBarBadge: '5',
@@ -73,20 +95,33 @@ export default function CounselorLayout() {
                             height: 16,
                             lineHeight: 16,
                         },
+                        tabBarButton: (props) => (
+                            <AnimatedTabBarButton {...(props as object)} routeName="risk-center" />
+                        ),
                     }}
                 />
                 <Tabs.Screen
                     name="messages"
                     options={{
                         title: 'Messages',
-                        tabBarIcon: ({ color, size }) => <MessageSquare size={size} color={color} />,
+                        tabBarIcon: ({ color, size, focused }) => (
+                            <MessageSquare size={focused ? 24 : 22} color={color} />
+                        ),
+                        tabBarButton: (props) => (
+                            <AnimatedTabBarButton {...(props as object)} routeName="messages" />
+                        ),
                     }}
                 />
                 <Tabs.Screen
                     name="profile"
                     options={{
                         title: 'Profile',
-                        tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+                        tabBarIcon: ({ color, size, focused }) => (
+                            <User size={focused ? 24 : 22} color={color} />
+                        ),
+                        tabBarButton: (props) => (
+                            <AnimatedTabBarButton {...(props as object)} routeName="profile" />
+                        ),
                     }}
                 />
                 {/* Hide non-tab screens from tab bar */}
