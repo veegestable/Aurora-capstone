@@ -235,16 +235,10 @@ export default function ProfileScreen() {
             <SafeAreaView style={{ flex: 1 }}>
                 {/* ── Header ─────────────────────────────────────────────────── */}
                 <View style={{
-                    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
                     paddingHorizontal: 20, paddingVertical: 14,
                 }}>
-                    <TouchableOpacity style={{ padding: 4 }}>
-                        <ArrowLeft size={22} color="#FFFFFF" />
-                    </TouchableOpacity>
                     <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '700' }}>Settings</Text>
-                    <TouchableOpacity style={{ padding: 4 }}>
-                        <Check size={22} color={AURORA.blue} />
-                    </TouchableOpacity>
                 </View>
 
                 <ScrollView

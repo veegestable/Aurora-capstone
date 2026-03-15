@@ -4,7 +4,7 @@
  * Loads from Firestore.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     TextInput, Image, KeyboardAvoidingView, Platform,
@@ -18,6 +18,7 @@ import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../../components/common/LetterAvatar';
 import ScheduleInviteCard, { type ScheduleInviteData, type TimeSlot } from '../../components/student/ScheduleInviteCard';
 import SessionRequestCard, { type SessionRequestData } from '../../components/student/SessionRequestCard';
+import SessionRequestDetailsModal from '../../components/student/SessionRequestDetailsModal';
 import StudentSessionRequestModal, { type SessionRequestFormData } from '../../components/student/StudentSessionRequestModal';
 import SelectCounselorModal, { type Counselor } from '../../components/student/SelectCounselorModal';
 
@@ -142,6 +143,9 @@ function DirectMessageView({
     const [loadingMessages, setLoadingMessages] = useState(true);
     const [sending, setSending] = useState(false);
     const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [selectedSessionRequest, setSelectedSessionRequest] = useState<SessionRequestData | null>(null);
+    const scrollViewRef = useRef<ScrollView>(null);
 
     useEffect(() => {
         if (!contact.conversationId || !user?.id) {
@@ -180,6 +184,7 @@ function DirectMessageView({
                 { id: msgId, senderId: 'me', type: 'text', text, time: 'Just now' },
             ]);
             setMessage('');
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (e) {
             console.error('Failed to send message:', e);
         } finally {
@@ -225,6 +230,7 @@ function DirectMessageView({
                 },
             ]);
             setShowSessionRequestModal(false);
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (e) {
             console.error('Failed to send session request:', e);
         } finally {
@@ -334,6 +340,7 @@ function DirectMessageView({
 
                 {/* Messages */}
                 <ScrollView
+                    ref={scrollViewRef}
                     style={{ flex: 1 }}
                     contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
                     showsVerticalScrollIndicator={false}
@@ -347,19 +354,83 @@ function DirectMessageView({
                     ) : (
                         messages.map((msg) => {
                             const isMe = msg.senderId === 'me';
+                            const senderName = isMe ? 'You' : contact.name;
+                            const messageContent = msg.type === 'text' ? (
+                                                <View
+                                                    style={{
+                                                        minWidth: 80,
+                                                        maxWidth: 280,
+                                                        alignSelf: isMe ? 'flex-end' : 'flex-start',
+                                                        backgroundColor: isMe ? AURORA.blue : AURORA.card,
+                                                        borderRadius: 18,
+                                                        borderBottomLeftRadius: isMe ? 18 : 4,
+                                                        borderBottomRightRadius: isMe ? 4 : 18,
+                                                        paddingHorizontal: 16,
+                                                        paddingVertical: 12,
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
+                                                        {msg.text}
+                                                    </Text>
+                                                    <Text
+                                                        style={{
+                                                            color: 'rgba(255,255,255,0.7)',
+                                                            fontSize: 11,
+                                                            marginTop: 4,
+                                                            textAlign: 'right',
+                                                        }}
+                                                    >
+                                                        {msg.time}
+                                                    </Text>
+                                                </View>
+                                            ) : msg.type === 'session_request' ? (
+                                                <View>
+                                                    <SessionRequestCard
+                                                        data={msg.sessionRequest}
+                                                        isFromMe={isMe}
+                                                        onViewDetails={() => {
+                                                            setSelectedSessionRequest(msg.sessionRequest);
+                                                            setShowDetailsModal(true);
+                                                        }}
+                                                        onEdit={() => setShowSessionRequestModal(true)}
+                                                    />
+                                                    <Text
+                                                        style={{
+                                                            color: 'rgba(255,255,255,0.6)',
+                                                            fontSize: 11,
+                                                            marginTop: 6,
+                                                            textAlign: isMe ? 'right' : 'left',
+                                                        }}
+                                                    >
+                                                        {msg.time}
+                                                    </Text>
+                                                </View>
+                                            ) : (
+                                                <View>
+                                                    <ScheduleInviteCard
+                                                        data={{
+                                                            ...msg.session,
+                                                            note: msg.session.note,
+                                                            timeSlots: msg.session.timeSlots,
+                                                        }}
+                                                        senderLabel="Aurora Academic Support"
+                                                        isFromMe={isMe}
+                                                        onConfirm={handleConfirmSession}
+                                                    />
+                                                    <Text
+                                                        style={{
+                                                            color: 'rgba(255,255,255,0.6)',
+                                                            fontSize: 11,
+                                                            marginTop: 6,
+                                                            textAlign: isMe ? 'right' : 'left',
+                                                        }}
+                                                    >
+                                                        {msg.time}
+                                                    </Text>
+                                                </View>
+                                            );
                             return (
                                 <View key={msg.id} style={{ marginBottom: 16 }}>
-                                    <Text
-                                        style={{
-                                            color: AURORA.textSec,
-                                            fontSize: 11,
-                                            marginBottom: 4,
-                                            textAlign: isMe ? 'right' : 'left',
-                                            marginHorizontal: 4,
-                                        }}
-                                    >
-                                        {isMe ? 'You' : contact.name}
-                                    </Text>
                                     <View
                                         style={{
                                             flexDirection: 'row',
@@ -371,74 +442,20 @@ function DirectMessageView({
                                         {!isMe && (
                                             <LetterAvatar name={contact.name} size={34} />
                                         )}
-                                        {msg.type === 'text' ? (
-                                            <View
+                                        <View style={{ maxWidth: '78%' }}>
+                                            <Text
                                                 style={{
-                                                    maxWidth: '78%',
-                                                    backgroundColor: isMe ? AURORA.blue : AURORA.card,
-                                                    borderRadius: 18,
-                                                    borderBottomLeftRadius: isMe ? 18 : 4,
-                                                    borderBottomRightRadius: isMe ? 4 : 18,
-                                                    paddingHorizontal: 16,
-                                                    paddingVertical: 12,
+                                                    color: AURORA.textSec,
+                                                    fontSize: 11,
+                                                    marginBottom: 4,
+                                                    textAlign: isMe ? 'right' : 'left',
                                                 }}
                                             >
-                                                <Text style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
-                                                    {msg.text}
-                                                </Text>
-                                                <Text
-                                                    style={{
-                                                        color: 'rgba(255,255,255,0.7)',
-                                                        fontSize: 11,
-                                                        marginTop: 4,
-                                                        textAlign: 'right',
-                                                    }}
-                                                >
-                                                    {msg.time}
-                                                </Text>
-                                            </View>
-                                        ) : msg.type === 'session_request' ? (
-                                            <View>
-                                                <SessionRequestCard
-                                                    data={msg.sessionRequest}
-                                                    onViewDetails={() => {}}
-                                                    onEdit={() => setShowSessionRequestModal(true)}
-                                                />
-                                                <Text
-                                                    style={{
-                                                        color: 'rgba(255,255,255,0.6)',
-                                                        fontSize: 11,
-                                                        marginTop: 6,
-                                                        textAlign: 'right',
-                                                    }}
-                                                >
-                                                    {msg.time}
-                                                </Text>
-                                            </View>
-                                        ) : (
-                                            <View>
-                                                <ScheduleInviteCard
-                                                    data={{
-                                                        ...msg.session,
-                                                        note: msg.session.note,
-                                                        timeSlots: msg.session.timeSlots,
-                                                    }}
-                                                    senderLabel="Aurora Academic Support"
-                                                    onConfirm={handleConfirmSession}
-                                                />
-                                                <Text
-                                                    style={{
-                                                        color: 'rgba(255,255,255,0.6)',
-                                                        fontSize: 11,
-                                                        marginTop: 6,
-                                                        textAlign: isMe ? 'right' : 'left',
-                                                    }}
-                                                >
-                                                    {msg.time}
-                                                </Text>
-                                            </View>
-                                        )}
-                                        {isMe && (msg.type === 'text' || msg.type === 'session_request') && (
+                                                {senderName}
+                                            </Text>
+                                            {messageContent}
+                                        </View>
+                                        {isMe && (
                                             <LetterAvatar name={user?.full_name ?? 'You'} size={34} />
                                         )}
                                     </View>
@@ -525,6 +542,14 @@ function DirectMessageView({
             visible={showSessionRequestModal}
             onClose={() => setShowSessionRequestModal(false)}
             onSend={handleSendSessionRequest}
+        />
+        <SessionRequestDetailsModal
+            visible={showDetailsModal}
+            data={selectedSessionRequest}
+            onClose={() => {
+                setShowDetailsModal(false);
+                setSelectedSessionRequest(null);
+            }}
         />
         </>
     );
