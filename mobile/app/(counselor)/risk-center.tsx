@@ -158,7 +158,7 @@ function RiskCaseCard({
                 onPress={() => onStudentPress(riskCase.id)}
                 activeOpacity={0.8}
             >
-                <LetterAvatar name={riskCase.name} size={46} />
+                <LetterAvatar name={riskCase.name} size={46} avatarUrl={riskCase.avatar} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>

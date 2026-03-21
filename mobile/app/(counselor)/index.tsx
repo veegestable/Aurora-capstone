@@ -130,7 +130,7 @@ function FlagRow({ item }: { item: FlagItem }) {
         >
             <View style={{ width: 4, backgroundColor: style.border, alignSelf: 'stretch' }} />
             <View style={{ margin: 12 }}>
-                <LetterAvatar name={item.name} size={48} />
+                <LetterAvatar name={item.name} size={48} avatarUrl={item.avatar} />
             </View>
             <View style={{ flex: 1 }}>
                 <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>
@@ -204,7 +204,7 @@ export default function CounselorHomeScreen() {
                         program: formatProgram(student.department, student.year_level),
                         time: lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No logs',
                         risk: deriveRiskFromMood(stressLevel, energyLevel) as RiskLevel,
-                        avatar: '',
+                        avatar: (student as any).avatar_url ?? '',
                     }))
                     .sort((a, b) => {
                         const order = { 'HIGH RISK': 0, 'MEDIUM': 1, 'RESOLVED': 2 };

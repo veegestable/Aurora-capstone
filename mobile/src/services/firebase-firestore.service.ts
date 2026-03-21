@@ -341,6 +341,9 @@ export const firestoreService = {
   },
 
   async getConversations(counselorId: string) {
+    const isPlaceholderAvatar = (url: string) =>
+      !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url);
+
     try {
       const q = query(
         collection(db, 'conversations'),
@@ -348,15 +351,29 @@ export const firestoreService = {
         orderBy('lastMessageAt', 'desc')
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((d) => {
+      const results = await Promise.all(snapshot.docs.map(async (d) => {
         const data = d.data();
+        let avatar = data.student_avatar ?? '';
+        if ((!avatar || isPlaceholderAvatar(avatar)) && data.studentId) {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', data.studentId));
+            const userAvatar = userDoc.data()?.avatar_url ?? '';
+            if (userAvatar && !isPlaceholderAvatar(userAvatar)) {
+              avatar = userAvatar;
+              if (isPlaceholderAvatar(data.student_avatar ?? '')) {
+                updateDoc(doc(db, 'conversations', d.id), { student_avatar: userAvatar }).catch(() => {});
+              }
+            }
+          } catch { /* keep existing */ }
+        }
+        if (isPlaceholderAvatar(avatar)) avatar = '';
         return {
           id: data.studentId,
           conversationId: d.id,
           name: data.student_name,
           preview: data.lastMessage ?? 'No messages yet',
           time: data.lastMessageAt?.toDate ? formatMessageTime(data.lastMessageAt.toDate()) : 'Just now',
-          avatar: data.student_avatar,
+          avatar,
           isOnline: false,
           isUnread: (data.unreadCountCounselor ?? 0) > 0,
           isAlerted: data.is_alerted ?? false,
@@ -364,7 +381,8 @@ export const firestoreService = {
           program: data.student_program ?? undefined,
           studentId: data.studentId,
         };
-      });
+      }));
+      return results;
     } catch (error: any) {
       console.error('❌ Error getting conversations:', error);
       throw error;
