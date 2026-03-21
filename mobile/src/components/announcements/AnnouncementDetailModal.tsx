@@ -9,8 +9,9 @@ import {
   Platform,
   StyleSheet,
   Dimensions,
+  Alert,
 } from 'react-native';
-import { X, Pencil } from 'lucide-react-native';
+import { X, Pencil, Trash2 } from 'lucide-react-native';
 import type { Announcement } from '../../services/announcements.service';
 import { AURORA } from '../../constants/aurora-colors';
 import { Megaphone } from 'lucide-react-native';
@@ -20,10 +21,13 @@ interface AnnouncementDetailModalProps {
   visible: boolean;
   announcement: Announcement | null;
   canEdit: boolean;
+  /** When true, shows delete button. Counselor who posted OR admin. */
+  canDelete?: boolean;
   /** When true, shows createdByName. For counselor/admin view only, not students. */
   showAuthor?: boolean;
   onClose: () => void;
   onEdit: () => void;
+  onDelete?: () => void;
 }
 
 function formatFullDate(date: Date): string {
@@ -40,10 +44,30 @@ export function AnnouncementDetailModal({
   visible,
   announcement,
   canEdit,
+  canDelete = false,
   showAuthor = false,
   onClose,
   onEdit,
+  onDelete,
 }: AnnouncementDetailModalProps) {
+  const handleDeletePress = () => {
+    Alert.alert(
+      'Delete Announcement',
+      'Are you sure you want to delete this announcement? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            triggerHaptic('light');
+            onDelete?.();
+          },
+        },
+      ]
+    );
+  };
+
   if (!announcement) return null;
 
   return (
@@ -70,6 +94,15 @@ export function AnnouncementDetailModal({
                 >
                   <Pencil size={16} color={AURORA.blue} />
                   <Text style={styles.editBtnText}>Edit</Text>
+                </TouchableOpacity>
+              )}
+              {canDelete && onDelete && (
+                <TouchableOpacity
+                  onPress={handleDeletePress}
+                  style={styles.deleteBtn}
+                >
+                  <Trash2 size={16} color={AURORA.red} />
+                  <Text style={styles.deleteBtnText}>Delete</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -148,6 +181,22 @@ const styles = StyleSheet.create({
   },
   editBtnText: {
     color: AURORA.blue,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.4)',
+  },
+  deleteBtnText: {
+    color: AURORA.red,
     fontSize: 14,
     fontWeight: '700',
   },

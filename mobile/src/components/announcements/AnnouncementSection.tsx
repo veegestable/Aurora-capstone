@@ -6,6 +6,7 @@ import { AnnouncementCarousel } from './AnnouncementCarousel';
 import { AddAnnouncementModal } from './AddAnnouncementModal';
 import { AnnouncementDetailModal } from './AnnouncementDetailModal';
 import { EditAnnouncementModal } from './EditAnnouncementModal';
+import { announcementsService } from '../../services/announcements.service';
 import type { Announcement } from '../../services/announcements.service';
 import { AURORA } from '../../constants/aurora-colors';
 import { triggerHaptic } from '../../utils/haptics';
@@ -50,6 +51,24 @@ export function AnnouncementSection({ role, showAddButton = false }: Announcemen
     !!selectedAnnouncement &&
     selectedAnnouncement.createdBy === user.id;
 
+  const canDelete =
+    role !== 'student' &&
+    !!selectedAnnouncement &&
+    ((!!user?.id && selectedAnnouncement.createdBy === user.id) || user?.role === 'admin');
+
+  const handleDelete = async () => {
+    if (!selectedAnnouncement?.id) return;
+    try {
+      await announcementsService.delete(selectedAnnouncement.id);
+      setDetailModalVisible(false);
+      setEditModalVisible(false);
+      setSelectedAnnouncement(null);
+      setRefreshKey((k) => k + 1);
+    } catch (_) {
+      // TODO: show error toast
+    }
+  };
+
   return (
     <View style={styles.section}>
       <View style={styles.header}>
@@ -79,9 +98,11 @@ export function AnnouncementSection({ role, showAddButton = false }: Announcemen
         visible={detailModalVisible}
         announcement={selectedAnnouncement}
         canEdit={canEdit}
+        canDelete={canDelete}
         showAuthor={role !== 'student'}
         onClose={handleDetailClose}
         onEdit={handleEditPress}
+        onDelete={handleDelete}
       />
       <EditAnnouncementModal
         visible={editModalVisible}

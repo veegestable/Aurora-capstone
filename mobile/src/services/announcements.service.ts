@@ -3,6 +3,7 @@ import {
   addDoc,
   doc,
   updateDoc,
+  deleteDoc,
   query,
   orderBy,
   getDocs,
@@ -71,6 +72,8 @@ const MOCK_ANNOUNCEMENTS: Announcement[] = [
   },
 ];
 
+const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
+
 export const announcementsService = {
   async listForRole(role: 'counselor' | 'student', maxCount = 20): Promise<Announcement[]> {
     try {
@@ -80,12 +83,15 @@ export const announcementsService = {
         limit(maxCount)
       );
       const snapshot = await getDocs(q);
+      const now = Date.now();
       const list = snapshot.docs
         .map((d) => {
           const data = d.data();
           const target = (data.targetRole ?? 'all') as string;
           const allowed = target === 'all' || target === role;
           if (!allowed) return null;
+          const createdAt = data.createdAt?.toDate?.() ?? new Date();
+          if (now - createdAt.getTime() > THREE_WEEKS_MS) return null;
           return {
             id: d.id,
             title: data.title ?? '',
@@ -94,7 +100,7 @@ export const announcementsService = {
             targetRole: data.targetRole ?? 'all',
             createdBy: data.createdBy ?? '',
             createdByName: data.createdByName ?? '',
-            createdAt: data.createdAt?.toDate?.() ?? new Date(),
+            createdAt,
           } as Announcement;
         })
         .filter(Boolean) as Announcement[];
@@ -128,5 +134,9 @@ export const announcementsService = {
     if (input.imageUrl !== undefined) updates.imageUrl = input.imageUrl?.trim() || null;
     if (input.targetRole !== undefined) updates.targetRole = input.targetRole;
     await updateDoc(ref, updates);
+  },
+
+  async delete(id: string): Promise<void> {
+    await deleteDoc(doc(db, 'announcements', id));
   },
 };
