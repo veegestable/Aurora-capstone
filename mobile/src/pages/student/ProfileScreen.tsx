@@ -77,7 +77,9 @@ function ToggleRow({
 }
 
 
-// ─── Edit Profile Modal (name + avatar only) ───────────────────────────────────
+type SexOption = 'male' | 'female';
+
+// ─── Edit Profile Modal (name, sex, avatar) ──────────────────────────────────────
 function EditProfileModal({
     visible,
     onClose,
@@ -88,15 +90,23 @@ function EditProfileModal({
     visible: boolean;
     onClose: () => void;
     user: any;
-    onSave: (data: { preferredName: string }) => void;
+    onSave: (data: { preferredName: string; sex?: SexOption; program: string; yearLevel: string; studentNumber: string }) => void;
     onPickAvatar?: (imageUri: string) => Promise<void>;
 }) {
     const [name, setName] = useState(user?.preferred_name || user?.full_name || '');
+    const [sex, setSex] = useState<SexOption | undefined>(user?.sex);
+    const [program, setProgram] = useState(user?.department || '');
+    const [yearLevel, setYearLevel] = useState(user?.year_level || '');
+    const [studentNumber, setStudentNumber] = useState(user?.student_number || '');
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
     useEffect(() => {
         if (visible && user) {
             setName(user.preferred_name || user.full_name || '');
+            setSex(user.sex ?? undefined);
+            setProgram(user.department || '');
+            setYearLevel(user.year_level || '');
+            setStudentNumber(user.student_number || '');
         }
     }, [visible, user]);
 
@@ -125,7 +135,28 @@ function EditProfileModal({
     };
 
     const handleSave = () => {
-        onSave({ preferredName: name.trim() || user?.full_name || 'Student' });
+        const programTrim = program.trim();
+        const yearTrim = yearLevel.trim();
+        const studentNumTrim = studentNumber.trim();
+        if (!programTrim) {
+            Alert.alert('Required field', 'Please enter your program (e.g. BS Computer Science).');
+            return;
+        }
+        if (!yearTrim) {
+            Alert.alert('Required field', 'Please enter your year level (e.g. 1st Year, 2nd Year).');
+            return;
+        }
+        if (!studentNumTrim) {
+            Alert.alert('Required field', 'Please enter your student number.');
+            return;
+        }
+        onSave({
+            preferredName: name.trim() || user?.full_name || 'Student',
+            sex,
+            program: programTrim,
+            yearLevel: yearTrim,
+            studentNumber: studentNumTrim,
+        });
         onClose();
     };
 
@@ -156,6 +187,7 @@ function EditProfileModal({
                                 <LetterAvatar
                                     name={user?.preferred_name || user?.full_name || 'Student'}
                                     size={90}
+                                    avatarUrl={user?.avatar_url}
                                 />
                                 <TouchableOpacity
                                     onPress={handlePickAvatar}
@@ -181,7 +213,7 @@ function EditProfileModal({
                         <View style={{
                             backgroundColor: AURORA.card, borderRadius: 14,
                             flexDirection: 'row', alignItems: 'center',
-                            paddingHorizontal: 14, marginBottom: 24,
+                            paddingHorizontal: 14, marginBottom: 20,
                             borderWidth: 1, borderColor: AURORA.border,
                         }}>
                             <User size={16} color={AURORA.textSec} style={{ marginRight: 10 }} />
@@ -192,6 +224,101 @@ function EditProfileModal({
                                 placeholder="Your name"
                                 placeholderTextColor={AURORA.textMuted}
                             />
+                        </View>
+
+                        <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Program <Text style={{ color: AURORA.red }}>*</Text></Text>
+                        <View style={{
+                            backgroundColor: AURORA.card, borderRadius: 14,
+                            flexDirection: 'row', alignItems: 'center',
+                            paddingHorizontal: 14, marginBottom: 20,
+                            borderWidth: 1, borderColor: AURORA.border,
+                        }}>
+                            <TextInput
+                                style={{ flex: 1, color: '#FFFFFF', fontSize: 15, paddingVertical: 14 }}
+                                value={program}
+                                onChangeText={setProgram}
+                                placeholder="e.g. BS Computer Science"
+                                placeholderTextColor={AURORA.textMuted}
+                            />
+                        </View>
+
+                        <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Year Level <Text style={{ color: AURORA.red }}>*</Text></Text>
+                        <View style={{
+                            backgroundColor: AURORA.card, borderRadius: 14,
+                            flexDirection: 'row', alignItems: 'center',
+                            paddingHorizontal: 14, marginBottom: 20,
+                            borderWidth: 1, borderColor: AURORA.border,
+                        }}>
+                            <TextInput
+                                style={{ flex: 1, color: '#FFFFFF', fontSize: 15, paddingVertical: 14 }}
+                                value={yearLevel}
+                                onChangeText={setYearLevel}
+                                placeholder="e.g. 1st Year, 2nd Year"
+                                placeholderTextColor={AURORA.textMuted}
+                            />
+                        </View>
+
+                        <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Student Number <Text style={{ color: AURORA.red }}>*</Text></Text>
+                        <View style={{
+                            backgroundColor: AURORA.card, borderRadius: 14,
+                            flexDirection: 'row', alignItems: 'center',
+                            paddingHorizontal: 14, marginBottom: 20,
+                            borderWidth: 1, borderColor: AURORA.border,
+                        }}>
+                            <TextInput
+                                style={{ flex: 1, color: '#FFFFFF', fontSize: 15, paddingVertical: 14 }}
+                                value={studentNumber}
+                                onChangeText={setStudentNumber}
+                                placeholder="e.g. 2021-0001"
+                                placeholderTextColor={AURORA.textMuted}
+                                keyboardType="default"
+                            />
+                        </View>
+
+                        <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Sex</Text>
+                        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                            <TouchableOpacity
+                                onPress={() => setSex('male')}
+                                activeOpacity={0.8}
+                                style={{
+                                    flex: 1,
+                                    paddingVertical: 14,
+                                    borderRadius: 14,
+                                    borderWidth: 2,
+                                    borderColor: sex === 'male' ? AURORA.blue : AURORA.border,
+                                    backgroundColor: sex === 'male' ? 'rgba(45,107,255,0.15)' : AURORA.card,
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <Text style={{
+                                    color: sex === 'male' ? '#FFFFFF' : AURORA.textSec,
+                                    fontSize: 15,
+                                    fontWeight: '600',
+                                }}>
+                                    Male
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setSex('female')}
+                                activeOpacity={0.8}
+                                style={{
+                                    flex: 1,
+                                    paddingVertical: 14,
+                                    borderRadius: 14,
+                                    borderWidth: 2,
+                                    borderColor: sex === 'female' ? AURORA.blue : AURORA.border,
+                                    backgroundColor: sex === 'female' ? 'rgba(45,107,255,0.15)' : AURORA.card,
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <Text style={{
+                                    color: sex === 'female' ? '#FFFFFF' : AURORA.textSec,
+                                    fontSize: 15,
+                                    fontWeight: '600',
+                                }}>
+                                    Female
+                                </Text>
+                            </TouchableOpacity>
                         </View>
 
                         <TouchableOpacity
@@ -252,6 +379,7 @@ export default function ProfileScreen() {
                                 <LetterAvatar
                                     name={user?.preferred_name || user?.full_name || 'Student'}
                                     size={80}
+                                    avatarUrl={user?.avatar_url}
                                 />
                             </View>
                             <TouchableOpacity
@@ -286,12 +414,16 @@ export default function ProfileScreen() {
                     }}>
                         <InfoRow label="Full Name" value={user?.full_name || 'Student'} />
                         <InfoRow
+                            label="Sex"
+                            value={user?.sex ? (user.sex === 'male' ? 'Male' : 'Female') : 'Not set'}
+                        />
+                        <InfoRow
                             label="Program & Year"
                             value={user?.department && user?.year_level
-                                ? `${user.department} - ${user.year_level} Year`
-                                : 'BS Computer Science - 3rd Year'}
+                                ? `${user.department} - ${user.year_level}`
+                                : 'Not set'}
                         />
-                        <InfoRow label="Student Number" value="2021-0001" />
+                        <InfoRow label="Student Number" value={user?.student_number || 'Not set'} />
                     </View>
 
                     {/* ── Privacy Transparency ─────────────────────────────── */}
@@ -370,7 +502,13 @@ export default function ProfileScreen() {
                     user={user}
                     onSave={async (data) => {
                         try {
-                            await updateUser({ preferred_name: data.preferredName });
+                            await updateUser({
+                                preferred_name: data.preferredName,
+                                sex: data.sex,
+                                department: data.program,
+                                year_level: data.yearLevel,
+                                student_number: data.studentNumber,
+                            });
                         } catch (e) {
                             console.error('Failed to save profile:', e);
                         }

@@ -226,6 +226,7 @@ export default function MoodLogScreen() {
                             <LetterAvatar
                                 name={user?.full_name ?? user?.preferred_name ?? 'Student'}
                                 size={44}
+                                avatarUrl={user?.avatar_url}
                             />
                             <View>
                                 <Text style={{ color: AURORA.textSec, fontSize: 12, letterSpacing: 1 }}>WELCOME BACK</Text>

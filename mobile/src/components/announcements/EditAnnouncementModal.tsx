@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,31 +10,51 @@ import {
   StyleSheet,
   ScrollView,
   Image,
-  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { X, Camera } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
-import { announcementsService, type CreateAnnouncementInput } from '../../services/announcements.service';
+import {
+  announcementsService,
+  type Announcement,
+  type UpdateAnnouncementInput,
+} from '../../services/announcements.service';
 import { uploadImage } from '../../services/firebase-storage.service';
 import { AURORA } from '../../constants/aurora-colors';
 import { triggerHaptic } from '../../utils/haptics';
 
-interface AddAnnouncementModalProps {
+type TargetRole = 'all' | 'counselor' | 'student';
+
+interface EditAnnouncementModalProps {
   visible: boolean;
+  announcement: Announcement | null;
   onClose: () => void;
   onSuccess?: () => void;
 }
 
-type TargetRole = 'all' | 'counselor' | 'student';
-
-export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnouncementModalProps) {
+export function EditAnnouncementModal({
+  visible,
+  announcement,
+  onClose,
+  onSuccess,
+}: EditAnnouncementModalProps) {
   const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const [removedImage, setRemovedImage] = useState(false);
   const [targetRole, setTargetRole] = useState<TargetRole>('all');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible && announcement) {
+      setTitle(announcement.title);
+      setContent(announcement.content);
+      setSelectedImageUri(null);
+      setRemovedImage(false);
+      setTargetRole(announcement.targetRole);
+    }
+  }, [visible, announcement]);
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -57,6 +77,12 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
   const handleRemoveImage = () => {
     triggerHaptic('light');
     setSelectedImageUri(null);
+    setRemovedImage(true);
+  };
+
+  const handleRestoreImage = () => {
+    triggerHaptic('light');
+    setRemovedImage(false);
   };
 
   const handleSubmit = async () => {
@@ -70,32 +96,30 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
       Alert.alert('Missing content', 'Please enter the announcement content.');
       return;
     }
-    if (!user) return;
+    if (!user || !announcement) return;
 
     setSaving(true);
     try {
-      let imageUrl: string | undefined;
-      if (selectedImageUri) {
+      let imageUrl: string | undefined | null;
+      if (removedImage) {
+        imageUrl = null;
+      } else if (selectedImageUri) {
         const path = `announcements/${user.id}/${Date.now()}.jpg`;
         imageUrl = await uploadImage(path, selectedImageUri);
+      } else {
+        imageUrl = announcement.imageUrl ?? undefined;
       }
-      const input: CreateAnnouncementInput = {
+      const input: UpdateAnnouncementInput = {
         title: t,
         content: c,
         imageUrl,
         targetRole,
-        createdBy: user.id,
-        createdByName: user.full_name || user.preferred_name || 'Unknown',
       };
-      await announcementsService.create(input);
-      setTitle('');
-      setContent('');
-      setSelectedImageUri(null);
-      setTargetRole('all');
+      await announcementsService.update(announcement.id, input);
       onSuccess?.();
       onClose();
     } catch (e) {
-      Alert.alert('Error', 'Failed to create announcement. Please try again.');
+      Alert.alert('Error', 'Failed to update announcement. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -107,6 +131,8 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
     { key: 'counselor', label: 'Counselors only' },
   ];
 
+  if (!announcement) return null;
+
   return (
     <Modal
       visible={visible}
@@ -117,8 +143,11 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>New Announcement</Text>
-            <TouchableOpacity onPress={() => { triggerHaptic('light'); onClose(); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={styles.title}>Edit Announcement</Text>
+            <TouchableOpacity
+              onPress={() => { triggerHaptic('light'); onClose(); }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
               <X size={22} color={AURORA.textSec} />
             </TouchableOpacity>
           </View>
@@ -139,20 +168,53 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
 
             <Text style={styles.label}>Image (optional)</Text>
             {selectedImageUri ? (
-              <View style={styles.imagePreviewWrap}>
-                <Image source={{ uri: selectedImageUri }} style={styles.imagePreview} resizeMode="cover" />
-                <TouchableOpacity
-                  onPress={handleRemoveImage}
-                  style={styles.removeImageBtn}
-                >
-                  <X size={14} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity onPress={handlePickImage} style={styles.pickImageBtn}>
-                <Camera size={24} color={AURORA.blue} />
-                <Text style={styles.pickImageText}>Add image from gallery</Text>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={handlePickImage}
+                style={styles.imagePreviewWrap}
+              >
+                <Image
+                  source={{ uri: selectedImageUri }}
+                  style={styles.imagePreview}
+                  resizeMode="cover"
+                />
+                <View style={styles.imageOverlay}>
+                  <TouchableOpacity onPress={handleRemoveImage} style={styles.removeImageBtn}>
+                    <X size={14} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <Text style={styles.tapToChangeHint}>Tap image to change</Text>
+                </View>
               </TouchableOpacity>
+            ) : announcement.imageUrl && !removedImage ? (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={handlePickImage}
+                style={styles.imagePreviewWrap}
+              >
+                <Image
+                  source={{ uri: announcement.imageUrl }}
+                  style={styles.imagePreview}
+                  resizeMode="cover"
+                />
+                <View style={styles.imageOverlay}>
+                  <TouchableOpacity onPress={handleRemoveImage} style={styles.removeImageBtn}>
+                    <X size={14} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <Text style={styles.tapToChangeHint}>Tap image to pick new one</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.pickImageRow}>
+                <TouchableOpacity onPress={handlePickImage} style={styles.pickImageBtn}>
+                  <Camera size={24} color={AURORA.blue} />
+                  <Text style={styles.pickImageText}>Add image from gallery</Text>
+                </TouchableOpacity>
+                {announcement.imageUrl && (
+                  <TouchableOpacity onPress={handleRestoreImage} style={styles.restoreBtn}>
+                    <Text style={styles.restoreBtnText}>Restore previous</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
 
             <Text style={styles.label}>Content</Text>
@@ -172,17 +234,9 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
                 <TouchableOpacity
                   key={r.key}
                   onPress={() => { triggerHaptic('light'); setTargetRole(r.key); }}
-                  style={[
-                    styles.roleBtn,
-                    targetRole === r.key && styles.roleBtnActive,
-                  ]}
+                  style={[styles.roleBtn, targetRole === r.key && styles.roleBtnActive]}
                 >
-                  <Text
-                    style={[
-                      styles.roleText,
-                      targetRole === r.key && styles.roleTextActive,
-                    ]}
-                  >
+                  <Text style={[styles.roleText, targetRole === r.key && styles.roleTextActive]}>
                     {r.label}
                   </Text>
                 </TouchableOpacity>
@@ -195,7 +249,7 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
               style={[styles.submit, saving && styles.submitDisabled]}
             >
               <Text style={styles.submitText}>
-                {saving ? 'Publishing...' : 'Publish'}
+                {saving ? 'Saving...' : 'Save Changes'}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -264,16 +318,43 @@ const styles = StyleSheet.create({
     height: 140,
     backgroundColor: AURORA.card,
   },
-  removeImageBtn: {
+  imageOverlay: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  tapToChangeHint: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  removeImageBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,
     backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pickImageRow: {
+    marginBottom: 16,
+    gap: 8,
+  },
+  restoreBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  restoreBtnText: {
+    color: AURORA.textSec,
+    fontSize: 13,
+    fontWeight: '600',
   },
   pickImageBtn: {
     flexDirection: 'row',

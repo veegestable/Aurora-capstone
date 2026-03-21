@@ -83,7 +83,7 @@ function ContactRow({
             }}
         >
             <View style={{ position: 'relative', marginRight: 12 }}>
-                <LetterAvatar name={item.name} size={52} />
+                <LetterAvatar name={item.name} size={52} avatarUrl={item.avatar || undefined} />
                 {item.isOnline && (
                     <View
                         style={{
@@ -262,7 +262,7 @@ function DirectMessageView({
                         <ArrowLeft size={22} color="#FFFFFF" />
                     </TouchableOpacity>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <LetterAvatar name={contact.name} size={40} />
+                        <LetterAvatar name={contact.name} size={40} avatarUrl={contact.avatar || undefined} />
                         <View style={{ alignItems: 'center' }}>
                             <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '700' }}>
                                 {contact.name}
@@ -440,7 +440,7 @@ function DirectMessageView({
                                         }}
                                     >
                                         {!isMe && (
-                                            <LetterAvatar name={contact.name} size={34} />
+                                            <LetterAvatar name={contact.name} size={34} avatarUrl={contact.avatar || undefined} />
                                         )}
                                         <View style={{ maxWidth: '78%' }}>
                                             <Text
@@ -456,7 +456,7 @@ function DirectMessageView({
                                             {messageContent}
                                         </View>
                                         {isMe && (
-                                            <LetterAvatar name={user?.full_name ?? 'You'} size={34} />
+                                            <LetterAvatar name={user?.full_name ?? 'You'} size={34} avatarUrl={user?.avatar_url} />
                                         )}
                                     </View>
                                 </View>
@@ -602,7 +602,7 @@ export default function MessagesScreen() {
                 {
                     id: user.id,
                     name: user.full_name ?? 'Student',
-                    avatar: '', // Use LetterAvatar with name
+                    avatar: user.avatar_url ?? '',
                 },
                 {
                     name: counselor.full_name ?? 'Counselor',
@@ -615,7 +615,7 @@ export default function MessagesScreen() {
                 name: counselor.full_name ?? 'Counselor',
                 preview: 'No messages yet',
                 time: 'Just now',
-                    avatar: '', // Use LetterAvatar with name
+                avatar: counselor.avatar_url ?? '',
                 isOnline: false,
                 isUnread: false,
             };

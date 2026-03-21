@@ -369,7 +369,7 @@ export default function CounselorRiskCenterScreen() {
                                 trigger,
                                 triggerType: type,
                                 status: 'open' as CaseStatus,
-                                avatar: '',
+                                avatar: (s as any).avatar_url ?? '',
                                 initials: getInitials(s.full_name || 'S'),
                             } as RiskCase;
                         } catch {
@@ -382,7 +382,7 @@ export default function CounselorRiskCenterScreen() {
                                 trigger: 'No recent mood data.',
                                 triggerType: 'social' as const,
                                 status: 'open' as CaseStatus,
-                                avatar: '',
+                                avatar: (s as any).avatar_url ?? '',
                                 initials: getInitials(s.full_name || 'S'),
                             } as RiskCase;
                         }
@@ -422,11 +422,11 @@ export default function CounselorRiskCenterScreen() {
             await firestoreService.addConversation(user.id, {
                 id: riskCase.id,
                 name: riskCase.name,
-                avatar: '',
+                avatar: riskCase.avatar ?? '',
                 program: riskCase.program,
                 isAlerted: riskCase.severity === 'high',
                 borderColor: riskCase.severity === 'high' ? AURORA.red : riskCase.severity === 'medium' ? AURORA.orange : undefined,
-            }, { name: user.full_name || 'Counselor' });
+            }, { name: user.full_name || 'Counselor', avatar: user.avatar_url });
             router.push('/(counselor)/messages');
         } catch (e) {
             console.error('Failed to add conversation:', e);

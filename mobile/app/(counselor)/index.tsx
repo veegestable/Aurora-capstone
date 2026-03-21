@@ -236,7 +236,7 @@ export default function CounselorHomeScreen() {
                     paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16,
                 }}>
                     <View style={{ borderWidth: 2, borderColor: AURORA.green, borderRadius: 27 }}>
-                        <LetterAvatar name={user?.full_name ?? 'Counselor'} size={50} />
+                        <LetterAvatar name={user?.full_name ?? 'Counselor'} size={50} avatarUrl={user?.avatar_url} />
                     </View>
                     <View style={{ flex: 1, marginLeft: 12 }}>
                         <Text style={{

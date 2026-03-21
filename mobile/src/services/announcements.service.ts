@@ -1,6 +1,8 @@
 import {
   collection,
   addDoc,
+  doc,
+  updateDoc,
   query,
   orderBy,
   getDocs,
@@ -27,6 +29,13 @@ export interface CreateAnnouncementInput {
   targetRole: 'all' | 'counselor' | 'student';
   createdBy: string;
   createdByName: string;
+}
+
+export interface UpdateAnnouncementInput {
+  title?: string;
+  content?: string;
+  imageUrl?: string | null;
+  targetRole?: 'all' | 'counselor' | 'student';
 }
 
 const MOCK_ANNOUNCEMENTS: Announcement[] = [
@@ -107,5 +116,17 @@ export const announcementsService = {
       updatedAt: Timestamp.now(),
     });
     return docRef.id;
+  },
+
+  async update(id: string, input: UpdateAnnouncementInput): Promise<void> {
+    const ref = doc(db, 'announcements', id);
+    const updates: Record<string, unknown> = {
+      updatedAt: Timestamp.now(),
+    };
+    if (input.title !== undefined) updates.title = input.title.trim();
+    if (input.content !== undefined) updates.content = input.content.trim();
+    if (input.imageUrl !== undefined) updates.imageUrl = input.imageUrl?.trim() || null;
+    if (input.targetRole !== undefined) updates.targetRole = input.targetRole;
+    await updateDoc(ref, updates);
   },
 };

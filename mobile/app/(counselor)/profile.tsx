@@ -109,12 +109,14 @@ function EditProfileModal({
     visible,
     onClose,
     displayName,
+    avatarUrl,
     onSave,
     onPickAvatar,
 }: {
     visible: boolean;
     onClose: () => void;
     displayName: string;
+    avatarUrl?: string | null;
     onSave: (name: string) => Promise<void>;
     onPickAvatar: (imageUri: string) => Promise<void>;
 }) {
@@ -186,7 +188,7 @@ function EditProfileModal({
                     <ScrollView contentContainerStyle={{ padding: 24 }}>
                         <View style={{ alignItems: 'center', marginBottom: 24 }}>
                             <View style={{ position: 'relative', borderWidth: 3, borderColor: AURORA.blue, borderRadius: 53 }}>
-                                <LetterAvatar name={name || displayName} size={100} />
+                                <LetterAvatar name={name || displayName} size={100} avatarUrl={avatarUrl} />
                                 <TouchableOpacity
                                     onPress={handlePickAvatar}
                                     disabled={uploadingAvatar}
@@ -304,7 +306,7 @@ export default function CounselorProfileScreen() {
                     <View style={{ alignItems: 'center', paddingTop: 28, paddingBottom: 20 }}>
                         <View style={{ position: 'relative', marginBottom: 16 }}>
                             <View style={{ borderWidth: 3, borderColor: AURORA.blue, borderRadius: 58 }}>
-                                <LetterAvatar name={displayName} size={110} />
+                                <LetterAvatar name={displayName} size={110} avatarUrl={user?.avatar_url} />
                             </View>
                             <TouchableOpacity
                                 onPress={() => setShowEditProfile(true)}
@@ -466,6 +468,7 @@ export default function CounselorProfileScreen() {
                     visible={showEditProfile}
                     onClose={() => setShowEditProfile(false)}
                     displayName={displayName}
+                    avatarUrl={user?.avatar_url}
                     onSave={async (name) => {
                         await updateUser({ full_name: name });
                     }}

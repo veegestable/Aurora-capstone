@@ -88,7 +88,7 @@ function ConversationRow({
 
             {/* Avatar */}
             <View style={{ position: 'relative', margin: 12 }}>
-                <LetterAvatar name={item.name} size={52} />
+                <LetterAvatar name={item.name} size={52} avatarUrl={item.avatar || undefined} />
                 {item.isOnline && (
                     <View style={{
                         position: 'absolute', bottom: 1, right: 1,
@@ -400,7 +400,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                     alignItems: 'flex-end', gap: 8,
                                 }}>
                                     {!isMe && (
-                                        <LetterAvatar name={contact.name} size={32} />
+                                        <LetterAvatar name={contact.name} size={32} avatarUrl={contact.avatar || undefined} />
                                     )}
                                     {msg.type === 'text' ? (
                                         <View style={{
@@ -443,6 +443,9 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                             onReschedule={() => {}}
                                         />
                                     ) : null}
+                                    {isMe && (
+                                        <LetterAvatar name={user?.full_name ?? 'You'} size={32} avatarUrl={user?.avatar_url} />
+                                    )}
                                 </View>
                             </View>
                         );
@@ -610,7 +613,7 @@ export default function CounselorMessagesScreen() {
                         borderBottomWidth: 1, borderBottomColor: AURORA.border,
                         gap: 12,
                     }}>
-                        <LetterAvatar name={user?.full_name ?? 'Counselor'} size={46} />
+                        <LetterAvatar name={user?.full_name ?? 'Counselor'} size={46} avatarUrl={user?.avatar_url} />
                         <View style={{ flex: 1 }}>
                             <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800' }}>
                                 Messages

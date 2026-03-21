@@ -372,6 +372,9 @@ export const firestoreService = {
   },
 
   async getConversationsForStudent(studentId: string) {
+    const isPlaceholderAvatar = (url: string) =>
+      !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url);
+
     try {
       const q = query(
         collection(db, 'conversations'),
@@ -379,19 +382,34 @@ export const firestoreService = {
         orderBy('lastMessageAt', 'desc')
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((d) => {
+      const results = await Promise.all(snapshot.docs.map(async (d) => {
         const data = d.data();
+        let avatar = data.counselor_avatar ?? '';
+        if ((!avatar || isPlaceholderAvatar(avatar)) && data.counselorId) {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', data.counselorId));
+            const userAvatar = userDoc.data()?.avatar_url ?? '';
+            if (userAvatar && !isPlaceholderAvatar(userAvatar)) {
+              avatar = userAvatar;
+              if (isPlaceholderAvatar(data.counselor_avatar ?? '')) {
+                updateDoc(doc(db, 'conversations', d.id), { counselor_avatar: userAvatar }).catch(() => {});
+              }
+            }
+          } catch { /* keep existing */ }
+        }
+        if (isPlaceholderAvatar(avatar)) avatar = '';
         return {
           id: data.counselorId,
           conversationId: d.id,
           name: data.counselor_name ?? 'Counselor',
           preview: data.lastMessage ?? 'No messages yet',
           time: data.lastMessageAt?.toDate ? formatMessageTime(data.lastMessageAt.toDate()) : 'Just now',
-          avatar: data.counselor_avatar ?? '',
+          avatar,
           isOnline: false,
           isUnread: (data.unreadCountStudent ?? 0) > 0,
         };
-      });
+      }));
+      return results;
     } catch (error: any) {
       console.error('❌ Error getting student conversations:', error);
       throw error;
