@@ -6,10 +6,8 @@ import {
   AlertTriangle, AlertCircle
 } from 'lucide-react'
 import { LetterAvatar } from '../../components/LetterAvatar'
-
-// Types 
-type CaseStatus = 'open' | 'in_progress' | 'resolved'
-type CaseSeverity = 'high' | 'medium' | 'low'
+import type { CaseStatus, CaseSeverity } from '../../types/risk.types'
+import { formatTimeAgo, deriveCaseSeverity, getSeverityStyle, getTriggerFromMood } from '../../utils/riskHelpers'
 
 interface RiskCase {
   id: string
@@ -21,71 +19,6 @@ interface RiskCase {
   triggerType: 'critical' | 'mood' | 'social'
   status: CaseStatus
   handledBy?: string
-}
-
-// Helpers 
-function deriveSeverityFromMood(stress?: number, energy?: number): CaseSeverity {
-  const s = stress ?? 5
-  const e = energy ?? 5
-  if (s >= 7 || e <= 2) return 'high'
-  if (s >= 5 || e <= 4) return 'medium'
-  return 'low'
-}
-
-function getTriggerFromMood(stress?: number, energy?: number) {
-  const s = stress ?? 5
-  const e = energy ?? 5
-  if (s >= 7 || e <= 2)
-    return { trigger: 'High stress or very low energy detected in recent mood log.', type: 'critical' as const }
-  if (s >= 5 || e <= 4)
-    return { trigger: 'Elevated stress or low energy recorded in mood check-in.', type: 'mood' as const }
-  return { trigger: 'Student monitored. Mood patterns within normal range.', type: 'social' as const }
-}
-
-function formatTimeAgo(date: Date): string {
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  return `${diffDays}d ago`
-}
-
-function getSeverityStyle(severity: CaseSeverity) {
-  switch (severity) {
-    case 'high':
-      return {
-        border: 'border-l-red-500',
-        badgeBg: 'bg-red-500/15',
-        badgeBorder: 'border-red-500/30',
-        text: 'text-red-500',
-        label: 'HIGH RISK',
-        dot: 'bg-red-500',
-        cardBg: 'bg-red-500/[0.06]',
-      }
-    case 'medium':
-      return {
-        border: 'border-l-orange-500',
-        badgeBg: 'bg-orange-500/15',
-        badgeBorder: 'border-orange-500/30',
-        text: 'text-orange-500',
-        label: 'MEDIUM RISK',
-        dot: 'bg-orange-500',
-        cardBg: 'bg-orange-500/[0.06]',
-      }
-    case 'low':
-      return {
-        border: 'border-l-amber-400',
-        badgeBg: 'bg-amber-400/12',
-        badgeBorder: 'border-amber-400/30',
-        text: 'text-amber-500',
-        label: 'LOW RISK',
-        dot: 'bg-amber-400',
-        cardBg: 'bg-amber-400/[0.04]',
-      }
-  }
 }
 
 // Trigger Alert Box 
@@ -219,7 +152,7 @@ export default function RiskCenter() {
               const latest = logs[0]
               const stress = latest?.stress_level
               const energy = latest?.energy_level
-              const severity = deriveSeverityFromMood(stress, energy)
+              const severity = deriveCaseSeverity(stress, energy)
               const { trigger, type } = getTriggerFromMood(stress, energy)
               return {
                 id: s.id,

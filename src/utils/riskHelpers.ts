@@ -18,7 +18,7 @@ export function deriveRiskLevel(stress?: number, energy?: number): RiskLevel {
   const s = stress ?? 5
   const e = energy ?? 5
   if (s >= 7 || e <= 2) return 'HIGH RISK'
-  if (s >= 5 || e <= 4) return 'MEDIUM'
+  if (s >= 5 || e <= 4) return 'MEDIUM RISK'
   return 'LOW RISK'
 }
 
@@ -42,7 +42,7 @@ export function getDashboardRiskStyle(risk: RiskLevel): RiskStyleTokens {
         badgeBorder: 'border-red-500/30',
         text: 'text-red-500',
       }
-    case 'MEDIUM':
+    case 'MEDIUM RISK':
       return {
         border: 'border-l-orange-500',
         badgeBg: 'bg-orange-500/15',
@@ -106,7 +106,7 @@ export function getStudentRiskStyle(risk: RiskLevel): RiskStyleTokens {
         text: 'text-red-500',
         ring: 'ring-red-500/40',
       }
-    case 'MEDIUM':
+    case 'MEDIUM RISK':
       return {
         border: 'border-l-orange-500',
         badgeBg: 'bg-orange-500/15',

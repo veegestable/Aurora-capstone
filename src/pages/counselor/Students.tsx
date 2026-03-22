@@ -3,9 +3,9 @@ import { counselorService } from '../../services/counselor'
 import { firestoreService } from '../../services/firebase-firestore'
 import { Search } from 'lucide-react'
 import { LetterAvatar } from '../../components/LetterAvatar'
+import type { RiskLevel } from '../../types/risk.types'
+import { formatTimeAgo, deriveRiskLevel, getStudentRiskStyle } from '../../utils/riskHelpers'
 
-// Types 
-type RiskLevel = 'HIGH RISK' | 'MEDIUM RISK' | 'LOW RISK'
 type ProgramFilter = 'All Students' | 'BSCS' | 'BSIT' | 'BSIS'
 
 interface StudentEntry {
@@ -25,60 +25,11 @@ const MOOD_EMOJIS: Record<RiskLevel, string> = {
   'LOW RISK': '😊',
 }
 
-// Helpers 
-function deriveRisk(stress?: number, energy?: number): RiskLevel {
-  const s = stress ?? 5
-  const e = energy ?? 5
-  if (s >= 7 || e <= 2) return 'HIGH RISK'
-  if (s >= 5 || e <= 4) return 'MEDIUM RISK'
-  return 'LOW RISK'
-}
-
-function formatTimeAgo(date: Date): string {
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  return `${diffDays}d ago`
-}
-
-function getRiskStyle(risk: RiskLevel) {
-  switch (risk) {
-    case 'HIGH RISK':
-      return {
-        border: 'border-l-red-500',
-        badgeBg: 'bg-red-500/15',
-        badgeBorder: 'border-red-500/30',
-        text: 'text-red-500',
-        ring: 'ring-red-500/40',
-      }
-    case 'MEDIUM RISK':
-      return {
-        border: 'border-l-orange-500',
-        badgeBg: 'bg-orange-500/15',
-        badgeBorder: 'border-orange-500/30',
-        text: 'text-orange-500',
-        ring: 'ring-orange-500/40',
-      }
-    case 'LOW RISK':
-      return {
-        border: 'border-l-aurora-secondary-blue',
-        badgeBg: 'bg-aurora-secondary-blue/15',
-        badgeBorder: 'border-aurora-secondary-blue/30',
-        text: 'text-aurora-secondary-blue',
-        ring: 'ring-aurora-secondary-blue/40',
-      }
-  }
-}
-
 const FILTERS: ProgramFilter[] = ['All Students', 'BSCS', 'BSIT', 'BSIS']
 
 // Student Card 
 function StudentCard({ student }: { student: StudentEntry }) {
-  const style = getRiskStyle(student.riskLevel)
+  const style = getStudentRiskStyle(student.riskLevel)
   return (
     <div
       className={`flex items-center card-aurora border-l-4 ${style.border} p-0 overflow-hidden`}
@@ -165,7 +116,7 @@ export default function Students() {
               const latest = logs[0]
               if (latest?.log_date) {
                 lastLog = formatTimeAgo(new Date(latest.log_date))
-                riskLevel = deriveRisk(latest?.stress_level, latest?.energy_level)
+                riskLevel = deriveRiskLevel(latest?.stress_level, latest?.energy_level)
               }
             } catch {
               /* use fallbacks */

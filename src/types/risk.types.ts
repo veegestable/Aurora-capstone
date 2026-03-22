@@ -1,4 +1,4 @@
-export type RiskLevel = 'HIGH RISK' | 'MEDIUM' | 'LOW RISK'
+export type RiskLevel = 'HIGH RISK' | 'MEDIUM RISK' | 'LOW RISK'
 
 export type CaseSeverity = 'high' | 'medium' | 'low'
 

@@ -119,7 +119,7 @@ export default function CounselorDashboard() {
             risk: deriveRiskLevel(stressLevel, energyLevel),
           }))
           .sort((a, b) => {
-            const order = { 'HIGH RISK': 0, 'MEDIUM': 1, 'LOW RISK': 2 }
+            const order = { 'HIGH RISK': 0, 'MEDIUM RISK': 1, 'LOW RISK': 2 }
             return (order[a.risk] ?? 2) - (order[b.risk] ?? 2)
           })
 
