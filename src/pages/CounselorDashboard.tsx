@@ -1,222 +1,237 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { counselorService } from '../services/counselor';
-import { Users, BarChart3, MessageSquare, Settings, LogOut } from 'lucide-react';
-import logoLight from '../assets/logos/logo light.png';
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { counselorService } from '../services/counselor'
+import { firestoreService } from '../services/firebase-firestore'
+import {
+  Users, AlertTriangle, MessageSquare,
+  Calendar, ChevronRight,
+} from 'lucide-react'
+import type { RiskLevel } from '../types/risk.types'
+import { formatTimeAgo, deriveRiskLevel, getDashboardRiskStyle } from '../utils/riskHelpers'
+import { LetterAvatar } from '../components/LetterAvatar'
 
-export default function CounselorDashboard() {
-  const { user, signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState('students');
-  const [students, setStudents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+interface FlagItem {
+  id: string
+  name: string
+  program: string
+  time: string
+  risk: RiskLevel
+}
 
-  useEffect(() => {
-    const fetchStudents = async () => {
-      try {
-        const studentList = await counselorService.getStudents();
-        setStudents(studentList);
-      } catch (error) {
-        console.error('Error fetching students:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+// Stat Card 
+interface StatCardProps {
+  icon: React.ReactNode
+  count: string | number
+  label: string
+  accent?: string
+}
 
-    fetchStudents();
-  }, []);
+function StatCard({ icon, count, label, accent }: StatCardProps) {
+  return (
+    <div className={`card-aurora flex flex-col gap-2 p-5 min-h-[120px] ${accent ?? ''}`}>
+      {icon}
+      <span className="text-3xl font-extrabold text-aurora-primary-dark tracking-tight">
+        {count}
+      </span>
+      <span className="text-xs text-aurora-primary-dark/60">{label}</span>
+    </div>
+  )
+}
 
-  const tabs = [
-    { id: 'students', label: 'Students', icon: Users },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'messages', label: 'Messages', icon: MessageSquare },
-    { id: 'settings', label: 'Settings', icon: Settings },
-  ];
+// Flag Row 
+function FlagRow({ item }: { item: FlagItem }) {
+  const style = getDashboardRiskStyle(item.risk)
 
   return (
-    <div className="min-h-screen gradient-aurora-light">
-      {/* Header */}
-      <header className="bg-aurora-primary-dark border-b border-aurora-primary-light/20 mb-0 shadow-aurora">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-14 sm:h-16">
-            <div className="flex items-center space-x-3">
-              <img
-                src={logoLight}
-                alt="Aurora Mental Health Platform"
-                className="h-6 sm:h-8 w-auto"
-              />
-              <h1 className="text-lg sm:text-xl font-bold text-white hidden xs:block font-primary">Aurora - Counselor</h1>
-            </div>
+    <Link
+      to="/counselor/risk-center"
+      className={`flex items-center card-aurora border-l-4 ${style.border} p-0 overflow-hidden hover:shadow-lg transition-shadow`}
+      aria-label={`View risk details for ${item.name}`}
+    >
+      <div className="p-3 pl-4">
+        <LetterAvatar name={item.name} size={44} />
+      </div>
+      <div className="flex-1 py-3">
+        <p className="font-bold text-aurora-primary-dark text-sm">{item.name}</p>
+        <p className="text-xs text-aurora-primary-dark/50 mt-0.5">
+          {item.program} · {item.time}
+        </p>
+      </div>
+      <div className="pr-2">
+        <span
+          className={`inline-block text-[10px] font-extrabold tracking-wide px-2.5 py-1 rounded-full border ${style.badgeBg} ${style.badgeBorder} ${style.text}`}
+        >
+          {item.risk}
+        </span>
+      </div>
+      <ChevronRight className="w-4 h-4 text-aurora-primary-dark/30 mr-3 shrink-0" />
+    </Link>
+  )
+}
 
-            <div className="flex items-center space-x-2 sm:space-x-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 gradient-aurora-primary rounded-full flex items-center justify-center ring-2 ring-aurora-blue-500/20">
-                  <span className="text-white text-xs sm:text-sm font-semibold">
-                    {user?.full_name?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <span className="text-xs sm:text-sm text-white/90 hidden sm:block">Welcome, {user?.full_name}</span>
-              </div>
-              <button
-                onClick={signOut}
-                className="flex items-center space-x-1 sm:space-x-2 text-white/70 hover:text-white transition-colors px-2 sm:px-3 py-2 rounded-md hover:bg-white/10"
-              >
-                <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="text-xs sm:text-sm hidden sm:block">Sign Out</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+// Main 
+export default function CounselorDashboard() {
+  const { user } = useAuth()
+  const [studentCount, setStudentCount] = useState(0)
+  const [criticalRisks, setCriticalRisks] = useState(0)
+  const [recentFlags, setRecentFlags] = useState<FlagItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-      <div className="flex h-screen">
-        {/* Desktop Sidebar - Hidden on Mobile */}
-        <aside className="hidden lg:block w-64 bg-aurora-primary-dark shadow-aurora shrink-0">
-          <nav className="h-full px-4 py-6">
-            <div className="space-y-2">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-medium transition-all ${activeTab === tab.id
-                      ? 'bg-aurora-secondary-blue text-white shadow-aurora'
-                      : 'text-white/70 hover:text-white hover:bg-aurora-secondary-green/20'
-                      }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-        </aside>
+  const firstName = user?.full_name?.split(' ')[0] || 'Counselor'
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-linear-to-br from-aurora-accent-orange/10 to-aurora-secondary-green/10 pb-20 lg:pb-0">
-          <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
-            {activeTab === 'students' && (
-              <div>
-                <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Students Overview</h2>
-                  <p className="text-aurora-subtitle">
-                    Monitor and support your students' mental health journey.
-                  </p>
-                </div>
-                <div className="card-aurora">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-aurora-blue-500"></div>
-                      <span className="ml-3 text-aurora-primary-dark/70">Loading students...</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {students.length === 0 ? (
-                        <div className="text-center py-8">
-                          <Users className="w-12 h-12 text-aurora-primary-light/60 mx-auto mb-3" />
-                          <p className="text-aurora-primary-dark/60">No students found.</p>
-                          <p className="text-sm text-aurora-primary-dark/50 mt-1">Students will appear here once they register.</p>
-                        </div>
-                      ) : (
-                        students.map((student: any) => (
-                          <div key={student.id} className="border border-aurora-primary-light/30 rounded-lg p-4 bg-white/50 backdrop-blur-xs hover:bg-white/70 transition-all">
-                            <h3 className="font-medium text-aurora-primary-dark">{student.full_name}</h3>
-                            <p className="text-sm text-aurora-primary-dark/60">{student.email}</p>
-                            <div className="flex items-center space-x-4 mt-2">
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-aurora-accent-green/20 text-aurora-accent-green">
-                                Active
-                              </span>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+  useEffect(() => {
+    let cancelled = false
 
-            {activeTab === 'analytics' && (
-              <div>
-                <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Analytics Dashboard</h2>
-                  <p className="text-aurora-subtitle">
-                    Track student progress and mood patterns across your caseload.
-                  </p>
-                </div>
-                <div className="card-aurora">
-                  <div className="text-center py-12">
-                    <BarChart3 className="w-16 h-16 text-aurora-primary-light/60 mx-auto mb-4" />
-                    <p className="text-aurora-primary-dark/60 text-lg">Analytics dashboard coming soon...</p>
-                    <p className="text-sm text-aurora-primary-dark/50 mt-2">Track student progress and mood patterns across your caseload.</p>
-                  </div>
-                </div>
-              </div>
-            )}
+    async function fetchData() {
+      try {
+        const students = await counselorService.getStudents()
+        if (cancelled) return
+        setStudentCount(students.length)
 
-            {activeTab === 'messages' && (
-              <div>
-                <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Messages</h2>
-                  <p className="text-aurora-subtitle">
-                    Communicate securely with students and colleagues.
-                  </p>
-                </div>
-                <div className="card-aurora">
-                  <div className="text-center py-12">
-                    <MessageSquare className="w-16 h-16 text-aurora-primary-light/60 mx-auto mb-4" />
-                    <p className="text-aurora-primary-dark/60 text-lg">Messaging system coming soon...</p>
-                    <p className="text-sm text-aurora-primary-dark/50 mt-2">Communicate securely with students and colleagues.</p>
-                  </div>
-                </div>
-              </div>
-            )}
+        // Fetch recent mood logs for each student (limit 15 for perf)
+        const limit = Math.min(15, students.length)
+        const studentsWithMood = await Promise.all(
+          students.slice(0, limit).map(async (s) => {
+            try {
+              const logs = await firestoreService.getMoodLogs(s.id)
+              const latest = logs[0]
+              return {
+                student: s,
+                stressLevel: latest?.stress_level,
+                energyLevel: latest?.energy_level,
+                lastLogDate: latest?.log_date,
+              }
+            } catch {
+              return { student: s, stressLevel: undefined, energyLevel: undefined, lastLogDate: undefined }
+            }
+          })
+        )
 
-            {activeTab === 'settings' && (
-              <div>
-                <div className="mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Settings</h2>
-                  <p className="text-aurora-subtitle">
-                    Customize your dashboard preferences and notifications.
-                  </p>
-                </div>
-                <div className="card-aurora">
-                  <div className="text-center py-12">
-                    <Settings className="w-16 h-16 text-aurora-primary-light/60 mx-auto mb-4" />
-                    <p className="text-aurora-primary-dark/60 text-lg">Settings panel coming soon...</p>
-                    <p className="text-sm text-aurora-primary-dark/50 mt-2">Customize your dashboard preferences and notifications.</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </main>
+        if (cancelled) return
+
+        const flags: FlagItem[] = studentsWithMood
+          .map(({ student, stressLevel, energyLevel, lastLogDate }) => ({
+            id: student.id,
+            name: student.full_name || 'Student',
+            program: student.email,
+            time: lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No logs',
+            risk: deriveRiskLevel(stressLevel, energyLevel),
+          }))
+          .sort((a, b) => {
+            const order = { 'HIGH RISK': 0, 'MEDIUM': 1, 'LOW RISK': 2 }
+            return (order[a.risk] ?? 2) - (order[b.risk] ?? 2)
+          })
+
+        setRecentFlags(flags)
+        setCriticalRisks(flags.filter((f) => f.risk === 'HIGH RISK').length)
+      } catch (error) {
+        console.error('Error fetching counselor dashboard data:', error)
+        if (!cancelled) {
+          setRecentFlags([])
+          setCriticalRisks(0)
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    fetchData()
+    return () => { cancelled = true }
+  }, [])
+
+  return (
+    <div className="space-y-6">
+      {/* Greeting */}
+      <div>
+        <p className="text-[10px] font-bold tracking-[0.15em] text-aurora-primary-dark/40 uppercase">
+          Counselor Portal
+        </p>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-aurora-primary-dark font-heading mt-1">
+          Hello, {firstName}
+        </h2>
       </div>
 
-      {/* Mobile Bottom Navigation - Visible only on mobile */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-aurora-primary-dark border-t border-aurora-primary-light/20 shadow-lg z-50">
-        <div className="flex justify-around items-center py-2">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1 transition-all ${activeTab === tab.id
-                  ? 'text-aurora-secondary-green'
-                  : 'text-white/70'
-                  }`}
-              >
-                <Icon className={`w-5 h-5 mb-1 ${activeTab === tab.id ? 'text-aurora-secondary-green' : 'text-white/70'}`} />
-                <span className={`text-xs font-medium truncate ${activeTab === tab.id ? 'text-aurora-secondary-green' : 'text-white/70'}`}>
-                  {tab.label.split(' ')[0]}
-                </span>
-              </button>
-            );
-          })}
+      {/* Stat Cards */}
+      <div>
+        <h3 className="text-lg font-extrabold text-aurora-primary-dark mb-3 font-heading">
+          Dashboard Overview
+        </h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard
+            icon={
+              <div className="w-9 h-9 rounded-full bg-aurora-secondary-blue/15 flex items-center justify-center">
+                <Users className="w-[18px] h-[18px] text-aurora-secondary-blue" />
+              </div>
+            }
+            count={studentCount}
+            label="Total Students"
+          />
+          <StatCard
+            icon={
+              <div className="w-9 h-9 rounded-full bg-red-500/15 flex items-center justify-center">
+                <AlertTriangle className="w-[18px] h-[18px] text-red-500" />
+              </div>
+            }
+            count={criticalRisks}
+            label="Critical Risks"
+            accent="ring-1 ring-red-500/20"
+          />
+          <StatCard
+            icon={
+              <div className="relative w-9 h-9 rounded-full bg-aurora-secondary-blue/10 flex items-center justify-center">
+                <MessageSquare className="w-[18px] h-[18px] text-aurora-secondary-blue" />
+                <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-aurora-secondary-blue" />
+              </div>
+            }
+            count={3}
+            label="New Messages"
+          />
+          <StatCard
+            icon={
+              <div className="w-9 h-9 rounded-full bg-amber-400/10 flex items-center justify-center">
+                <Calendar className="w-[18px] h-[18px] text-amber-500" />
+              </div>
+            }
+            count={8}
+            label="Pending Follow-ups"
+          />
         </div>
-      </nav>
+      </div>
+
+      {/* Recent Flags */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-extrabold text-aurora-primary-dark font-heading">
+            Recent Flags
+          </h3>
+          <Link
+            to="/counselor/risk-center"
+            className="flex items-center gap-1 text-aurora-secondary-blue text-xs font-bold hover:underline"
+          >
+            VIEW ALL
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-aurora-secondary-blue" />
+            <span className="ml-3 text-aurora-primary-dark/50 text-sm">Loading...</span>
+          </div>
+        ) : recentFlags.length === 0 ? (
+          <div className="text-center py-12">
+            <AlertTriangle className="w-12 h-12 text-aurora-primary-dark/20 mx-auto mb-3" />
+            <p className="text-aurora-primary-dark/50 text-sm">No student flags to display.</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {recentFlags.map((item) => (
+              <FlagRow key={item.id} item={item} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
-  );
+  )
 }

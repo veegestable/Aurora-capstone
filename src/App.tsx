@@ -6,6 +6,10 @@ import StudentDashboard from './pages/StudentDashboard'
 import History from './pages/student/History'
 import CounselorDashboard from './pages/CounselorDashboard'
 import Messages from './pages/student/Messages'
+import CounselorLayout from './layouts/CounselorLayout'
+import CounselorStudents from './pages/counselor/Students'
+import CounselorRiskCenter from './pages/counselor/RiskCenter'
+import CounselorMessages from './pages/counselor/Messages'
 
 // Keep existing components as inline route elements
 import MoodCheckIn from './components/MoodCheckIn'
@@ -81,8 +85,13 @@ function AppContent() {
         </Routes>
       ) : (
         <Routes>
-          <Route path="/" element={<CounselorDashboard />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route element={<CounselorLayout />}>
+            <Route index element={<CounselorDashboard />} />
+            <Route path="counselor/students" element={<CounselorStudents />} />
+            <Route path="counselor/risk-center" element={<CounselorRiskCenter />} />
+            <Route path="counselor/messages" element={<CounselorMessages />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
         </Routes>
       )}
     </Router>
