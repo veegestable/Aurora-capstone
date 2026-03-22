@@ -14,13 +14,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     Search, PenSquare, ArrowLeft, AlertTriangle,
-    Info, Plus, Send,
+    Info, Plus, Send, RotateCcw,
 } from 'lucide-react-native';
 import { useAuth } from '../../src/stores/AuthContext';
 import { useMessagesContactStore, type MessageContact } from '../../src/stores/messagesContactStore';
 import { firestoreService } from '../../src/services/firebase-firestore.service';
 import { AURORA } from '../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../src/components/common/LetterAvatar';
+import { router } from 'expo-router';
+import { isSessionTimeExpired, isSessionScheduledTimeReached } from '../../src/utils/dateHelpers';
 import SendSessionInviteModal, { type SessionInviteData } from '../../src/components/counselor/SendSessionInviteModal';
 import SessionCard, { type SessionCardData } from '../../src/components/counselor/SessionCard';
 import SessionAttendanceModal, { type AttendanceStatus } from '../../src/components/counselor/SessionAttendanceModal';
@@ -237,19 +239,21 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
     const handlePlusPress = () => setShowInviteModal(true);
 
     const parsePreferredTimeToSlot = (preferredTime: string): { date: string; time: string } => {
-        const parts = preferredTime.split(', ');
+        const normalized = preferredTime.replace(/\s+at\s+/i, ', ');
+        const parts = normalized.split(', ');
         if (parts.length < 2) return { date: preferredTime, time: '' };
         const time = parts[parts.length - 1];
-        const date = parts.slice(1, -1).join(', ');
+        const date = parts.slice(0, -1).join(', ');
         return { date, time };
     };
 
     const handleAcceptSessionRequest = async (sessionId: string | null, preferredTime: string) => {
-        if (!sessionId || !preferredTime || sending) return;
+        if (!sessionId || !preferredTime || sending || !conversationId) return;
         setSending(true);
         try {
             const slot = parsePreferredTimeToSlot(preferredTime);
             await firestoreService.confirmSlot(sessionId, slot);
+            await firestoreService.updateSessionRequestMessageStatus(conversationId, sessionId, 'confirmed');
             setMessages(prev => prev.map(m => {
                 if (m.type === 'session_request' && m.sessionRequest.sessionId === sessionId) {
                     return { ...m, sessionRequest: { ...m.sessionRequest, status: 'confirmed' } };
@@ -308,11 +312,31 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
     };
 
     const handleViewSessionDetails = (sessionData: SessionCardData) => {
-        setSelectedSessionForAttendance(sessionData);
-        setShowAttendanceModal(true);
+        const canMarkAttendance = isSessionScheduledTimeReached({
+            date: sessionData.date,
+            time: sessionData.time,
+        });
+        if (canMarkAttendance) {
+            setSelectedSessionForAttendance(sessionData);
+            setShowAttendanceModal(true);
+        }
     };
 
-    const handleMarkAttendance = (status: AttendanceStatus) => {
+    const mapAttendanceToStatus = (s: AttendanceStatus): 'completed' | 'missed' | 'rescheduled' => {
+        if (s === 'showed_up') return 'completed';
+        if (s === 'did_not_show') return 'missed';
+        return 'rescheduled';
+    };
+
+    const handleMarkAttendance = async (status: AttendanceStatus) => {
+        const sessionId = selectedSessionForAttendance?.id;
+        if (sessionId && !sessionId.startsWith('session_')) {
+            try {
+                await firestoreService.markSessionAttendance(sessionId, mapAttendanceToStatus(status));
+            } catch (e) {
+                console.error('Failed to mark attendance:', e);
+            }
+        }
         setShowAttendanceModal(false);
         setSelectedSessionForAttendance(null);
     };
@@ -423,6 +447,9 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                                 preferredTime: msg.sessionRequest.preferredTime || undefined,
                                                 note: msg.sessionRequest.note,
                                                 status: msg.sessionRequest.status,
+                                                isExpired: msg.sessionRequest.preferredTime
+                                                    ? isSessionTimeExpired(msg.sessionRequest.preferredTime)
+                                                    : false,
                                             }}
                                             onAccept={
                                                 msg.sessionRequest.sessionId && msg.sessionRequest.preferredTime
@@ -622,6 +649,16 @@ export default function CounselorMessagesScreen() {
                                 {unreadCount} Unread Conversation{unreadCount !== 1 ? 's' : ''}
                             </Text>
                         </View>
+                        <TouchableOpacity
+                            style={{ alignItems: 'center', padding: 6 }}
+                            onPress={() => router.push('/(counselor)/session-history')}
+                            activeOpacity={0.7}
+                        >
+                            <RotateCcw size={22} color={AURORA.textSec} />
+                            <Text style={{ color: AURORA.textSec, fontSize: 9, fontWeight: '600', marginTop: 2 }}>
+                                History
+                            </Text>
+                        </TouchableOpacity>
                         <TouchableOpacity style={{ padding: 6 }}>
                             <Search size={22} color={AURORA.textSec} />
                         </TouchableOpacity>

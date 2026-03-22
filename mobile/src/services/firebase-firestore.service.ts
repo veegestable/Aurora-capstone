@@ -451,7 +451,7 @@ export const firestoreService = {
       const messagesRef = collection(db, 'conversations', conversationId, 'messages');
       const q = query(messagesRef, orderBy('createdAt', 'asc'));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((d) => {
+      const msgs = snapshot.docs.map((d) => {
         const data = d.data();
         const createdAt = data.createdAt?.toDate?.() ?? new Date();
         const isMe = data.senderId === userId;
@@ -468,13 +468,14 @@ export const firestoreService = {
         }
         if (data.type === 'session_request') {
           const req = data.sessionData ?? {};
+          const sid = data.sessionId ?? req.sessionId ?? null;
           return {
             id: d.id,
             senderId,
             type: 'session_request' as const,
             sessionRequest: {
               id: d.id,
-              sessionId: data.sessionId ?? req.sessionId ?? null,
+              sessionId: sid,
               preferredTime: req.preferredTime ?? '',
               note: req.note ?? '',
               status: req.status ?? 'pending',
@@ -489,6 +490,32 @@ export const firestoreService = {
           text: data.content ?? '',
           time: formatMessageTime(createdAt),
         };
+      });
+
+      const sessionRequestMsgs = msgs.filter((m) => m.type === 'session_request');
+      const sessionIds = [...new Set(sessionRequestMsgs.map((m) => m.sessionRequest.sessionId).filter(Boolean))] as string[];
+      let sessionStatusMap: Record<string, string> = {};
+      if (sessionIds.length > 0) {
+        const sessionPromises = sessionIds.map((id) => getDoc(doc(db, 'sessions', id)));
+        const sessionSnaps = await Promise.all(sessionPromises);
+        sessionSnaps.forEach((snap, i) => {
+          const sid = sessionIds[i];
+          const s = snap.data();
+          if (s?.status) sessionStatusMap[sid] = s.status;
+        });
+      }
+
+      return msgs.map((m) => {
+        if (m.type === 'session_request' && m.sessionRequest.sessionId) {
+          const sessionStatus = sessionStatusMap[m.sessionRequest.sessionId];
+          if (sessionStatus && ['confirmed', 'completed', 'missed', 'rescheduled', 'cancelled'].includes(sessionStatus)) {
+            return {
+              ...m,
+              sessionRequest: { ...m.sessionRequest, status: sessionStatus },
+            };
+          }
+        }
+        return m;
       });
     } catch (error: any) {
       console.error('❌ Error getting messages:', error);
@@ -752,9 +779,40 @@ export const firestoreService = {
     }
   },
 
+  /**
+   * Update session request message status in conversation so it persists on refresh.
+   * Call this after confirmSlot so the message shows "Accepted" instead of buttons.
+   */
+  async updateSessionRequestMessageStatus(
+    conversationId: string,
+    sessionId: string,
+    status: 'confirmed' | 'cancelled'
+  ) {
+    try {
+      const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+      const snapshot = await getDocs(query(messagesRef, orderBy('createdAt', 'asc')));
+      const updates: Promise<void>[] = [];
+      snapshot.docs.forEach((d) => {
+        const data = d.data();
+        if (data.type === 'session_request' && (data.sessionId === sessionId || data.sessionData?.sessionId === sessionId)) {
+          const existingSessionData = data.sessionData ?? {};
+          updates.push(
+            updateDoc(doc(db, 'conversations', conversationId, 'messages', d.id), {
+              sessionData: { ...existingSessionData, status },
+            })
+          );
+        }
+      });
+      await Promise.all(updates);
+    } catch (error: any) {
+      console.error('❌ Error updating session request message status:', error);
+      throw error;
+    }
+  },
+
   async markSessionAttendance(
     sessionId: string,
-    outcome: 'completed' | 'missed',
+    outcome: 'completed' | 'missed' | 'rescheduled',
     attendanceNote?: string
   ) {
     try {
@@ -766,6 +824,119 @@ export const firestoreService = {
       });
     } catch (error: any) {
       console.error('❌ Error marking attendance:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get session history for counselor with enriched student data (name, program).
+   * Only returns sessions with confirmedSlot (accepted) or completed/missed/rescheduled status.
+   */
+  async getSessionHistoryForCounselor(counselorId: string): Promise<Array<{
+    id: string;
+    studentId: string;
+    studentName: string;
+    studentAvatar?: string;
+    studentProgram?: string;
+    studentYear?: string;
+    status: string;
+    confirmedSlot: { date: string; time: string } | null;
+    proposedSlots: Array<{ date: string; time: string }>;
+    preferredTimeFromStudent?: string;
+    attendanceNote?: string;
+    cancelReason?: string;
+    updatedAt: Date;
+    createdAt: Date;
+  }>> {
+    try {
+      const q = query(
+        collection(db, 'sessions'),
+        where('counselorId', '==', counselorId),
+        orderBy('updatedAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      const sessions = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          studentId: data.studentId,
+          status: data.status ?? 'requested',
+          confirmedSlot: data.confirmedSlot ?? null,
+          proposedSlots: data.proposedSlots ?? [],
+          preferredTimeFromStudent: data.preferredTimeFromStudent,
+          attendanceNote: data.attendanceNote,
+          cancelReason: data.cancelReason,
+          updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+          createdAt: data.createdAt?.toDate?.() ?? new Date(),
+        };
+      });
+
+      // Enrich with student data
+      const uniqueStudentIds = [...new Set(sessions.map((s) => s.studentId))];
+      const userPromises = uniqueStudentIds.map((id) => getDoc(doc(db, 'users', id)));
+      const userSnaps = await Promise.all(userPromises);
+      const userMap: Record<string, { full_name?: string; department?: string; program?: string; year?: string; avatar_url?: string }> = {};
+      userSnaps.forEach((snap, i) => {
+        const uid = uniqueStudentIds[i];
+        const u = snap.data();
+        userMap[uid] = {
+          full_name: u?.full_name ?? u?.fullName,
+          department: u?.department ?? u?.program,
+          program: u?.department ?? u?.program,
+          year: u?.year ?? u?.year_level,
+          avatar_url: u?.avatar_url,
+        };
+      });
+
+      const isSlotPassed = (slot: { date: string; time: string } | null) => {
+        if (!slot?.date || !slot?.time) return false;
+        try {
+          const dateStr = `${slot.date}, ${slot.time}`.replace(/\s+at\s+/i, ', ');
+          const parsed = new Date(dateStr);
+          return !isNaN(parsed.getTime()) && parsed.getTime() < Date.now();
+        } catch {
+          return false;
+        }
+      };
+
+      const isPreferredTimePassed = (preferredTime: string | undefined) => {
+        if (!preferredTime?.trim()) return false;
+        try {
+          const normalized = preferredTime.replace(/\s+at\s+/i, ', ');
+          const parsed = new Date(normalized);
+          return !isNaN(parsed.getTime()) && parsed.getTime() < Date.now();
+        } catch {
+          return false;
+        }
+      };
+
+      const results = await Promise.all(sessions.map(async (s) => {
+        let status = s.status;
+        const slot = s.confirmedSlot ?? s.proposedSlots?.[0];
+        const slotPassed = slot ? isSlotPassed(slot) : isPreferredTimePassed(s.preferredTimeFromStudent);
+        if (['confirmed', 'pending', 'requested'].includes(status) && slotPassed) {
+          try {
+            await updateDoc(doc(db, 'sessions', s.id), {
+              status: 'missed',
+              updatedAt: Timestamp.now(),
+            });
+            status = 'missed';
+          } catch {
+          }
+        }
+        return {
+          ...s,
+          status,
+          studentName: userMap[s.studentId]?.full_name ?? 'Unknown Student',
+          studentAvatar: userMap[s.studentId]?.avatar_url,
+          studentProgram: userMap[s.studentId]?.department ?? userMap[s.studentId]?.program,
+          studentYear: userMap[s.studentId]?.year,
+        };
+      }));
+
+      return results;
+    } catch (error: any) {
+      console.error('❌ Error getting session history:', error);
       throw error;
     }
   },

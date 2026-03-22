@@ -14,6 +14,7 @@ export interface SessionRequestReceivedData {
     preferredTime?: string;
     note: string;
     status: string;
+    isExpired?: boolean;
 }
 
 interface SessionRequestReceivedCardProps {
@@ -27,13 +28,23 @@ export default function SessionRequestReceivedCard({
     onAccept,
     onProposeNewTime,
 }: SessionRequestReceivedCardProps) {
+    const isAccepted = ['confirmed', 'completed', 'missed', 'rescheduled'].includes(data.status);
+    const isExpired = data.isExpired ?? false;
+    const canAct = !isAccepted && !isExpired && !['cancelled'].includes(data.status);
+
     return (
         <View style={styles.card}>
             <View style={styles.header}>
                 <View style={styles.iconWrap}>
                     <Calendar size={18} color={AURORA.blue} />
                 </View>
-                <Text style={styles.badge}>NEW SESSION REQUEST</Text>
+                <Text style={[
+                    styles.badge,
+                    isExpired && styles.badgeExpired,
+                    isAccepted && styles.badgeAccepted,
+                ]}>
+                    {isExpired ? 'EXPIRED' : isAccepted ? 'ACCEPTED' : 'NEW SESSION REQUEST'}
+                </Text>
             </View>
 
             <Text style={styles.title}>{data.title || 'Session Request'}</Text>
@@ -41,18 +52,27 @@ export default function SessionRequestReceivedCard({
             {data.preferredTime && (
                 <View style={styles.row}>
                     <Calendar size={14} color={AURORA.textSec} style={styles.rowIcon} />
-                    <Text style={styles.rowText}>{data.preferredTime}</Text>
+                    <Text style={[styles.rowText, isExpired && styles.textMuted]}>{data.preferredTime}</Text>
                 </View>
             )}
 
             {data.note && (
                 <View style={styles.noteRow}>
                     <MessageSquare size={14} color={AURORA.textSec} style={styles.rowIcon} />
-                    <Text style={styles.noteText}>"{data.note}"</Text>
+                    <Text style={[styles.noteText, isExpired && styles.textMuted]}>"{data.note}"</Text>
                 </View>
             )}
 
-            {!['confirmed', 'cancelled', 'completed'].includes(data.status) && (
+            {isAccepted && (
+                <Text style={styles.acceptedNote}>
+                    {data.status === 'confirmed' ? 'Session confirmed. See Session History for details.' : ''}
+                    {data.status === 'completed' ? 'Session completed.' : ''}
+                    {data.status === 'missed' ? 'Student did not show up.' : ''}
+                    {data.status === 'rescheduled' ? 'Needs rescheduling.' : ''}
+                </Text>
+            )}
+
+            {canAct && (
                 <View style={styles.actions}>
                     {data.preferredTime && onAccept && (
                         <TouchableOpacity
@@ -106,6 +126,21 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '700',
         letterSpacing: 0.8,
+    },
+    badgeExpired: {
+        color: AURORA.textMuted,
+    },
+    badgeAccepted: {
+        color: AURORA.green,
+    },
+    textMuted: {
+        color: AURORA.textMuted,
+    },
+    acceptedNote: {
+        color: AURORA.textSec,
+        fontSize: 12,
+        marginTop: 8,
+        fontStyle: 'italic',
     },
     title: {
         color: '#FFFFFF',
