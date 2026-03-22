@@ -2,14 +2,19 @@ export interface CounselorContact {
   id: string
   conversationId: string
   name: string
+  preview: string
+  time: string
+  avatar: string
+  isOnline: boolean
+  isUnread: boolean
 }
 
 export interface TextMessage {
   id: string
   senderId: 'me' | 'them'
   type: 'text'
-  text: 'string'
-  time: 'string'
+  text: string
+  time: string
 }
 
 export interface SessionMessage {
@@ -25,7 +30,7 @@ export interface SessionMessage {
     }>
     note?: string
   }
-  time: 'string'
+  time: string
 }
 
 export interface SessionRequestMessage {
