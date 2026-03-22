@@ -5,6 +5,7 @@ import StudentLayout from './layouts/StudentLayout'
 import StudentDashboard from './pages/StudentDashboard'
 import History from './pages/student/History'
 import CounselorDashboard from './pages/CounselorDashboard'
+import Messages from './pages/student/Messages'
 
 // Keep existing components as inline route elements
 import MoodCheckIn from './components/MoodCheckIn'
@@ -74,7 +75,7 @@ function AppContent() {
             <Route path="schedule" element={<ScheduleManager />} />
             <Route path="notifications" element={<NotificationPanel />} />
             <Route path="student/history" element={<History />} />
-            {/* Messages will be added in the next batch */}
+            <Route path="student/messages" element={<Messages />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
