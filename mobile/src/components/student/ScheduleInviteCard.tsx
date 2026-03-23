@@ -27,12 +27,14 @@ export interface ScheduleInviteData {
 interface ScheduleInviteCardProps {
     data: ScheduleInviteData;
     senderLabel?: string;
+    isFromMe?: boolean;
     onConfirm?: (selectedSlot: TimeSlot) => void;
 }
 
 export default function ScheduleInviteCard({
     data,
     senderLabel = 'Aurora Academic Support',
+    isFromMe = false,
     onConfirm,
 }: ScheduleInviteCardProps) {
     const slots = data.timeSlots && data.timeSlots.length > 0
@@ -49,7 +51,8 @@ export default function ScheduleInviteCard({
     };
 
     return (
-        <View style={styles.card}>
+        <View style={styles.wrapper}>
+        <View style={[styles.card, isFromMe ? styles.cardTailRight : styles.cardTailLeft]}>
             <Text style={styles.senderLabel}>{senderLabel}</Text>
             <View style={styles.header}>
                 <View style={styles.iconWrap}>
@@ -91,17 +94,54 @@ export default function ScheduleInviteCard({
                 </TouchableOpacity>
             )}
         </View>
+        <View style={[styles.tail, isFromMe ? styles.tailRight : styles.tailLeft]} />
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    wrapper: {
+        position: 'relative',
+        maxWidth: 300,
+    },
     card: {
         backgroundColor: AURORA.cardDark,
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
         borderColor: AURORA.border,
-        maxWidth: 300,
+    },
+    cardTailRight: {
+        borderBottomRightRadius: 4,
+    },
+    cardTailLeft: {
+        borderBottomLeftRadius: 4,
+    },
+    tail: {
+        position: 'absolute',
+        bottom: 10,
+        width: 0,
+        height: 0,
+        borderTopWidth: 6,
+        borderBottomWidth: 6,
+    },
+    tailRight: {
+        right: -8,
+        borderLeftWidth: 12,
+        borderRightWidth: 0,
+        borderTopColor: 'transparent',
+        borderBottomColor: 'transparent',
+        borderLeftColor: AURORA.cardDark,
+        borderRightColor: 'transparent',
+    },
+    tailLeft: {
+        left: -8,
+        borderLeftWidth: 0,
+        borderRightWidth: 12,
+        borderTopColor: 'transparent',
+        borderBottomColor: 'transparent',
+        borderLeftColor: 'transparent',
+        borderRightColor: AURORA.cardDark,
     },
     senderLabel: {
         color: AURORA.textMuted,

@@ -100,7 +100,7 @@ export default function StudentProfileModal({
                     {/* Header with X */}
                     <View style={styles.header}>
                         <View style={styles.studentInfo}>
-                            <LetterAvatar name={student.full_name ?? 'Student'} size={56} />
+                            <LetterAvatar name={student.full_name ?? 'Student'} size={56} avatarUrl={student.avatar_url} />
                             <View>
                                 <Text style={styles.name}>{student.full_name}</Text>
                                 <Text style={styles.program}>{formatProgram(student.department, student.year_level)}</Text>

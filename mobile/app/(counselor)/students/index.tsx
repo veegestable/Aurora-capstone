@@ -103,7 +103,7 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
 
             {/* Avatar */}
             <View style={{ padding: 12, borderWidth: 2, borderColor: style.border, borderRadius: 30 }}>
-                <LetterAvatar name={student.full_name ?? 'Student'} size={56} />
+                <LetterAvatar name={student.full_name ?? 'Student'} size={56} avatarUrl={student.avatar_url} />
             </View>
 
             {/* Info */}

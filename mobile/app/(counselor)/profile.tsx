@@ -3,7 +3,7 @@
  * =============================================
  * Route: /(counselor)/profile
  * Shows counselor profile, stats, settings and sign out.
- * Editable: name and profile picture only.
+ * Editable: personal details and profile picture via Edit Profile.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     ArrowLeft, MoreVertical, Pencil, User, Lock,
     Bell, Moon, Shield, LogOut, ChevronRight,
-    TrendingUp, Star, ExternalLink,
+    TrendingUp, Star, ExternalLink, Camera, X,
 } from 'lucide-react-native';
 import { useAuth } from '../../src/stores/AuthContext';
 import { AURORA } from '../../src/constants/aurora-colors';
@@ -33,6 +33,26 @@ function SectionLabel({ text }: { text: string }) {
         }}>
             {text}
         </Text>
+    );
+}
+
+function SectionHeader({ icon, title }: { icon?: React.ReactNode; title: string }) {
+    return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, marginTop: 20 }}>
+            {icon}
+            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800', letterSpacing: 1.5 }}>
+                {title}
+            </Text>
+        </View>
+    );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+    return (
+        <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: AURORA.border }}>
+            <Text style={{ color: AURORA.textSec, fontSize: 11, marginBottom: 4 }}>{label}</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '500' }}>{value}</Text>
+        </View>
     );
 }
 
@@ -104,27 +124,35 @@ function StatCard({ label, value, sub, subColor, isTop }: StatCardProps) {
     );
 }
 
-// ─── Edit Profile Modal (name + avatar only) ────────────────────────────────────
+type SexOption = 'male' | 'female';
+
+// ─── Edit Profile Modal (full personal details + avatar, like student) ───────────
 function EditProfileModal({
     visible,
     onClose,
-    displayName,
+    user,
     onSave,
     onPickAvatar,
 }: {
     visible: boolean;
     onClose: () => void;
-    displayName: string;
-    onSave: (name: string) => Promise<void>;
+    user: { full_name?: string; sex?: 'male' | 'female'; student_number?: string; avatar_url?: string | null } | null;
+    onSave: (data: { fullName: string; sex?: SexOption; counselorNumber: string }) => Promise<void>;
     onPickAvatar: (imageUri: string) => Promise<void>;
 }) {
-    const [name, setName] = useState(displayName);
+    const [name, setName] = useState(user?.full_name || '');
+    const [sex, setSex] = useState<SexOption | undefined>(user?.sex);
+    const [counselorNumber, setCounselorNumber] = useState(user?.student_number || '');
     const [saving, setSaving] = useState(false);
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
     useEffect(() => {
-        if (visible) setName(displayName);
-    }, [visible, displayName]);
+        if (visible && user) {
+            setName(user.full_name || '');
+            setSex(user.sex ?? undefined);
+            setCounselorNumber(user.student_number || '');
+        }
+    }, [visible, user]);
 
     const handlePickAvatar = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -151,10 +179,19 @@ function EditProfileModal({
     };
 
     const handleSave = async () => {
-        if (!name.trim()) return;
+        const numTrim = counselorNumber.trim();
+        
+        if (!numTrim) {
+            Alert.alert('Required field', 'Please enter your counselor number.');
+            return;
+        }
         setSaving(true);
         try {
-            await onSave(name.trim());
+            await onSave({
+                fullName: name.trim() || user?.full_name || 'Counselor',
+                sex,
+                counselorNumber: numTrim,
+            });
             onClose();
         } catch {
             Alert.alert('Error', 'Could not save profile. Please try again.');
@@ -173,7 +210,10 @@ function EditProfileModal({
                         borderBottomWidth: 1, borderBottomColor: AURORA.border,
                     }}>
                         <TouchableOpacity onPress={onClose}>
-                            <Text style={{ color: AURORA.textSec, fontSize: 15 }}>Cancel</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <X size={18} color={AURORA.textSec} />
+                                <Text style={{ color: AURORA.textSec, fontSize: 15 }}>Cancel</Text>
+                            </View>
                         </TouchableOpacity>
                         <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '700' }}>Edit Profile</Text>
                         <TouchableOpacity onPress={handleSave} disabled={saving}>
@@ -185,14 +225,18 @@ function EditProfileModal({
 
                     <ScrollView contentContainerStyle={{ padding: 24 }}>
                         <View style={{ alignItems: 'center', marginBottom: 24 }}>
-                            <View style={{ position: 'relative', borderWidth: 3, borderColor: AURORA.blue, borderRadius: 53 }}>
-                                <LetterAvatar name={name || displayName} size={100} />
+                            <View style={{ position: 'relative' }}>
+                                <LetterAvatar
+                                    name={name || user?.full_name || 'Counselor'}
+                                    size={90}
+                                    avatarUrl={user?.avatar_url}
+                                />
                                 <TouchableOpacity
                                     onPress={handlePickAvatar}
                                     disabled={uploadingAvatar}
                                     style={{
                                         position: 'absolute', bottom: 0, right: 0,
-                                        width: 36, height: 36, borderRadius: 18,
+                                        width: 32, height: 32, borderRadius: 16,
                                         backgroundColor: AURORA.blue,
                                         alignItems: 'center', justifyContent: 'center',
                                         borderWidth: 2, borderColor: AURORA.bgDeep,
@@ -201,31 +245,94 @@ function EditProfileModal({
                                     {uploadingAvatar ? (
                                         <ActivityIndicator size="small" color="#FFFFFF" />
                                     ) : (
-                                        <Pencil size={16} color="#FFFFFF" />
+                                        <Camera size={14} color="#FFFFFF" />
                                     )}
                                 </TouchableOpacity>
                             </View>
+                            <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 8 }}>MSU-IIT</Text>
                         </View>
 
                         <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Full Name</Text>
-                        <TextInput
-                            style={{
-                                backgroundColor: AURORA.card, borderRadius: 14,
-                                color: '#FFFFFF', fontSize: 15, paddingHorizontal: 16, paddingVertical: 14,
-                                borderWidth: 1, borderColor: AURORA.border,
-                            }}
-                            value={name}
-                            onChangeText={setName}
-                            placeholder="Your full name"
-                            placeholderTextColor={AURORA.textMuted}
-                        />
+                        <View style={{
+                            backgroundColor: AURORA.card, borderRadius: 14,
+                            flexDirection: 'row', alignItems: 'center',
+                            paddingHorizontal: 14, marginBottom: 20,
+                            borderWidth: 1, borderColor: AURORA.border,
+                        }}>
+                            <User size={16} color={AURORA.textSec} style={{ marginRight: 10 }} />
+                            <TextInput
+                                style={{ flex: 1, color: '#FFFFFF', fontSize: 15, paddingVertical: 14 }}
+                                value={name}
+                                onChangeText={setName}
+                                placeholder="Your full name"
+                                placeholderTextColor={AURORA.textMuted}
+                            />
+                        </View>
+
+                        <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Sex</Text>
+                        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+                            <TouchableOpacity
+                                onPress={() => setSex('male')}
+                                activeOpacity={0.8}
+                                style={{
+                                    flex: 1,
+                                    paddingVertical: 14,
+                                    borderRadius: 14,
+                                    borderWidth: 2,
+                                    borderColor: sex === 'male' ? AURORA.blue : AURORA.border,
+                                    backgroundColor: sex === 'male' ? 'rgba(45,107,255,0.15)' : AURORA.card,
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <Text style={{
+                                    color: sex === 'male' ? '#FFFFFF' : AURORA.textSec,
+                                    fontSize: 15, fontWeight: '600',
+                                }}>Male</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setSex('female')}
+                                activeOpacity={0.8}
+                                style={{
+                                    flex: 1,
+                                    paddingVertical: 14,
+                                    borderRadius: 14,
+                                    borderWidth: 2,
+                                    borderColor: sex === 'female' ? AURORA.blue : AURORA.border,
+                                    backgroundColor: sex === 'female' ? 'rgba(45,107,255,0.15)' : AURORA.card,
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <Text style={{
+                                    color: sex === 'female' ? '#FFFFFF' : AURORA.textSec,
+                                    fontSize: 15, fontWeight: '600',
+                                }}>Female</Text>
+                            </TouchableOpacity>
+                        </View>
+
+
+                        <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Counselor Number <Text style={{ color: AURORA.red }}>*</Text></Text>
+                        <View style={{
+                            backgroundColor: AURORA.card, borderRadius: 14,
+                            flexDirection: 'row', alignItems: 'center',
+                            paddingHorizontal: 14, marginBottom: 24,
+                            borderWidth: 1, borderColor: AURORA.border,
+                        }}>
+                            <TextInput
+                                style={{ flex: 1, color: '#FFFFFF', fontSize: 15, paddingVertical: 14 }}
+                                value={counselorNumber}
+                                onChangeText={setCounselorNumber}
+                                placeholder="e.g. 2015-0482"
+                                placeholderTextColor={AURORA.textMuted}
+                                keyboardType="default"
+                            />
+                        </View>
 
                         <TouchableOpacity
                             onPress={handleSave}
                             disabled={saving}
                             style={{
                                 backgroundColor: AURORA.blue, borderRadius: 18,
-                                paddingVertical: 16, alignItems: 'center', marginTop: 28,
+                                paddingVertical: 16, alignItems: 'center',
                             }}
                         >
                             <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>
@@ -245,17 +352,26 @@ export default function CounselorProfileScreen() {
     const [showEditProfile, setShowEditProfile] = useState(false);
     const [pushNotifications, setPushNotifications] = useState(true);
     const [darkMode, setDarkMode] = useState(false);
-    const [studentCount, setStudentCount] = useState('120+');
+    const [studentCount, setStudentCount] = useState('0');
+    const [completedSessionsCount, setCompletedSessionsCount] = useState(0);
 
     useEffect(() => {
         firestoreService.getUsersByRole('student')
             .then(students => {
-                if (students.length > 0) {
-                    setStudentCount(`${students.length}+`);
-                }
+                setStudentCount(students.length > 0 ? `${students.length}` : '0');
             })
             .catch(() => {});
     }, []);
+
+    useEffect(() => {
+        if (!user?.id) return;
+        firestoreService.getSessionHistoryForCounselor(user.id)
+            .then(sessions => {
+                const completed = sessions.filter(s => s.status === 'completed').length;
+                setCompletedSessionsCount(completed);
+            })
+            .catch(() => {});
+    }, [user?.id]);
 
     const handleSignOut = () => {
         Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -271,8 +387,8 @@ export default function CounselorProfileScreen() {
 
     // Derive display name and title from user data
     const displayName = user?.full_name || 'Counselor';
-    const counselorId = 'MSU-IIT ID: 2015-0482';
-    const counselorTitle = user?.department || 'Lead Guidance Counselor | Trauma Specialist';
+    const counselorId = user?.student_number ? `MSU-IIT ID: ${user.student_number}` : 'MSU-IIT';
+    const counselorTitle = 'Guidance Counselor';
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
             <SafeAreaView style={{ flex: 1 }}>
@@ -282,18 +398,14 @@ export default function CounselorProfileScreen() {
                     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8,
                     borderBottomWidth: 1, borderBottomColor: AURORA.border,
                 }}>
-                    <TouchableOpacity style={{ padding: 4 }}>
-                        <ArrowLeft size={22} color="#FFFFFF" />
-                    </TouchableOpacity>
+                
                     <Text style={{
                         flex: 1, color: '#FFFFFF', fontSize: 17,
                         fontWeight: '700', textAlign: 'center',
                     }}>
                         Profile & Settings
                     </Text>
-                    <TouchableOpacity style={{ padding: 4 }}>
-                        <MoreVertical size={22} color={AURORA.textSec} />
-                    </TouchableOpacity>
+                   
                 </View>
 
                 <ScrollView
@@ -304,7 +416,7 @@ export default function CounselorProfileScreen() {
                     <View style={{ alignItems: 'center', paddingTop: 28, paddingBottom: 20 }}>
                         <View style={{ position: 'relative', marginBottom: 16 }}>
                             <View style={{ borderWidth: 3, borderColor: AURORA.blue, borderRadius: 58 }}>
-                                <LetterAvatar name={displayName} size={110} />
+                                <LetterAvatar name={displayName} size={110} avatarUrl={user?.avatar_url} />
                             </View>
                             <TouchableOpacity
                                 onPress={() => setShowEditProfile(true)}
@@ -340,19 +452,37 @@ export default function CounselorProfileScreen() {
                         />
                         <StatCard
                             label="SESSIONS"
-                            value="1.2k"
-                            sub="+12%"
+                            value={String(completedSessionsCount)}
+                            sub="Completed"
                             subColor={AURORA.green}
                         />
-                        <StatCard
+                        {/* <StatCard
                             label="RATING"
                             value="4.9"
                             sub="Top 1%"
                             subColor={AURORA.amber}
                             isTop
+                        /> */}
+                    </View>
+                    {/* ── Personal Details ─────────────────────────────────── */}
+                    <View style={{ paddingHorizontal: 20 }}>
+                        <SectionHeader title="PERSONAL DETAILS" />
+                    </View>
+                    <View style={{
+                        backgroundColor: AURORA.card, marginHorizontal: 20,
+                        borderRadius: 16, paddingHorizontal: 16,
+                        borderWidth: 1, borderColor: AURORA.border,
+                    }}>
+                        <InfoRow label="Full Name" value={user?.full_name || 'Counselor'} />
+                        <InfoRow
+                            label="Sex"
+                            value={user?.sex ? (user.sex === 'male' ? 'Male' : 'Female') : 'Not set'}
                         />
+                        <InfoRow label="Counselor Number" value={user?.student_number || 'Not set'} />
                     </View>
 
+
+                                                                                                                                                                                                                                                                                                                                                                
                     {/* ── Account Settings ──────────────────────────────── */}
                     <View style={{ paddingHorizontal: 20 }}>
                         <SectionLabel text="ACCOUNT SETTINGS" />
@@ -363,14 +493,14 @@ export default function CounselorProfileScreen() {
                         overflow: 'hidden',
                     }}>
                         <SettingsRow
-                            icon={<User size={18} color={AURORA.textSec} />}
-                            label="Personal Information"
-                            onPress={() => { }}
-                        />
-                        <SettingsRow
                             icon={<Lock size={18} color={AURORA.textSec} />}
                             label="Security & Password"
                             onPress={() => { }}
+                        />
+                        <SettingsRow
+                            icon={<User size={18} color={AURORA.textSec} />}
+                            label="Edit Profile"
+                            onPress={() => setShowEditProfile(true)}
                         />
                     </View>
 
@@ -465,9 +595,13 @@ export default function CounselorProfileScreen() {
                 <EditProfileModal
                     visible={showEditProfile}
                     onClose={() => setShowEditProfile(false)}
-                    displayName={displayName}
-                    onSave={async (name) => {
-                        await updateUser({ full_name: name });
+                    user={user}
+                    onSave={async (data) => {
+                        await updateUser({
+                            full_name: data.fullName,
+                            sex: data.sex,
+                            student_number: data.counselorNumber,
+                        });
                     }}
                     onPickAvatar={async (uri) => {
                         await uploadAvatar(uri);

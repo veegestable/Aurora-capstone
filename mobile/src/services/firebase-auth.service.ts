@@ -24,6 +24,8 @@ export interface SignInData {
 
 export type CounselorApprovalStatus = 'pending' | 'approved' | 'rejected';
 
+export type Sex = 'male' | 'female';
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -34,6 +36,9 @@ export interface UserProfile {
   preferred_name?: string;
   department?: string;
   year_level?: string;
+  student_number?: string;
+  /** Student profile: male | female. Used for future features. */
+  sex?: Sex;
   bio?: string;
   created_at: Date;
   updated_at?: Date;
@@ -141,6 +146,8 @@ export const authService = {
       if (data.preferred_name !== undefined) updates.preferred_name = data.preferred_name;
       if (data.department !== undefined) updates.department = data.department;
       if (data.year_level !== undefined) updates.year_level = data.year_level;
+      if (data.student_number !== undefined) updates.student_number = data.student_number;
+      if (data.sex !== undefined) updates.sex = data.sex;
       if (data.bio !== undefined) updates.bio = data.bio;
       if (data.avatar_url !== undefined) updates.avatar_url = data.avatar_url;
 

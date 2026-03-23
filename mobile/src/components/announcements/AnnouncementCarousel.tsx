@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Dimensions, StyleSheet, Image } from 'react-native';
+import { View, Text, Dimensions, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import Carousel, { Pagination } from 'react-native-reanimated-carousel';
 import { useSharedValue } from 'react-native-reanimated';
 import type { Announcement } from '../../services/announcements.service';
 import { announcementsService } from '../../services/announcements.service';
 import { AURORA } from '../../constants/aurora-colors';
 import { Megaphone } from 'lucide-react-native';
+import { triggerHaptic } from '../../utils/haptics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 48;
@@ -13,11 +14,16 @@ const CARD_HEIGHT = 140;
 
 interface AnnouncementCarouselProps {
   role: 'counselor' | 'student';
+  onAnnouncementPress?: (item: Announcement) => void;
 }
 
-function AnnouncementCard({ item }: { item: Announcement }) {
+function AnnouncementCard({ item, onPress }: { item: Announcement; onPress: () => void }) {
   return (
-    <View style={styles.card}>
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => { triggerHaptic('light'); onPress(); }}
+      style={styles.card}
+    >
       {item.imageUrl ? (
         <Image source={{ uri: item.imageUrl }} style={styles.image} resizeMode="cover" />
       ) : (
@@ -36,7 +42,7 @@ function AnnouncementCard({ item }: { item: Announcement }) {
           {item.createdByName} · {formatDate(item.createdAt)}
         </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -51,7 +57,7 @@ function formatDate(date: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function AnnouncementCarousel({ role }: AnnouncementCarouselProps) {
+export function AnnouncementCarousel({ role, onAnnouncementPress }: AnnouncementCarouselProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const progress = useSharedValue(0);
 
@@ -75,7 +81,12 @@ export function AnnouncementCarousel({ role }: AnnouncementCarouselProps) {
         autoPlay={announcements.length > 1}
         autoPlayInterval={4000}
         scrollAnimationDuration={400}
-        renderItem={({ item }) => <AnnouncementCard item={item} />}
+        renderItem={({ item }) => (
+          <AnnouncementCard
+            item={item}
+            onPress={() => onAnnouncementPress?.(item)}
+          />
+        )}
         onProgressChange={progress}
       />
       {announcements.length > 1 && (

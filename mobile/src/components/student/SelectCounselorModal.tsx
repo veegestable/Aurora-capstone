@@ -93,11 +93,10 @@ export default function SelectCounselorModal({
                                     onPress={() => handleSelect(c)}
                                     activeOpacity={0.8}
                                 >
-                                    <Image
-                                        source={{
-                                            uri: c.avatar_url || `https://i.pravatar.cc/64?u=${c.id}`,
-                                        }}
-                                        style={styles.avatar}
+                                    <LetterAvatar
+                                        name={c.full_name || 'Counselor'}
+                                        size={44}
+                                        avatarUrl={c.avatar_url || undefined}
                                     />
                                     <Text style={styles.name}>{c.full_name || 'Counselor'}</Text>
                                 </TouchableOpacity>

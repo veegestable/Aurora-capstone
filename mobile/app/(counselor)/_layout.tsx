@@ -127,6 +127,7 @@ export default function CounselorLayout() {
                 {/* Hide non-tab screens from tab bar */}
                 <Tabs.Screen name="reminders" options={{ href: null }} />
                 <Tabs.Screen name="reports" options={{ href: null }} />
+                <Tabs.Screen name="session-history" options={{ href: null }} />
             </Tabs>
         </>
     );

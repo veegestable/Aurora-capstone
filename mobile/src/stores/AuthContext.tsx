@@ -14,6 +14,9 @@ interface User {
   preferred_name?: string;
   department?: string;
   year_level?: string;
+  student_number?: string;
+  /** male | female. Used for future features. */
+  sex?: 'male' | 'female';
   bio?: string;
   avatar_url?: string;
 }
@@ -24,7 +27,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string, role: 'admin' | 'counselor' | 'student') => Promise<{ success: boolean; message: string }>;
   signOut: () => void;
-  updateUser: (data: { full_name?: string; preferred_name?: string; department?: string; year_level?: string; bio?: string; avatar_url?: string }) => Promise<void>;
+  updateUser: (data: { full_name?: string; preferred_name?: string; department?: string; year_level?: string; student_number?: string; sex?: 'male' | 'female'; bio?: string; avatar_url?: string }) => Promise<void>;
   uploadAvatar: (imageUri: string) => Promise<string>;
 }
 
@@ -41,6 +44,8 @@ const convertUserProfile = (userProfile: UserProfile): User => {
     preferred_name: userProfile.preferred_name,
     department: userProfile.department,
     year_level: userProfile.year_level,
+    student_number: userProfile.student_number,
+    sex: userProfile.sex,
     bio: userProfile.bio,
     avatar_url: userProfile.avatar_url
   };
