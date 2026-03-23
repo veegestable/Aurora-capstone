@@ -1,198 +1,139 @@
-import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import MoodCheckIn from '../components/MoodCheckIn';
-import MoodCalendar from '../components/MoodCalendar';
-import Analytics from '../components/Analytics';
-import NotificationPanel from '../components/NotificationPanel';
-import ScheduleManager from '../components/ScheduleManager';
-import { Heart, BarChart3, Bell, Calendar, LogOut, CalendarDays } from 'lucide-react';
-import logoLight from '../assets/logos/logo light.png';
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import MoodCheckIn from '../components/MoodCheckIn'
+import {
+  MessageSquare,
+  BookOpen,
+  CalendarPlus,
+  TrendingUp,
+  Lightbulb,
+} from 'lucide-react'
 
 export default function StudentDashboard() {
-  const { user, signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState('mood');
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [dynamicBackground, setDynamicBackground] = useState<string | undefined>();
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const [dynamicBackground, setDynamicBackground] = useState<string | undefined>()
 
-  const tabs = [
-    { id: 'mood', label: 'Mood Check-in', icon: Heart },
-    { id: 'calendar', label: 'Mood Calendar', icon: CalendarDays },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'schedule', label: 'Schedule', icon: Calendar },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-  ];
-
-  const handleMoodLogged = () => {
-    console.log('Mood check-in completed');
-    // Refresh analytics and calendar when mood is submitted
-    setRefreshKey((prev) => prev + 1);
-    // Optionally switch to calendar tab to see the new entry
-    setActiveTab('calendar');
-  };
-
-  // Reset background when switching away from mood tab
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    if (tabId !== 'mood') {
-      setDynamicBackground(undefined);
-    }
-  };
+  const firstName = user?.full_name?.split(' ')[0] || 'Student'
 
   return (
-    <div className="h-screen flex flex-col gradient-aurora-light overflow-hidden">
-      {/* Header */}
-      <header className="bg-aurora-primary-dark border-b border-aurora-primary-light/20 mb-0 shrink-0 z-50 shadow-aurora">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-14 sm:h-16">
-            <div className="flex items-center space-x-3">
-              <img
-                src={logoLight}
-                alt="Aurora Mental Health Platform"
-                className="h-6 sm:h-8 w-auto"
-              />
-              <h1 className="text-lg sm:text-xl font-bold text-white hidden xs:block">Aurora</h1>
-            </div>
-
-            <div className="flex items-center space-x-2 sm:space-x-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 gradient-aurora-primary rounded-full flex items-center justify-center ring-2 ring-aurora-blue-500/20">
-                  <span className="text-white text-xs sm:text-sm font-semibold">
-                    {user?.full_name?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <span className="text-xs sm:text-sm text-white/90 hidden sm:block">Welcome, {user?.full_name}</span>
-              </div>
-              <button
-                onClick={signOut}
-                className="flex items-center space-x-1 sm:space-x-2 text-white/70 cursor-pointer hover:text-white transition-colors px-2 sm:px-3 py-2 rounded-md hover:bg-white/10"
-              >
-                <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="text-xs sm:text-sm hidden sm:block">Sign Out</span>
-              </button>
-            </div>
-          </div>
+    <div
+      className="space-y-6 transition-all duration-500"
+      style={{ background: dynamicBackground || undefined }}
+    >
+      {/* Welcome Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-aurora-gray-500 tracking-wider uppercase font-body">
+            Welcome back
+          </p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-aurora-primary-dark font-heading">
+            {firstName}
+          </h2>
         </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden z-60">
-        {/* Desktop Sidebar - Hidden on Mobile */}
-        <aside className="hidden lg:block w-64 bg-aurora-primary-dark shadow-aurora shrink-0">
-          <nav className="h-full px-4 py-6">
-            <div className="space-y-2">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-medium transition-all ${activeTab === tab.id
-                      ? 'bg-aurora-secondary-blue text-white shadow-aurora'
-                      : 'text-white/70 hover:text-white hover:bg-aurora-secondary-green/20 cursor-pointer'
-                      }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main
-          className="flex-1 overflow-hidden bg-linear-to-br from-aurora-primary-light/10 to-aurora-blue-500/10 pb-20 lg:pb-0 transition-all duration-500"
-          style={{
-            background: dynamicBackground || undefined
-          }}
-        >
-          <div className="h-full overflow-y-auto">
-            <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-3 sm:py-4 lg:py-6">
-              {activeTab === 'mood' && (
-                <div>
-
-                  <MoodCheckIn
-                    onMoodLogged={handleMoodLogged}
-                    onBackgroundChange={setDynamicBackground}
-                  />
-                </div>
-              )}
-
-              {activeTab === 'calendar' && (
-                <div>
-                  <div className="mb-4 sm:mb-6">
-                    <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Mood Calendar</h2>
-                    <p className="text-aurora-subtitle">
-                      View your emotional journey through time. Click on any day to see detailed mood information.
-                    </p>
-                  </div>
-                  <MoodCalendar key={refreshKey} />
-                </div>
-              )}
-
-              {activeTab === 'analytics' && (
-                <div>
-                  <div className="mb-4 sm:mb-6">
-                    <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Mood Analytics</h2>
-                    <p className="text-aurora-subtitle">
-                      Track your emotional patterns and insights over time.
-                    </p>
-                  </div>
-                  <Analytics key={refreshKey} />
-                </div>
-              )}
-
-              {activeTab === 'schedule' && (
-                <div>
-                  <div className="mb-4 sm:mb-6">
-                    <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Academic Schedule</h2>
-                    <p className="text-aurora-subtitle">
-                      Manage your academic events and see how they relate to your mood patterns.
-                    </p>
-                  </div>
-                  <ScheduleManager />
-                </div>
-              )}
-
-              {activeTab === 'notifications' && (
-                <div>
-                  <div className="mb-4 sm:mb-6">
-                    <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark mb-2 font-primary">Notifications</h2>
-                    <p className="text-aurora-subtitle">
-                      Stay updated with reminders, check-in alerts, and important messages.
-                    </p>
-                  </div>
-                  <NotificationPanel />
-                </div>
-              )}
-            </div>
-          </div>
-        </main>
       </div>
 
-      {/* Mobile Bottom Navigation - Visible only on mobile */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-aurora-primary-dark border-t border-aurora-primary-light/20 shadow-lg z-50">
-        <div className="flex justify-around items-center py-2">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1 transition-all ${activeTab === tab.id
-                  ? 'text-aurora-secondary-green'
-                  : 'text-white/70'
-                  }`}
-              >
-                <Icon className={`w-5 h-5 mb-1 ${activeTab === tab.id ? 'text-aurora-secondary-green' : 'text-white/70'}`} />
-                <span className={`text-xs font-medium truncate ${activeTab === tab.id ? 'text-aurora-secondary-green' : 'text-white/70'}`}>
-                  {tab.label.split(' ')[0]}
-                </span>
-              </button>
-            );
-          })}
+      {/* Mood Check-In */}
+      <MoodCheckIn
+        onMoodLogged={() => console.log('Mood check-in completed')}
+        onBackgroundChange={setDynamicBackground}
+      />
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <button
+          onClick={() => {/* TODO: open session request modal */}}
+          className="card-aurora flex flex-col items-center justify-center py-4 px-2 hover:shadow-aurora-lg transition-all cursor-pointer group"
+          aria-label="Request a session"
+        >
+          <div className="w-10 h-10 rounded-xl bg-aurora-secondary-blue/20 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <CalendarPlus className="w-5 h-5 text-aurora-secondary-blue" />
+          </div>
+          <span className="text-xs font-semibold text-aurora-gray-600 text-center">
+            Request Session
+          </span>
+        </button>
+
+        <button
+          onClick={() => navigate('/student/messages')}
+          className="card-aurora flex flex-col items-center justify-center py-4 px-2 hover:shadow-aurora-lg transition-all cursor-pointer group"
+          aria-label="Open messages"
+        >
+          <div className="w-10 h-10 rounded-xl bg-aurora-accent-purple/20 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <MessageSquare className="w-5 h-5 text-aurora-accent-purple" />
+          </div>
+          <span className="text-xs font-semibold text-aurora-gray-600 text-center">
+            Messages
+          </span>
+        </button>
+
+        <button
+          onClick={() => navigate('/student/resources')}
+          className="card-aurora flex flex-col items-center justify-center py-4 px-2 hover:shadow-aurora-lg transition-all cursor-pointer group"
+          aria-label="Open resources"
+        >
+          <div className="w-10 h-10 rounded-xl bg-aurora-accent-green/20 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <BookOpen className="w-5 h-5 text-aurora-accent-green" />
+          </div>
+          <span className="text-xs font-semibold text-aurora-gray-600 text-center">
+            Resources
+          </span>
+        </button>
+      </div>
+
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        {/* Streak Card */}
+        <div className="card-aurora">
+          <p className="text-[10px] font-bold tracking-widest text-aurora-gray-400 uppercase mb-2">
+            Streak
+          </p>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-lg bg-aurora-accent-orange/20 flex items-center justify-center">
+              <span className="text-lg">🔥</span>
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-aurora-primary-dark leading-tight">
+                7
+              </p>
+              <p className="text-xs text-aurora-gray-500">Days</p>
+            </div>
+          </div>
         </div>
-      </nav>
+
+        {/* Trend Card */}
+        <div className="card-aurora">
+          <p className="text-[10px] font-bold tracking-widest text-aurora-gray-400 uppercase mb-2">
+            Trend
+          </p>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-lg bg-aurora-secondary-blue/20 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-aurora-secondary-blue" />
+            </div>
+            <div>
+              <p className="text-sm font-extrabold text-aurora-primary-dark uppercase leading-tight">
+                Stable
+              </p>
+              <p className="text-xs text-aurora-gray-500">Consistency ✦</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* AI Insight Card */}
+      <div className="card-aurora flex items-start space-x-4">
+        <div className="w-11 h-11 rounded-full bg-aurora-accent-purple/20 flex items-center justify-center shrink-0">
+          <Lightbulb className="w-5 h-5 text-aurora-accent-purple" />
+        </div>
+        <div>
+          <h3 className="font-bold text-aurora-primary-dark mb-1">AI Insight</h3>
+          <p className="text-sm text-aurora-gray-500 leading-relaxed">
+            Your mood has been consistent this week. Keep up the daily check-ins
+            to build a clearer emotional picture.
+          </p>
+        </div>
+      </div>
     </div>
-  );
+  )
 }

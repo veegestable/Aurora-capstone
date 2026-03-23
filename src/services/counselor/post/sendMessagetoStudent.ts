@@ -1,24 +1,15 @@
+import { messagesService } from "../../messages"
+
 export const sendMessagetoStudent = async (
   counselorId: string,
   studentId: string,
   message: string
 ) => {
   try {
-    const response = await fetch('/api/counselor/message', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: JSON.stringify({
-        counselor_id: counselorId,
-        student_id: studentId,
-        message
-      })
-    })
-
-    if (!response.ok) throw new Error('Failed to send message')
-    return await response.json()
+    await messagesService.sendTextMessage(counselorId, studentId, message)
+    
+    console.log(`✅ Message sent from ${counselorId} to student ${studentId}`)
+    return { success: true }
   } catch (error) {
     console.error('Error sending message:', error)
     throw error
