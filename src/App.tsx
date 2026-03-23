@@ -8,10 +8,10 @@ import CounselorDashboard from './pages/CounselorDashboard'
 import Messages from './pages/student/Messages'
 import CounselorLayout from './layouts/CounselorLayout'
 import CounselorStudents from './pages/counselor/Students'
+import CounselorStudentDetail from './pages/counselor/StudentDetail'
 import CounselorRiskCenter from './pages/counselor/RiskCenter'
 import CounselorMessages from './pages/counselor/Messages'
 
-// Keep existing components as inline route elements
 import MoodCheckIn from './components/MoodCheckIn'
 import MoodCalendar from './components/MoodCalendar'
 import Analytics from './components/Analytics'
@@ -88,6 +88,7 @@ function AppContent() {
           <Route element={<CounselorLayout />}>
             <Route index element={<CounselorDashboard />} />
             <Route path="counselor/students" element={<CounselorStudents />} />
+            <Route path="counselor/students/:id" element={<CounselorStudentDetail />} />
             <Route path="counselor/risk-center" element={<CounselorRiskCenter />} />
             <Route path="counselor/messages" element={<CounselorMessages />} />
             <Route path="*" element={<Navigate to="/" replace />} />

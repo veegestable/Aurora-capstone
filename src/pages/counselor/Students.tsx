@@ -2,22 +2,12 @@ import { useState, useEffect, useMemo } from 'react'
 import { counselorService } from '../../services/counselor'
 import { firestoreService } from '../../services/firebase-firestore'
 import { Search } from 'lucide-react'
-import { LetterAvatar } from '../../components/LetterAvatar'
 import type { RiskLevel } from '../../types/risk.types'
-import { formatTimeAgo, deriveRiskLevel, getStudentRiskStyle } from '../../utils/riskHelpers'
+import { formatTimeAgo, deriveRiskLevel } from '../../utils/riskHelpers'
+import { StudentCard, StudentEntry } from '../../components/counselor/StudentCard'
+import { FilterChip } from '../../components/counselor/FilterChip'
 
 type ProgramFilter = 'All Students' | 'BSCS' | 'BSIT' | 'BSIS'
-
-interface StudentEntry {
-  id: string
-  full_name: string
-  email: string
-  department?: string
-  year_level?: string
-  riskLevel: RiskLevel
-  moodEmoji: string
-  lastLog: string
-}
 
 const MOOD_EMOJIS: Record<RiskLevel, string> = {
   'HIGH RISK': '😢',
@@ -26,71 +16,6 @@ const MOOD_EMOJIS: Record<RiskLevel, string> = {
 }
 
 const FILTERS: ProgramFilter[] = ['All Students', 'BSCS', 'BSIT', 'BSIS']
-
-// Student Card 
-function StudentCard({ student }: { student: StudentEntry }) {
-  const style = getStudentRiskStyle(student.riskLevel)
-  return (
-    <div
-      className={`flex items-center card-aurora border-l-4 ${style.border} p-0 overflow-hidden`}
-    >
-      {/* Avatar */}
-      <div className={`p-3 pl-4`}>
-        <div className={`rounded-full ring-2 ${style.ring}`}>
-          <LetterAvatar name={student.full_name} size={52} />
-        </div>
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 py-3 min-w-0">
-        <p className="font-bold text-aurora-primary-dark text-sm truncate">
-          {student.full_name}
-        </p>
-        <p className="text-[11px] font-bold tracking-wide text-aurora-primary-dark/50 mt-0.5">
-          {student.email}
-        </p>
-        <div className="flex items-center justify-between mt-2 pr-2">
-          <span
-            className={`text-[10px] font-extrabold tracking-wide px-2 py-0.5 rounded-lg border ${style.badgeBg} ${style.badgeBorder} ${style.text}`}
-          >
-            {student.riskLevel}
-          </span>
-          <span className="text-aurora-primary-dark/40 text-[11px]">
-            Last log: {student.lastLog}
-          </span>
-        </div>
-      </div>
-
-      {/* Mood Emoji */}
-      <span className="text-xl mr-4 shrink-0">{student.moodEmoji}</span>
-    </div>
-  )
-}
-
-// Filter Chip 
-function FilterChip({
-  label,
-  isActive,
-  onClick,
-}: {
-  label: string
-  isActive: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-4 py-1.5 rounded-full text-sm font-medium border-[1.5px] transition-colors shrink-0 cursor-pointer ${
-        isActive
-          ? 'bg-aurora-secondary-blue border-aurora-secondary-blue text-white'
-          : 'bg-transparent border-aurora-primary-light/30 text-aurora-primary-dark/60 hover:border-aurora-primary-dark/30'
-      }`}
-      aria-label={`Filter by ${label}`}
-    >
-      {label}
-    </button>
-  )
-}
 
 // Main 
 export default function Students() {
