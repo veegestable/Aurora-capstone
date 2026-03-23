@@ -1,3 +1,4 @@
+import { firestoreService } from '../../firebase-firestore'
 import { MoodLogResponse } from '../types'
 
 export const getStudentMoodLogs = async (
@@ -6,22 +7,20 @@ export const getStudentMoodLogs = async (
   endDate?: string
 ): Promise<MoodLogResponse[]> => {
   try {
-    let url = `/api/counselor/students/${studentId}/moods`
+    const parsedStart = startDate ? new Date(startDate) : undefined
+    const parsedEnd = endDate ? new Date(endDate) : undefined
 
-    const params = new URLSearchParams()
+    const logs = await firestoreService.getMoodLogs(studentId, parsedStart, parsedEnd)
 
-    if (startDate) params.append('startDate', startDate)
-    if (endDate) params.append('endDate', endDate)
-    if (params.toString()) url += `?${params.toString()}`
-  
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    })
-
-    if (!response.ok) throw new Error('Failed to fetch mood logs')
-    return await response.json()
+    return logs.map((log: any) => ({
+      id: log.id,
+      user_id: log.user_id,
+      emotions: log.emotions,
+      colors: [],
+      confidence: [],
+      note: log.notes,
+      log_date: log.log_date.toISOString()
+    }))
   } catch (error) {
     console.error('Error fetching student mood logs: ', error)
     return []

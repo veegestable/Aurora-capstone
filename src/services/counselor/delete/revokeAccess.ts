@@ -1,14 +1,17 @@
+import { doc, updateDoc, deleteField } from 'firebase/firestore'
+import { db } from '../../firebase-firestore/db'
+
 export const revokeAccess = async (accessId: string) => {
   try {
-    const response = await fetch(`/api/counselor/access/${accessId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
+    const studentRef = doc(db, 'users', accessId)
+
+    await updateDoc(studentRef, {
+      counselor_id: deleteField(),
+      status: deleteField()
     })
 
-    if (!response.ok) throw new Error('Failed to revoke access')
-    return await response.json()
+    console.log(`✅ Revoked counselor access to student ${accessId}`)
+    return { success: true }
   } catch (error) {
     console.error('Error revoking access: ', error)
   }

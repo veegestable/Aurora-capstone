@@ -1,22 +1,20 @@
+import { doc, updateDoc } from 'firebase/firestore'
+import { db } from '../../firebase-firestore/db'
+
 export const grantAccess = async (
   counselorId: string,
   studentId: string
 ) => {
   try {
-    const response = await fetch('/api/counselor/access', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: JSON.stringify({
-        counselor_id: counselorId,
-        student_id: studentId
-      })
+    const studentRef = doc(db, 'users', studentId)
+
+    await updateDoc(studentRef, {
+      counselor_id: counselorId,
+      status: 'active'
     })
 
-    if (!response.ok) throw new Error('Failed to grant access')
-    return await response.json()
+    console.log(`✅ Granted counselor ${counselorId} access to student ${studentId}`)
+    return { success: true }
   } catch (error) {
     console.error('Error granting access: ', error)
     throw error
