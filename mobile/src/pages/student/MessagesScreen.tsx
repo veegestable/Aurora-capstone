@@ -15,6 +15,7 @@ import { ArrowLeft, Search, Settings2, Info, Plus, Send, PenSquare, Phone } from
 import { useAuth } from '../../stores/AuthContext';
 import { firestoreService } from '../../services/firebase-firestore.service';
 import { AURORA } from '../../constants/aurora-colors';
+import { STUDENT_TAB_BAR_BOTTOM_CLEARANCE } from '../../../constants/student-tab-bar';
 import { LetterAvatar } from '../../components/common/LetterAvatar';
 import ScheduleInviteCard, { type ScheduleInviteData, type TimeSlot } from '../../components/student/ScheduleInviteCard';
 import SessionRequestCard, { type SessionRequestData } from '../../components/student/SessionRequestCard';
@@ -714,7 +715,10 @@ export default function MessagesScreen() {
                 {/* Contact List */}
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 80 }}
+                    contentContainerStyle={{
+                        paddingHorizontal: 20,
+                        paddingBottom: STUDENT_TAB_BAR_BOTTOM_CLEARANCE,
+                    }}
                     showsVerticalScrollIndicator={false}
                 >
                     {loading ? (
