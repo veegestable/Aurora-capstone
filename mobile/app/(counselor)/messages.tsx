@@ -681,7 +681,7 @@ export default function CounselorMessagesScreen() {
                                     activeOpacity={0.75}
                                     style={{
                                         flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                                        paddingHorizontal: 16, paddingVertical: 5, borderRadius: 30,
+                                        paddingHorizontal: 16, paddingVertical: 5, borderRadius: 30, marginTop: 8,
                                         backgroundColor: activeTab === tab ? AURORA.blue : 'transparent',
                                         borderWidth: 1.5,
                                         borderColor: activeTab === tab ? AURORA.blue : AURORA.borderLight,
