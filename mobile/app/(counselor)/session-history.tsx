@@ -255,7 +255,10 @@ export default function SessionHistoryScreen() {
                         borderBottomColor: AURORA.border,
                     }}
                 >
-                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
+                    <TouchableOpacity
+                        onPress={() => router.replace('/(counselor)/messages')}
+                        style={{ padding: 4 }}
+                    >
                         <ArrowLeft size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                     <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '700' }}>
