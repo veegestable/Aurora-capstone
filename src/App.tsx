@@ -1,16 +1,22 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './pages/Login'
+import ForgotPassword from './pages/ForgotPassword'
+import PendingCounselor from './pages/PendingCounselor'
+import Settings from './pages/Settings'
 import StudentLayout from './layouts/StudentLayout'
 import StudentDashboard from './pages/StudentDashboard'
 import History from './pages/student/History'
-import CounselorDashboard from './pages/CounselorDashboard'
 import Messages from './pages/student/Messages'
+import StudentProfile from './pages/student/Profile'
+import StudentResources from './pages/student/Resources'
 import CounselorLayout from './layouts/CounselorLayout'
+import CounselorDashboard from './pages/CounselorDashboard'
 import CounselorStudents from './pages/counselor/Students'
 import CounselorStudentDetail from './pages/counselor/StudentDetail'
 import CounselorRiskCenter from './pages/counselor/RiskCenter'
 import CounselorMessages from './pages/counselor/Messages'
+import CounselorProfile from './pages/counselor/Profile'
 
 import MoodCheckIn from './components/MoodCheckIn'
 import MoodCalendar from './components/MoodCalendar'
@@ -65,11 +71,29 @@ function AppContent() {
     )
   }
 
+  if (!user) {
+    return (
+      <Router>
+        <Routes>
+          <Route index element={<Login />} />
+          <Route path="forgot-password" element={<ForgotPassword />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    )
+  }
+
+  if (user.role === 'counselor' && user.approval_status === 'pending') {
+    return (
+      <Router>
+        <PendingCounselor />
+      </Router>
+    )
+  }
+
   return (
     <Router>
-      {!user ? (
-        <Login />
-      ) : user.role === 'student' ? (
+      {user.role === 'student' ? (
         <Routes>
           <Route element={<StudentLayout />}>
             <Route index element={<StudentDashboard />} />
@@ -80,6 +104,9 @@ function AppContent() {
             <Route path="notifications" element={<NotificationPanel />} />
             <Route path="student/history" element={<History />} />
             <Route path="student/messages" element={<Messages />} />
+            <Route path="student/profile" element={<StudentProfile />} />
+            <Route path="student/resources" element={<StudentResources />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
@@ -91,6 +118,8 @@ function AppContent() {
             <Route path="counselor/students/:id" element={<CounselorStudentDetail />} />
             <Route path="counselor/risk-center" element={<CounselorRiskCenter />} />
             <Route path="counselor/messages" element={<CounselorMessages />} />
+            <Route path="counselor/profile" element={<CounselorProfile />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

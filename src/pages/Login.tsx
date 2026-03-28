@@ -1,67 +1,68 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Heart, Brain, Users } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import logoLight from '../assets/logos/logo light.png';
-import heroGradient from '../assets/images/asset gradient multi.png';
+import React, { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Eye, EyeOff, Heart, Brain, Users } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import logoLight from '../assets/logos/logo light.png'
+import heroGradient from '../assets/images/asset gradient multi.png'
 
 export default function Login() {
-  const { signIn, signUp } = useAuth();
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const { signIn, signUp } = useAuth()
+  const [isSignUp, setIsSignUp] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     fullName: '',
     role: 'student' as 'student' | 'counselor'
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccessMessage('');
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    setSuccessMessage('')
 
     try {
       if (isSignUp) {
-        const result = await signUp(formData.email, formData.password, formData.fullName, formData.role);
+        const result = await signUp(formData.email, formData.password, formData.fullName, formData.role)
         if (result.success) {
-          setSuccessMessage(result.message);
-          setIsSignUp(false); // Switch to login mode
-          setFormData(prev => ({ ...prev, password: '', fullName: '', role: 'student' })); // Clear sensitive fields
+          setSuccessMessage(result.message)
+          setIsSignUp(false) // Switch to login mode
+          setFormData(prev => ({ ...prev, password: '', fullName: '', role: 'student' })) // Clear sensitive fields
         } else {
-          setError(result.message);
+          setError(result.message)
         }
       } else {
-        await signIn(formData.email, formData.password);
+        await signIn(formData.email, formData.password)
       }
     } catch (err: any) {
-      setError(err.message || 'Authentication failed');
+      setError(err.message || 'Authentication failed')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleModeSwitch = () => {
-    setIsSignUp(!isSignUp);
-    setError('');
-    setSuccessMessage('');
+    setIsSignUp(!isSignUp)
+    setError('')
+    setSuccessMessage('')
     setFormData(prev => ({ 
       ...prev, 
       password: '', 
       fullName: '', 
       role: 'student' 
-    }));
-  };
+    }))
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
-    }));
-  };
+    }))
+  }
 
   return (
     <div className="min-h-screen gradient-aurora flex items-center justify-center p-4 relative overflow-hidden">
@@ -193,6 +194,17 @@ export default function Login() {
               </div>
             </div>
 
+            {!isSignUp && (
+              <div className="flex justify-end">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-aurora-secondary-blue hover:text-aurora-secondary-dark-blue transition-colors"
+                >
+                  Forgot password?
+                </Link>
+            </div>
+            )}
+
             {isSignUp && (
               <div>
                 <label htmlFor="role" className="block text-sm font-medium text-aurora-primary-dark mb-1">
@@ -255,5 +267,5 @@ export default function Login() {
         </div>
       </div>
     </div>
-  );
+  )
 }

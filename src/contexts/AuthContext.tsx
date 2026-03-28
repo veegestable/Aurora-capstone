@@ -2,13 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../config/firebase'
 import { authService, UserProfile } from '../services/firebase-auth'
-
-interface User {
-  id: string
-  full_name: string
-  email: string
-  role: 'student' | 'counselor'
-}
+import { User } from '../types/user.types'
 
 interface AuthContextType {
   user: User | null
@@ -16,19 +10,27 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, fullName: string, role: 'student' | 'counselor') => Promise<{ success: boolean; message: string }>
   signOut: () => void
+  updateUser: (data: Partial<Omit<User, 'id' | 'email' | 'role'>>) => Promise<void>
+  uploadAvatar: (file: File) => Promise<string>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 // Helper function to convert UserProfile to User
-const convertUserProfile = (userProfile: UserProfile): User => {
-  return {
-    id: userProfile.uid,
-    full_name: userProfile.full_name,
-    email: userProfile.email,
-    role: userProfile.role
-  }
-}
+const convertUserProfile = (userProfile: UserProfile): User => ({
+  id: userProfile.uid,
+  full_name: userProfile.full_name,
+  email: userProfile.email,
+  role: userProfile.role,
+  approval_status: userProfile.approval_status,
+  preferred_name: userProfile.preferred_name,
+  department: userProfile.department,
+  year_level: userProfile.year_level,
+  student_number: userProfile.student_number,
+  sex: userProfile.sex,
+  bio: userProfile.bio,
+  avatar_url: userProfile.avatar_url,
+})
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -104,6 +106,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const updateUser = async (data: Partial<Omit<User, 'id' | 'email' | 'role'>>) => {
+    if (!user) return
+
+    try {
+      await authService.updateProfile(user.id, data)
+      setUser(prev => prev ? { ...prev, ...data } : null)
+    } catch (error) {
+      console.error('Update user error: ', error)
+      throw error
+    }
+  }
+
+  const uploadAvatar = async (file: File): Promise<string> => {
+    if (!user) throw new Error('Not authenticated')
+    
+    const url = await authService.uploadAvatar(user.id, file)
+    setUser(prev => prev ? { ...prev, avatar_url: url } : null)
+    return url
+  }
+
   const signOut = async () => {
     try {
       await authService.signOut()
@@ -119,7 +141,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signIn,
     signUp,
-    signOut
+    signOut,
+    updateUser,
+    uploadAvatar,
   }
 
   return (
