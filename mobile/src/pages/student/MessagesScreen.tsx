@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     TextInput, Image, KeyboardAvoidingView, Platform,
-    ActivityIndicator,
+    ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Settings2, Info, Plus, Send, PenSquare, Phone } from 'lucide-react-native';
@@ -48,7 +48,12 @@ interface SessionMessage {
     id: string;
     senderId: 'me' | 'them';
     type: 'session';
-    session: ScheduleInviteData & { timeSlots?: TimeSlot[]; note?: string };
+    session: ScheduleInviteData & {
+        timeSlots?: TimeSlot[];
+        note?: string;
+        sessionStatus?: string;
+        agreedSlot?: { date: string; time: string };
+    };
     time: string;
 }
 
@@ -193,8 +198,47 @@ function DirectMessageView({
         }
     };
 
-    const handleConfirmSession = (slot: TimeSlot) => {
-        // TODO: Send confirmation back to counselor / update session status
+    const handleConfirmSession = async (slot: TimeSlot, invite: ScheduleInviteData) => {
+        if (!user?.id || !contact.conversationId || sending) return;
+        const sid = invite.id?.trim();
+        if (!sid || String(sid).startsWith('session_')) {
+            Alert.alert(
+                'Cannot confirm',
+                'This invite is missing a valid session link. Ask your counselor to send the times again.'
+            );
+            return;
+        }
+        setSending(true);
+        try {
+            await firestoreService.studentConfirmFinalSlot(sid, user.id, slot, {
+                conversationId: contact.conversationId,
+                counselorId: contact.id,
+            });
+            // Immediate UI: chat messages do not store status on the doc — merge comes from `sessions`.
+            setMessages((prev) =>
+                prev.map((m) =>
+                    m.type === 'session' && m.session.id === sid
+                        ? {
+                              ...m,
+                              session: {
+                                  ...m.session,
+                                  sessionStatus: 'confirmed',
+                                  agreedSlot: { date: slot.date, time: slot.time },
+                              },
+                          }
+                        : m
+                ) as ChatMessage[]
+            );
+            const msgs = await firestoreService.getMessagesForStudent(contact.conversationId, user.id);
+            setMessages(msgs as ChatMessage[]);
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
+            console.error('Failed to confirm session time:', e);
+            Alert.alert('Could not confirm session', message);
+        } finally {
+            setSending(false);
+        }
     };
 
     const handleSendSessionRequest = async (data: SessionRequestFormData) => {
@@ -413,10 +457,29 @@ function DirectMessageView({
                                                             ...msg.session,
                                                             note: msg.session.note,
                                                             timeSlots: msg.session.timeSlots,
+                                                            sessionStatus: msg.session.sessionStatus,
+                                                            agreedSlot: msg.session.agreedSlot,
                                                         }}
                                                         senderLabel="Aurora Academic Support"
                                                         isFromMe={isMe}
-                                                        onConfirm={handleConfirmSession}
+                                                        confirmBusy={sending}
+                                                        onConfirm={
+                                                            !isMe &&
+                                                            msg.session.id &&
+                                                            !String(msg.session.id).startsWith('session_') &&
+                                                            !(
+                                                                msg.session.sessionStatus &&
+                                                                ['confirmed', 'completed', 'missed', 'cancelled'].includes(
+                                                                    msg.session.sessionStatus
+                                                                )
+                                                            )
+                                                                ? (slot) =>
+                                                                      handleConfirmSession(slot, {
+                                                                          ...msg.session,
+                                                                          id: msg.session.id,
+                                                                      })
+                                                                : undefined
+                                                        }
                                                     />
                                                     <Text
                                                         style={{

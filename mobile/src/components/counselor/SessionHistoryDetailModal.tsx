@@ -12,18 +12,19 @@ import {
     StyleSheet,
     ScrollView,
 } from 'react-native';
-import { Calendar, Clock, FileText, AlertTriangle, X } from 'lucide-react-native';
+import { Calendar, Clock, FileText, AlertTriangle, X, Hash } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
+import type { SessionHistoryBadge } from '../../utils/sessionScheduling';
 
-const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+const BADGE_CONFIG: Record<SessionHistoryBadge, { label: string; bg: string; text: string }> = {
+    pending: { label: 'PENDING', bg: 'rgba(45,107,255,0.2)', text: AURORA.blue },
+    today: { label: 'TODAY', bg: 'rgba(34,197,94,0.22)', text: '#86efac' },
     completed: { label: 'COMPLETED', bg: 'rgba(34,197,94,0.2)', text: AURORA.green },
     missed: { label: 'MISSED', bg: 'rgba(239,68,68,0.2)', text: AURORA.red },
     cancelled: { label: 'CANCELLED', bg: 'rgba(75,86,147,0.3)', text: AURORA.textMuted },
-    rescheduled: { label: 'NEEDS RESCHEDULING', bg: 'rgba(249,115,22,0.2)', text: AURORA.orange },
-    confirmed: { label: 'PENDING', bg: 'rgba(45,107,255,0.2)', text: AURORA.blue },
-    pending: { label: 'PENDING', bg: 'rgba(45,107,255,0.2)', text: AURORA.blue },
-    requested: { label: 'PENDING', bg: 'rgba(45,107,255,0.2)', text: AURORA.blue },
+    expired: { label: 'EXPIRED', bg: 'rgba(75,86,147,0.35)', text: AURORA.textMuted },
+    reschedule: { label: 'RESCHEDULE', bg: 'rgba(249,115,22,0.2)', text: AURORA.orange },
 };
 
 export interface SessionHistoryDetailData {
@@ -34,9 +35,14 @@ export interface SessionHistoryDetailData {
     studentProgram?: string;
     studentYear?: string;
     status: string;
+    /** From `sessions.sessionHistoryBadge` — counselor pill for list/detail */
+    sessionHistoryBadge: SessionHistoryBadge;
+    finalSlot?: { date: string; time: string } | null;
     confirmedSlot: { date: string; time: string } | null;
     proposedSlots: Array<{ date: string; time: string }>;
     preferredTimeFromStudent?: string;
+    /** Student note from session request (`sessions` document) */
+    studentRequestNote?: string;
     attendanceNote?: string;
     cancelReason?: string;
     dateDisplay?: string;
@@ -62,9 +68,9 @@ export default function SessionHistoryDetailModal({
 }: SessionHistoryDetailModalProps) {
     if (!visible) return null;
 
-    const statusConfig = data ? (STATUS_CONFIG[data.status] ?? STATUS_CONFIG.pending) : null;
-    const dateStr = data?.dateDisplay ?? data?.confirmedSlot?.date ?? data?.proposedSlots?.[0]?.date ?? '-';
-    const timeStr = data?.timeDisplay ?? data?.confirmedSlot?.time ?? data?.proposedSlots?.[0]?.time ?? data?.preferredTimeFromStudent ?? '-';
+    const badgeConfig = data ? BADGE_CONFIG[data.sessionHistoryBadge] : null;
+    const dateStr = data?.dateDisplay ?? data?.finalSlot?.date ?? data?.confirmedSlot?.date ?? data?.proposedSlots?.[0]?.date ?? '-';
+    const timeStr = data?.timeDisplay ?? data?.finalSlot?.time ?? data?.confirmedSlot?.time ?? data?.proposedSlots?.[0]?.time ?? data?.preferredTimeFromStudent ?? '-';
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -95,9 +101,9 @@ export default function SessionHistoryDetailModal({
                                 </View>
                             </View>
 
-                            <View style={[styles.statusPill, statusConfig && { backgroundColor: statusConfig.bg }]}>
-                                <Text style={[styles.statusText, statusConfig && { color: statusConfig.text }]}>
-                                    {statusConfig?.label ?? data.status}
+                            <View style={[styles.statusPill, badgeConfig && { backgroundColor: badgeConfig.bg }]}>
+                                <Text style={[styles.statusText, badgeConfig && { color: badgeConfig.text }]}>
+                                    {badgeConfig?.label ?? data.sessionHistoryBadge}
                                 </Text>
                             </View>
 
@@ -116,6 +122,30 @@ export default function SessionHistoryDetailModal({
                                 </View>
                                 <Text style={styles.sectionValue}>{timeStr}</Text>
                             </View>
+
+                            <View style={styles.section}>
+                                <View style={styles.sectionHeader}>
+                                    <Hash size={18} color={AURORA.textSec} />
+                                    <Text style={styles.sectionLabel}>Session ID</Text>
+                                </View>
+                                <Text style={[styles.sectionValue, styles.monoValue]} selectable>
+                                    {data.id}
+                                </Text>
+                                <Text style={styles.hintText}>
+                                    Canonical status and schedule live on this document in the{' '}
+                                    <Text style={styles.monoHint}>sessions</Text> collection (not on chat messages).
+                                </Text>
+                            </View>
+
+                            {data.studentRequestNote ? (
+                                <View style={styles.section}>
+                                    <View style={styles.sectionHeader}>
+                                        <FileText size={18} color={AURORA.blue} />
+                                        <Text style={styles.sectionLabel}>Description</Text>
+                                    </View>
+                                    <Text style={styles.sectionValue}>{data.studentRequestNote}</Text>
+                                </View>
+                            ) : null}
 
                             {data.preferredTimeFromStudent && (
                                 <View style={styles.section}>
@@ -271,6 +301,21 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '500',
         paddingLeft: 26,
+    },
+    monoValue: {
+        fontSize: 13,
+        fontWeight: '400',
+    },
+    hintText: {
+        color: AURORA.textMuted,
+        fontSize: 11,
+        lineHeight: 16,
+        paddingLeft: 26,
+        marginTop: 6,
+    },
+    monoHint: {
+        fontSize: 11,
+        color: AURORA.textSec,
     },
     noteValue: {
         color: AURORA.textSec,

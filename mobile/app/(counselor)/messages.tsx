@@ -22,7 +22,8 @@ import { firestoreService } from '../../src/services/firebase-firestore.service'
 import { AURORA } from '../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../src/components/common/LetterAvatar';
 import { router } from 'expo-router';
-import { isSessionTimeExpired, isSessionScheduledTimeReached } from '../../src/utils/dateHelpers';
+import { isSessionTimeExpired } from '../../src/utils/dateHelpers';
+import { resolveSessionsDocIdForSessionCard } from '../../src/utils/sessionInviteIds';
 import SendSessionInviteModal, { type SessionInviteData } from '../../src/components/counselor/SendSessionInviteModal';
 import SessionCard, { type SessionCardData } from '../../src/components/counselor/SessionCard';
 import SessionAttendanceModal, { type AttendanceStatus } from '../../src/components/counselor/SessionAttendanceModal';
@@ -209,20 +210,27 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
             data.alternativeDate && formatSlot(data.alternativeDate),
             data.finalDate && formatSlot(data.finalDate),
         ].filter(Boolean) as { date: string; time: string }[];
-        const primary = data.primaryDate!;
-        const sessionData: SessionCardData & { note?: string; timeSlots?: { date: string; time: string }[] } = {
-            id: `session_${Date.now()}`,
-            type: 'invite',
-            title: 'Academic Guidance',
-            counselorName: user.full_name || 'Counselor',
-            date: primary.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-            time: primary.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
-            location: 'Guidance Office, West Wing',
-            note: data.note,
-            timeSlots: timeSlots.length > 0 ? timeSlots : undefined,
-        };
+        if (timeSlots.length === 0) return;
+        const headline = timeSlots[0];
         setSending(true);
         try {
+            const sessionId = await firestoreService.createCounselorSessionInvite(
+                user.id,
+                contact.id,
+                timeSlots,
+                { note: data.note }
+            );
+            const sessionData: SessionCardData & { note?: string; timeSlots?: { date: string; time: string }[] } = {
+                id: sessionId,
+                type: 'invite',
+                title: 'Academic Guidance',
+                counselorName: user.full_name || 'Counselor',
+                date: headline.date,
+                time: headline.time,
+                location: 'Guidance Office, West Wing',
+                note: data.note,
+                timeSlots,
+            };
             const msgId = await firestoreService.sendSessionMessage(conversationId, user.id, sessionData);
             setMessages(prev => [...prev, {
                 id: msgId, senderId: 'me', type: 'session',
@@ -308,17 +316,6 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
             console.error('Failed to propose slots:', e);
         } finally {
             setSending(false);
-        }
-    };
-
-    const handleViewSessionDetails = (sessionData: SessionCardData) => {
-        const canMarkAttendance = isSessionScheduledTimeReached({
-            date: sessionData.date,
-            time: sessionData.time,
-        });
-        if (canMarkAttendance) {
-            setSelectedSessionForAttendance(sessionData);
-            setShowAttendanceModal(true);
         }
     };
 
@@ -466,8 +463,19 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                         <SessionCard
                                             data={msg.session}
                                             isFromMe={isMe}
-                                            onViewDetails={() => handleViewSessionDetails(msg.session)}
-                                            onReschedule={() => {}}
+                                            onMarkAttendance={() => {
+                                                setSelectedSessionForAttendance(msg.session);
+                                                setShowAttendanceModal(true);
+                                            }}
+                                            onReschedule={(() => {
+                                                const sid = resolveSessionsDocIdForSessionCard(msg.session);
+                                                return sid
+                                                    ? () => {
+                                                        setShowInviteModal(false);
+                                                        setShowInviteModalForSessionRequest(sid);
+                                                    }
+                                                    : undefined;
+                                            })()}
                                         />
                                     ) : null}
                                     {isMe && (

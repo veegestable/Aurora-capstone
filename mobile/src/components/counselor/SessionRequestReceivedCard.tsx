@@ -28,7 +28,9 @@ export default function SessionRequestReceivedCard({
     onAccept,
     onProposeNewTime,
 }: SessionRequestReceivedCardProps) {
-    const isAccepted = ['confirmed', 'completed', 'missed', 'rescheduled'].includes(data.status);
+    const isAccepted = ['confirmed', 'completed', 'missed', 'rescheduled', 'needs_rescheduling', 'expired'].includes(
+        data.status
+    );
     const isExpired = data.isExpired ?? false;
     const canAct = !isAccepted && !isExpired && !['cancelled'].includes(data.status);
 
@@ -69,6 +71,8 @@ export default function SessionRequestReceivedCard({
                     {data.status === 'completed' ? 'Session completed.' : ''}
                     {data.status === 'missed' ? 'Student did not show up.' : ''}
                     {data.status === 'rescheduled' ? 'Needs rescheduling.' : ''}
+                    {data.status === 'needs_rescheduling' ? 'Time passed — needs rescheduling.' : ''}
+                    {data.status === 'expired' ? 'Session window expired.' : ''}
                 </Text>
             )}
 
