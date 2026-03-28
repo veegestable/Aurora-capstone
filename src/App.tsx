@@ -17,6 +17,18 @@ import CounselorStudentDetail from './pages/counselor/StudentDetail'
 import CounselorRiskCenter from './pages/counselor/RiskCenter'
 import CounselorMessages from './pages/counselor/Messages'
 import CounselorProfile from './pages/counselor/Profile'
+import AdminLayout from './layouts/AdminLayout'
+import AdminDashboard from './pages/admin/Dashboard'
+import AdminCounselors from './pages/admin/Counselors'
+import AdminStudents from './pages/admin/Students'
+import AdminResources from './pages/admin/Resources'
+import AdminAnnouncements from './pages/admin/Announcements'
+import AdminAnalytics from './pages/admin/Analytics'
+import AdminAuditLogs from './pages/admin/AuditLogs'
+import AdminSettings from './pages/admin/Settings'
+import AdminCounselorDetail from './pages/admin/CounselorDetail'
+import AdminStudentDetail from './pages/admin/StudentDetail'
+import AdminResourceDetail from './pages/admin/ResourceDetail'
 
 import MoodCheckIn from './components/MoodCheckIn'
 import MoodCalendar from './components/MoodCalendar'
@@ -32,7 +44,6 @@ function AppContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-linear-to-br from-aurora-blue-50 via-aurora-primary-light to-aurora-blue-100 flex items-center justify-center relative overflow-hidden px-4">
-        {/* Animated background elements */}
         <div className="absolute inset-0 opacity-20">
           <div className="absolute top-1/4 left-1/4 w-16 h-16 sm:w-24 sm:h-24 lg:w-32 lg:h-32 bg-aurora-secondary-blue rounded-full blur-2xl sm:blur-3xl animate-aurora-float"></div>
           <div className="absolute bottom-1/3 right-1/4 w-12 h-12 sm:w-18 sm:h-18 lg:w-24 lg:h-24 bg-aurora-accent-purple rounded-full blur-xl sm:blur-2xl animate-aurora-glow"></div>
@@ -106,6 +117,24 @@ function AppContent() {
             <Route path="student/messages" element={<Messages />} />
             <Route path="student/profile" element={<StudentProfile />} />
             <Route path="student/resources" element={<StudentResources />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      ) : user.role === 'admin' ? (
+        <Routes>
+          <Route element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="admin/counselors" element={<AdminCounselors />} />
+            <Route path="admin/counselors/:id" element={<AdminCounselorDetail />} />
+            <Route path="admin/students" element={<AdminStudents />} />
+            <Route path="admin/students/:id" element={<AdminStudentDetail />} />
+            <Route path="admin/resources" element={<AdminResources />} />
+            <Route path="admin/resources/:id" element={<AdminResourceDetail />} />
+            <Route path="admin/announcements" element={<AdminAnnouncements />} />
+            <Route path="admin/analytics" element={<AdminAnalytics />} />
+            <Route path="admin/audit-logs" element={<AdminAuditLogs />} />
+            <Route path="admin/settings" element={<AdminSettings />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
