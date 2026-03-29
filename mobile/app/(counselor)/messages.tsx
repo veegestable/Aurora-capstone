@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-    Search, PenSquare, ArrowLeft, AlertTriangle,
-    Info, Plus, Send, RotateCcw,
+    Search, ArrowLeft, AlertTriangle,
+    Info, Plus, Send, RotateCcw, UserPlus,
 } from 'lucide-react-native';
 import { useAuth } from '../../src/stores/AuthContext';
 import { useMessagesContactStore, type MessageContact } from '../../src/stores/messagesContactStore';
@@ -28,6 +28,7 @@ import SendSessionInviteModal, { type SessionInviteData } from '../../src/compon
 import SessionCard, { type SessionCardData } from '../../src/components/counselor/SessionCard';
 import SessionAttendanceModal, { type AttendanceStatus } from '../../src/components/counselor/SessionAttendanceModal';
 import SessionRequestReceivedCard from '../../src/components/counselor/SessionRequestReceivedCard';
+import SelectStudentModal from '../../src/components/counselor/SelectStudentModal';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type FilterTab = 'All Messages' | 'Unread' | 'Priority';
@@ -588,6 +589,7 @@ export default function CounselorMessagesScreen() {
     const [activeTab, setActiveTab] = useState<FilterTab>('All Messages');
     const [selectedContact, setSelectedContact] = useState<Conversation | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showAddStudentModal, setShowAddStudentModal] = useState(false);
 
     useEffect(() => {
         if (!user?.id) {
@@ -613,6 +615,18 @@ export default function CounselorMessagesScreen() {
         firestoreService.getConversations(user.id)
             .then(setContacts)
             .catch(() => setContacts([]));
+    };
+
+    const handleConversationCreated = async (studentId: string) => {
+        if (!user?.id) return;
+        try {
+            const convos = await firestoreService.getConversations(user.id);
+            setContacts(convos);
+            const added = convos.find((c) => c.id === studentId);
+            if (added) setSelectedContact(added);
+        } catch {
+            refreshConversations();
+        }
     };
 
     if (selectedContact) {
@@ -667,11 +681,15 @@ export default function CounselorMessagesScreen() {
                                 History
                             </Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={{ padding: 6 }}>
+                        <TouchableOpacity style={{ padding: 6 }} activeOpacity={0.7}>
                             <Search size={22} color={AURORA.textSec} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={{ padding: 6 }}>
-                            <PenSquare size={22} color={AURORA.textSec} />
+                        <TouchableOpacity
+                            style={{ padding: 6 }}
+                            activeOpacity={0.7}
+                            onPress={() => setShowAddStudentModal(true)}
+                        >
+                            <UserPlus size={22} color={AURORA.blue} />
                         </TouchableOpacity>
                     </View>
 
@@ -726,7 +744,7 @@ export default function CounselorMessagesScreen() {
                         <View style={{ paddingTop: 60, alignItems: 'center' }}>
                             <Text style={{ color: AURORA.textMuted, fontSize: 14, textAlign: 'center' }}>
                                 {contacts.length === 0
-                                    ? 'No conversations yet. Invite students from the Risk Center.'
+                                    ? 'No conversations yet. Tap + to add a student, or invite from the Risk Center.'
                                     : 'No conversations match this filter.'}
                             </Text>
                         </View>
@@ -740,6 +758,18 @@ export default function CounselorMessagesScreen() {
                         ))
                     )}
                 </ScrollView>
+
+                {user?.id ? (
+                    <SelectStudentModal
+                        visible={showAddStudentModal}
+                        onClose={() => setShowAddStudentModal(false)}
+                        existingStudentIds={contacts.map((c) => c.id)}
+                        counselorId={user.id}
+                        counselorName={user?.full_name ?? 'Counselor'}
+                        counselorAvatar={user?.avatar_url}
+                        onConversationCreated={handleConversationCreated}
+                    />
+                ) : null}
             </SafeAreaView>
         </View>
     );
