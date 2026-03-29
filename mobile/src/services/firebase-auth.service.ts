@@ -64,13 +64,13 @@ export const authService = {
         displayName: data.fullName
       });
 
-      // Create user profile in Firestore
+      // Create user profile in Firestore (omit optional fields instead of undefined — Firestore rejects undefined)
       const userProfile: UserProfile = {
         uid: user.uid,
         email: data.email,
         full_name: data.fullName,
         role: data.role,
-        approval_status: data.role === 'counselor' ? 'pending' : undefined,
+        ...(data.role === 'counselor' ? { approval_status: 'pending' as const } : {}),
         created_at: new Date(),
         updated_at: new Date()
       };
