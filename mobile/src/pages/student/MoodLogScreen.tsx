@@ -173,7 +173,7 @@ export default function MoodLogScreen() {
     const [selectedMood, setSelectedMood] = useState<string | null>(null);
     const [showLogModal, setShowLogModal] = useState(false);
     const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
-    const [stats, setStats] = useState({ streak: 7, topEmotion: 'happy' });
+    const [stats, setStats] = useState({ streak: 0, topEmotion: 'happy' });
     const [insight, setInsight] = useState(
         'Your mood has been simplified for better tracking. Use the camera icon to analyze micro-emotions instantly.'
     );
@@ -190,21 +190,25 @@ export default function MoodLogScreen() {
             const end = new Date();
             const start = new Date(); start.setDate(start.getDate() - 30);
             const logs = await moodService.getMoodLogs(user.id, start.toISOString(), end.toISOString());
-            if (logs && logs.length > 0) {
-                const emotionCounts: Record<string, number> = {};
-                logs.forEach((log: any) => {
-                    log.emotions?.forEach((e: any) => {
-                        emotionCounts[e.emotion] = (emotionCounts[e.emotion] || 0) + 1;
-                    });
-                });
-                let topEmotion = 'happy';
-                let max = 0;
-                Object.entries(emotionCounts).forEach(([e, c]) => { if (c > max) { max = c; topEmotion = e; } });
-                const insights = moodService.generateInsights(logs);
-                setStats({ streak: Math.min(logs.length, 7), topEmotion });
-                if (insights?.[0]) setInsight(insights[0]);
+            if (!logs || logs.length === 0) {
+                setStats({ streak: 0, topEmotion: 'happy' });
+                return;
             }
-        } catch { /* use defaults */ }
+            const emotionCounts: Record<string, number> = {};
+            logs.forEach((log: any) => {
+                log.emotions?.forEach((e: any) => {
+                    emotionCounts[e.emotion] = (emotionCounts[e.emotion] || 0) + 1;
+                });
+            });
+            let topEmotion = 'happy';
+            let max = 0;
+            Object.entries(emotionCounts).forEach(([e, c]) => { if (c > max) { max = c; topEmotion = e; } });
+            const insights = moodService.generateInsights(logs);
+            setStats({ streak: Math.min(logs.length, 7), topEmotion });
+            if (insights?.[0]) setInsight(insights[0]);
+        } catch {
+            setStats({ streak: 0, topEmotion: 'happy' });
+        }
     };
 
     const handleMoodTap = (moodName: string) => {
