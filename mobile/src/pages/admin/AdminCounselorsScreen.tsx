@@ -112,9 +112,13 @@ export default function AdminCounselorsScreen() {
                     paddingHorizontal: 20, paddingVertical: 16,
                     borderBottomWidth: 1, borderBottomColor: AURORA.border,
                 }}>
-                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 4, marginRight: 12 }}>
-                        <ArrowLeft size={22} color="#FFFFFF" />
-                    </TouchableOpacity>
+                    {router.canGoBack() ? (
+                        <TouchableOpacity onPress={() => router.back()} style={{ padding: 4, marginRight: 12 }}>
+                            <ArrowLeft size={22} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ width: 34 }} />
+                    )}
                     <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '700' }}>Counselors</Text>
                 </View>
 

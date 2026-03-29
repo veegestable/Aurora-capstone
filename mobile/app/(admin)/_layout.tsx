@@ -1,15 +1,7 @@
 /**
- * Admin Layout - _layout.tsx
- * ===========================
+ * Admin Layout — Stack: main tab group + secondary screens (students, resources, etc.)
  * Route: /(admin)
- * Role: ADMIN only
- * 
- * Stack navigation layout for admin users.
- * Provides access to school-wide analytics, user management, and settings.
- * 
- * Auth: Redirects non-admins to login or home
  */
-
 import { Redirect, Stack } from 'expo-router';
 import { useAuth } from '../../src/stores/AuthContext';
 
@@ -24,5 +16,13 @@ export default function AdminLayout() {
         return <Redirect href="/" />;
     }
 
-    return <Stack screenOptions={{ headerShown: false }} />;
+    return (
+        <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="announcements" />
+            <Stack.Screen name="audit-logs" />
+            <Stack.Screen name="students" />
+            <Stack.Screen name="resources" />
+        </Stack>
+    );
 }
