@@ -36,7 +36,6 @@ interface StudentEntry {
     year_level?: string;
     avatar_url?: string;
     riskLevel: RiskLevel;
-    moodEmoji: string;
     lastLog: string;
 }
 
@@ -118,7 +117,7 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
             <View style={{ width: 4, backgroundColor: style.border, alignSelf: 'stretch' }} />
 
             {/* Avatar */}
-            <View style={{ padding: 12, borderWidth: 2 }}>
+            <View style={{ padding: 12 }}>
                 <LetterAvatar name={student.full_name ?? 'Student'} size={56} avatarUrl={student.avatar_url} />
             </View>
 
@@ -150,9 +149,9 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
             </View>
 
             {/* Mood emoji */}
-            <Text style={{ fontSize: 22, marginRight: 14 }}>
+            {/* <Text style={{ fontSize: 22, marginRight: 14 }}>
                 {student.moodEmoji}
-            </Text>
+            </Text> */}
         </TouchableOpacity>
     );
 }
@@ -385,7 +384,6 @@ const MOCK_STUDENTS: StudentEntry[] = [
         program: 'BS CS (Computer Science)',
         year_level: '4th',
         riskLevel: 'HIGH RISK',
-        moodEmoji: '😢',
         lastLog: '2h ago',
     },
     {
@@ -395,7 +393,6 @@ const MOCK_STUDENTS: StudentEntry[] = [
         program: 'BS IS (Information Systems)',
         year_level: '2nd',
         riskLevel: 'MEDIUM RISK',
-        moodEmoji: '😐',
         lastLog: '5h ago',
     },
     {
@@ -405,7 +402,6 @@ const MOCK_STUDENTS: StudentEntry[] = [
         program: 'BS IT (Information Technology)',
         year_level: '3rd',
         riskLevel: 'LOW RISK',
-        moodEmoji: '😊',
         lastLog: '1d ago',
     },
     {
@@ -415,7 +411,6 @@ const MOCK_STUDENTS: StudentEntry[] = [
         program: 'BS CS (Computer Science)',
         year_level: '1st',
         riskLevel: 'LOW RISK',
-        moodEmoji: '😄',
         lastLog: '3h ago',
     },
     {
@@ -425,7 +420,6 @@ const MOCK_STUDENTS: StudentEntry[] = [
         program: 'BS CA (Computer Application)',
         year_level: '4th',
         riskLevel: 'MEDIUM RISK',
-        moodEmoji: '😟',
         lastLog: '12h ago',
     },
 ];

@@ -8,4 +8,4 @@ export const STUDENT_TAB_BAR_HEIGHT = 72;
 export const STUDENT_TAB_BAR_CONTENT_GAP = 12;
 
 export const STUDENT_TAB_BAR_BOTTOM_CLEARANCE =
-    85;
+    80;
