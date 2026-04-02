@@ -3,7 +3,7 @@
  * Preferred time + note, sends to counselor in the conversation
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Modal,
     View,
@@ -27,6 +27,8 @@ interface StudentSessionRequestModalProps {
     visible: boolean;
     onClose: () => void;
     onSend: (data: SessionRequestFormData) => void;
+    initialPreferredDate?: Date | null;
+    initialNote?: string;
 }
 
 function formatDateTime(date: Date): string {
@@ -44,17 +46,29 @@ export default function StudentSessionRequestModal({
     visible,
     onClose,
     onSend,
+    initialPreferredDate,
+    initialNote,
 }: StudentSessionRequestModalProps) {
-    const [preferredDate, setPreferredDate] = useState<Date>(() => {
+    const getDefaultPreferredDate = () => {
         const d = new Date();
         d.setMinutes(0);
         d.setSeconds(0);
         return d;
-    });
-    const [note, setNote] = useState(
-        "I've been feeling a bit overwhelmed with midterms lately and would love to chat about some stress management strategies.",
-    );
+    };
+
+    const DEFAULT_NOTE =
+        "I've been feeling a bit overwhelmed with midterms lately and would love to chat about some stress management strategies.";
+
+    const [preferredDate, setPreferredDate] = useState<Date>(() => getDefaultPreferredDate());
+    const [note, setNote] = useState<string>(initialNote ?? DEFAULT_NOTE);
     const [showPicker, setShowPicker] = useState(false);
+
+    useEffect(() => {
+        if (!visible) return;
+        setPreferredDate(initialPreferredDate ?? getDefaultPreferredDate());
+        setNote(initialNote ?? DEFAULT_NOTE);
+        setShowPicker(false);
+    }, [visible, initialPreferredDate, initialNote]);
 
     const handleDateChange = (_: any, selectedDate?: Date) => {
         if (Platform.OS === 'android') setShowPicker(false);

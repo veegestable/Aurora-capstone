@@ -723,6 +723,108 @@ export const firestoreService = {
     }
   },
 
+  /**
+   * Updates an existing `session_invite` message card (no new message doc).
+   * Used to prevent chat/session-card flooding when editing/rescheduling.
+   */
+  async updateSessionInviteMessage(
+    conversationId: string,
+    messageId: string,
+    senderId: string,
+    session: Record<string, any>
+  ) {
+    try {
+      const linkedSessionId =
+        session?.id != null
+          ? String(session.id).trim()
+          : session?.sessionId != null
+            ? String(session.sessionId).trim()
+            : '';
+
+      const sessionData =
+        linkedSessionId ? { ...session, id: linkedSessionId, sessionId: linkedSessionId } : session;
+
+      await updateDoc(doc(db, 'conversations', conversationId, 'messages', messageId), {
+        sessionId: messageId, // match sendSessionMessage behavior
+        linkedSessionId: linkedSessionId || null,
+        sessionData,
+        content: `Session: ${session.title ?? 'Appointment'}`,
+      });
+
+      // Update conversation preview/time, but do NOT bump unread counters.
+      const convRef = doc(db, 'conversations', conversationId);
+      const convSnap = await getDoc(convRef);
+      const conv = convSnap.data();
+      const isCounselor = conv?.counselorId === senderId;
+      void isCounselor;
+
+      await updateDoc(convRef, {
+        lastMessage: `Session: ${session.title ?? 'Appointment'}`,
+        lastMessageAt: Timestamp.now(),
+        lastSenderId: senderId,
+      });
+
+      return messageId;
+    } catch (error: any) {
+      console.error('❌ Error updating session invite message:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Replace the existing session_invite card for `sessions/{sessionId}` with the new schedule.
+   * - keeps the newest matching card
+   * - deletes older duplicates
+   * - if no card exists yet, falls back to `sendSessionMessage` (creates first card)
+   */
+  async updateSessionInviteMessageScheduleForSession(
+    conversationId: string,
+    senderId: string,
+    sessionId: string,
+    session: Record<string, any>
+  ) {
+    try {
+      const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+      const snapshot = await getDocs(query(messagesRef, where('linkedSessionId', '==', sessionId)));
+
+      const sessionInviteDocs = snapshot.docs.filter((d) => {
+        const data = d.data() as any;
+        return data.type === 'session_invite' && data.senderId === senderId;
+      });
+
+      if (sessionInviteDocs.length === 0) {
+        return await this.sendSessionMessage(conversationId, senderId, session);
+      }
+
+      const toMs = (v: any): number => {
+        if (!v) return 0;
+        if (typeof v?.toMillis === 'function') return v.toMillis();
+        if (typeof v?.seconds === 'number') return v.seconds * 1000;
+        if (typeof v === 'number') return v;
+        return 0;
+      };
+
+      const keepDoc = sessionInviteDocs
+        .slice()
+        .sort((a, b) => toMs((b.data() as any).createdAt) - toMs((a.data() as any).createdAt))[0];
+
+      const keepMessageId = keepDoc.id;
+
+      // Remove duplicates so the conversation doesn't get flooded.
+      await Promise.all(
+        sessionInviteDocs
+          .filter((d) => d.id !== keepMessageId)
+          .map((d) => deleteDoc(doc(db, 'conversations', conversationId, 'messages', d.id)))
+      );
+
+      await this.updateSessionInviteMessage(conversationId, keepMessageId, senderId, session);
+      return keepMessageId;
+    } catch (error: any) {
+      console.error('❌ Error updating session invite message schedule:', error);
+      throw error;
+    }
+  },
+
   async sendSessionRequest(
     conversationId: string,
     studentId: string,
@@ -1033,6 +1135,60 @@ export const firestoreService = {
       await Promise.all(updates);
     } catch (error: any) {
       console.error('❌ Error updating session request message status:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Updates an existing student session request message (edit/reschedule) in-place
+   * so it replaces the old card instead of creating a new one.
+   */
+  async updateSessionRequestSchedule(
+    conversationId: string,
+    senderId: string,
+    messageId: string,
+    sessionId: string,
+    preferredTime: string,
+    note: string
+  ) {
+    try {
+      const trimmedNote = (note ?? '').trim();
+      const content = preferredTime ? `Session request: ${preferredTime}` : 'Session request';
+
+      // Update the canonical session doc.
+      await updateDoc(doc(db, 'sessions', sessionId), {
+        preferredTimeFromStudent: preferredTime,
+        studentRequestNote: trimmedNote,
+        status: 'requested',
+        updatedAt: Timestamp.now(),
+      });
+
+      // Update the existing chat message card.
+      const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+      const msgSnap = await getDoc(msgRef);
+      const existing = msgSnap.data();
+      const existingSessionData = (existing?.sessionData ?? {}) as Record<string, any>;
+
+      await updateDoc(msgRef, {
+        content,
+        sessionData: {
+          ...existingSessionData,
+          sessionId,
+          preferredTime: preferredTime || undefined,
+          note: trimmedNote,
+          status: 'requested',
+        },
+      });
+
+      // Update conversation preview/last message without changing unread counters.
+      const convRef = doc(db, 'conversations', conversationId);
+      await updateDoc(convRef, {
+        lastMessage: content,
+        lastMessageAt: Timestamp.now(),
+        lastSenderId: senderId,
+      });
+    } catch (error: any) {
+      console.error('❌ Error updating session request schedule:', error);
       throw error;
     }
   },

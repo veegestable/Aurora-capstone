@@ -10,9 +10,11 @@ import { AURORA } from '../../constants/aurora-colors';
 
 export interface SessionRequestData {
     id: string;
+    /** sessions/{sessionId} doc id (used for editing/replacing message cards) */
+    sessionId?: string;
     preferredTime: string;
     note: string;
-    status: 'pending' | 'approved' | 'declined';
+    status: string;
 }
 
 interface SessionRequestCardProps {

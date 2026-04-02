@@ -321,10 +321,23 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                 note: data.note,
                 timeSlots: slots,
             };
-            const msgId = await firestoreService.sendSessionMessage(conversationId, user.id, sessionData);
-            setMessages(prev => [
-                ...prev,
-                { id: msgId, senderId: 'me' as const, type: 'session' as const, session: sessionData, time: 'Just now' },
+            const keepMsgId = await firestoreService.updateSessionInviteMessageScheduleForSession(
+                conversationId,
+                user.id,
+                sessionId,
+                sessionData
+            );
+            // Replace the existing session card in local UI to avoid duplicates until next refresh.
+            setMessages((prev) => [
+                ...prev.filter(
+                    (m) =>
+                        !(
+                            m.type === 'session' &&
+                            m.senderId === 'me' &&
+                            (m.session?.id === sessionId || (m.session as any)?.linkedSessionId === sessionId)
+                        )
+                ),
+                { id: keepMsgId, senderId: 'me' as const, type: 'session' as const, session: sessionData, time: 'Just now' },
             ]);
             setShowInviteModalForSessionRequest(null);
         } catch (e) {

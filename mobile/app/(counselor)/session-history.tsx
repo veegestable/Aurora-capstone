@@ -307,7 +307,7 @@ export default function SessionHistoryScreen() {
             const conversationId = `${user.id}_${selectedSession.studentId}`;
             const headline = timeSlots[0];
 
-            await firestoreService.sendSessionMessage(conversationId, user.id, {
+            await firestoreService.updateSessionInviteMessageScheduleForSession(conversationId, user.id, selectedSession.id, {
                 id: selectedSession.id,
                 type: 'invite',
                 title: 'Academic Guidance',

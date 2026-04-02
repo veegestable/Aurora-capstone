@@ -22,6 +22,7 @@ import SessionRequestCard, { type SessionRequestData } from '../../components/st
 import SessionRequestDetailsModal from '../../components/student/SessionRequestDetailsModal';
 import StudentSessionRequestModal, { type SessionRequestFormData } from '../../components/student/StudentSessionRequestModal';
 import SelectCounselorModal, { type Counselor } from '../../components/student/SelectCounselorModal';
+import { parsePreferredTimeToDate } from '../../utils/dateHelpers';
 
 type TabType = 'Counselors' | 'Peer Support' | 'Archive';
 
@@ -153,6 +154,7 @@ function DirectMessageView({
     const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedSessionRequest, setSelectedSessionRequest] = useState<SessionRequestData | null>(null);
+    const [editingSessionRequest, setEditingSessionRequest] = useState<SessionRequestData | null>(null);
     const scrollViewRef = useRef<ScrollView>(null);
 
     useEffect(() => {
@@ -255,12 +257,6 @@ function DirectMessageView({
         if (!user?.id || !contact.conversationId || sending) return;
         setSending(true);
         try {
-            const msgId = await firestoreService.sendSessionRequest(
-                contact.conversationId,
-                user.id,
-                data.preferredDate,
-                data.note,
-            );
             const preferredTimeStr = data.preferredDate.toLocaleDateString('en-US', {
                 month: 'long',
                 day: 'numeric',
@@ -269,6 +265,47 @@ function DirectMessageView({
                 minute: '2-digit',
                 hour12: true,
             });
+
+            // Edit flow: update the existing session request message card instead of creating a new one.
+            if (editingSessionRequest?.id && editingSessionRequest.sessionId) {
+                await firestoreService.updateSessionRequestSchedule(
+                    contact.conversationId,
+                    user.id,
+                    editingSessionRequest.id,
+                    editingSessionRequest.sessionId,
+                    preferredTimeStr,
+                    data.note
+                );
+
+                setMessages((prev) =>
+                    prev.map((m) => {
+                        if (m.type !== 'session_request') return m;
+                        if (m.sessionRequest.id !== editingSessionRequest.id) return m;
+                        return {
+                            ...m,
+                            sessionRequest: {
+                                ...m.sessionRequest,
+                                preferredTime: preferredTimeStr,
+                                note: data.note,
+                            },
+                        };
+                    })
+                );
+
+                setShowSessionRequestModal(false);
+                setEditingSessionRequest(null);
+                setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+                return;
+            }
+
+            // New request flow: create a new session request card.
+            const msgId = await firestoreService.sendSessionRequest(
+                contact.conversationId,
+                user.id,
+                data.preferredDate,
+                data.note
+            );
+
             setMessages((prev) => [
                 ...prev,
                 {
@@ -284,6 +321,7 @@ function DirectMessageView({
                     time: 'Just now',
                 },
             ]);
+
             setShowSessionRequestModal(false);
             setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (e) {
@@ -454,7 +492,10 @@ function DirectMessageView({
                                                             setSelectedSessionRequest(msg.sessionRequest);
                                                             setShowDetailsModal(true);
                                                         }}
-                                                        onEdit={() => setShowSessionRequestModal(true)}
+                                                        onEdit={() => {
+                                                            setEditingSessionRequest(msg.sessionRequest);
+                                                            setShowSessionRequestModal(true);
+                                                        }}
                                                     />
                                                     <Text
                                                         style={{
@@ -559,7 +600,10 @@ function DirectMessageView({
                         }}
                     >
                         <TouchableOpacity
-                            onPress={() => setShowSessionRequestModal(true)}
+                            onPress={() => {
+                                setEditingSessionRequest(null);
+                                setShowSessionRequestModal(true);
+                            }}
                             style={{
                                 width: 40,
                                 height: 40,
@@ -621,7 +665,12 @@ function DirectMessageView({
 
         <StudentSessionRequestModal
             visible={showSessionRequestModal}
-            onClose={() => setShowSessionRequestModal(false)}
+            initialPreferredDate={editingSessionRequest?.preferredTime ? parsePreferredTimeToDate(editingSessionRequest.preferredTime) : null}
+            initialNote={editingSessionRequest?.note ?? undefined}
+            onClose={() => {
+                setShowSessionRequestModal(false);
+                setEditingSessionRequest(null);
+            }}
             onSend={handleSendSessionRequest}
         />
         <SessionRequestDetailsModal
