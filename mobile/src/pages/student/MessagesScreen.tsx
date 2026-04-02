@@ -181,6 +181,15 @@ function DirectMessageView({
         };
     }, [contact.conversationId, user?.id]);
 
+    // Always scroll to the latest message when opening a conversation.
+    useEffect(() => {
+        if (loadingMessages) return;
+        if (messages.length === 0) return;
+        setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+    }, [loadingMessages, messages.length]);
+
     const sendMessage = async () => {
         const text = message.trim();
         if (!text || !user?.id || !contact.conversationId || sending) return;

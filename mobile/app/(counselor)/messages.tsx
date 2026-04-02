@@ -6,7 +6,7 @@
  * Supports appointment scheduling: counselor can invite students to sessions.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, Image,
     TextInput, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -167,6 +167,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
     const [showInviteModalForSessionRequest, setShowInviteModalForSessionRequest] = useState<string | null>(null);
     const [showAttendanceModal, setShowAttendanceModal] = useState(false);
     const [selectedSessionForAttendance, setSelectedSessionForAttendance] = useState<SessionCardData | null>(null);
+    const scrollViewRef = useRef<ScrollView>(null);
 
     useEffect(() => {
         if (!conversationId || !user?.id) {
@@ -185,6 +186,16 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
         });
         return () => { cancelled = true; };
     }, [conversationId, user?.id]);
+
+    // Always scroll to the latest message when opening a conversation.
+    useEffect(() => {
+        if (!scrollViewRef.current) return;
+        if (loadingMessages) return;
+        if (messages.length === 0) return;
+        setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+    }, [loadingMessages, messages.length, conversationId]);
 
     const sendMessage = async () => {
         const text = message.trim();
@@ -473,6 +484,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
 
                 {/* Messages */}
                 <ScrollView
+                    ref={scrollViewRef}
                     style={{ flex: 1 }}
                     contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 16 }}
                     showsVerticalScrollIndicator={false}
