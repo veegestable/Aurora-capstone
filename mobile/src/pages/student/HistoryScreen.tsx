@@ -1,11 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Settings2, BarChart3, BookMarked } from 'lucide-react-native';
+import * as Animatable from 'react-native-animatable';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useAuth } from '../../stores/AuthContext';
 import { moodService } from '../../services/mood.service';
-import { AURORA, AURORA_MOOD_COLORS } from '../../constants/aurora-colors';
+import { AURORA } from '../../constants/aurora-colors';
 import Analytics from '../../components/Analytics';
+import {
+    MOOD_COLORS,
+    MOOD_EMOJIS,
+    blendMoodColors,
+    generateExplanation,
+    type MoodLog,
+} from '../../utils/blendMoods';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MoodEntry {
@@ -14,115 +23,341 @@ interface MoodEntry {
     energy_level: number;
     stress_level: number;
     notes: string;
-    log_date: Date;
-    created_at?: Date;
+    log_date: Date | string;
+    created_at?: Date | string;
 }
 
 interface CalendarDay {
     date: Date;
-    moods: MoodEntry[];
+    logs: MoodLog[];
     isCurrentMonth: boolean;
     isToday: boolean;
-    blendedColor?: string;
 }
 
-const DAY_DETAIL_ICONS: Record<string, string> = {
-    joy: '😊', happy: '😊', sadness: '😢', sad: '😢',
-    anger: '😠', angry: '😠', surprise: '😲', neutral: '😐',
-    stressed: '😰', anxious: '😟', overwhelmed: '😩',
-    relieved: '😌', productive: '🚀',
-};
+function mapEmotionToMoodLog(emotionName: string): MoodLog['mood'] {
+    const normalized = emotionName?.toLowerCase().trim();
 
-const EMOTION_BG: Record<string, string> = {
-    joy: '#1A2D10', happy: '#1A2D10',
-    sadness: '#0E1F4A', sad: '#0E1F4A',
-    anger: '#3A0E1A', angry: '#3A0E1A',
-    surprise: '#2D1A00', neutral: '#1A1D2E',
-    stressed: '#2D1000', overwhelmed: '#3A0E0E',
-    relieved: '#0E2D1A', productive: '#0E2D2D',
-};
+    if (normalized === 'happy' || normalized === 'joy' || normalized === 'happiness') return 'Happy';
+    if (normalized === 'sad' || normalized === 'sadness') return 'Sad';
+    if (normalized === 'angry' || normalized === 'anger') return 'Angry';
+    if (normalized === 'surprise' || normalized === 'surprised') return 'Surprise';
+    if (normalized === 'neutral') return 'Neutral';
 
-const EMOTION_COLOR: Record<string, string> = {
-    joy: '#4ADE80', happy: '#4ADE80',
-    sadness: '#60A5FA', sad: '#60A5FA',
-    anger: '#F87171', angry: '#F87171',
-    surprise: '#FB923C', neutral: '#94A3B8',
-    stressed: '#F97316', overwhelmed: '#EF4444',
-    relieved: '#34D399', productive: '#06B6D4',
-};
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function getBlendedColor(moods: MoodEntry[]): string | undefined {
-    if (!moods?.length) return undefined;
-    let rT = 0, gT = 0, bT = 0, wT = 0;
-    moods.forEach(mood => {
-        mood.emotions.forEach(e => {
-            const hex = (e.color || '#94A3B8').replace('#', '');
-            rT += parseInt(hex.substring(0, 2), 16) * (e.confidence || 1);
-            gT += parseInt(hex.substring(2, 4), 16) * (e.confidence || 1);
-            bT += parseInt(hex.substring(4, 6), 16) * (e.confidence || 1);
-            wT += (e.confidence || 1);
-        });
-    });
-    if (!wT) return undefined;
-    return `rgb(${Math.round(rT / wT)},${Math.round(gT / wT)},${Math.round(bT / wT)})`;
+    // Keep the blend system strictly non-judgmental and limited to 5 moods.
+    // Any other taxonomy coming from the backend is treated as Neutral.
+    return 'Neutral';
 }
 
-function formatTime(date: Date) {
-    if (!date) return '';
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+function confidenceToIntensity(confidence: number): number {
+    // In our flow, confidence is stored as 0–1. Convert to 1–5.
+    const raw = typeof confidence === 'number' ? confidence : 0;
+    return Math.max(1, Math.min(5, Math.round(raw * 5)));
 }
 
-function getIntensityDots(confidence: number, color: string) {
-    const filled = Math.round(confidence * 5);
-    return Array.from({ length: 5 }, (_, i) => (
-        <View key={i} style={{
-            width: 10, height: 10, borderRadius: 5,
-            backgroundColor: i < filled ? color : 'rgba(255,255,255,0.15)',
-            marginHorizontal: 1,
-        }} />
-    ));
+function toMoodLogs(dayEntries: MoodEntry[]): MoodLog[] {
+    const logs: MoodLog[] = [];
+
+    for (const entry of dayEntries) {
+        const emotions = Array.isArray(entry.emotions) ? entry.emotions : [];
+        for (const e of emotions) {
+            logs.push({
+                mood: mapEmotionToMoodLog(e.emotion),
+                intensity: confidenceToIntensity(e.confidence),
+            });
+        }
+    }
+
+    return logs;
 }
 
-// ─── Day Entry Row ────────────────────────────────────────────────────────────
-function DayEntryRow({ entry }: { entry: MoodEntry }) {
-    const primaryEmotion = entry.emotions?.[0]?.emotion?.toLowerCase() || 'neutral';
-    const emotionLabel = primaryEmotion.charAt(0).toUpperCase() + primaryEmotion.slice(1);
-    const iconBg = EMOTION_BG[primaryEmotion] || '#1A1D2E';
-    const iconColor = EMOTION_COLOR[primaryEmotion] || '#94A3B8';
-    const moodColor = AURORA_MOOD_COLORS[primaryEmotion] || '#94A3B8';
-    const confidence = entry.emotions?.[0]?.confidence || 0.5;
-    const contextLabel = entry.notes ? entry.notes.split(' ').slice(0, 4).join(' ') : 'No context';
+function CalendarDayCell({
+    dayNumber,
+    logs,
+    isSelected,
+    onPress,
+}: {
+    dayNumber: number;
+    logs: MoodLog[];
+    isSelected: boolean;
+    onPress: () => void;
+}) {
+    const hasLog = logs && logs.length > 0;
+    const blended = blendMoodColors(logs);
+
+    // Animate cell appearance on mount
+    const scale = useSharedValue(0.8);
+    const opacity = useSharedValue(0);
+
+    useEffect(() => {
+        scale.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.back(1.5)) });
+        opacity.value = withTiming(1, { duration: 300 });
+    }, []);
+
+    const animStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+        opacity: opacity.value,
+    }));
 
     return (
-        <View style={{
-            backgroundColor: AURORA.card, borderRadius: 16,
-            padding: 14, flexDirection: 'row', alignItems: 'center',
-            marginBottom: 10, borderWidth: 1, borderColor: AURORA.border,
-        }}>
-            <View style={{
-                width: 44, height: 44, borderRadius: 12,
-                backgroundColor: iconBg, alignItems: 'center', justifyContent: 'center', marginRight: 12,
-            }}>
-                <Text style={{ fontSize: 22 }}>{DAY_DETAIL_ICONS[primaryEmotion] || '😶'}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>{emotionLabel}</Text>
-                <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
-                    {formatTime(entry.log_date)} • {contextLabel}
+        <Animated.View style={animStyle}>
+            <TouchableOpacity
+                onPress={onPress}
+                style={[
+                    styles.dayCell,
+                    hasLog && {
+                        backgroundColor: blended,
+                        shadowColor: blended,
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowOpacity: 0.75,
+                        shadowRadius: 8,
+                        elevation: 8,
+                    },
+                    isSelected && styles.selectedRing,
+                ]}
+            >
+                <Text
+                    style={[
+                        styles.dayText,
+                        hasLog && { color: '#ffffff', fontWeight: '700' },
+                        !hasLog && { color: '#64748b' },
+                    ]}
+                >
+                    {dayNumber}
                 </Text>
+            </TouchableOpacity>
+        </Animated.View>
+    );
+}
+
+function CalendarLegend() {
+    return (
+        <View style={styles.legendWrapper}>
+            <Text style={styles.legendTitle}>Mood colors</Text>
+            <View style={styles.legendRow}>
+                {Object.entries(MOOD_COLORS).map(([mood, color]) => (
+                    <View key={mood} style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: color }]} />
+                        <Text style={styles.legendLabel}>{mood}</Text>
+                    </View>
+                ))}
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>
-                    INTENSITY
-                </Text>
-                <View style={{ flexDirection: 'row' }}>
-                    {getIntensityDots(confidence, iconColor)}
-                </View>
-            </View>
+            <Text style={styles.legendNote}>
+                Mixed days show a blended color based on how strongly each mood was felt.
+            </Text>
         </View>
     );
 }
+
+function DayDetailsCard({ date, logs }: { date: string; logs: MoodLog[] }) {
+    const blended = blendMoodColors(logs);
+    const explanation = generateExplanation(logs);
+    const hasLog = logs && logs.length > 0;
+
+    return (
+        <Animatable.View animation="fadeInUp" duration={400} style={styles.card}>
+            {/* Blended color strip at top */}
+            {hasLog && (
+                <View
+                    style={{
+                        height: 6,
+                        borderRadius: 6,
+                        backgroundColor: blended,
+                        marginBottom: 14,
+                        shadowColor: blended,
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 8,
+                    }}
+                />
+            )}
+
+            {/* Date header */}
+            <Text style={styles.dateLabel}>{date}</Text>
+
+            {hasLog ? (
+                <>
+                    {/* Mood chips */}
+                    <View style={styles.chipsRow}>
+                        {logs.map((log, index) => (
+                            <View
+                                key={index}
+                                style={[
+                                    styles.chip,
+                                    { backgroundColor: MOOD_COLORS[log.mood] + '25' },
+                                ]}
+                            >
+                                {/* Mood emoji + name */}
+                                <Text style={styles.chipEmoji}>{MOOD_EMOJIS[log.mood]}</Text>
+                                <Text style={[styles.chipLabel, { color: MOOD_COLORS[log.mood] }]}>
+                                    {log.mood}
+                                </Text>
+
+                                {/* Intensity dots */}
+                                <View style={styles.intensityRow}>
+                                    {[1, 2, 3, 4, 5].map((dot) => (
+                                        <View
+                                            key={dot}
+                                            style={[
+                                                styles.intensityDot,
+                                                {
+                                                    backgroundColor:
+                                                        dot <= log.intensity ? MOOD_COLORS[log.mood] : '#ffffff15',
+                                                },
+                                            ]}
+                                        />
+                                    ))}
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+
+                    {/* Explanation box */}
+                    <View style={styles.explanationBox}>
+                        <Text style={styles.explanationText}>{explanation}</Text>
+                    </View>
+                </>
+            ) : (
+                <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>No mood logged on this day.</Text>
+                    <Text style={styles.emptySubText}>Tap the + button to log how you felt.</Text>
+                </View>
+            )}
+        </Animatable.View>
+    );
+}
+
+const styles = StyleSheet.create({
+    // Calendar
+    dayCell: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'transparent',
+    },
+    selectedRing: {
+        borderWidth: 2,
+        borderColor: '#ffffff',
+    },
+    dayText: {
+        fontSize: 14,
+        fontWeight: '500',
+    },
+
+    // Legend
+    legendWrapper: {
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        marginTop: 8,
+    },
+    legendTitle: {
+        color: '#94a3b8',
+        fontSize: 12,
+        fontWeight: '600',
+        marginBottom: 8,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    legendRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 8,
+    },
+    legendItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    legendDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+    },
+    legendLabel: {
+        color: '#cbd5e1',
+        fontSize: 12,
+    },
+    legendNote: {
+        color: '#475569',
+        fontSize: 11,
+        fontStyle: 'italic',
+        marginTop: 4,
+    },
+
+    // Day details card
+    card: {
+        backgroundColor: '#0f1f3d',
+        borderRadius: 16,
+        padding: 16,
+        marginTop: 12,
+    },
+    dateLabel: {
+        color: '#3b82f6',
+        fontSize: 13,
+        fontWeight: '600',
+        marginBottom: 12,
+    },
+    chipsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 14,
+    },
+    chip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: 20,
+    },
+    chipEmoji: {
+        fontSize: 14,
+    },
+    chipLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    intensityRow: {
+        flexDirection: 'row',
+        gap: 3,
+        marginLeft: 4,
+    },
+    intensityDot: {
+        width: 5,
+        height: 5,
+        borderRadius: 3,
+    },
+    explanationBox: {
+        backgroundColor: '#ffffff08',
+        borderRadius: 10,
+        padding: 12,
+        borderLeftWidth: 3,
+        borderLeftColor: '#ffffff20',
+    },
+    explanationText: {
+        color: '#cbd5e1',
+        fontSize: 13,
+        lineHeight: 20,
+    },
+    emptyState: {
+        alignItems: 'center',
+        paddingVertical: 20,
+    },
+    emptyText: {
+        color: '#64748b',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    emptySubText: {
+        color: '#475569',
+        fontSize: 12,
+        marginTop: 4,
+    },
+});
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 type JournalTab = 'calendar' | 'insights';
@@ -167,10 +402,10 @@ export default function HistoryScreen() {
                     .toISOString().split('T')[0] === ds;
             });
             days.push({
-                date, moods: dayMoods,
-                isCurrentMonth: date.getMonth() === month,
-                isToday: date.toDateString() === today.toDateString(),
-                blendedColor: getBlendedColor(dayMoods),
+                    date,
+                    logs: toMoodLogs(dayMoods),
+                    isCurrentMonth: date.getMonth() === month,
+                    isToday: date.toDateString() === today.toDateString(),
             });
         }
         return days;
@@ -311,65 +546,39 @@ export default function HistoryScreen() {
                             {calendarDays.map((day, idx) => {
                                 const isSelected = selectedDay?.date.toDateString() === day.date.toDateString();
                                 return (
-                                    <TouchableOpacity
+                                    <View
                                         key={idx}
-                                        onPress={() => setSelectedDay(day)}
                                         style={{
                                             width: '14.28%', aspectRatio: 1,
                                             alignItems: 'center', justifyContent: 'center',
                                             paddingVertical: 2,
+                                            opacity: day.isCurrentMonth ? 1 : 0.25,
                                         }}
                                     >
-                                        <View style={{
-                                            width: 36, height: 36,
-                                            borderRadius: 10,
-                                            backgroundColor: day.blendedColor
-                                                ? day.blendedColor
-                                                : day.isToday
-                                                    ? 'rgba(45,107,255,0.2)'
-                                                    : 'transparent',
-                                            alignItems: 'center', justifyContent: 'center',
-                                            opacity: day.isCurrentMonth ? 1 : 0.25,
-                                            borderWidth: isSelected ? 2 : 0,
-                                            borderColor: '#FFFFFF',
-                                        }}>
-                                            <Text style={{
-                                                color: day.blendedColor ? '#FFFFFF' : day.isToday ? AURORA.blue : AURORA.textSec,
-                                                fontSize: 13,
-                                                fontWeight: day.blendedColor || day.isToday ? '700' : '400',
-                                            }}>
-                                                {day.date.getDate()}
-                                            </Text>
-                                        </View>
-                                    </TouchableOpacity>
+                                        <CalendarDayCell
+                                            dayNumber={day.date.getDate()}
+                                            logs={day.logs}
+                                            isSelected={isSelected}
+                                            onPress={() => setSelectedDay(day)}
+                                        />
+                                    </View>
                                 );
                             })}
                         </View>
+
+                        <CalendarLegend />
                     </View>
 
                     {/* ── Day Details ───────────────────────────────────────── */}
                     {selectedDay && (
-                        <View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800' }}>Day Details</Text>
-                                <Text style={{ color: AURORA.blue, fontSize: 14, fontWeight: '600' }}>
-                                    {selectedDay.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                </Text>
-                            </View>
-                            {selectedDay.moods.length > 0 ? (
-                                selectedDay.moods.map((entry, i) => (
-                                    <DayEntryRow key={i} entry={entry} />
-                                ))
-                            ) : (
-                                <View style={{
-                                    backgroundColor: AURORA.card, borderRadius: 16,
-                                    padding: 24, alignItems: 'center',
-                                    borderWidth: 1, borderColor: AURORA.border,
-                                }}>
-                                    <Text style={{ color: AURORA.textSec, fontSize: 14 }}>No entries for this day.</Text>
-                                </View>
-                            )}
-                        </View>
+                        <DayDetailsCard
+                            date={selectedDay.date.toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                            })}
+                            logs={selectedDay.logs}
+                        />
                     )}
 
                     {!selectedDay && (
