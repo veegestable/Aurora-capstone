@@ -724,6 +724,19 @@ export const firestoreService = {
   },
 
   /**
+   * Deletes a single conversation message card (chat-only).
+   * This should NOT delete/modify the canonical `sessions` docs.
+   */
+  async deleteConversationMessage(conversationId: string, messageId: string) {
+    try {
+      await deleteDoc(doc(db, 'conversations', conversationId, 'messages', messageId));
+    } catch (error: any) {
+      console.error('❌ Error deleting conversation message:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Updates an existing `session_invite` message card (no new message doc).
    * Used to prevent chat/session-card flooding when editing/rescheduling.
    */

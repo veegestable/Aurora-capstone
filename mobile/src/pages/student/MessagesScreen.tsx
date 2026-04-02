@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     TextInput, Image, KeyboardAvoidingView, Platform,
-    ActivityIndicator, Alert,
+    ActivityIndicator, Alert, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Settings2, Info, Plus, Send, PenSquare, Phone } from 'lucide-react-native';
@@ -23,6 +23,8 @@ import SessionRequestDetailsModal from '../../components/student/SessionRequestD
 import StudentSessionRequestModal, { type SessionRequestFormData } from '../../components/student/StudentSessionRequestModal';
 import SelectCounselorModal, { type Counselor } from '../../components/student/SelectCounselorModal';
 import { parsePreferredTimeToDate } from '../../utils/dateHelpers';
+import { auditLogsService } from '../../services/audit-logs.service';
+import * as Clipboard from 'expo-clipboard';
 
 type TabType = 'Counselors' | 'Peer Support' | 'Archive';
 
@@ -200,6 +202,55 @@ function DirectMessageView({
         } finally {
             setSending(false);
         }
+    };
+
+    const handleCopyText = async (text: string) => {
+        try {
+            await Clipboard.setStringAsync(text);
+            Alert.alert('Copied', 'Message copied to clipboard.');
+        } catch (e) {
+            console.error('Failed to copy text:', e);
+        }
+    };
+
+    const confirmDeleteMessage = (messageId: string, messageType: string) => {
+        if (!user?.id) return;
+        Alert.alert('Delete message', 'Are you sure you want to delete this message?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                    await firestoreService.deleteConversationMessage(contact.conversationId, messageId);
+                    await auditLogsService.write({
+                        performedBy: user.id,
+                        performedByRole: user.role,
+                        action: 'delete_chat_message',
+                        targetType: 'conversation_message',
+                        targetId: messageId,
+                        metadata: { conversationId: contact.conversationId, messageType },
+                    });
+                    setMessages((prev) => {
+                        const original = prev.find((m) => m.id === messageId);
+                        const senderId = original?.senderId ?? 'me';
+                        const time = (original as any)?.time ?? 'Just now';
+
+                        const placeholderText =
+                            messageType === 'session'
+                                ? '[Deleted session]'
+                                : messageType === 'session_request'
+                                    ? '[Deleted session request]'
+                                    : '[Deleted message]';
+
+                        return prev.map((m) =>
+                            m.id !== messageId
+                                ? m
+                                : ({ id: messageId, senderId, type: 'text', text: placeholderText, time } as any)
+                        );
+                    });
+                },
+            },
+        ]);
     };
 
     const handleConfirmSession = async (slot: TimeSlot, invite: ScheduleInviteData) => {
@@ -456,100 +507,147 @@ function DirectMessageView({
                                     : '';
                             const senderName = isMe ? 'You' : contact.name;
                             const messageContent = msg.type === 'text' ? (
-                                                <View
-                                                    style={{
-                                                        minWidth: 80,
-                                                        maxWidth: 280,
-                                                        alignSelf: isMe ? 'flex-end' : 'flex-start',
-                                                        backgroundColor: isMe ? AURORA.blue : AURORA.card,
-                                                        borderRadius: 18,
-                                                        borderBottomLeftRadius: isMe ? 18 : 4,
-                                                        borderBottomRightRadius: isMe ? 4 : 18,
-                                                        paddingHorizontal: 16,
-                                                        paddingVertical: 12,
+                                                <Pressable
+                                                    onLongPress={() => {
+                                                        const canCopy = !displayText.startsWith('[Deleted');
+                                                        const buttons: { text: string; style?: 'destructive' | 'cancel'; onPress?: () => void }[] = [];
+                                                        if (canCopy) {
+                                                            buttons.push({
+                                                                text: 'Copy',
+                                                                onPress: () => handleCopyText(displayText),
+                                                            });
+                                                        }
+                                                        if (isMe) {
+                                                            buttons.push({
+                                                                text: 'Delete',
+                                                                style: 'destructive',
+                                                                onPress: () => confirmDeleteMessage(msg.id, 'text'),
+                                                            });
+                                                        }
+                                                        buttons.push({ text: 'Cancel', style: 'cancel' });
+                                                        Alert.alert('Message options', undefined, buttons as any);
                                                     }}
                                                 >
-                                                    <Text style={{ color: isAutoAccepted ? AURORA.green : '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
-                                                        {displayText}
-                                                    </Text>
-                                                    <Text
+                                                    <View
                                                         style={{
-                                                            color: 'rgba(255,255,255,0.7)',
-                                                            fontSize: 11,
-                                                            marginTop: 4,
-                                                            textAlign: 'right',
+                                                            minWidth: 80,
+                                                            maxWidth: 280,
+                                                            alignSelf: isMe ? 'flex-end' : 'flex-start',
+                                                            backgroundColor: isMe ? AURORA.blue : AURORA.card,
+                                                            borderRadius: 18,
+                                                            borderBottomLeftRadius: isMe ? 18 : 4,
+                                                            borderBottomRightRadius: isMe ? 4 : 18,
+                                                            paddingHorizontal: 16,
+                                                            paddingVertical: 12,
                                                         }}
                                                     >
-                                                        {msg.time}
-                                                    </Text>
-                                                </View>
+                                                        <Text
+                                                            style={{
+                                                                color:
+                                                                    isAutoAccepted
+                                                                        ? AURORA.green
+                                                                        : displayText.startsWith('[Deleted')
+                                                                            ? AURORA.textMuted
+                                                                            : '#FFFFFF',
+                                                                fontSize: 14,
+                                                                lineHeight: 20,
+                                                            }}
+                                                        >
+                                                            {displayText}
+                                                        </Text>
+                                                        <Text
+                                                            style={{
+                                                                color: 'rgba(255,255,255,0.7)',
+                                                                fontSize: 11,
+                                                                marginTop: 4,
+                                                                textAlign: 'right',
+                                                            }}
+                                                        >
+                                                            {msg.time}
+                                                        </Text>
+                                                    </View>
+                                                </Pressable>
                                             ) : msg.type === 'session_request' ? (
-                                                <View>
-                                                    <SessionRequestCard
-                                                        data={msg.sessionRequest}
-                                                        isFromMe={isMe}
-                                                        onViewDetails={() => {
-                                                            setSelectedSessionRequest(msg.sessionRequest);
-                                                            setShowDetailsModal(true);
-                                                        }}
-                                                        onEdit={() => {
-                                                            setEditingSessionRequest(msg.sessionRequest);
-                                                            setShowSessionRequestModal(true);
-                                                        }}
-                                                    />
-                                                    <Text
-                                                        style={{
-                                                            color: 'rgba(255,255,255,0.6)',
-                                                            fontSize: 11,
-                                                            marginTop: 6,
-                                                            textAlign: isMe ? 'right' : 'left',
-                                                        }}
-                                                    >
-                                                        {msg.time}
-                                                    </Text>
-                                                </View>
+                                                <Pressable
+                                                    onLongPress={() => {
+                                                        if (!isMe) return;
+                                                        confirmDeleteMessage(msg.id, 'session_request');
+                                                    }}
+                                                >
+                                                    <View>
+                                                        <SessionRequestCard
+                                                            data={msg.sessionRequest}
+                                                            isFromMe={isMe}
+                                                            onViewDetails={() => {
+                                                                setSelectedSessionRequest(msg.sessionRequest);
+                                                                setShowDetailsModal(true);
+                                                            }}
+                                                            onEdit={() => {
+                                                                setEditingSessionRequest(msg.sessionRequest);
+                                                                setShowSessionRequestModal(true);
+                                                            }}
+                                                        />
+                                                        <Text
+                                                            style={{
+                                                                color: 'rgba(255,255,255,0.6)',
+                                                                fontSize: 11,
+                                                                marginTop: 6,
+                                                                textAlign: isMe ? 'right' : 'left',
+                                                            }}
+                                                        >
+                                                            {msg.time}
+                                                        </Text>
+                                                    </View>
+                                                </Pressable>
                                             ) : (
-                                                <View>
-                                                    <ScheduleInviteCard
-                                                        data={{
-                                                            ...msg.session,
-                                                            note: msg.session.note,
-                                                            timeSlots: msg.session.timeSlots,
-                                                            sessionStatus: msg.session.sessionStatus,
-                                                            agreedSlot: msg.session.agreedSlot,
-                                                        }}
-                                                        senderLabel="Aurora Academic Support"
-                                                        isFromMe={isMe}
-                                                        confirmBusy={sending}
-                                                        onConfirm={
-                                                            !isMe &&
-                                                            msg.session.id &&
-                                                            !String(msg.session.id).startsWith('session_') &&
-                                                            !(
-                                                                msg.session.sessionStatus &&
-                                                                ['confirmed', 'completed', 'missed', 'cancelled'].includes(
-                                                                    msg.session.sessionStatus
+                                                <Pressable
+                                                    onLongPress={() => {
+                                                        if (!isMe) return;
+                                                        confirmDeleteMessage(msg.id, 'session');
+                                                    }}
+                                                >
+                                                    <View>
+                                                        <ScheduleInviteCard
+                                                            data={{
+                                                                ...msg.session,
+                                                                note: msg.session.note,
+                                                                timeSlots: msg.session.timeSlots,
+                                                                sessionStatus: msg.session.sessionStatus,
+                                                                agreedSlot: msg.session.agreedSlot,
+                                                            }}
+                                                            senderLabel="Aurora Academic Support"
+                                                            isFromMe={isMe}
+                                                            confirmBusy={sending}
+                                                            onConfirm={
+                                                                !isMe &&
+                                                                msg.session.id &&
+                                                                !String(msg.session.id).startsWith('session_') &&
+                                                                !(
+                                                                    msg.session.sessionStatus &&
+                                                                    ['confirmed', 'completed', 'missed', 'cancelled'].includes(
+                                                                        msg.session.sessionStatus
+                                                                    )
                                                                 )
-                                                            )
-                                                                ? (slot) =>
-                                                                      handleConfirmSession(slot, {
-                                                                          ...msg.session,
-                                                                          id: msg.session.id,
-                                                                      })
-                                                                : undefined
-                                                        }
-                                                    />
-                                                    <Text
-                                                        style={{
-                                                            color: 'rgba(255,255,255,0.6)',
-                                                            fontSize: 11,
-                                                            marginTop: 6,
-                                                            textAlign: isMe ? 'right' : 'left',
-                                                        }}
-                                                    >
-                                                        {msg.time}
-                                                    </Text>
-                                                </View>
+                                                                    ? (slot) =>
+                                                                          handleConfirmSession(slot, {
+                                                                              ...msg.session,
+                                                                              id: msg.session.id,
+                                                                          })
+                                                                    : undefined
+                                                            }
+                                                        />
+                                                        <Text
+                                                            style={{
+                                                                color: 'rgba(255,255,255,0.6)',
+                                                                fontSize: 11,
+                                                                marginTop: 6,
+                                                                textAlign: isMe ? 'right' : 'left',
+                                                            }}
+                                                        >
+                                                            {msg.time}
+                                                        </Text>
+                                                    </View>
+                                                </Pressable>
                                             );
                             return (
                                 <View key={msg.id} style={{ marginBottom: 16 }}>

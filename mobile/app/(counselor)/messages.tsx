@@ -10,6 +10,7 @@ import React, { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, Image,
     TextInput, KeyboardAvoidingView, Platform, ActivityIndicator,
+    Alert, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -19,6 +20,7 @@ import {
 import { useAuth } from '../../src/stores/AuthContext';
 import { useMessagesContactStore, type MessageContact } from '../../src/stores/messagesContactStore';
 import { firestoreService } from '../../src/services/firebase-firestore.service';
+import { auditLogsService } from '../../src/services/audit-logs.service';
 import { AURORA } from '../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../src/components/common/LetterAvatar';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -29,6 +31,7 @@ import SessionCard, { type SessionCardData } from '../../src/components/counselo
 import SessionAttendanceModal, { type AttendanceStatus } from '../../src/components/counselor/SessionAttendanceModal';
 import SessionRequestReceivedCard from '../../src/components/counselor/SessionRequestReceivedCard';
 import SelectStudentModal from '../../src/components/counselor/SelectStudentModal';
+import * as Clipboard from 'expo-clipboard';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type FilterTab = 'All Messages' | 'Unread' | 'Priority';
@@ -366,6 +369,54 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
         setSelectedSessionForAttendance(null);
     };
 
+    const handleCopyText = async (text: string) => {
+        try {
+            await Clipboard.setStringAsync(text);
+        } catch (e) {
+            console.error('Failed to copy text:', e);
+        }
+    };
+
+    const confirmDeleteMessage = (messageId: string, messageType: string) => {
+        if (!user?.id) return;
+        Alert.alert('Delete message', 'Are you sure you want to delete this message?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                    await firestoreService.deleteConversationMessage(conversationId, messageId);
+                    await auditLogsService.write({
+                        performedBy: user.id,
+                        performedByRole: user.role,
+                        action: 'delete_chat_message',
+                        targetType: 'conversation_message',
+                        targetId: messageId,
+                        metadata: { conversationId, messageType },
+                    });
+                    setMessages((prev) => {
+                        const original = prev.find((m) => m.id === messageId);
+                        const senderId = original?.senderId ?? 'me';
+                        const time = (original as any)?.time ?? 'Just now';
+
+                        const placeholderText =
+                            messageType === 'session'
+                                ? '[Deleted session]'
+                                : messageType === 'session_request'
+                                    ? '[Deleted session request]'
+                                    : '[Deleted message]';
+
+                        return prev.map((m) =>
+                            m.id !== messageId
+                                ? m
+                                : ({ id: messageId, senderId, type: 'text', text: placeholderText, time } as any)
+                        );
+                    });
+                },
+            },
+        ]);
+    };
+
     return (
         <>
         <KeyboardAvoidingView
@@ -436,6 +487,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                     messages.map(msg => {
                         const isMe = msg.senderId === 'me';
                         const isAutoAccepted = msg.type === 'text' && msg.text.startsWith(AUTO_ACCEPTED_PREFIX);
+                        const isDeletedPlaceholder = msg.type === 'text' && msg.text.startsWith('[Deleted');
                         const displayText = isAutoAccepted ? msg.text.replace(AUTO_ACCEPTED_PREFIX, '').trim() : msg.type === 'text' ? msg.text : '';
                         return (
                             <View key={msg.id} style={{ marginBottom: 16 }}>
@@ -453,23 +505,50 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                     {!isMe && (
                                         <LetterAvatar name={contact.name} size={32} avatarUrl={contact.avatar || undefined} />
                                     )}
-                                    {msg.type === 'text' ? (
-                                        <View style={{
-                                            maxWidth: '78%',
-                                            backgroundColor: isMe ? AURORA.blue : AURORA.card,
-                                            borderRadius: 16,
-                                            borderBottomLeftRadius: isMe ? 16 : 4,
-                                            borderBottomRightRadius: isMe ? 4 : 16,
-                                            paddingHorizontal: 14, paddingVertical: 10,
-                                        }}>
-                                            <Text style={{
-                                                color: isAutoAccepted ? AURORA.green : '#FFFFFF',
-                                                fontSize: 14,
-                                                lineHeight: 20,
+                    {msg.type === 'text' ? (
+                                        <Pressable
+                                            onLongPress={() => {
+                                                if (!user?.id) return;
+                                                const canDelete = isMe;
+                                                const canCopy = !msg.text.startsWith('[Deleted');
+                                                const buttons: { text: string; style?: 'destructive' | 'cancel'; onPress?: () => void }[] = [];
+                                                if (canCopy) {
+                                                    buttons.push({
+                                                        text: 'Copy',
+                                                        onPress: async () => {
+                                                            await handleCopyText(msg.text);
+                                                            Alert.alert('Copied', 'Message copied to clipboard.');
+                                                        },
+                                                    });
+                                                }
+                                                if (canDelete) {
+                                                    buttons.push({
+                                                        text: 'Delete',
+                                                        style: 'destructive',
+                                                        onPress: () => confirmDeleteMessage(msg.id, 'text'),
+                                                    });
+                                                }
+                                                buttons.push({ text: 'Cancel', style: 'cancel' });
+                                                Alert.alert('Message options', undefined, buttons as any);
+                                            }}
+                                        >
+                                            <View style={{
+                                                maxWidth: '78%',
+                                                backgroundColor: isMe ? AURORA.blue : AURORA.card,
+                                                borderRadius: 16,
+                                                borderBottomLeftRadius: isMe ? 16 : 4,
+                                                borderBottomRightRadius: isMe ? 4 : 16,
+                                                paddingHorizontal: 14, paddingVertical: 10,
                                             }}>
-                                                {displayText}
-                                            </Text>
-                                        </View>
+                                                <Text style={{
+                                                    color: isAutoAccepted ? AURORA.green : isDeletedPlaceholder ? AURORA.textMuted : '#FFFFFF',
+                                                    fontSize: 14,
+                                                    lineHeight: 20,
+                                                }}>
+                                                    {displayText}
+                                                </Text>
+                                            </View>
+                                        </Pressable>
                                     ) : msg.type === 'session_request' && !isMe ? (
                                         <SessionRequestReceivedCard
                                             data={{
@@ -494,23 +573,31 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                             }
                                         />
                                     ) : msg.type === 'session' ? (
-                                        <SessionCard
-                                            data={msg.session}
-                                            isFromMe={isMe}
-                                            onMarkAttendance={() => {
-                                                setSelectedSessionForAttendance(msg.session);
-                                                setShowAttendanceModal(true);
+                                        <Pressable
+                                            onLongPress={() => {
+                                                // Session cards: delete only (no copy) and only for messages you sent.
+                                                if (!isMe) return;
+                                                confirmDeleteMessage(msg.id, 'session');
                                             }}
-                                            onReschedule={(() => {
-                                                const sid = resolveSessionsDocIdForSessionCard(msg.session);
-                                                return sid
-                                                    ? () => {
-                                                        setShowInviteModal(false);
-                                                        setShowInviteModalForSessionRequest(sid);
-                                                    }
-                                                    : undefined;
-                                            })()}
-                                        />
+                                        >
+                                            <SessionCard
+                                                data={msg.session}
+                                                isFromMe={isMe}
+                                                onMarkAttendance={() => {
+                                                    setSelectedSessionForAttendance(msg.session);
+                                                    setShowAttendanceModal(true);
+                                                }}
+                                                onReschedule={(() => {
+                                                    const sid = resolveSessionsDocIdForSessionCard(msg.session);
+                                                    return sid
+                                                        ? () => {
+                                                            setShowInviteModal(false);
+                                                            setShowInviteModalForSessionRequest(sid);
+                                                        }
+                                                        : undefined;
+                                                })()}
+                                            />
+                                        </Pressable>
                                     ) : null}
                                     {isMe && (
                                         <LetterAvatar name={user?.full_name ?? 'You'} size={32} avatarUrl={user?.avatar_url} />
