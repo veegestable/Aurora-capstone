@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Settings2 } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Settings2, BarChart3, BookMarked } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { moodService } from '../../services/mood.service';
 import { AURORA, AURORA_MOOD_COLORS } from '../../constants/aurora-colors';
+import Analytics from '../../components/Analytics';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MoodEntry {
@@ -124,12 +125,15 @@ function DayEntryRow({ entry }: { entry: MoodEntry }) {
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
+type JournalTab = 'calendar' | 'insights';
+
 export default function HistoryScreen() {
     const { user } = useAuth();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [moodData, setMoodData] = useState<MoodEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
+    const [journalTab, setJournalTab] = useState<JournalTab>('calendar');
 
     useEffect(() => { if (user) loadMoodData(); }, [currentDate, user]);
 
@@ -209,6 +213,72 @@ export default function HistoryScreen() {
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+                    {/* ── Journal / Insights toggle ───────────────────────────── */}
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            backgroundColor: AURORA.cardAlt,
+                            borderRadius: 14,
+                            padding: 4,
+                            marginBottom: 16,
+                            borderWidth: 1,
+                            borderColor: AURORA.border,
+                        }}
+                    >
+                        <TouchableOpacity
+                            onPress={() => setJournalTab('calendar')}
+                            style={{
+                                flex: 1,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
+                                paddingVertical: 10,
+                                borderRadius: 12,
+                                backgroundColor: journalTab === 'calendar' ? AURORA.blue : 'transparent',
+                            }}
+                        >
+                            <BookMarked size={18} color={journalTab === 'calendar' ? '#FFF' : AURORA.textSec} />
+                            <Text
+                                style={{
+                                    color: journalTab === 'calendar' ? '#FFF' : AURORA.textSec,
+                                    fontWeight: '700',
+                                    fontSize: 13,
+                                }}
+                            >
+                                Journal
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => setJournalTab('insights')}
+                            style={{
+                                flex: 1,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
+                                paddingVertical: 10,
+                                borderRadius: 12,
+                                backgroundColor: journalTab === 'insights' ? AURORA.blue : 'transparent',
+                            }}
+                        >
+                            <BarChart3 size={18} color={journalTab === 'insights' ? '#FFF' : AURORA.textSec} />
+                            <Text
+                                style={{
+                                    color: journalTab === 'insights' ? '#FFF' : AURORA.textSec,
+                                    fontWeight: '700',
+                                    fontSize: 13,
+                                }}
+                            >
+                                Your week
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {journalTab === 'insights' ? (
+                        <Analytics />
+                    ) : (
+                        <>
                     {/* ── Calendar Card ─────────────────────────────────────── */}
                     <View style={{
                         backgroundColor: AURORA.card, borderRadius: 24,
@@ -312,6 +382,8 @@ export default function HistoryScreen() {
                                 Tap a colored day on the calendar to see your mood entries.
                             </Text>
                         </View>
+                    )}
+                        </>
                     )}
                 </ScrollView>
             </SafeAreaView>

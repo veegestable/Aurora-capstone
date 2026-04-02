@@ -40,6 +40,12 @@ import {
     getSessionScheduledDate,
     type SessionHistoryBadge,
 } from '../../src/utils/sessionScheduling';
+import {
+    formatCounselorStudentSubtitle,
+    normalizeStudentToProgramFilter,
+    PROGRAM_FILTER_LABELS,
+    type ProgramFilterCode,
+} from '../../src/constants/ccs-student-programs';
 
 function formatSlotForDisplay(slot: { date: string; time: string } | null | undefined): { date: string; time: string } | null {
     if (!slot?.date) return null;
@@ -51,21 +57,14 @@ function formatSlotForDisplay(slot: { date: string; time: string } | null | unde
     };
 }
 
-function normalizeProgramForFilter(department?: string): string {
-    if (!department) return '';
-    const upper = department.toUpperCase();
-    if (upper.includes('COMPUTER SCIENCE') || upper.includes('BSCS')) return 'BSCS';
-    if (upper.includes('INFORMATION TECHNOLOGY') || upper.includes('BSIT')) return 'BSIT';
-    if (upper.includes('INFORMATION SYSTEMS') || upper.includes('BSIS')) return 'BSIS';
-    return upper;
-}
-type ProgramFilter = 'All Sessions' | 'BSCS' | 'BSIT' | 'BSIS';
+type ProgramFilter = 'All Sessions' | ProgramFilterCode;
 
 interface SessionHistoryItem {
     id: string;
     studentId: string;
     studentName: string;
     studentAvatar?: string;
+    studentDepartment?: string;
     studentProgram?: string;
     studentYear?: string;
     status: string;
@@ -179,14 +178,24 @@ export default function SessionHistoryScreen() {
         );
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
-            list = list.filter(
-                (s) =>
+            list = list.filter((s) => {
+                const meta = formatCounselorStudentSubtitle({
+                    department: s.studentDepartment,
+                    program: s.studentProgram,
+                    year_level: s.studentYear,
+                }).toLowerCase();
+                return (
                     s.studentName.toLowerCase().includes(q) ||
-                    s.studentId.toLowerCase().includes(q)
-            );
+                    s.studentId.toLowerCase().includes(q) ||
+                    meta.includes(q)
+                );
+            });
         }
         if (programFilter !== 'All Sessions') {
-            list = list.filter((s) => normalizeProgramForFilter(s.studentProgram) === programFilter);
+            list = list.filter(
+                (s) =>
+                    normalizeStudentToProgramFilter(s.studentDepartment, s.studentProgram) === programFilter
+            );
         }
         return list;
     }, [sessions, searchQuery, programFilter]);
@@ -273,7 +282,7 @@ export default function SessionHistoryScreen() {
         }
     };
 
-    const PROGRAMS: ProgramFilter[] = ['All Sessions', 'BSCS', 'BSIT', 'BSIS'];
+    const PROGRAMS: ProgramFilter[] = ['All Sessions', 'BSCS', 'BSIT', 'BSIS', 'BSCA'];
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgMessages }}>
@@ -370,7 +379,7 @@ export default function SessionHistoryScreen() {
                                     fontWeight: programFilter === p ? '700' : '500',
                                 }}
                             >
-                                {p}
+                                {p === 'All Sessions' ? p : PROGRAM_FILTER_LABELS[p as ProgramFilterCode]}
                             </Text>
                             {p !== 'All Sessions' && (
                                 <Text style={{ color: programFilter === p ? '#FFFFFF' : AURORA.textSec, fontSize: 10 }}>
@@ -554,7 +563,11 @@ function SessionHistoryCard({
                             marginBottom: 10,
                         }}
                     >
-                        {[session.studentProgram, session.studentYear].filter(Boolean).join(' • ')}
+                        {formatCounselorStudentSubtitle({
+                        department: session.studentDepartment,
+                        program: session.studentProgram,
+                        year_level: session.studentYear,
+                    }) || 'CCS'}
                     </Text>
 
                     {session.status === 'completed' && (

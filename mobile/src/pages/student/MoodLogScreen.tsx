@@ -14,6 +14,14 @@ import { MoodCheckIn } from '../../components/MoodCheckIn';
 import DashboardSessionRequestModal from '../../components/student/DashboardSessionRequestModal';
 import { AnnouncementSection } from '../../components/announcements/AnnouncementSection';
 import { triggerHaptic } from '../../utils/haptics';
+import {
+    calculateStressLevel,
+    classifyStress,
+    energyLevelToMoodScale,
+    getDailyFeedback,
+    taskCountFromLog,
+} from '../../utils/analytics/ethicsDailyAnalytics';
+import { calculateCheckInStreak } from '../../utils/analytics/dateKeys';
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
 const MOOD_EMOTIONS = [
@@ -160,7 +168,7 @@ function AIInsightCard({ insight }: { insight: string }) {
                 <Lightbulb size={22} color={AURORA.purple} />
             </View>
             <View style={{ flex: 1 }}>
-                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginBottom: 4 }}>AI Insight</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginBottom: 4 }}>Daily note</Text>
                 <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 19 }}>{insight}</Text>
             </View>
         </View>
@@ -175,7 +183,7 @@ export default function MoodLogScreen() {
     const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
     const [stats, setStats] = useState({ streak: 0, topEmotion: 'happy' });
     const [insight, setInsight] = useState(
-        'Your mood has been simplified for better tracking. Use the camera icon to analyze micro-emotions instantly.'
+        'Complete a check-in for a short note based on your mood and tasks (no AI on this screen).'
     );
 
     const firstName = user?.full_name?.split(' ')[0] || 'Student';
@@ -192,6 +200,9 @@ export default function MoodLogScreen() {
             const logs = await moodService.getMoodLogs(user.id, start.toISOString(), end.toISOString());
             if (!logs || logs.length === 0) {
                 setStats({ streak: 0, topEmotion: 'happy' });
+                setInsight(
+                    'Complete a check-in for a short note based on your mood and tasks (no AI on this screen).'
+                );
                 return;
             }
             const emotionCounts: Record<string, number> = {};
@@ -202,10 +213,24 @@ export default function MoodLogScreen() {
             });
             let topEmotion = 'happy';
             let max = 0;
-            Object.entries(emotionCounts).forEach(([e, c]) => { if (c > max) { max = c; topEmotion = e; } });
-            const insights = moodService.generateInsights(logs);
-            setStats({ streak: Math.min(logs.length, 7), topEmotion });
-            if (insights?.[0]) setInsight(insights[0]);
+            Object.entries(emotionCounts).forEach(([e, c]) => {
+                if (c > max) {
+                    max = c;
+                    topEmotion = e;
+                }
+            });
+            const streak = calculateCheckInStreak(logs as { log_date: Date }[], new Date());
+            setStats({ streak, topEmotion });
+            const sorted = [...logs].sort((a: any, b: any) => {
+                const da = a.log_date instanceof Date ? a.log_date : new Date(a.log_date);
+                const db = b.log_date instanceof Date ? b.log_date : new Date(b.log_date);
+                return db.getTime() - da.getTime();
+            });
+            const latest = sorted[0];
+            const moodScale = energyLevelToMoodScale(latest.energy_level ?? 5);
+            const tasks = taskCountFromLog(latest);
+            const band = classifyStress(calculateStressLevel(moodScale, tasks));
+            setInsight(getDailyFeedback(band, moodScale));
         } catch {
             setStats({ streak: 0, topEmotion: 'happy' });
         }

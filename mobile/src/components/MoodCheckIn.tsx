@@ -1,10 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Image, PanResponder } from 'react-native';
+import * as Animatable from 'react-native-animatable';
 import { EmotionDetection } from './EmotionDetection';
 import { moodService } from '../services/mood.service';
 import { useAuth } from '../stores/AuthContext';
 import { Sparkles, Zap, ClipboardList, ArrowLeft, ArrowRight, Check, Camera, Hand, Moon, Heart, PenLine } from 'lucide-react-native';
 import { AURORA } from '../constants/aurora-colors';
+import {
+    calculateStressLevel,
+    classifyStress,
+    energyLevelToMoodScale,
+    getDailyFeedback,
+    taskCountFromLog,
+} from '../utils/analytics/ethicsDailyAnalytics';
+import { logSuddenMoodDropIfNeeded } from '../utils/analytics/suddenMoodChange';
+import { getMostRecentLogNotOnSameCalendarDay } from '../utils/analytics/dateKeys';
 
 interface MoodCheckInProps {
     onComplete?: () => void;
@@ -276,25 +286,6 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
         }
     };
 
-    const getMoodMessage = () => {
-        const primaryEmotion = selectedEmotions[0]?.emotion.toLowerCase();
-        const negativeEmotions = ['sadness', 'anger', 'fear', 'disgust'];
-
-        if (negativeEmotions.includes(primaryEmotion)) {
-            return {
-                title: "It's okay not to be okay.",
-                message: "Remember to take deep breaths. Try a mindfulness exercise to help center yourself.",
-                isPositive: false
-            };
-        }
-
-        return {
-            title: "Keep up the great vibes!",
-            message: "You're doing amazing! Hold onto this feeling and carry it with you.",
-            isPositive: true
-        };
-    };
-
     const handleSubmit = async () => {
         if (selectedEmotions.length === 0) {
             Alert.alert('Error', 'Please select at least one emotion');
@@ -329,6 +320,20 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
             } else {
                 const newLog = await moodService.createMoodLog(moodData);
                 setExistingLogId(newLog.id);
+            }
+
+            try {
+                const weekAgo = new Date();
+                weekAgo.setDate(weekAgo.getDate() - 14);
+                const recent = await moodService.getMoodLogs(
+                    user.id,
+                    weekAgo.toISOString(),
+                    new Date().toISOString()
+                );
+                const prev = getMostRecentLogNotOnSameCalendarDay(recent, new Date());
+                logSuddenMoodDropIfNeeded(prev?.energy_level, energyLevel);
+            } catch {
+                /* silent — no user-facing interpretation */
             }
 
             // Instead of resetting, show the success view
@@ -407,7 +412,15 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
     );
 
     if (isSubmitted) {
-        const moodMessage = getMoodMessage();
+        const moodScale = energyLevelToMoodScale(energyLevel);
+        const tasks = taskCountFromLog({
+            classes_count: classesCount,
+            exams_count: examsCount,
+            deadlines_count: deadlinesCount,
+        });
+        const stressBand = classifyStress(calculateStressLevel(moodScale, tasks));
+        const dailyBody = getDailyFeedback(stressBand, moodScale);
+        const isPositive = moodScale >= 4 && stressBand !== 'High';
         return (
             <View 
                 style={{ 
@@ -418,7 +431,10 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                     padding: 24 
                 }}
             >
-                <View 
+                <Animatable.View
+                    animation="zoomIn"
+                    duration={520}
+                    useNativeDriver
                     style={{
                         backgroundColor: AURORA.card,
                         padding: 32,
@@ -434,10 +450,10 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                             padding: 20,
                             borderRadius: 9999,
                             marginBottom: 24,
-                            backgroundColor: moodMessage.isPositive ? 'rgba(254, 189, 3, 0.15)' : 'rgba(45, 107, 255, 0.15)'
+                            backgroundColor: isPositive ? 'rgba(254, 189, 3, 0.15)' : 'rgba(45, 107, 255, 0.15)'
                         }}
                     >
-                        {moodMessage.isPositive ? (
+                        {isPositive ? (
                             <Sparkles size={48} color={AURORA.amber} />
                         ) : (
                             <Heart size={48} color={AURORA.blue} />
@@ -446,10 +462,10 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
 
                     <View style={{ alignItems: 'center', marginBottom: 32 }}>
                         <Text style={{ fontSize: 24, fontWeight: 'bold', color: AURORA.textPrimary, textAlign: 'center', marginBottom: 12 }}>
-                            {moodMessage.title}
+                            Thanks for checking in
                         </Text>
                         <Text style={{ color: AURORA.textSec, textAlign: 'center', fontSize: 16, lineHeight: 24, paddingHorizontal: 16 }}>
-                            {moodMessage.message}
+                            {dailyBody}
                         </Text>
                     </View>
 
@@ -479,7 +495,7 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                         </Text>
                         <Text style={{ color: AURORA.textMuted }}>•</Text>
                         <Text style={{ color: AURORA.textSec }}>
-                            Energy {energyLevel}/10
+                            Mood slider {energyLevel}/10
                         </Text>
                     </View>
 
@@ -506,7 +522,7 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                             <Text style={{ color: AURORA.textSec, fontWeight: '500' }}>Edit Log</Text>
                         </TouchableOpacity>
                     </View>
-                </View>
+                </Animatable.View>
             </View>
         );
     }

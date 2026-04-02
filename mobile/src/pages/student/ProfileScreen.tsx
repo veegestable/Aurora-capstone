@@ -7,12 +7,19 @@ import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-    ArrowLeft, Check, X, Camera, Eye, Lock,
-    Bell, Video, LogOut, User,
+    X, Camera, Eye, Lock,
+    Bell, Video, LogOut, User, ChevronDown,
 } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../../components/common/LetterAvatar';
+import {
+    CCS_COLLEGE_DEPARTMENT,
+    DEGREE_PROGRAM_OPTIONS,
+    formatCounselorStudentSubtitle,
+    formatYearLevelForDisplay,
+    matchLegacyDepartmentToProgramValue,
+} from '../../constants/ccs-student-programs';
 
 // ─── Section Header ───────────────────────────────────────────────────────────
 function SectionHeader({ icon, title }: { icon?: React.ReactNode; title: string }) {
@@ -90,21 +97,26 @@ function EditProfileModal({
     visible: boolean;
     onClose: () => void;
     user: any;
-    onSave: (data: { preferredName: string; sex?: SexOption; program: string; yearLevel: string; studentNumber: string }) => void;
+    onSave: (data: { preferredName: string; sex?: SexOption; program: string; yearLevel: string; studentNumber: string; collegeDepartment: string }) => void;
     onPickAvatar?: (imageUri: string) => Promise<void>;
 }) {
     const [name, setName] = useState(user?.preferred_name || user?.full_name || '');
     const [sex, setSex] = useState<SexOption | undefined>(user?.sex);
-    const [program, setProgram] = useState(user?.department || '');
+    const [program, setProgram] = useState('');
     const [yearLevel, setYearLevel] = useState(user?.year_level || '');
     const [studentNumber, setStudentNumber] = useState(user?.student_number || '');
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
+    const [programPickerOpen, setProgramPickerOpen] = useState(false);
+
+    const resolveProgramFromUser = (u: any) =>
+        (u?.program && DEGREE_PROGRAM_OPTIONS.some((o) => o.value === u.program) ? u.program : '') ||
+        matchLegacyDepartmentToProgramValue(u?.department);
 
     useEffect(() => {
         if (visible && user) {
             setName(user.preferred_name || user.full_name || '');
             setSex(user.sex ?? undefined);
-            setProgram(user.department || '');
+            setProgram(resolveProgramFromUser(user));
             setYearLevel(user.year_level || '');
             setStudentNumber(user.student_number || '');
         }
@@ -135,11 +147,10 @@ function EditProfileModal({
     };
 
     const handleSave = () => {
-        const programTrim = program.trim();
         const yearTrim = yearLevel.trim();
         const studentNumTrim = studentNumber.trim();
-        if (!programTrim) {
-            Alert.alert('Required field', 'Please enter your program (e.g. BS Computer Science).');
+        if (!program) {
+            Alert.alert('Required field', 'Please select your program from the list.');
             return;
         }
         if (!yearTrim) {
@@ -153,9 +164,10 @@ function EditProfileModal({
         onSave({
             preferredName: name.trim() || user?.full_name || 'Student',
             sex,
-            program: programTrim,
+            program,
             yearLevel: yearTrim,
             studentNumber: studentNumTrim,
+            collegeDepartment: CCS_COLLEGE_DEPARTMENT,
         });
         onClose();
     };
@@ -206,7 +218,7 @@ function EditProfileModal({
                                     )}
                                 </TouchableOpacity>
                             </View>
-                            <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 8 }}>CCS • MSU-IIT</Text>
+                            <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 8 }}>College of Computer Studies • MSU-IIT</Text>
                         </View>
 
                         <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Name</Text>
@@ -227,20 +239,88 @@ function EditProfileModal({
                         </View>
 
                         <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Program <Text style={{ color: AURORA.red }}>*</Text></Text>
-                        <View style={{
-                            backgroundColor: AURORA.card, borderRadius: 14,
-                            flexDirection: 'row', alignItems: 'center',
-                            paddingHorizontal: 14, marginBottom: 20,
-                            borderWidth: 1, borderColor: AURORA.border,
-                        }}>
-                            <TextInput
-                                style={{ flex: 1, color: '#FFFFFF', fontSize: 15, paddingVertical: 14 }}
-                                value={program}
-                                onChangeText={setProgram}
-                                placeholder="e.g. BS Computer Science"
-                                placeholderTextColor={AURORA.textMuted}
-                            />
-                        </View>
+                        <TouchableOpacity
+                            onPress={() => setProgramPickerOpen(true)}
+                            activeOpacity={0.8}
+                            style={{
+                                backgroundColor: AURORA.card, borderRadius: 14,
+                                flexDirection: 'row', alignItems: 'center',
+                                paddingHorizontal: 14, marginBottom: 20,
+                                borderWidth: 1, borderColor: AURORA.border,
+                                minHeight: 50,
+                            }}
+                        >
+                            <Text style={{
+                                flex: 1,
+                                color: program ? '#FFFFFF' : AURORA.textMuted,
+                                fontSize: 15,
+                                paddingVertical: 14,
+                            }}>
+                                {program || 'Select program'}
+                            </Text>
+                            <ChevronDown size={18} color={AURORA.textSec} />
+                        </TouchableOpacity>
+
+                        <Modal
+                            visible={programPickerOpen}
+                            transparent
+                            animationType="fade"
+                            onRequestClose={() => setProgramPickerOpen(false)}
+                        >
+                            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.55)' }}>
+                                <TouchableOpacity
+                                    style={{ flex: 1 }}
+                                    activeOpacity={1}
+                                    onPress={() => setProgramPickerOpen(false)}
+                                />
+                                <View style={{
+                                    backgroundColor: AURORA.card,
+                                    borderTopLeftRadius: 20,
+                                    borderTopRightRadius: 20,
+                                    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+                                    borderWidth: 1,
+                                    borderColor: AURORA.border,
+                                    maxHeight: '55%',
+                                }}>
+                                    <Text style={{
+                                        color: '#FFFFFF',
+                                        fontSize: 16,
+                                        fontWeight: '700',
+                                        paddingHorizontal: 20,
+                                        paddingTop: 16,
+                                        paddingBottom: 12,
+                                    }}>
+                                        Select program
+                                    </Text>
+                                    <ScrollView keyboardShouldPersistTaps="handled">
+                                        {DEGREE_PROGRAM_OPTIONS.map((opt) => (
+                                            <TouchableOpacity
+                                                key={opt.value}
+                                                onPress={() => {
+                                                    setProgram(opt.value);
+                                                    setProgramPickerOpen(false);
+                                                }}
+                                                style={{
+                                                    paddingVertical: 16,
+                                                    paddingHorizontal: 20,
+                                                    borderTopWidth: 1,
+                                                    borderTopColor: AURORA.border,
+                                                    backgroundColor: program === opt.value ? 'rgba(45,107,255,0.12)' : 'transparent',
+                                                }}
+                                            >
+                                                <Text style={{
+                                                    color: program === opt.value ? AURORA.blue : '#FFFFFF',
+                                                    fontSize: 15,
+                                                    fontWeight: program === opt.value ? '700' : '500',
+                                                }}>
+                                                    {opt.value}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            </View>
+                        </Modal>
 
                         <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Year Level <Text style={{ color: AURORA.red }}>*</Text></Text>
                         <View style={{
@@ -398,10 +478,12 @@ export default function ProfileScreen() {
                         <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800' }}>
                             {user?.preferred_name || user?.full_name || 'Student'}
                         </Text>
-                        <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 2 }}>
-                            {user?.department
-                            ? `${user.department}${user.year_level ? ` • ${user.year_level} Year` : ''}`
-                            : 'MSU-IIT CCS Student'}
+                        <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 2, textAlign: 'center' }}>
+                            {formatCounselorStudentSubtitle({
+                                department: user?.department,
+                                program: user?.program,
+                                year_level: user?.year_level,
+                            }) || 'MSU-IIT CCS Student'}
                         </Text>
                     </View>
 
@@ -417,11 +499,16 @@ export default function ProfileScreen() {
                             label="Sex"
                             value={user?.sex ? (user.sex === 'male' ? 'Male' : 'Female') : 'Not set'}
                         />
+                        <InfoRow label="Department" value={CCS_COLLEGE_DEPARTMENT} />
                         <InfoRow
-                            label="Program & Year"
-                            value={user?.department && user?.year_level
-                                ? `${user.department} - ${user.year_level}`
-                                : 'Not set'}
+                            label="Program"
+                            value={user?.program
+                                || (user?.department && user.department !== CCS_COLLEGE_DEPARTMENT ? user.department : '')
+                                || 'Not set'}
+                        />
+                        <InfoRow
+                            label="Year level"
+                            value={user?.year_level ? formatYearLevelForDisplay(user.year_level) : 'Not set'}
                         />
                         <InfoRow label="Student Number" value={user?.student_number || 'Not set'} />
                     </View>
@@ -505,7 +592,8 @@ export default function ProfileScreen() {
                             await updateUser({
                                 preferred_name: data.preferredName,
                                 sex: data.sex,
-                                department: data.program,
+                                department: data.collegeDepartment,
+                                program: data.program,
                                 year_level: data.yearLevel,
                                 student_number: data.studentNumber,
                             });

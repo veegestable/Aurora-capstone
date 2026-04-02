@@ -34,7 +34,10 @@ export interface UserProfile {
   approval_status?: CounselorApprovalStatus; // for counselors: pending until admin approves
   avatar_url?: string;
   preferred_name?: string;
+  /** College / school unit (e.g. CCS). */
   department?: string;
+  /** Degree program label, e.g. "BS CS (Computer Science)". */
+  program?: string;
   year_level?: string;
   student_number?: string;
   /** Student profile: male | female. Used for future features. */
@@ -145,6 +148,7 @@ export const authService = {
       }
       if (data.preferred_name !== undefined) updates.preferred_name = data.preferred_name;
       if (data.department !== undefined) updates.department = data.department;
+      if (data.program !== undefined) updates.program = data.program;
       if (data.year_level !== undefined) updates.year_level = data.year_level;
       if (data.student_number !== undefined) updates.student_number = data.student_number;
       if (data.sex !== undefined) updates.sex = data.sex;

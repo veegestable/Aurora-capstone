@@ -20,6 +20,7 @@ import { AURORA } from '../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../src/components/common/LetterAvatar';
 import { firestoreService } from '../../src/services/firebase-firestore.service';
 import { useAuth } from '../../src/stores/AuthContext';
+import { formatCounselorStudentSubtitle } from '../../src/constants/ccs-student-programs';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type CaseStatus = 'open' | 'in_progress' | 'resolved';
@@ -69,18 +70,6 @@ function formatTimeAgo(date: Date): string {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${diffDays}d ago`;
-}
-
-function formatProgram(department?: string, yearLevel?: string): string {
-    const dept = department?.toUpperCase()
-        ?.replace('BACHELOR OF SCIENCE IN ', 'BS')
-        .replace('COMPUTER SCIENCE', 'CS')
-        .replace('INFORMATION TECHNOLOGY', 'IT')
-        .replace('INFORMATION SYSTEMS', 'IS') || 'BS';
-    const year = yearLevel
-        ? `${yearLevel.replace(/st|nd|rd|th/i, (m) => m.toUpperCase())} Year`
-        : '1st Year';
-    return `${dept} - ${year}`;
 }
 
 function getInitials(name: string): string {
@@ -363,7 +352,11 @@ export default function CounselorRiskCenterScreen() {
                             return {
                                 id: s.id,
                                 name: s.full_name || 'Student',
-                                program: formatProgram(s.department, s.year_level),
+                                program: formatCounselorStudentSubtitle({
+                                    department: s.department,
+                                    program: s.program,
+                                    year_level: s.year_level,
+                                }) || 'CCS',
                                 severity,
                                 timeAgo: logDate ? formatTimeAgo(new Date(logDate)) : 'No logs',
                                 trigger,
@@ -376,7 +369,11 @@ export default function CounselorRiskCenterScreen() {
                             return {
                                 id: s.id,
                                 name: s.full_name || 'Student',
-                                program: formatProgram(s.department, s.year_level),
+                                program: formatCounselorStudentSubtitle({
+                                    department: s.department,
+                                    program: s.program,
+                                    year_level: s.year_level,
+                                }) || 'CCS',
                                 severity: 'low' as CaseSeverity,
                                 timeAgo: 'No logs',
                                 trigger: 'No recent mood data.',

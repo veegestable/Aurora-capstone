@@ -22,6 +22,7 @@ import { LetterAvatar } from '../../src/components/common/LetterAvatar';
 import { firestoreService } from '../../src/services/firebase-firestore.service';
 import { AnnouncementSection } from '../../src/components/announcements/AnnouncementSection';
 import { triggerHaptic } from '../../src/utils/haptics';
+import { formatCounselorStudentSubtitle } from '../../src/constants/ccs-student-programs';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type RiskLevel = 'HIGH RISK' | 'MEDIUM' | 'RESOLVED';
@@ -53,18 +54,6 @@ function formatTimeAgo(date: Date): string {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${diffDays}d ago`;
-}
-
-function formatProgram(department?: string, yearLevel?: string): string {
-    const dept = department?.toUpperCase()
-        ?.replace('BACHELOR OF SCIENCE IN ', 'BS')
-        .replace('COMPUTER SCIENCE', 'BSCS')
-        .replace('INFORMATION TECHNOLOGY', 'BSIT')
-        .replace('INFORMATION SYSTEMS', 'BSIS') || 'BSCS';
-    const year = yearLevel
-        ? `${yearLevel.replace(/st|nd|rd|th/i, m => m.toUpperCase())} Year`
-        : '1st Year';
-    return `${dept} · ${year}`;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -201,7 +190,11 @@ export default function CounselorHomeScreen() {
                     .map(({ student, stressLevel, energyLevel, lastLogDate }) => ({
                         id: student.id,
                         name: student.full_name || 'Student',
-                        program: formatProgram(student.department, student.year_level),
+                        program: formatCounselorStudentSubtitle({
+                            department: student.department,
+                            program: student.program,
+                            year_level: student.year_level,
+                        }) || 'CCS',
                         time: lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No logs',
                         risk: deriveRiskFromMood(stressLevel, energyLevel) as RiskLevel,
                         avatar: (student as any).avatar_url ?? '',

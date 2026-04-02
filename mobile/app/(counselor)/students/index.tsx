@@ -17,15 +17,22 @@ import { AURORA } from '../../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../../src/components/common/LetterAvatar';
 import { firestoreService } from '../../../src/services/firebase-firestore.service';
 import StudentProfileModal from '../../../src/components/counselor/StudentProfileModal';
+import {
+    formatCounselorStudentSubtitle,
+    normalizeStudentToProgramFilter,
+    PROGRAM_FILTER_LABELS,
+    type ProgramFilterCode,
+} from '../../../src/constants/ccs-student-programs';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type RiskLevel = 'HIGH RISK' | 'MEDIUM RISK' | 'LOW RISK';
-type ProgramFilter = 'All Students' | 'BSCS' | 'BSIT' | 'BSIS';
+type ProgramFilter = 'All Students' | ProgramFilterCode;
 
 interface StudentEntry {
     id: string;
     full_name: string;
     department?: string;
+    program?: string;
     year_level?: string;
     avatar_url?: string;
     riskLevel: RiskLevel;
@@ -35,11 +42,11 @@ interface StudentEntry {
 
 // ─── Mock risk overlay (applied to fetched students) ──────────────────────────
 const RISK_LEVELS: RiskLevel[] = ['HIGH RISK', 'MEDIUM RISK', 'LOW RISK'];
-const MOOD_EMOJIS: Record<RiskLevel, string> = {
-    'HIGH RISK': '😢',
-    'MEDIUM RISK': '😐',
-    'LOW RISK': '😊',
-};
+// const MOOD_EMOJIS: Record<RiskLevel, string> = {
+//     'HIGH RISK': '😢',
+//     'MEDIUM RISK': '😐',
+//     'LOW RISK': '😊',
+// };
 
 function assignMockRisk(index: number): RiskLevel {
     return RISK_LEVELS[index % RISK_LEVELS.length];
@@ -64,6 +71,17 @@ function deriveRiskFromMood(stressLevel?: number, energyLevel?: number): RiskLev
     return 'LOW RISK';
 }
 
+function moodEmojiForRisk(r: RiskLevel): string {
+    switch (r) {
+        case 'HIGH RISK':
+            return '😢';
+        case 'MEDIUM RISK':
+            return '😐';
+        case 'LOW RISK':
+            return '😊';
+    }
+}
+
 // ─── Risk helpers ──────────────────────────────────────────────────────────────
 function getRiskStyle(risk: RiskLevel) {
     switch (risk) {
@@ -76,16 +94,14 @@ function getRiskStyle(risk: RiskLevel) {
     }
 }
 
-function formatProgram(department?: string, yearLevel?: string): string {
-    const dept = department?.toUpperCase().replace('BACHELOR OF SCIENCE IN ', 'BS').replace('COMPUTER SCIENCE', 'BSCS').replace('INFORMATION TECHNOLOGY', 'BSIT').replace('INFORMATION SYSTEMS', 'BSIS') || 'BSCS';
-    const year = yearLevel ? `${yearLevel.replace('st', 'ST').replace('nd', 'ND').replace('rd', 'RD').replace('th', 'TH')} YEAR` : '1ST YEAR';
-    return `${dept} · ${year}`;
-}
-
 // ─── Student Card ──────────────────────────────────────────────────────────────
 function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () => void }) {
     const style = getRiskStyle(student.riskLevel);
-    const programText = formatProgram(student.department, student.year_level);
+    const programText = formatCounselorStudentSubtitle({
+        department: student.department,
+        program: student.program,
+        year_level: student.year_level,
+    }) || 'CCS';
 
     return (
         <TouchableOpacity
@@ -102,7 +118,7 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
             <View style={{ width: 4, backgroundColor: style.border, alignSelf: 'stretch' }} />
 
             {/* Avatar */}
-            <View style={{ padding: 12, borderWidth: 2, borderColor: style.border, borderRadius: 30 }}>
+            <View style={{ padding: 12, borderWidth: 2 }}>
                 <LetterAvatar name={student.full_name ?? 'Student'} size={56} avatarUrl={student.avatar_url} />
             </View>
 
@@ -203,10 +219,11 @@ export default function CounselorStudentsScreen() {
                             id: s.id,
                             full_name: s.full_name || 'Student',
                             department: s.department,
+                            program: s.program,
                             year_level: s.year_level,
                             avatar_url: s.avatar_url,
                             riskLevel,
-                            moodEmoji: MOOD_EMOJIS[riskLevel],
+                            moodEmoji: moodEmojiForRisk(riskLevel),
                             lastLog,
                         };
                     })
@@ -221,22 +238,30 @@ export default function CounselorStudentsScreen() {
         fetchStudents();
     }, []);
 
-    const FILTERS: ProgramFilter[] = ['All Students', 'BSCS', 'BSIT', 'BSIS'];
+    const FILTERS: ProgramFilter[] = ['All Students', 'BSCS', 'BSIT', 'BSIS', 'BSCA'];
 
     const filtered = useMemo(() => {
         let list = students;
         if (activeFilter !== 'All Students') {
-            list = list.filter(s =>
-                s.department?.toUpperCase().includes(activeFilter) ||
-                formatProgram(s.department, s.year_level).includes(activeFilter)
+            list = list.filter(
+                (s) => normalizeStudentToProgramFilter(s.department, s.program) === activeFilter
             );
         }
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
-            list = list.filter(s =>
-                s.full_name.toLowerCase().includes(q) ||
-                s.department?.toLowerCase().includes(q)
-            );
+            list = list.filter((s) => {
+                const subtitle = formatCounselorStudentSubtitle({
+                    department: s.department,
+                    program: s.program,
+                    year_level: s.year_level,
+                }).toLowerCase();
+                return (
+                    s.full_name.toLowerCase().includes(q) ||
+                    subtitle.includes(q) ||
+                    s.department?.toLowerCase().includes(q) ||
+                    s.program?.toLowerCase().includes(q)
+                );
+            });
         }
         return list;
     }, [students, activeFilter, searchQuery]);
@@ -300,10 +325,10 @@ export default function CounselorStudentsScreen() {
                             contentContainerStyle={{ flexDirection: 'row' }}
                             style={{ flexGrow: 0 }}
                         >
-                            {FILTERS.map(f => (
+                            {FILTERS.map((f) => (
                                 <FilterChip
                                     key={f}
-                                    label={f}
+                                    label={f === 'All Students' ? f : PROGRAM_FILTER_LABELS[f as ProgramFilterCode]}
                                     active={activeFilter === f}
                                     hasDropdown={f !== 'All Students'}
                                     onPress={() => setActiveFilter(f)}
@@ -354,23 +379,53 @@ export default function CounselorStudentsScreen() {
 // ─── Fallback Mock Students ────────────────────────────────────────────────────
 const MOCK_STUDENTS: StudentEntry[] = [
     {
-        id: 'm1', full_name: 'Marcus Chen', department: 'Computer Science',
-        year_level: '4th', riskLevel: 'HIGH RISK', moodEmoji: '😢', lastLog: '2h ago',
+        id: 'm1',
+        full_name: 'Marcus Chen',
+        department: 'CCS',
+        program: 'BS CS (Computer Science)',
+        year_level: '4th',
+        riskLevel: 'HIGH RISK',
+        moodEmoji: '😢',
+        lastLog: '2h ago',
     },
     {
-        id: 'm2', full_name: 'Sarah Jenkins', department: 'Information Systems',
-        year_level: '2nd', riskLevel: 'MEDIUM RISK', moodEmoji: '😐', lastLog: '5h ago',
+        id: 'm2',
+        full_name: 'Sarah Jenkins',
+        department: 'CCS',
+        program: 'BS IS (Information Systems)',
+        year_level: '2nd',
+        riskLevel: 'MEDIUM RISK',
+        moodEmoji: '😐',
+        lastLog: '5h ago',
     },
     {
-        id: 'm3', full_name: 'David Miller', department: 'Information Technology',
-        year_level: '3rd', riskLevel: 'LOW RISK', moodEmoji: '😊', lastLog: '1d ago',
+        id: 'm3',
+        full_name: 'David Miller',
+        department: 'CCS',
+        program: 'BS IT (Information Technology)',
+        year_level: '3rd',
+        riskLevel: 'LOW RISK',
+        moodEmoji: '😊',
+        lastLog: '1d ago',
     },
     {
-        id: 'm4', full_name: 'Elena Rodriguez', department: 'Computer Science',
-        year_level: '1st', riskLevel: 'LOW RISK', moodEmoji: '😄', lastLog: '3h ago',
+        id: 'm4',
+        full_name: 'Elena Rodriguez',
+        department: 'CCS',
+        program: 'BS CS (Computer Science)',
+        year_level: '1st',
+        riskLevel: 'LOW RISK',
+        moodEmoji: '😄',
+        lastLog: '3h ago',
     },
     {
-        id: 'm5', full_name: 'Jordan Smith', department: 'Information Technology',
-        year_level: '4th', riskLevel: 'MEDIUM RISK', moodEmoji: '😟', lastLog: '12h ago',
+        id: 'm5',
+        full_name: 'Jordan Smith',
+        department: 'CCS',
+        program: 'BS CA (Computer Application)',
+        year_level: '4th',
+        riskLevel: 'MEDIUM RISK',
+        moodEmoji: '😟',
+        lastLog: '12h ago',
     },
 ];

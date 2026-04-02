@@ -1156,8 +1156,8 @@ export const firestoreService = {
         const u = snap.data();
         userMap[uid] = {
           full_name: u?.full_name ?? u?.fullName,
-          department: u?.department ?? u?.program,
-          program: u?.department ?? u?.program,
+          department: u?.department,
+          program: u?.program,
           year: u?.year ?? u?.year_level,
           avatar_url: u?.avatar_url,
         };
@@ -1224,7 +1224,8 @@ export const firestoreService = {
             sessionHistoryBadge: badge,
             studentName: userMap[s.studentId]?.full_name ?? 'Unknown Student',
             studentAvatar: userMap[s.studentId]?.avatar_url,
-            studentProgram: userMap[s.studentId]?.department ?? userMap[s.studentId]?.program,
+            studentDepartment: userMap[s.studentId]?.department,
+            studentProgram: userMap[s.studentId]?.program,
             studentYear: userMap[s.studentId]?.year,
           };
         })

@@ -16,6 +16,7 @@ import { Calendar, Clock, FileText, AlertTriangle, X, Hash } from 'lucide-react-
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
 import type { SessionHistoryBadge } from '../../utils/sessionScheduling';
+import { formatCounselorStudentSubtitle } from '../../constants/ccs-student-programs';
 
 const BADGE_CONFIG: Record<SessionHistoryBadge, { label: string; bg: string; text: string }> = {
     pending: { label: 'PENDING', bg: 'rgba(45,107,255,0.2)', text: AURORA.blue },
@@ -32,6 +33,7 @@ export interface SessionHistoryDetailData {
     studentId: string;
     studentName: string;
     studentAvatar?: string;
+    studentDepartment?: string;
     studentProgram?: string;
     studentYear?: string;
     status: string;
@@ -96,7 +98,11 @@ export default function SessionHistoryDetailModal({
                                 <View style={styles.studentInfo}>
                                     <Text style={styles.studentName}>{data.studentName}</Text>
                                     <Text style={styles.studentMeta}>
-                                        {[data.studentProgram, data.studentYear].filter(Boolean).join(' • ') || 'Student'}
+                                        {formatCounselorStudentSubtitle({
+                                            department: data.studentDepartment,
+                                            program: data.studentProgram,
+                                            year_level: data.studentYear,
+                                        }) || 'Student'}
                                     </Text>
                                 </View>
                             </View>

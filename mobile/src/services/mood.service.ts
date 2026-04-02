@@ -76,68 +76,6 @@ export const moodService = {
     }
   },
 
-  generateInsights(logs: any[]) {
-    const insights: string[] = [];
-    if (!logs || logs.length < 3) return ["Keep logging for a few more days to unlock personalized AI insights about your mood patterns."];
-
-    // Helper to get sleep score (normalize string/number)
-    const getSleepScore = (log: any) => {
-      if (typeof log.sleep_quality === 'number') return log.sleep_quality;
-      if (log.sleep_quality === 'poor') return 1;
-      if (log.sleep_quality === 'fair') return 2;
-      if (log.sleep_quality === 'good') return 3;
-      return 0;
-    };
-
-    // 1. Social/Academic Load Analysis
-    const heavyDays = logs.filter(l => (l.classes_count || 0) >= 4 || (l.exams_count || 0) > 0 || (l.deadlines_count || 0) > 0);
-    if (heavyDays.length > 2) {
-      const heavyStress = heavyDays.reduce((acc, l) => acc + (l.stress_level || 0), 0) / heavyDays.length;
-      const allStress = logs.reduce((acc, l) => acc + (l.stress_level || 0), 0) / logs.length;
-
-      if (heavyStress > allStress + 1) {
-        insights.push("Your mood tends to be lower and stress higher on days with heavy academic loads (4+ classes or deadlines).");
-      } else if (heavyDays.some(l => (l.exams_count || 0) > 0)) {
-        insights.push("Upcoming exams are a significant stressor for you. Consider scheduling specific relaxation breaks.");
-      }
-    }
-
-    // 2. Sleep Quality Analysis
-    const poorSleepDays = logs.filter(l => getSleepScore(l) === 1);
-    const goodSleepDays = logs.filter(l => getSleepScore(l) === 3);
-
-    if (poorSleepDays.length > 0) {
-      const poorSleepEnergy = poorSleepDays.reduce((acc, l) => acc + (l.energy_level || 0), 0) / poorSleepDays.length;
-      const avgEnergy = logs.reduce((acc, l) => acc + (l.energy_level || 0), 0) / logs.length;
-
-      if (poorSleepEnergy < avgEnergy - 1) {
-        insights.push("Poor sleep quality correlates strongly with low energy days. Prioritizing rest might improve your weekly rhythm.");
-      }
-    }
-
-    if (goodSleepDays.length > 0) {
-      const goodSleepMood = goodSleepDays.reduce((acc, l) => acc + (l.stress_level || 0), 0) / goodSleepDays.length;
-      const avgStress = logs.reduce((acc, l) => acc + (l.stress_level || 0), 0) / logs.length;
-      if (goodSleepMood < avgStress) {
-        insights.push("You consistently report lower stress levels after a good night's sleep.");
-      }
-    }
-
-    // 3. General Mood Trend
-    const recentLogs = logs.slice(0, 5); // Most recent first (assuming sorted)
-    const avgRecentStress = recentLogs.reduce((acc, l) => acc + (l.stress_level || 0), 0) / recentLogs.length;
-    if (avgRecentStress > 7) {
-      insights.push("You've been experiencing high stress recently. It might be time to use the 'Schedule' tab to book a counseling session.");
-    }
-
-    // Default Fallback
-    if (insights.length === 0) {
-      insights.push("Your mood patterns are currently stable. We'll keep analyzing as you log more data!");
-    }
-
-    return insights;
-  },
-
   async getTodayMoodLog(userId: string) {
     try {
       const startOfDay = new Date();

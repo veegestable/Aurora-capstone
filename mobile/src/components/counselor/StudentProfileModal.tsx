@@ -18,6 +18,7 @@ import { X } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
 import { firestoreService } from '../../services/firebase-firestore.service';
+import { formatCounselorStudentSubtitle } from '../../constants/ccs-student-programs';
 
 const CHART_WIDTH = Dimensions.get('window').width - 48;
 const CHART_HEIGHT = 160;
@@ -32,6 +33,7 @@ interface StudentEntry {
     id: string;
     full_name: string;
     department?: string;
+    program?: string;
     year_level?: string;
     avatar_url?: string;
 }
@@ -40,16 +42,6 @@ interface StudentProfileModalProps {
     visible: boolean;
     student: StudentEntry | null;
     onClose: () => void;
-}
-
-function formatProgram(department?: string, yearLevel?: string): string {
-    const dept = department?.toUpperCase()
-        ?.replace('BACHELOR OF SCIENCE IN ', 'BS')
-        .replace('COMPUTER SCIENCE', 'BSCS')
-        .replace('INFORMATION TECHNOLOGY', 'BSIT')
-        .replace('INFORMATION SYSTEMS', 'BSIS') || 'BSCS';
-    const year = yearLevel ? `${yearLevel} Year` : '1st Year';
-    return `${dept} · ${year}`;
 }
 
 export default function StudentProfileModal({
@@ -103,7 +95,13 @@ export default function StudentProfileModal({
                             <LetterAvatar name={student.full_name ?? 'Student'} size={56} avatarUrl={student.avatar_url} />
                             <View>
                                 <Text style={styles.name}>{student.full_name}</Text>
-                                <Text style={styles.program}>{formatProgram(student.department, student.year_level)}</Text>
+                                <Text style={styles.program}>
+                                    {formatCounselorStudentSubtitle({
+                                        department: student.department,
+                                        program: student.program,
+                                        year_level: student.year_level,
+                                    }) || 'CCS'}
+                                </Text>
                             </View>
                         </View>
                         <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={12}>

@@ -17,12 +17,14 @@ import { X } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
 import { firestoreService } from '../../services/firebase-firestore.service';
+import { formatCounselorStudentSubtitle } from '../../constants/ccs-student-programs';
 
 export interface StudentRow {
     id: string;
     full_name?: string;
     avatar_url?: string;
     department?: string;
+    program?: string;
     year_level?: string;
 }
 
@@ -75,8 +77,12 @@ export default function SelectStudentModal({
         if (!q) return available;
         return available.filter((s) => {
             const name = (s.full_name || '').toLowerCase();
-            const dept = (s.department || '').toLowerCase();
-            return name.includes(q) || dept.includes(q);
+            const meta = formatCounselorStudentSubtitle({
+                department: s.department,
+                program: s.program,
+                year_level: s.year_level,
+            }).toLowerCase();
+            return name.includes(q) || meta.includes(q);
         });
     }, [available, query]);
 
@@ -84,7 +90,12 @@ export default function SelectStudentModal({
         if (addingId) return;
         setAddingId(student.id);
         try {
-            const program = [student.department, student.year_level].filter(Boolean).join(' · ') || undefined;
+            const program =
+                formatCounselorStudentSubtitle({
+                    department: student.department,
+                    program: student.program,
+                    year_level: student.year_level,
+                }) || undefined;
             await firestoreService.addConversation(
                 counselorId,
                 {
@@ -166,9 +177,13 @@ export default function SelectStudentModal({
                                     />
                                     <View style={{ flex: 1 }}>
                                         <Text style={styles.name}>{s.full_name || 'Student'}</Text>
-                                        {(s.department || s.year_level) && (
-                                            <Text style={styles.sub} numberOfLines={1}>
-                                                {[s.department, s.year_level].filter(Boolean).join(' · ')}
+                                        {(s.department || s.program || s.year_level) && (
+                                            <Text style={styles.sub} numberOfLines={2}>
+                                                {formatCounselorStudentSubtitle({
+                                                    department: s.department,
+                                                    program: s.program,
+                                                    year_level: s.year_level,
+                                                }) || 'CCS'}
                                             </Text>
                                         )}
                                     </View>
