@@ -28,11 +28,12 @@ export default function SessionRequestReceivedCard({
     onAccept,
     onProposeNewTime,
 }: SessionRequestReceivedCardProps) {
-    const isAccepted = ['confirmed', 'completed', 'missed', 'rescheduled', 'needs_rescheduling', 'expired'].includes(
-        data.status
-    );
+    const status = data.status;
     const isExpired = data.isExpired ?? false;
-    const canAct = !isAccepted && !isExpired && !['cancelled'].includes(data.status);
+    const isNeedsRescheduling = status === 'needs_rescheduling';
+    const isAccepted = ['confirmed', 'completed', 'missed', 'rescheduled'].includes(status);
+    const canAct =
+        !isExpired && !['cancelled'].includes(status) && ['pending', 'requested', 'needs_rescheduling'].includes(status);
 
     return (
         <View style={styles.card}>
@@ -44,8 +45,15 @@ export default function SessionRequestReceivedCard({
                     styles.badge,
                     isExpired && styles.badgeExpired,
                     isAccepted && styles.badgeAccepted,
+                    isNeedsRescheduling && styles.badgeNeedsRescheduling,
                 ]}>
-                    {isExpired ? 'EXPIRED' : isAccepted ? 'ACCEPTED' : 'NEW SESSION REQUEST'}
+                    {isExpired
+                        ? 'EXPIRED'
+                        : isNeedsRescheduling
+                            ? 'NEEDS RESCHEDULING'
+                            : isAccepted
+                                ? 'ACCEPTED'
+                                : 'NEW SESSION REQUEST'}
                 </Text>
             </View>
 
@@ -65,20 +73,11 @@ export default function SessionRequestReceivedCard({
                 </View>
             )}
 
-            {isAccepted && (
-                <Text style={styles.acceptedNote}>
-                    {data.status === 'confirmed' ? 'Session confirmed. See Session History for details.' : ''}
-                    {data.status === 'completed' ? 'Session completed.' : ''}
-                    {data.status === 'missed' ? 'Student did not show up.' : ''}
-                    {data.status === 'rescheduled' ? 'Needs rescheduling.' : ''}
-                    {data.status === 'needs_rescheduling' ? 'Time passed — needs rescheduling.' : ''}
-                    {data.status === 'expired' ? 'Session window expired.' : ''}
-                </Text>
-            )}
+            {/* Accepted/terminal status confirmation is communicated via the automated green chat message. */}
 
             {canAct && (
                 <View style={styles.actions}>
-                    {data.preferredTime && onAccept && (
+                    {data.preferredTime && onAccept && !isNeedsRescheduling && (
                         <TouchableOpacity
                             style={styles.acceptBtn}
                             onPress={onAccept}
@@ -94,7 +93,9 @@ export default function SessionRequestReceivedCard({
                         activeOpacity={0.85}
                     >
                         <Clock size={18} color={AURORA.blue} />
-                        <Text style={styles.proposeBtnText}>Propose New Time</Text>
+                        <Text style={styles.proposeBtnText}>
+                            {isNeedsRescheduling ? 'Reschedule' : 'Propose New Time'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -136,6 +137,9 @@ const styles = StyleSheet.create({
     },
     badgeAccepted: {
         color: AURORA.green,
+    },
+    badgeNeedsRescheduling: {
+        color: AURORA.orange,
     },
     textMuted: {
         color: AURORA.textMuted,

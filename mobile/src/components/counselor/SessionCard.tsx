@@ -83,22 +83,33 @@ export default function SessionCard({ data, isFromMe, onViewDetails, onReschedul
         return 'SESSION INVITE';
     })();
 
-    // Pending invite: always show Reschedule next to View Details (handler may no-op if id missing upstream).
-    const showReschedule = statusLabel === 'SESSION INVITE';
-
     const displayDate = data.agreedSlot?.date ?? data.date;
     const displayTime = data.agreedSlot?.time ?? data.time;
+    const scheduledTimeReached = isSessionScheduledTimeReached({ date: displayDate, time: displayTime });
+
+    const showReschedule =
+        !!onReschedule &&
+        (statusLabel === 'SESSION INVITE' || (statusLabel === 'ACCEPTED' && scheduledTimeReached));
+
+    const statusHint = (() => {
+        if (statusLabel === 'ACCEPTED') return { text: 'Student confirmed this session time', color: AURORA.green };
+        if (statusLabel === 'SESSION INVITE') return { text: 'Awaiting student confirmation', color: AURORA.textSec };
+        if (statusLabel === 'COMPLETED') return { text: 'Session completed', color: AURORA.green };
+        if (statusLabel === 'MISSED') return { text: 'Student did not show up', color: AURORA.orange };
+        if (statusLabel === 'CANCELLED') return { text: 'Session cancelled', color: AURORA.textMuted };
+        return null;
+    })();
 
     const openDetails = () => {
         setDetailOpen(true);
         onViewDetails?.();
     };
 
-    const canMarkAttendance =
-        !!onMarkAttendance &&
-        !!data.id &&
-        !String(data.id).startsWith('session_') &&
-        isSessionScheduledTimeReached({ date: displayDate, time: displayTime });
+    // const canMarkAttendance =
+    //     !!onMarkAttendance &&
+    //     !!data.id &&
+    //     !String(data.id).startsWith('session_') &&
+    //     scheduledTimeReached;
 
     const handleMarkAttendancePress = () => {
         setDetailOpen(false);
@@ -138,6 +149,11 @@ export default function SessionCard({ data, isFromMe, onViewDetails, onReschedul
                         </View>
                     )}
                 </View>
+                {statusHint && (
+                    <Text style={[styles.statusHint, { color: statusHint.color }]}>
+                        {statusHint.text}
+                    </Text>
+                )}
                 <View style={styles.actions}>
                     <TouchableOpacity
                         style={[styles.primaryBtn, !showReschedule && styles.primaryBtnSingle]}
@@ -257,7 +273,7 @@ export default function SessionCard({ data, isFromMe, onViewDetails, onReschedul
                                 </Text>
                             </View>
 
-                            <View style={styles.sheetSection}>
+                            {/* <View style={styles.sheetSection}>
                                 <View style={styles.sheetSectionHeader}>
                                     <Hash size={18} color={AURORA.blue} />
                                     <Text style={styles.sheetSectionLabel}>Session ID</Text>
@@ -265,10 +281,10 @@ export default function SessionCard({ data, isFromMe, onViewDetails, onReschedul
                                 <Text style={styles.sheetIdValue} selectable>
                                     {data.id}
                                 </Text>
-                            </View>
+                            </View> */}
                         </ScrollView>
 
-                        {canMarkAttendance ? (
+                        {/* {canMarkAttendance ? (
                             <TouchableOpacity
                                 style={styles.sheetAttendanceBtn}
                                 onPress={handleMarkAttendancePress}
@@ -276,7 +292,7 @@ export default function SessionCard({ data, isFromMe, onViewDetails, onReschedul
                             >
                                 <Text style={styles.sheetAttendanceBtnText}>Mark attendance</Text>
                             </TouchableOpacity>
-                        ) : null}
+                        ) : null} */}
 
                         <TouchableOpacity
                             style={styles.sheetCloseBtn}
@@ -339,6 +355,12 @@ const styles = StyleSheet.create({
     detailText: {
         color: 'rgba(255,255,255,0.9)',
         fontSize: 13,
+    },
+    statusHint: {
+        fontSize: 12,
+        color: AURORA.textSec,
+        marginBottom: 10,
+        marginTop: 2,
     },
     actions: {
         flexDirection: 'row',

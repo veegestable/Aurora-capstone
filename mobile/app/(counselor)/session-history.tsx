@@ -31,6 +31,7 @@ import { firestoreService } from '../../src/services/firebase-firestore.service'
 import { AURORA } from '../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../src/components/common/LetterAvatar';
 import SessionAttendanceModal, { type AttendanceStatus } from '../../src/components/counselor/SessionAttendanceModal';
+import SendSessionInviteModal, { type SessionInviteData } from '../../src/components/counselor/SendSessionInviteModal';
 import SessionHistoryDetailModal, { type SessionHistoryDetailData } from '../../src/components/counselor/SessionHistoryDetailModal';
 import { isSessionScheduledTimeReached, parseSlotToDate, parsePreferredTimeToDate } from '../../src/utils/dateHelpers';
 import {
@@ -143,6 +144,8 @@ export default function SessionHistoryScreen() {
     const [showAttendanceModal, setShowAttendanceModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedSession, setSelectedSession] = useState<SessionHistoryItem | null>(null);
+    const [showRescheduleInviteModal, setShowRescheduleInviteModal] = useState(false);
+    const [rescheduleBusy, setRescheduleBusy] = useState(false);
 
     useEffect(() => {
         if (!user?.id) {
@@ -279,6 +282,53 @@ export default function SessionHistoryScreen() {
         } finally {
             setShowAttendanceModal(false);
             setSelectedSession(null);
+        }
+    };
+
+    const formatSlotForSend = (d: Date) => ({
+        date: d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+        time: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    });
+
+    const handleRescheduleInviteSend = async (data: SessionInviteData) => {
+        if (!user?.id || !selectedSession) return;
+        const studentId = selectedSession.studentId;
+        const timeSlots = [
+            data.primaryDate && formatSlotForSend(data.primaryDate),
+            data.alternativeDate && formatSlotForSend(data.alternativeDate),
+            data.finalDate && formatSlotForSend(data.finalDate),
+        ].filter(Boolean) as { date: string; time: string }[];
+
+        if (timeSlots.length === 0) return;
+
+        setRescheduleBusy(true);
+        try {
+            await firestoreService.proposeSlots(selectedSession.id, timeSlots);
+            const conversationId = `${user.id}_${selectedSession.studentId}`;
+            const headline = timeSlots[0];
+
+            await firestoreService.sendSessionMessage(conversationId, user.id, {
+                id: selectedSession.id,
+                type: 'invite',
+                title: 'Academic Guidance',
+                counselorName: user.full_name || 'Counselor',
+                date: headline.date,
+                time: headline.time,
+                location: 'Guidance Office, West Wing',
+                note: data.note,
+                timeSlots,
+            });
+
+            setShowRescheduleInviteModal(false);
+            setSelectedSession(null);
+
+            router.replace(
+                `/(counselor)/messages?studentId=${encodeURIComponent(studentId)}`
+            );
+        } catch (e) {
+            console.error('Failed to reschedule session:', e);
+        } finally {
+            setRescheduleBusy(false);
         }
     };
 
@@ -490,9 +540,34 @@ export default function SessionHistoryScreen() {
                         setSelectedSession(null);
                     }}
                     onMarkStatus={(status) => {
+                        if (status === 'needs_rescheduling') {
+                            // Open the scheduling modal instead of auto-setting the session.
+                            setShowAttendanceModal(false);
+                            setShowRescheduleInviteModal(true);
+                            return;
+                        }
                         handleMarkAttendance(status);
+                    }}
+                />
+            )}
+
+            {/* Reschedule Scheduling Modal (from attendance "Needs Rescheduling") */}
+            {selectedSession && (
+                <SendSessionInviteModal
+                    visible={showRescheduleInviteModal}
+                    student={{
+                        id: selectedSession.studentId,
+                        name: selectedSession.studentName,
+                        avatar: selectedSession.studentAvatar,
+                        program: selectedSession.studentProgram,
+                        studentId: selectedSession.studentId,
+                    }}
+                    counselorName={user?.full_name}
+                    onClose={() => {
+                        setShowRescheduleInviteModal(false);
                         setSelectedSession(null);
                     }}
+                    onSend={handleRescheduleInviteSend}
                 />
             )}
         </View>

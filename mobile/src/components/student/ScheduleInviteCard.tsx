@@ -75,7 +75,7 @@ export default function ScheduleInviteCard({
             {data.note && (
                 <Text style={styles.quote}>"{data.note}"</Text>
             )}
-            {settled && (
+            {settled && st !== 'confirmed' && (
                 <View
                     style={[
                         styles.statusBanner,

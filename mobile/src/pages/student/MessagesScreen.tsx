@@ -25,6 +25,8 @@ import SelectCounselorModal, { type Counselor } from '../../components/student/S
 
 type TabType = 'Counselors' | 'Peer Support' | 'Archive';
 
+const AUTO_ACCEPTED_PREFIX = '__AUTO_ACCEPTED__';
+
 interface CounselorContact {
     id: string;
     conversationId: string;
@@ -214,6 +216,14 @@ function DirectMessageView({
                 conversationId: contact.conversationId,
                 counselorId: contact.id,
             });
+
+            // Automated green "Accepted" message for the thread.
+            await firestoreService.sendTextMessage(
+                contact.conversationId,
+                user.id,
+                `${AUTO_ACCEPTED_PREFIX}Just accepted your request`
+            );
+
             // Immediate UI: chat messages do not store status on the doc — merge comes from `sessions`.
             setMessages((prev) =>
                 prev.map((m) =>
@@ -399,6 +409,13 @@ function DirectMessageView({
                     ) : (
                         messages.map((msg) => {
                             const isMe = msg.senderId === 'me';
+                            const isAutoAccepted =
+                                msg.type === 'text' && msg.text.startsWith(AUTO_ACCEPTED_PREFIX);
+                            const displayText = isAutoAccepted
+                                ? msg.text.replace(AUTO_ACCEPTED_PREFIX, '').trim()
+                                : msg.type === 'text'
+                                    ? msg.text
+                                    : '';
                             const senderName = isMe ? 'You' : contact.name;
                             const messageContent = msg.type === 'text' ? (
                                                 <View
@@ -414,8 +431,8 @@ function DirectMessageView({
                                                         paddingVertical: 12,
                                                     }}
                                                 >
-                                                    <Text style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
-                                                        {msg.text}
+                                                    <Text style={{ color: isAutoAccepted ? AURORA.green : '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
+                                                        {displayText}
                                                     </Text>
                                                     <Text
                                                         style={{

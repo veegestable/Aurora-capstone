@@ -21,7 +21,7 @@ import { useMessagesContactStore, type MessageContact } from '../../src/stores/m
 import { firestoreService } from '../../src/services/firebase-firestore.service';
 import { AURORA } from '../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../src/components/common/LetterAvatar';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { isSessionTimeExpired } from '../../src/utils/dateHelpers';
 import { resolveSessionsDocIdForSessionCard } from '../../src/utils/sessionInviteIds';
 import SendSessionInviteModal, { type SessionInviteData } from '../../src/components/counselor/SendSessionInviteModal';
@@ -65,6 +65,8 @@ interface SessionRequestChatMessage {
 }
 
 type ChatMessage = TextChatMessage | SessionChatMessage | SessionRequestChatMessage;
+
+const AUTO_ACCEPTED_PREFIX = '__AUTO_ACCEPTED__';
 
 // ─── Conversation Row ──────────────────────────────────────────────────────────
 function ConversationRow({
@@ -257,18 +259,30 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
     };
 
     const handleAcceptSessionRequest = async (sessionId: string | null, preferredTime: string) => {
-        if (!sessionId || !preferredTime || sending || !conversationId) return;
+        if (!sessionId || !preferredTime || sending || !conversationId || !user?.id) return;
         setSending(true);
         try {
             const slot = parsePreferredTimeToSlot(preferredTime);
             await firestoreService.confirmSlot(sessionId, slot);
             await firestoreService.updateSessionRequestMessageStatus(conversationId, sessionId, 'confirmed');
-            setMessages(prev => prev.map(m => {
-                if (m.type === 'session_request' && m.sessionRequest.sessionId === sessionId) {
-                    return { ...m, sessionRequest: { ...m.sessionRequest, status: 'confirmed' } };
-                }
-                return m;
-            }));
+            const autoMsgId = await firestoreService.sendTextMessage(
+                conversationId,
+                user.id,
+                `${AUTO_ACCEPTED_PREFIX}Just accepted your request`
+            );
+
+            setMessages((prev) => {
+                const updated = prev.map((m) => {
+                    if (m.type === 'session_request' && m.sessionRequest.sessionId === sessionId) {
+                        return { ...m, sessionRequest: { ...m.sessionRequest, status: 'confirmed' } };
+                    }
+                    return m;
+                });
+                return [
+                    ...updated,
+                    { id: autoMsgId, senderId: 'me', type: 'text', text: `${AUTO_ACCEPTED_PREFIX}Just accepted your request`, time: 'Just now' },
+                ];
+            });
         } catch (e) {
             console.error('Failed to accept session request:', e);
         } finally {
@@ -408,6 +422,8 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                     ) : (
                     messages.map(msg => {
                         const isMe = msg.senderId === 'me';
+                        const isAutoAccepted = msg.type === 'text' && msg.text.startsWith(AUTO_ACCEPTED_PREFIX);
+                        const displayText = isAutoAccepted ? msg.text.replace(AUTO_ACCEPTED_PREFIX, '').trim() : msg.type === 'text' ? msg.text : '';
                         return (
                             <View key={msg.id} style={{ marginBottom: 16 }}>
                                 <Text style={{
@@ -433,8 +449,12 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                             borderBottomRightRadius: isMe ? 4 : 16,
                                             paddingHorizontal: 14, paddingVertical: 10,
                                         }}>
-                                            <Text style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
-                                                {msg.text}
+                                            <Text style={{
+                                                color: isAutoAccepted ? AURORA.green : '#FFFFFF',
+                                                fontSize: 14,
+                                                lineHeight: 20,
+                                            }}>
+                                                {displayText}
                                             </Text>
                                         </View>
                                     ) : msg.type === 'session_request' && !isMe ? (
@@ -590,6 +610,7 @@ export default function CounselorMessagesScreen() {
     const [selectedContact, setSelectedContact] = useState<Conversation | null>(null);
     const [loading, setLoading] = useState(true);
     const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+    const { studentId } = useLocalSearchParams<{ studentId?: string }>();
 
     useEffect(() => {
         if (!user?.id) {
@@ -609,6 +630,14 @@ export default function CounselorMessagesScreen() {
             });
         return () => { cancelled = true; };
     }, [user?.id, setContacts]);
+
+    useEffect(() => {
+        if (loading) return;
+        if (!studentId) return;
+        if (selectedContact) return;
+        const found = contacts.find((c) => c.id === studentId);
+        if (found) setSelectedContact(found);
+    }, [loading, studentId, contacts, selectedContact]);
 
     const refreshConversations = () => {
         if (!user?.id) return;
