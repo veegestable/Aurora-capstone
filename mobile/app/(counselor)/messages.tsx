@@ -611,6 +611,12 @@ export default function CounselorMessagesScreen() {
     const [loading, setLoading] = useState(true);
     const [showAddStudentModal, setShowAddStudentModal] = useState(false);
     const { studentId } = useLocalSearchParams<{ studentId?: string }>();
+    const [autoOpenLocked, setAutoOpenLocked] = useState(false);
+
+    useEffect(() => {
+        // Reset when navigating to a different student thread.
+        setAutoOpenLocked(false);
+    }, [studentId]);
 
     useEffect(() => {
         if (!user?.id) {
@@ -634,9 +640,13 @@ export default function CounselorMessagesScreen() {
     useEffect(() => {
         if (loading) return;
         if (!studentId) return;
+        if (autoOpenLocked) return;
         if (selectedContact) return;
         const found = contacts.find((c) => c.id === studentId);
-        if (found) setSelectedContact(found);
+        if (found) {
+            setSelectedContact(found);
+            setAutoOpenLocked(true); // prevent immediate re-opening after user presses back
+        }
     }, [loading, studentId, contacts, selectedContact]);
 
     const refreshConversations = () => {
@@ -665,6 +675,8 @@ export default function CounselorMessagesScreen() {
                 onBack={() => {
                     setSelectedContact(null);
                     refreshConversations();
+                    setAutoOpenLocked(true);
+                    router.replace('/(counselor)/messages');
                 }}
             />
         );
