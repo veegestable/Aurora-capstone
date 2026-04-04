@@ -24,6 +24,8 @@ import StudentSessionRequestModal, { type SessionRequestFormData } from '../../c
 import SelectCounselorModal, { type Counselor } from '../../components/student/SelectCounselorModal';
 import { parsePreferredTimeToDate } from '../../utils/dateHelpers';
 import { auditLogsService } from '../../services/audit-logs.service';
+import { subscribeToUsersPresence } from '../../services/firebase-presence.service';
+import { usePeerPresence } from '../../hooks/usePeerPresence';
 import * as Clipboard from 'expo-clipboard';
 
 type TabType = 'Counselors' | 'Peer Support' | 'Archive';
@@ -95,21 +97,19 @@ function ContactRow({
         >
             <View style={{ position: 'relative', marginRight: 12 }}>
                 <LetterAvatar name={item.name} size={52} avatarUrl={item.avatar || undefined} />
-                {item.isOnline && (
-                    <View
-                        style={{
-                            position: 'absolute',
-                            bottom: 1,
-                            right: 1,
-                            width: 13,
-                            height: 13,
-                            borderRadius: 7,
-                            backgroundColor: AURORA.green,
-                            borderWidth: 2,
-                            borderColor: AURORA.bgMessages,
-                        }}
-                    />
-                )}
+                <View
+                    style={{
+                        position: 'absolute',
+                        bottom: 1,
+                        right: 1,
+                        width: 13,
+                        height: 13,
+                        borderRadius: 7,
+                        backgroundColor: item.isOnline ? AURORA.green : AURORA.textMuted,
+                        borderWidth: 2,
+                        borderColor: AURORA.bgMessages,
+                    }}
+                />
             </View>
             <View style={{ flex: 1 }}>
                 <View
@@ -158,27 +158,27 @@ function DirectMessageView({
     const [selectedSessionRequest, setSelectedSessionRequest] = useState<SessionRequestData | null>(null);
     const [editingSessionRequest, setEditingSessionRequest] = useState<SessionRequestData | null>(null);
     const scrollViewRef = useRef<ScrollView>(null);
+    const peerOnline = usePeerPresence(contact.id);
 
     useEffect(() => {
         if (!contact.conversationId || !user?.id) {
             setLoadingMessages(false);
             return;
         }
-        let cancelled = false;
-        firestoreService
-            .getMessagesForStudent(contact.conversationId, user.id)
-            .then((msgs) => {
-                if (!cancelled) setMessages(msgs as ChatMessage[]);
-            })
-            .catch(() => {
-                if (!cancelled) setMessages([]);
-            })
-            .finally(() => {
-                if (!cancelled) setLoadingMessages(false);
-            });
-        return () => {
-            cancelled = true;
-        };
+        setLoadingMessages(true);
+        const unsub = firestoreService.subscribeConversationMessages(
+            contact.conversationId,
+            user.id,
+            (msgs) => {
+                setMessages(msgs as ChatMessage[]);
+                setLoadingMessages(false);
+            },
+            () => {
+                setMessages([]);
+                setLoadingMessages(false);
+            }
+        );
+        return unsub;
     }, [contact.conversationId, user?.id]);
 
     // Always scroll to the latest message when opening a conversation.
@@ -195,15 +195,7 @@ function DirectMessageView({
         if (!text || !user?.id || !contact.conversationId || sending) return;
         setSending(true);
         try {
-            const msgId = await firestoreService.sendTextMessage(
-                contact.conversationId,
-                user.id,
-                text
-            );
-            setMessages((prev) => [
-                ...prev,
-                { id: msgId, senderId: 'me', type: 'text', text, time: 'Just now' },
-            ]);
+            await firestoreService.sendTextMessage(contact.conversationId, user.id, text);
             setMessage('');
             setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (e) {
@@ -239,24 +231,6 @@ function DirectMessageView({
                         targetId: messageId,
                         metadata: { conversationId: contact.conversationId, messageType },
                     });
-                    setMessages((prev) => {
-                        const original = prev.find((m) => m.id === messageId);
-                        const senderId = original?.senderId ?? 'me';
-                        const time = (original as any)?.time ?? 'Just now';
-
-                        const placeholderText =
-                            messageType === 'session'
-                                ? '[Deleted session]'
-                                : messageType === 'session_request'
-                                    ? '[Deleted session request]'
-                                    : '[Deleted message]';
-
-                        return prev.map((m) =>
-                            m.id !== messageId
-                                ? m
-                                : ({ id: messageId, senderId, type: 'text', text: placeholderText, time } as any)
-                        );
-                    });
                 },
             },
         ]);
@@ -286,23 +260,6 @@ function DirectMessageView({
                 `${AUTO_ACCEPTED_PREFIX}Just accepted your request`
             );
 
-            // Immediate UI: chat messages do not store status on the doc — merge comes from `sessions`.
-            setMessages((prev) =>
-                prev.map((m) =>
-                    m.type === 'session' && m.session.id === sid
-                        ? {
-                              ...m,
-                              session: {
-                                  ...m.session,
-                                  sessionStatus: 'confirmed',
-                                  agreedSlot: { date: slot.date, time: slot.time },
-                              },
-                          }
-                        : m
-                ) as ChatMessage[]
-            );
-            const msgs = await firestoreService.getMessagesForStudent(contact.conversationId, user.id);
-            setMessages(msgs as ChatMessage[]);
             setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
@@ -337,21 +294,6 @@ function DirectMessageView({
                     data.note
                 );
 
-                setMessages((prev) =>
-                    prev.map((m) => {
-                        if (m.type !== 'session_request') return m;
-                        if (m.sessionRequest.id !== editingSessionRequest.id) return m;
-                        return {
-                            ...m,
-                            sessionRequest: {
-                                ...m.sessionRequest,
-                                preferredTime: preferredTimeStr,
-                                note: data.note,
-                            },
-                        };
-                    })
-                );
-
                 setShowSessionRequestModal(false);
                 setEditingSessionRequest(null);
                 setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
@@ -359,28 +301,12 @@ function DirectMessageView({
             }
 
             // New request flow: create a new session request card.
-            const msgId = await firestoreService.sendSessionRequest(
+            await firestoreService.sendSessionRequest(
                 contact.conversationId,
                 user.id,
                 data.preferredDate,
                 data.note
             );
-
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: msgId,
-                    senderId: 'me',
-                    type: 'session_request',
-                    sessionRequest: {
-                        id: msgId,
-                        preferredTime: preferredTimeStr,
-                        note: data.note,
-                        status: 'pending',
-                    },
-                    time: 'Just now',
-                },
-            ]);
 
             setShowSessionRequestModal(false);
             setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
@@ -426,16 +352,16 @@ function DirectMessageView({
                                         width: 8,
                                         height: 8,
                                         borderRadius: 4,
-                                        backgroundColor: contact.isOnline ? AURORA.green : AURORA.textMuted,
+                                        backgroundColor: peerOnline ? AURORA.green : AURORA.textMuted,
                                     }}
                                 />
                                 <Text
                                     style={{
-                                        color: contact.isOnline ? AURORA.green : AURORA.textMuted,
+                                        color: peerOnline ? AURORA.green : AURORA.textMuted,
                                         fontSize: 12,
                                     }}
                                 >
-                                    {contact.isOnline ? 'Online now' : 'Offline'}
+                                    {peerOnline ? 'Online now' : 'Offline'}
                                 </Text>
                             </View>
                         </View>
@@ -800,6 +726,7 @@ export default function MessagesScreen() {
     const [contacts, setContacts] = useState<CounselorContact[]>([]);
     const [loading, setLoading] = useState(true);
     const [showSelectCounselorModal, setShowSelectCounselorModal] = useState(false);
+    const [onlineByCounselorId, setOnlineByCounselorId] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         if (!user?.id) {
@@ -822,6 +749,17 @@ export default function MessagesScreen() {
             cancelled = true;
         };
     }, [user?.id]);
+
+    useEffect(() => {
+        if (contacts.length === 0) {
+            setOnlineByCounselorId({});
+            return;
+        }
+        return subscribeToUsersPresence(
+            contacts.map((c) => c.id),
+            setOnlineByCounselorId
+        );
+    }, [contacts]);
 
     const refreshConversations = () => {
         if (!user?.id) return;
@@ -866,7 +804,10 @@ export default function MessagesScreen() {
     if (selectedContact) {
         return (
             <DirectMessageView
-                contact={selectedContact}
+                contact={{
+                    ...selectedContact,
+                    isOnline: onlineByCounselorId[selectedContact.id] ?? false,
+                }}
                 onBack={() => {
                     setSelectedContact(null);
                     refreshConversations();
@@ -968,8 +909,16 @@ export default function MessagesScreen() {
                         contacts.map((item) => (
                             <ContactRow
                                 key={item.conversationId}
-                                item={item}
-                                onPress={() => setSelectedContact(item)}
+                                item={{
+                                    ...item,
+                                    isOnline: onlineByCounselorId[item.id] ?? false,
+                                }}
+                                onPress={() =>
+                                    setSelectedContact({
+                                        ...item,
+                                        isOnline: onlineByCounselorId[item.id] ?? false,
+                                    })
+                                }
                             />
                         ))
                     ) : activeTab === 'Counselors' && contacts.length === 0 ? (

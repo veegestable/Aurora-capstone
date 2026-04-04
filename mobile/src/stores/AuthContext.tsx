@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { authService, UserProfile } from '../services/firebase-auth.service';
+import { startMyPresence } from '../services/firebase-presence.service';
 
 export type CounselorApprovalStatus = 'pending' | 'approved' | 'rejected';
 
@@ -88,6 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    return startMyPresence(user.id);
+  }, [user?.id]);
 
   const signIn = async (email: string, password: string) => {
     try {

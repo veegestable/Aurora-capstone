@@ -11,7 +11,9 @@ import {
   Timestamp,
   doc,
   updateDoc,
-  deleteDoc
+  deleteDoc,
+  onSnapshot,
+  type QuerySnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import {
@@ -186,6 +188,60 @@ export const firestoreService = {
     } catch (error: any) {
       console.error('❌ Error getting mood logs:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Live updates for mood logs in a date range (same query shape as getMoodLogs).
+   */
+  subscribeMoodLogs(
+    userId: string,
+    startDate: Date | undefined,
+    endDate: Date | undefined,
+    onNext: (logs: (MoodData & { id: string; created_at: Date; log_date: Date })[]) => void,
+    onError?: (error: Error) => void
+  ): () => void {
+    try {
+      let q = query(
+        collection(db, 'mood_logs'),
+        where('user_id', '==', userId),
+        orderBy('log_date', 'desc')
+      );
+      if (startDate) {
+        q = query(q, where('log_date', '>=', Timestamp.fromDate(startDate)));
+      }
+      if (endDate) {
+        q = query(q, where('log_date', '<=', Timestamp.fromDate(endDate)));
+      }
+      return onSnapshot(
+        q,
+        (querySnapshot) => {
+          const moodLogs = querySnapshot.docs.map((docSnap) => {
+            const data = docSnap.data();
+            return {
+              id: docSnap.id,
+              user_id: data.user_id,
+              emotions: data.emotions || [],
+              notes: data.notes || '',
+              log_date: data.log_date?.toDate() || new Date(),
+              energy_level: data.energy_level || 5,
+              stress_level: data.stress_level || 3,
+              sleep_quality: data.sleep_quality,
+              classes_count: data.classes_count,
+              exams_count: data.exams_count,
+              deadlines_count: data.deadlines_count,
+              detection_method: data.detection_method || 'manual',
+              created_at: data.created_at?.toDate() || new Date(),
+            } as MoodData & { id: string; created_at: Date; log_date: Date };
+          });
+          onNext(moodLogs);
+        },
+        (err) => onError?.(err instanceof Error ? err : new Error(String(err)))
+      );
+    } catch (error: any) {
+      console.error('❌ subscribeMoodLogs setup error:', error);
+      onError?.(error instanceof Error ? error : new Error(String(error)));
+      return () => {};
     }
   },
 
@@ -527,122 +583,41 @@ export const firestoreService = {
       const messagesRef = collection(db, 'conversations', conversationId, 'messages');
       const q = query(messagesRef, orderBy('createdAt', 'asc'));
       const snapshot = await getDocs(q);
-      const msgs = snapshot.docs.map((d) => {
-        const data = d.data();
-        const createdAt = data.createdAt?.toDate?.() ?? new Date();
-        const isMe = data.senderId === userId;
-        const senderId = isMe ? 'me' : 'them';
-        if (data.type === 'session_invite') {
-          const rawSession = (data.sessionData ?? data.session ?? {}) as Record<string, unknown>;
-          // Never use `data.sessionId` here — after sendSessionMessage it is the *message* doc id, not sessions/{id}.
-          const resolved = resolveSessionsDocIdFromInviteMessageData(data as Record<string, unknown>);
-          const fallbackNested =
-            (rawSession.id != null && String(rawSession.id).trim()) ||
-            (rawSession.sessionId != null && String(rawSession.sessionId).trim()) ||
-            '';
-          const id = (resolved || fallbackNested || '').trim();
-          const sessionForCard = {
-            ...rawSession,
-            id,
-            ...(id && !isPlaceholderSessionDocId(id)
-              ? { linkedSessionId: id, sessionId: id }
-              : {}),
-          };
-          return {
-            id: d.id,
-            senderId,
-            type: 'session' as const,
-            session: sessionForCard,
-            time: formatMessageTime(createdAt),
-          };
-        }
-        if (data.type === 'session_request') {
-          const req = data.sessionData ?? {};
-          const sid = data.sessionId ?? req.sessionId ?? null;
-          return {
-            id: d.id,
-            senderId,
-            type: 'session_request' as const,
-            sessionRequest: {
-              id: d.id,
-              sessionId: sid,
-              preferredTime: req.preferredTime ?? '',
-              note: req.note ?? '',
-              status: req.status ?? 'pending',
-            },
-            time: formatMessageTime(createdAt),
-          };
-        }
-        return {
-          id: d.id,
-          senderId,
-          type: 'text' as const,
-          text: data.content ?? '',
-          time: formatMessageTime(createdAt),
-        };
-      });
-
-      const sessionRequestMsgs = msgs.filter((m) => m.type === 'session_request');
-      const sessionInviteMsgs = msgs.filter((m) => m.type === 'session');
-      const requestSessionIds = [...new Set(sessionRequestMsgs.map((m) => m.sessionRequest.sessionId).filter(Boolean))] as string[];
-      const inviteSessionIds = [...new Set(
-        sessionInviteMsgs
-          .map((m) => resolveSessionsDocIdForSessionCard(m.session as Record<string, unknown>))
-          .filter(Boolean)
-      )] as string[];
-      const allSessionIds = [...new Set([...requestSessionIds, ...inviteSessionIds])];
-
-      let sessionStatusMap: Record<string, string> = {};
-      let sessionFinalSlotMap: Record<string, { date: string; time: string } | null> = {};
-      if (allSessionIds.length > 0) {
-        const sessionPromises = allSessionIds.map((id) => getDoc(doc(db, 'sessions', id)));
-        const sessionSnaps = await Promise.all(sessionPromises);
-        sessionSnaps.forEach((snap, i) => {
-          const sid = allSessionIds[i];
-          const s = snap.data();
-          if (s?.status) sessionStatusMap[sid] = s.status;
-          const fs = s?.finalSlot ?? s?.confirmedSlot;
-          if (fs && typeof fs === 'object' && 'date' in fs && 'time' in fs) {
-            sessionFinalSlotMap[sid] = { date: String(fs.date), time: String(fs.time) };
-          } else {
-            sessionFinalSlotMap[sid] = null;
-          }
-        });
-      }
-
-      return msgs.map((m) => {
-        if (m.type === 'session_request' && m.sessionRequest.sessionId) {
-          const sessionStatus = sessionStatusMap[m.sessionRequest.sessionId];
-          if (sessionStatus && ['confirmed', 'completed', 'missed', 'rescheduled', 'cancelled', 'needs_rescheduling', 'expired'].includes(sessionStatus)) {
-            return {
-              ...m,
-              sessionRequest: { ...m.sessionRequest, status: sessionStatus },
-            };
-          }
-        }
-        if (m.type === 'session') {
-          const sid = resolveSessionsDocIdForSessionCard(m.session as Record<string, unknown>);
-          if (sid && sessionStatusMap[sid]) {
-            const fs = sessionFinalSlotMap[sid];
-            return {
-              ...m,
-              session: {
-                ...m.session,
-                id: sid,
-                linkedSessionId: sid,
-                sessionId: sid,
-                sessionStatus: sessionStatusMap[sid],
-                ...(fs ? { agreedSlot: fs } : {}),
-              },
-            };
-          }
-        }
-        return m;
-      });
+      return await buildChatMessagesFromQuerySnapshot(snapshot, userId);
     } catch (error: any) {
       console.error('❌ Error getting messages:', error);
       throw error;
     }
+  },
+
+  /**
+   * Real-time thread messages (student + counselor UIs).
+   */
+  subscribeConversationMessages(
+    conversationId: string,
+    userId: string,
+    onNext: (messages: unknown[]) => void,
+    onError?: (error: Error) => void
+  ): () => void {
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    const q = query(messagesRef, orderBy('createdAt', 'asc'));
+    let generation = 0;
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const g = ++generation;
+        buildChatMessagesFromQuerySnapshot(snapshot, userId)
+          .then((msgs) => {
+            if (g === generation) onNext(msgs);
+          })
+          .catch((e) => {
+            if (g === generation) {
+              onError?.(e instanceof Error ? e : new Error(String(e)));
+            }
+          });
+      },
+      (err) => onError?.(err instanceof Error ? err : new Error(String(err)))
+    );
   },
 
   async sendTextMessage(conversationId: string, senderId: string, text: string) {
@@ -1407,6 +1382,123 @@ export const firestoreService = {
     }
   },
 };
+
+async function buildChatMessagesFromQuerySnapshot(snapshot: QuerySnapshot, userId: string) {
+  const msgs = snapshot.docs.map((d) => {
+    const data = d.data();
+    const createdAt = data.createdAt?.toDate?.() ?? new Date();
+    const isMe = data.senderId === userId;
+    const senderId = isMe ? 'me' : 'them';
+    if (data.type === 'session_invite') {
+      const rawSession = (data.sessionData ?? data.session ?? {}) as Record<string, unknown>;
+      const resolved = resolveSessionsDocIdFromInviteMessageData(data as Record<string, unknown>);
+      const fallbackNested =
+        (rawSession.id != null && String(rawSession.id).trim()) ||
+        (rawSession.sessionId != null && String(rawSession.sessionId).trim()) ||
+        '';
+      const id = (resolved || fallbackNested || '').trim();
+      const sessionForCard = {
+        ...rawSession,
+        id,
+        ...(id && !isPlaceholderSessionDocId(id) ? { linkedSessionId: id, sessionId: id } : {}),
+      };
+      return {
+        id: d.id,
+        senderId,
+        type: 'session' as const,
+        session: sessionForCard,
+        time: formatMessageTime(createdAt),
+      };
+    }
+    if (data.type === 'session_request') {
+      const req = data.sessionData ?? {};
+      const sid = data.sessionId ?? req.sessionId ?? null;
+      return {
+        id: d.id,
+        senderId,
+        type: 'session_request' as const,
+        sessionRequest: {
+          id: d.id,
+          sessionId: sid,
+          preferredTime: req.preferredTime ?? '',
+          note: req.note ?? '',
+          status: req.status ?? 'pending',
+        },
+        time: formatMessageTime(createdAt),
+      };
+    }
+    return {
+      id: d.id,
+      senderId,
+      type: 'text' as const,
+      text: data.content ?? '',
+      time: formatMessageTime(createdAt),
+    };
+  });
+
+  const sessionRequestMsgs = msgs.filter((m) => m.type === 'session_request');
+  const sessionInviteMsgs = msgs.filter((m) => m.type === 'session');
+  const requestSessionIds = [...new Set(sessionRequestMsgs.map((m) => m.sessionRequest.sessionId).filter(Boolean))] as string[];
+  const inviteSessionIds = [...new Set(
+    sessionInviteMsgs
+      .map((m) => resolveSessionsDocIdForSessionCard(m.session as Record<string, unknown>))
+      .filter(Boolean)
+  )] as string[];
+  const allSessionIds = [...new Set([...requestSessionIds, ...inviteSessionIds])];
+
+  let sessionStatusMap: Record<string, string> = {};
+  let sessionFinalSlotMap: Record<string, { date: string; time: string } | null> = {};
+  if (allSessionIds.length > 0) {
+    const sessionPromises = allSessionIds.map((id) => getDoc(doc(db, 'sessions', id)));
+    const sessionSnaps = await Promise.all(sessionPromises);
+    sessionSnaps.forEach((snap, i) => {
+      const sid = allSessionIds[i];
+      const s = snap.data();
+      if (s?.status) sessionStatusMap[sid] = s.status;
+      const fs = s?.finalSlot ?? s?.confirmedSlot;
+      if (fs && typeof fs === 'object' && 'date' in fs && 'time' in fs) {
+        sessionFinalSlotMap[sid] = { date: String(fs.date), time: String(fs.time) };
+      } else {
+        sessionFinalSlotMap[sid] = null;
+      }
+    });
+  }
+
+  return msgs.map((m) => {
+    if (m.type === 'session_request' && m.sessionRequest.sessionId) {
+      const sessionStatus = sessionStatusMap[m.sessionRequest.sessionId];
+      if (
+        sessionStatus &&
+        ['confirmed', 'completed', 'missed', 'rescheduled', 'cancelled', 'needs_rescheduling', 'expired'].includes(
+          sessionStatus
+        )
+      ) {
+        return {
+          ...m,
+          sessionRequest: { ...m.sessionRequest, status: sessionStatus },
+        };
+      }
+    }
+    if (m.type === 'session') {
+      const sid = resolveSessionsDocIdForSessionCard(m.session as Record<string, unknown>);
+      if (sid && sessionStatusMap[sid]) {
+        const fs = sessionFinalSlotMap[sid];
+        return {
+          ...m,
+          session: {
+            ...m.session,
+            id: sid,
+            linkedSessionId: sid,
+            sessionId: sid,
+            sessionStatus: sessionStatusMap[sid],
+            ...(fs ? { agreedSlot: fs } : {}),
+          },
+        };
+      }
+    }
+    return m;
+  });
+}
 
 function formatMessageTime(date: Date): string {
   const now = new Date();

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Settings2, BarChart3, BookMarked } from 'lucide-react-native';
@@ -417,18 +417,30 @@ export default function HistoryScreen() {
     const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
     const [journalTab, setJournalTab] = useState<JournalTab>('calendar');
 
-    useEffect(() => { if (user) loadMoodData(); }, [currentDate, user]);
-
-    const loadMoodData = async () => {
-        if (!user) return;
+    useEffect(() => {
+        if (!user?.id) {
+            setMoodData([]);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
-        try {
-            const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-            const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-            const data = await moodService.getMoodLogs(user.id, start.toISOString(), end.toISOString());
-            setMoodData(Array.isArray(data) ? data : []);
-        } catch { setMoodData([]); } finally { setLoading(false); }
-    };
+        const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+        const unsub = moodService.subscribeMoodLogs(
+            user.id,
+            (data) => {
+                setMoodData(Array.isArray(data) ? (data as MoodEntry[]) : []);
+                setLoading(false);
+            },
+            start.toISOString(),
+            end.toISOString(),
+            () => {
+                setMoodData([]);
+                setLoading(false);
+            }
+        );
+        return unsub;
+    }, [currentDate, user]);
 
     const generateCalendarDays = (): CalendarDay[] => {
         const year = currentDate.getFullYear();
@@ -466,7 +478,12 @@ export default function HistoryScreen() {
         });
     };
 
-    const calendarDays = generateCalendarDays();
+    const calendarDays = useMemo(() => generateCalendarDays(), [moodData, currentDate]);
+    const dayDetailsLogs = useMemo(() => {
+        if (!selectedDay) return [] as MoodLog[];
+        const match = calendarDays.find((d) => d.date.toDateString() === selectedDay.date.toDateString());
+        return match?.logs ?? [];
+    }, [calendarDays, selectedDay]);
     const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
@@ -624,7 +641,7 @@ export default function HistoryScreen() {
                                 day: 'numeric',
                                 year: 'numeric',
                             })}
-                            logs={selectedDay.logs}
+                            logs={dayDetailsLogs}
                         />
                     )}
 
