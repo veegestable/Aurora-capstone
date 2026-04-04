@@ -4,6 +4,10 @@
 export type MoodLog = {
   mood: 'Happy' | 'Sad' | 'Angry' | 'Surprise' | 'Neutral';
   intensity: number; // 1–5
+  /** Firestore mood_logs document id — used to group emotions from one log in the journal UI */
+  entryId?: string;
+  /** Optional journal text from the same mood_logs document */
+  notes?: string;
 };
 
 // Fixed mood definitions (do not change)

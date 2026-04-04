@@ -57,17 +57,43 @@ function confidenceToIntensity(confidence: number): number {
 function toMoodLogs(dayEntries: MoodEntry[]): MoodLog[] {
     const logs: MoodLog[] = [];
 
-    for (const entry of dayEntries) {
+    dayEntries.forEach((entry, entryIndex) => {
         const emotions = Array.isArray(entry.emotions) ? entry.emotions : [];
+        const rawNotes = typeof entry.notes === 'string' ? entry.notes.trim() : '';
+        const notes = rawNotes.length > 0 ? rawNotes : undefined;
+        const entryId = entry.id || `day-entry-${entryIndex}`;
         for (const e of emotions) {
             logs.push({
                 mood: mapEmotionToMoodLog(e.emotion),
                 intensity: confidenceToIntensity(e.confidence),
+                entryId,
+                notes,
             });
+        }
+    });
+
+    return logs;
+}
+
+/** One Firestore mood_log can contain multiple emotions; group so notes show once per log. */
+function groupMoodLogsByEntry(logs: MoodLog[]): MoodLog[][] {
+    const groups: MoodLog[][] = [];
+    let current: MoodLog[] | null = null;
+    let currentKey: string | undefined;
+
+    for (let i = 0; i < logs.length; i++) {
+        const log = logs[i];
+        const key = log.entryId ?? `__row_${i}`;
+        if (currentKey !== key) {
+            current = [log];
+            currentKey = key;
+            groups.push(current);
+        } else {
+            current!.push(log);
         }
     }
 
-    return logs;
+    return groups;
 }
 
 function CalendarDayCell({
@@ -177,45 +203,56 @@ function DayDetailsCard({ date, logs }: { date: string; logs: MoodLog[] }) {
 
             {hasLog ? (
                 <>
-                    {/* Mood chips */}
-                    <View style={styles.chipsRow}>
-                        {logs.map((log, index) => (
-                            <View
-                                key={index}
-                                style={[
-                                    styles.chip,
-                                    { backgroundColor: MOOD_COLORS[log.mood] + '25' },
-                                ]}
-                            >
-                                {/* Mood emoji + name */}
-                                <Text style={styles.chipEmoji}>{MOOD_EMOJIS[log.mood]}</Text>
-                                <Text style={[styles.chipLabel, { color: MOOD_COLORS[log.mood] }]}>
-                                    {log.mood}
-                                </Text>
-
-                                {/* Intensity dots */}
-                                <View style={styles.intensityRow}>
-                                    {[1, 2, 3, 4, 5].map((dot) => (
+                    {groupMoodLogsByEntry(logs).map((group, gi) => {
+                        const noteText = group[0]?.notes;
+                        const groupKey = group[0]?.entryId ?? `g-${gi}`;
+                        return (
+                            <View key={groupKey} style={styles.logEntryBlock}>
+                                <View style={styles.chipsRow}>
+                                    {group.map((log, index) => (
                                         <View
-                                            key={dot}
+                                            key={`${groupKey}-${index}`}
                                             style={[
-                                                styles.intensityDot,
-                                                {
-                                                    backgroundColor:
-                                                        dot <= log.intensity ? MOOD_COLORS[log.mood] : '#ffffff15',
-                                                },
+                                                styles.chip,
+                                                { backgroundColor: MOOD_COLORS[log.mood] + '25' },
                                             ]}
-                                        />
+                                        >
+                                            <Text style={styles.chipEmoji}>{MOOD_EMOJIS[log.mood]}</Text>
+                                            <Text style={[styles.chipLabel, { color: MOOD_COLORS[log.mood] }]}>
+                                                {log.mood}
+                                            </Text>
+                                            <View style={styles.intensityRow}>
+                                                {[1, 2, 3, 4, 5].map((dot) => (
+                                                    <View
+                                                        key={dot}
+                                                        style={[
+                                                            styles.intensityDot,
+                                                            {
+                                                                backgroundColor:
+                                                                    dot <= log.intensity
+                                                                        ? MOOD_COLORS[log.mood]
+                                                                        : '#ffffff15',
+                                                            },
+                                                        ]}
+                                                    />
+                                                ))}
+                                            </View>
+                                        </View>
                                     ))}
                                 </View>
+                                {noteText ? (
+                                    <Text style={styles.entryNotes}>{noteText}</Text>
+                                ) : null}
                             </View>
-                        ))}
-                    </View>
+                        );
+                    })}
 
                     {/* Explanation box */}
                     <View style={styles.explanationBox}>
                         <Text style={styles.explanationText}>{explanation}</Text>
                     </View>
+
+
                 </>
             ) : (
                 <View style={styles.emptyState}>
@@ -300,11 +337,20 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginBottom: 12,
     },
+    logEntryBlock: {
+        marginBottom: 14,
+    },
     chipsRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 8,
-        marginBottom: 14,
+    },
+    entryNotes: {
+        color: '#94a3b8',
+        fontSize: 12,
+        lineHeight: 18,
+        marginTop: 8,
+        paddingHorizontal: 2,
     },
     chip: {
         flexDirection: 'row',
@@ -337,6 +383,7 @@ const styles = StyleSheet.create({
         padding: 12,
         borderLeftWidth: 3,
         borderLeftColor: '#ffffff20',
+        marginTop: 2,
     },
     explanationText: {
         color: '#cbd5e1',
