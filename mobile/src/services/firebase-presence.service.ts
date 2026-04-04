@@ -24,20 +24,41 @@ function presenceRef(uid: string) {
     return ref(rtdb, `${PRESENCE_PATH}/${uid}`);
 }
 
+function logPresenceError(context: string, err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[presence] ${context}:`, msg);
+}
+
 /** True when Realtime Database is configured and initialized. */
 export function isPresenceAvailable(): boolean {
     return rtdb !== null;
 }
 
 /**
+ * Set offline while still signed in to Firebase Auth.
+ * Must run before `signOut()` — after logout, RTDB rules block writes so the node would stay `online: true`.
+ */
+export async function setMyPresenceOfflineNow(uid: string): Promise<void> {
+    if (!rtdb) return;
+    const userRef = presenceRef(uid);
+    if (!userRef) return;
+    if (auth.currentUser?.uid !== uid) {
+        console.warn('[presence] setMyPresenceOfflineNow skipped — auth uid mismatch');
+        return;
+    }
+    try {
+        await set(userRef, { online: false, lastSeen: serverTimestamp() });
+        if (__DEV__) console.log('[presence] explicit offline before signOut OK');
+    } catch (e) {
+        logPresenceError('setMyPresenceOfflineNow', e);
+        throw e;
+    }
+}
+
+/**
  * Mark current user online, register onDisconnect offline, and sync with app foreground/background.
  * Call once per signed-in user; run the returned cleanup on sign-out or unmount.
  */
-function logPresenceError(context: string, err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[presence] ${context}:`, msg);
-}
-
 export function startMyPresence(uid: string): () => void {
     if (!rtdb) {
         console.warn('[presence] Realtime Database not initialized — check EXPO_PUBLIC_FIREBASE_DATABASE_URL and restart Expo with --clear');
@@ -52,40 +73,52 @@ export function startMyPresence(uid: string): () => void {
     const userRef = presenceRef(uid);
     if (!userRef) return () => {};
 
-    const goOnline = () => {
-        set(userRef, { online: true, lastSeen: serverTimestamp() })
-            .then(() => {
-                if (__DEV__) {
-                    console.log('[presence] wrote online=true to RTDB for', uid.slice(0, 8) + '…');
-                }
-            })
-            .catch((e) =>
-                logPresenceError('set online (check RTDB Rules: presence/$uid write for auth.uid)', e)
-            );
+    let disposed = false;
+
+    /** Register server-side disconnect handler, then set online (Firebase-recommended `.info/connected` flow). */
+    const wireOnlineAndOnDisconnect = () => {
+        if (disposed || auth.currentUser?.uid !== uid) return;
         onDisconnect(userRef)
             .set({ online: false, lastSeen: serverTimestamp() })
-            .catch((e) => logPresenceError('onDisconnect register', e));
+            .then(() => set(userRef, { online: true, lastSeen: serverTimestamp() }))
+            .then(() => {
+                if (__DEV__) {
+                    console.log('[presence] online + onDisconnect registered for', uid.slice(0, 8) + '…');
+                }
+            })
+            .catch((e) => logPresenceError('wireOnlineAndOnDisconnect', e));
     };
 
-    const goOffline = () => {
+    const goOfflineWhileAuthed = () => {
+        if (disposed || auth.currentUser?.uid !== uid) return;
         set(userRef, { online: false, lastSeen: serverTimestamp() }).catch((e) =>
-            logPresenceError('set offline', e)
+            logPresenceError('set offline (background)', e)
         );
     };
 
-    goOnline();
+    // Critical: only register onDisconnect after the RTDB socket is actually connected to the server,
+    // otherwise kill/close-app often leaves `online: true` forever.
+    const connectedRef = ref(rtdb, '.info/connected');
+    const unsubConnected = onValue(connectedRef, (snap) => {
+        if (disposed || snap.val() !== true) return;
+        wireOnlineAndOnDisconnect();
+    });
 
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
         if (next === 'active') {
-            goOnline();
+            wireOnlineAndOnDisconnect();
         } else {
-            goOffline();
+            goOfflineWhileAuthed();
         }
     });
 
     return () => {
+        disposed = true;
+        unsubConnected();
         sub.remove();
-        goOffline();
+        if (auth.currentUser?.uid === uid) {
+            goOfflineWhileAuthed();
+        }
     };
 }
 

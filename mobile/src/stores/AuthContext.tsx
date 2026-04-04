@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { authService, UserProfile } from '../services/firebase-auth.service';
-import { startMyPresence } from '../services/firebase-presence.service';
+import { setMyPresenceOfflineNow, startMyPresence } from '../services/firebase-presence.service';
 
 export type CounselorApprovalStatus = 'pending' | 'approved' | 'rejected';
 
@@ -144,6 +144,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        try {
+          await setMyPresenceOfflineNow(uid);
+        } catch (e) {
+          console.warn('[presence] Could not set offline before sign out:', e);
+        }
+      }
       await authService.signOut();
       setUser(null);
       console.log('✅ Sign out successful');
