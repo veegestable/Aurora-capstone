@@ -61,24 +61,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     console.log('🔥 Setting up Firebase auth listener...');
 
-    // Auth subscriptions in React Native are similar to web
+    let stopPresence: (() => void) | undefined;
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log('🔥 Auth state changed:', firebaseUser?.email);
 
+      stopPresence?.();
+      stopPresence = undefined;
+
+      // Presence must use Firebase Auth uid (RTDB rules: auth.uid === $uid). Start as soon as
+      // Auth is ready — do not wait for Firestore profile, or RTDB never gets writes.
+      if (firebaseUser?.uid) {
+        stopPresence = startMyPresence(firebaseUser.uid);
+      }
+
       if (firebaseUser) {
-        // User is signed in
         try {
           const userProfile = await authService.getCurrentUser();
           if (userProfile) {
             setUser(convertUserProfile(userProfile));
             console.log('✅ User authenticated:', userProfile.email);
+          } else {
+            setUser(null);
+            console.warn('⚠️ Signed in to Auth but no Firestore user profile — check users/{uid}');
           }
         } catch (error) {
           console.error('❌ Error getting user profile:', error);
           setUser(null);
         }
       } else {
-        // User is signed out
         setUser(null);
         console.log('🔐 User signed out');
       }
@@ -86,14 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
+    return () => {
+      stopPresence?.();
+      unsubscribe();
+    };
   }, []);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    return startMyPresence(user.id);
-  }, [user?.id]);
 
   const signIn = async (email: string, password: string) => {
     try {

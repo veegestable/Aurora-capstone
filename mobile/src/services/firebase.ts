@@ -9,7 +9,7 @@ import { getDatabase, type Database } from 'firebase/database';
 
 const inferredDatabaseUrl =
     process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
-        ? `https://${process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`
+        ? `https://${process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID}-default-rtdb.asia-southeast1.firebasedatabase.app`
         : undefined;
 
 const databaseURL =
@@ -49,11 +49,15 @@ export const storage = getStorage(app);
 let rtdb: Database | null = null;
 if (databaseURL) {
     try {
-        rtdb = getDatabase(app);
+        // Pass URL explicitly so regional hosts (e.g. *.asia-southeast1.firebasedatabase.app)
+        // always connect even if the FirebaseApp was first created without databaseURL in config.
+        rtdb = getDatabase(app, databaseURL);
     } catch (e) {
         console.warn('[firebase] Realtime Database init failed:', e);
         rtdb = null;
     }
+} else {
+    console.warn('[firebase] EXPO_PUBLIC_FIREBASE_DATABASE_URL is missing — presence disabled.');
 }
 export { rtdb };
 
