@@ -241,7 +241,10 @@ function DayDetailsCard({ date, logs }: { date: string; logs: MoodLog[] }) {
                                     ))}
                                 </View>
                                 {noteText ? (
-                                    <Text style={styles.entryNotes}>{noteText}</Text>
+                                    <View style={styles.noteBlock}>
+                                        <Text style={styles.noteLabel}>Note</Text>
+                                        <Text style={styles.noteBody}>{noteText}</Text>
+                                    </View>
                                 ) : null}
                             </View>
                         );
@@ -352,6 +355,28 @@ const styles = StyleSheet.create({
         marginTop: 8,
         paddingHorizontal: 2,
     },
+    noteBlock: {
+        marginTop: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        backgroundColor: 'rgba(59, 130, 246, 0.08)',
+        borderLeftWidth: 2,
+        borderColor: AURORA.blue,
+    },
+    noteLabel: {
+        color: AURORA.blue,
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1.2,
+        textTransform: 'uppercase',
+        marginBottom: 6,
+    },
+    noteBody: {
+        color: '#e2e8f0',
+        fontSize: 13,
+        lineHeight: 20,
+    },
     chip: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -378,17 +403,14 @@ const styles = StyleSheet.create({
         borderRadius: 3,
     },
     explanationBox: {
-        backgroundColor: '#ffffff08',
         borderRadius: 10,
-        padding: 12,
-        borderLeftWidth: 3,
-        borderLeftColor: '#ffffff20',
-        marginTop: 2,
+        padding: 6,
     },
     explanationText: {
-        color: '#cbd5e1',
-        fontSize: 13,
+        color: '#94a3b8',
+        fontSize: 11,
         lineHeight: 20,
+        fontStyle: 'italic',
     },
     emptyState: {
         alignItems: 'center',
