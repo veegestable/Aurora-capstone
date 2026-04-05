@@ -159,7 +159,7 @@
 }
 
 @utility text-gradient-aurora {
-  @apply bg-gradient-to-r from-[#2D6BFF] to-[#7C3AED] bg-clip-text text-transparent;
+  @apply bg-linear-to-r from-[#2D6BFF] to-[#7C3AED] bg-clip-text text-transparent;
 }
 
 @utility text-aurora-subtitle {

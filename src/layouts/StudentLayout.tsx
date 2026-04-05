@@ -7,7 +7,6 @@ import {
 } from 'lucide-react'
 import logoLight from '../assets/logos/logo light.png'
 
-// Primary nav - shown in both sidebar and mobile bottom bar
 const PRIMARY_NAV = [
   { path: '/', label: 'Home', icon: Home },
   { path: '/student/history', label: 'History', icon: CalendarDays },
@@ -16,7 +15,6 @@ const PRIMARY_NAV = [
   { path: '/student/profile', label: 'Profile', icon: User },
 ]
 
-// Secondary nav - sidebar only (existing web features)
 const SECONDARY_NAV = [
   { path: '/mood', label: 'Mood Check-in', icon: Heart },
   { path: '/analytics', label: 'Analytics', icon: BarChart3 },
@@ -34,9 +32,9 @@ export default function StudentLayout() {
   }
 
   return (
-    <div className="h-screen flex flex-col gradient-aurora-light overflow-hidden">
+    <div className="h-screen flex flex-col bg-aurora-bg overflow-hidden">
       {/* Header */}
-      <header className="bg-aurora-primary-dark border-b border-aurora-primary-light/20 shrink-0 z-50 shadow-aurora">
+      <header className="bg-aurora-nav border-b border-aurora-border shrink-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             <NavLink to="/" className="flex items-center space-x-3">
@@ -52,18 +50,18 @@ export default function StudentLayout() {
 
             <div className="flex items-center space-x-2 sm:space-x-4">
               <div className="flex items-center space-x-2">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 gradient-aurora-primary rounded-full flex items-center justify-center ring-2 ring-aurora-blue-500/20">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[rgba(45,107,255,0.2)] rounded-full flex items-center justify-center ring-2 ring-[rgba(45,107,255,0.35)]">
                   <span className="text-white text-xs sm:text-sm font-semibold">
                     {user?.full_name?.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                <span className="text-xs sm:text-sm text-white/90 hidden sm:block">
+                <span className="text-xs sm:text-sm text-aurora-text-sec hidden sm:block">
                   Welcome, {user?.full_name}
                 </span>
               </div>
               <button
                 onClick={handleSignOut}
-                className="flex items-center space-x-1 sm:space-x-2 text-white/70 cursor-pointer hover:text-white transition-colors px-2 sm:px-3 py-2 rounded-md hover:bg-white/10"
+                className="flex items-center space-x-1 sm:space-x-2 text-aurora-text-muted cursor-pointer hover:text-white transition-colors px-2 sm:px-3 py-2 rounded-md hover:bg-white/5"
                 aria-label="Sign out"
               >
                 <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -76,11 +74,10 @@ export default function StudentLayout() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Desktop Sidebar */}
-        <aside className="hidden lg:flex flex-col w-64 bg-aurora-primary-dark shadow-aurora shrink-0">
+        <aside className="hidden lg:flex flex-col w-64 bg-aurora-nav border-r border-aurora-border shrink-0">
           <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
-            {/* Primary nav */}
             <div className="space-y-1">
-              <p className="px-4 text-[10px] font-bold tracking-widest text-white/40 uppercase mb-2">
+              <p className="px-4 text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
                 Main
               </p>
               {PRIMARY_NAV.map(({ path, label, icon: Icon }) => (
@@ -89,10 +86,10 @@ export default function StudentLayout() {
                   to={path}
                   end={path === '/'}
                   className={({ isActive }) =>
-                    `w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-medium transition-all ${
+                    `w-full flex items-center space-x-3 px-4 py-3 rounded-[14px] text-left font-semibold transition-all ${
                       isActive
-                        ? 'bg-aurora-secondary-blue text-white shadow-aurora'
-                        : 'text-white/70 hover:text-white hover:bg-aurora-secondary-green/20 cursor-pointer'
+                        ? 'bg-[rgba(45,107,255,0.2)] border border-[rgba(45,107,255,0.35)] text-[#2D6BFF]'
+                        : 'text-aurora-text-sec hover:text-white hover:bg-white/5 cursor-pointer'
                     }`
                   }
                 >
@@ -102,9 +99,8 @@ export default function StudentLayout() {
               ))}
             </div>
 
-            {/* Secondary nav */}
             <div className="space-y-1">
-              <p className="px-4 text-[10px] font-bold tracking-widest text-white/40 uppercase mb-2">
+              <p className="px-4 text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
                 Tools
               </p>
               {SECONDARY_NAV.map(({ path, label, icon: Icon }) => (
@@ -112,10 +108,10 @@ export default function StudentLayout() {
                   key={path}
                   to={path}
                   className={({ isActive }) =>
-                    `w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-medium transition-all ${
+                    `w-full flex items-center space-x-3 px-4 py-3 rounded-[14px] text-left font-semibold transition-all ${
                       isActive
-                        ? 'bg-aurora-secondary-blue text-white shadow-aurora'
-                        : 'text-white/70 hover:text-white hover:bg-aurora-secondary-green/20 cursor-pointer'
+                        ? 'bg-[rgba(45,107,255,0.2)] border border-[rgba(45,107,255,0.35)] text-[#2D6BFF]'
+                        : 'text-aurora-text-sec hover:text-white hover:bg-white/5 cursor-pointer'
                     }`
                   }
                 >
@@ -127,8 +123,8 @@ export default function StudentLayout() {
           </nav>
         </aside>
 
-        {/*  Main Content  */}
-        <main className="flex-1 overflow-hidden pb-20 lg:pb-0">
+        {/* Main Content */}
+        <main className="flex-1 overflow-hidden pb-20 lg:pb-0 bg-aurora-bg">
           <div className="h-full overflow-y-auto">
             <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-3 sm:py-4 lg:py-6">
               <Outlet />
@@ -138,7 +134,7 @@ export default function StudentLayout() {
       </div>
 
       {/* Mobile Bottom Nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-aurora-primary-dark border-t border-aurora-primary-light/20 shadow-lg z-50">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-aurora-nav/95 backdrop-blur-xl border-t border-aurora-border z-50">
         <div className="flex justify-around items-center py-2">
           {PRIMARY_NAV.map(({ path, label, icon: Icon }) => (
             <NavLink
@@ -147,14 +143,14 @@ export default function StudentLayout() {
               end={path === '/'}
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center min-w-0 flex-1 py-2 px-1 transition-all ${
-                  isActive ? 'text-aurora-secondary-green' : 'text-white/70'
+                  isActive ? 'text-aurora-blue' : 'text-aurora-text-muted'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <Icon className={`w-5 h-5 mb-1 ${isActive ? 'text-aurora-secondary-green' : 'text-white/70'}`} />
-                  <span className={`text-xs font-medium truncate ${isActive ? 'text-aurora-secondary-green' : 'text-white/70'}`}>
+                  <Icon className={`w-5 h-5 mb-1 ${isActive ? 'text-aurora-blue' : 'text-aurora-text-muted'}`} />
+                  <span className={`text-[10px] font-semibold truncate ${isActive ? 'text-aurora-blue' : 'text-aurora-text-muted'}`}>
                     {label.split(' ')[0]}
                   </span>
                 </>
