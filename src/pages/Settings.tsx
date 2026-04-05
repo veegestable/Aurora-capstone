@@ -40,47 +40,47 @@ export default function Settings() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-aurora-primary-dark font-heading">Settings</h2>
-        <p className="text-aurora-gray-500 text-sm">Manage your account preferences</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-white font-heading">Settings</h2>
+        <p className="text-aurora-text-sec text-sm">Manage your account preferences</p>
       </div>
 
       {/* Profile Section */}
-      <div className="card-aurora">
+      <div className="card-aurora p-5">
         <div className="flex items-center mb-4">
-          <div className="bg-aurora-blue-100 p-2 rounded-full mr-3">
-            <User className="w-5 h-5 text-aurora-secondary-blue" />
+          <div className="bg-[rgba(45,107,255,0.2)] p-2 rounded-full mr-3">
+            <User className="w-5 h-5 text-aurora-blue" />
           </div>
-          <h3 className="text-lg font-semibold text-aurora-primary-dark">Profile Information</h3>
+          <h3 className="text-lg font-semibold text-white">Profile Information</h3>
         </div>
 
         <form onSubmit={handleUpdateProfile} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-aurora-gray-700 mb-1">Full Name</label>
+            <label className="block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide">Full Name</label>
             <input
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Enter your name"
-              className="w-full px-4 py-3 rounded-xl border border-aurora-gray-200 bg-aurora-gray-50
-                         text-aurora-primary-dark placeholder:text-aurora-gray-400
-                         focus:outline-none focus:ring-2 focus:ring-aurora-secondary-blue/30 focus:border-aurora-secondary-blue"
+              className="w-full px-3.5 py-3 rounded-[12px] border border-white/8 bg-aurora-card
+                         text-white placeholder:text-aurora-text-muted
+                         focus:outline-none focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-aurora-gray-700 mb-1">Email</label>
+            <label className="block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide">Email</label>
             <input
               type="email"
               value={user?.email || ''}
               disabled
-              className="w-full px-4 py-3 rounded-xl border border-aurora-gray-200 bg-aurora-gray-100
-                         text-aurora-gray-500 cursor-not-allowed"
+              className="w-full px-3.5 py-3 rounded-[12px] border border-white/8 bg-aurora-card-dark
+                         text-aurora-text-muted cursor-not-allowed"
             />
-            <p className="text-xs text-aurora-gray-400 mt-1 ml-1">Email cannot be changed</p>
+            <p className="text-xs text-aurora-text-muted mt-1 ml-1">Email cannot be changed</p>
           </div>
 
           {message && (
-            <p className={`text-sm ${message.type === 'success' ? 'text-aurora-accent-green' : 'text-aurora-accent-red'}`}>
+            <p className={`text-sm ${message.type === 'success' ? 'text-aurora-green' : 'text-aurora-red'}`}>
               {message.text}
             </p>
           )}
@@ -88,7 +88,7 @@ export default function Settings() {
           <button
             type="submit"
             disabled={isUpdating}
-            className="btn-aurora w-full py-3 rounded-xl disabled:opacity-50 cursor-pointer"
+            className="btn-aurora w-full disabled:opacity-50 cursor-pointer"
           >
             {isUpdating ? 'Updating...' : 'Update Profile'}
           </button>
@@ -96,12 +96,12 @@ export default function Settings() {
       </div>
 
       {/* Account Actions */}
-      <div className="card-aurora">
-        <h3 className="text-lg font-semibold text-aurora-primary-dark mb-4">Account</h3>
+      <div className="card-aurora p-5">
+        <h3 className="text-lg font-semibold text-white mb-4">Account</h3>
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 w-full px-4 py-3 rounded-xl bg-red-50 border border-red-100
-                     text-aurora-accent-red font-medium hover:bg-red-100 transition-colors cursor-pointer"
+          className="flex items-center gap-3 w-full px-4 py-3 rounded-[12px] bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)]
+                     text-aurora-red font-semibold hover:bg-[rgba(239,68,68,0.25)] transition-colors cursor-pointer"
           aria-label="Sign out"
         >
           <LogOut className="w-5 h-5" />
@@ -110,7 +110,7 @@ export default function Settings() {
       </div>
 
       <div className="text-center">
-        <p className="text-aurora-gray-400 text-xs">Aurora App v1.0.0</p>
+        <p className="text-aurora-text-muted text-xs">Aurora App v1.0.0</p>
       </div>
     </div>
   )

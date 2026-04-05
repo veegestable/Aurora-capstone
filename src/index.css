@@ -51,8 +51,8 @@
   --color-aurora-emotions-love: #FF55B8;
 
   /* ── Legacy aliases (for gradual migration — avoid in new code) ── */
-  --color-aurora-primary-dark: #0B0D30;
-  --color-aurora-primary-light: #E4E3DF;
+  --color-aurora-primary-dark: #FFFFFF;
+  --color-aurora-primary-light: rgba(255, 255, 255, 0.12);
   --color-aurora-secondary-blue: #2D6BFF;
   --color-aurora-secondary-green: #22C55E;
   --color-aurora-secondary-dark-blue: #1E40AF;

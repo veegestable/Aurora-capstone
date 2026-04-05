@@ -20,7 +20,7 @@ export function ResourceCard({ item, onStart }: ResourceCardProps) {
         alt={item.title}
         className="w-full h-40 object-cover"
       />
-      <div className="flex items-center justify-between p-3.5 bg-aurora-primary-dark/95">
+      <div className="flex items-center justify-between p-3.5 bg-aurora-card/95">
         <div>
           <p className="text-white text-base font-extrabold mb-1">{item.title}</p>
           <div className="flex items-center gap-2">
