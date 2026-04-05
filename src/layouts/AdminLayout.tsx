@@ -33,7 +33,7 @@ export default function AdminLayout() {
   return (
     <div className="h-screen flex flex-col bg-aurora-bg overflow-hidden">
       {/* Header */}
-      <header className="bg-aurora-nav border-b border-aurora-border shrink-0 z-50">
+      <header className="bg-aurora-bg border-b border-aurora-border shrink-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             <NavLink to="/" className="flex items-center space-x-3">
@@ -67,7 +67,7 @@ export default function AdminLayout() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Desktop Sidebar */}
-        <aside className="hidden lg:flex flex-col w-64 bg-aurora-nav border-r border-aurora-border shrink-0">
+        <aside className="hidden lg:flex flex-col w-64 bg-aurora-bg border-r border-aurora-border shrink-0">
           <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
             <div className="space-y-1">
               <p className="px-4 text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
@@ -127,7 +127,7 @@ export default function AdminLayout() {
       </div>
 
       {/* Mobile Bottom Nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-aurora-nav/95 backdrop-blur-xl border-t border-aurora-border z-50">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-aurora-bg/95 backdrop-blur-xl border-t border-aurora-border z-50">
         <div className="flex justify-around items-center py-2">
           {PRIMARY_NAV.map(({ path, label, icon: Icon }) => (
             <NavLink
