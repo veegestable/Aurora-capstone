@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Settings2, BarChart3, BookMarked } from 'lucide-react-native';
@@ -57,17 +57,43 @@ function confidenceToIntensity(confidence: number): number {
 function toMoodLogs(dayEntries: MoodEntry[]): MoodLog[] {
     const logs: MoodLog[] = [];
 
-    for (const entry of dayEntries) {
+    dayEntries.forEach((entry, entryIndex) => {
         const emotions = Array.isArray(entry.emotions) ? entry.emotions : [];
+        const rawNotes = typeof entry.notes === 'string' ? entry.notes.trim() : '';
+        const notes = rawNotes.length > 0 ? rawNotes : undefined;
+        const entryId = entry.id || `day-entry-${entryIndex}`;
         for (const e of emotions) {
             logs.push({
                 mood: mapEmotionToMoodLog(e.emotion),
                 intensity: confidenceToIntensity(e.confidence),
+                entryId,
+                notes,
             });
+        }
+    });
+
+    return logs;
+}
+
+/** One Firestore mood_log can contain multiple emotions; group so notes show once per log. */
+function groupMoodLogsByEntry(logs: MoodLog[]): MoodLog[][] {
+    const groups: MoodLog[][] = [];
+    let current: MoodLog[] | null = null;
+    let currentKey: string | undefined;
+
+    for (let i = 0; i < logs.length; i++) {
+        const log = logs[i];
+        const key = log.entryId ?? `__row_${i}`;
+        if (currentKey !== key) {
+            current = [log];
+            currentKey = key;
+            groups.push(current);
+        } else {
+            current!.push(log);
         }
     }
 
-    return logs;
+    return groups;
 }
 
 function CalendarDayCell({
@@ -177,45 +203,59 @@ function DayDetailsCard({ date, logs }: { date: string; logs: MoodLog[] }) {
 
             {hasLog ? (
                 <>
-                    {/* Mood chips */}
-                    <View style={styles.chipsRow}>
-                        {logs.map((log, index) => (
-                            <View
-                                key={index}
-                                style={[
-                                    styles.chip,
-                                    { backgroundColor: MOOD_COLORS[log.mood] + '25' },
-                                ]}
-                            >
-                                {/* Mood emoji + name */}
-                                <Text style={styles.chipEmoji}>{MOOD_EMOJIS[log.mood]}</Text>
-                                <Text style={[styles.chipLabel, { color: MOOD_COLORS[log.mood] }]}>
-                                    {log.mood}
-                                </Text>
-
-                                {/* Intensity dots */}
-                                <View style={styles.intensityRow}>
-                                    {[1, 2, 3, 4, 5].map((dot) => (
+                    {groupMoodLogsByEntry(logs).map((group, gi) => {
+                        const noteText = group[0]?.notes;
+                        const groupKey = group[0]?.entryId ?? `g-${gi}`;
+                        return (
+                            <View key={groupKey} style={styles.logEntryBlock}>
+                                <View style={styles.chipsRow}>
+                                    {group.map((log, index) => (
                                         <View
-                                            key={dot}
+                                            key={`${groupKey}-${index}`}
                                             style={[
-                                                styles.intensityDot,
-                                                {
-                                                    backgroundColor:
-                                                        dot <= log.intensity ? MOOD_COLORS[log.mood] : '#ffffff15',
-                                                },
+                                                styles.chip,
+                                                { backgroundColor: MOOD_COLORS[log.mood] + '25' },
                                             ]}
-                                        />
+                                        >
+                                            <Text style={styles.chipEmoji}>{MOOD_EMOJIS[log.mood]}</Text>
+                                            <Text style={[styles.chipLabel, { color: MOOD_COLORS[log.mood] }]}>
+                                                {log.mood}
+                                            </Text>
+                                            <View style={styles.intensityRow}>
+                                                {[1, 2, 3, 4, 5].map((dot) => (
+                                                    <View
+                                                        key={dot}
+                                                        style={[
+                                                            styles.intensityDot,
+                                                            {
+                                                                backgroundColor:
+                                                                    dot <= log.intensity
+                                                                        ? MOOD_COLORS[log.mood]
+                                                                        : '#ffffff15',
+                                                            },
+                                                        ]}
+                                                    />
+                                                ))}
+                                            </View>
+                                        </View>
                                     ))}
                                 </View>
+                                {noteText ? (
+                                    <View style={styles.noteBlock}>
+                                        <Text style={styles.noteLabel}>Note</Text>
+                                        <Text style={styles.noteBody}>{noteText}</Text>
+                                    </View>
+                                ) : null}
                             </View>
-                        ))}
-                    </View>
+                        );
+                    })}
 
                     {/* Explanation box */}
                     <View style={styles.explanationBox}>
                         <Text style={styles.explanationText}>{explanation}</Text>
                     </View>
+
+
                 </>
             ) : (
                 <View style={styles.emptyState}>
@@ -300,11 +340,42 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginBottom: 12,
     },
+    logEntryBlock: {
+        marginBottom: 14,
+    },
     chipsRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 8,
-        marginBottom: 14,
+    },
+    entryNotes: {
+        color: '#94a3b8',
+        fontSize: 12,
+        lineHeight: 18,
+        marginTop: 8,
+        paddingHorizontal: 2,
+    },
+    noteBlock: {
+        marginTop: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        backgroundColor: 'rgba(59, 130, 246, 0.08)',
+        borderLeftWidth: 2,
+        borderColor: AURORA.blue,
+    },
+    noteLabel: {
+        color: AURORA.blue,
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1.2,
+        textTransform: 'uppercase',
+        marginBottom: 6,
+    },
+    noteBody: {
+        color: '#e2e8f0',
+        fontSize: 13,
+        lineHeight: 20,
     },
     chip: {
         flexDirection: 'row',
@@ -332,16 +403,14 @@ const styles = StyleSheet.create({
         borderRadius: 3,
     },
     explanationBox: {
-        backgroundColor: '#ffffff08',
         borderRadius: 10,
-        padding: 12,
-        borderLeftWidth: 3,
-        borderLeftColor: '#ffffff20',
+        padding: 6,
     },
     explanationText: {
-        color: '#cbd5e1',
-        fontSize: 13,
+        color: '#94a3b8',
+        fontSize: 11,
         lineHeight: 20,
+        fontStyle: 'italic',
     },
     emptyState: {
         alignItems: 'center',
@@ -370,18 +439,30 @@ export default function HistoryScreen() {
     const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
     const [journalTab, setJournalTab] = useState<JournalTab>('calendar');
 
-    useEffect(() => { if (user) loadMoodData(); }, [currentDate, user]);
-
-    const loadMoodData = async () => {
-        if (!user) return;
+    useEffect(() => {
+        if (!user?.id) {
+            setMoodData([]);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
-        try {
-            const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-            const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-            const data = await moodService.getMoodLogs(user.id, start.toISOString(), end.toISOString());
-            setMoodData(Array.isArray(data) ? data : []);
-        } catch { setMoodData([]); } finally { setLoading(false); }
-    };
+        const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+        const unsub = moodService.subscribeMoodLogs(
+            user.id,
+            (data) => {
+                setMoodData(Array.isArray(data) ? (data as MoodEntry[]) : []);
+                setLoading(false);
+            },
+            start.toISOString(),
+            end.toISOString(),
+            () => {
+                setMoodData([]);
+                setLoading(false);
+            }
+        );
+        return unsub;
+    }, [currentDate, user]);
 
     const generateCalendarDays = (): CalendarDay[] => {
         const year = currentDate.getFullYear();
@@ -419,7 +500,12 @@ export default function HistoryScreen() {
         });
     };
 
-    const calendarDays = generateCalendarDays();
+    const calendarDays = useMemo(() => generateCalendarDays(), [moodData, currentDate]);
+    const dayDetailsLogs = useMemo(() => {
+        if (!selectedDay) return [] as MoodLog[];
+        const match = calendarDays.find((d) => d.date.toDateString() === selectedDay.date.toDateString());
+        return match?.logs ?? [];
+    }, [calendarDays, selectedDay]);
     const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
@@ -577,7 +663,7 @@ export default function HistoryScreen() {
                                 day: 'numeric',
                                 year: 'numeric',
                             })}
-                            logs={selectedDay.logs}
+                            logs={dayDetailsLogs}
                         />
                     )}
 

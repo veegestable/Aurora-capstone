@@ -62,11 +62,9 @@ export function AnnouncementCarousel({ role, onAnnouncementPress }: Announcement
   const progress = useSharedValue(0);
 
   useEffect(() => {
-    let cancelled = false;
-    announcementsService.listForRole(role).then((list) => {
-      if (!cancelled) setAnnouncements(list);
+    return announcementsService.subscribeForRole(role, 20, (list) => setAnnouncements(list), () => {
+      void announcementsService.listForRole(role).then(setAnnouncements);
     });
-    return () => { cancelled = true; };
   }, [role]);
 
   if (announcements.length === 0) return null;

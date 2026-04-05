@@ -6,7 +6,7 @@
  * Supports appointment scheduling: counselor can invite students to sessions.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, Image,
     TextInput, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -32,6 +32,8 @@ import SessionAttendanceModal, { type AttendanceStatus } from '../../src/compone
 import SessionRequestReceivedCard from '../../src/components/counselor/SessionRequestReceivedCard';
 import SelectStudentModal from '../../src/components/counselor/SelectStudentModal';
 import * as Clipboard from 'expo-clipboard';
+import { subscribeToUsersPresence } from '../../src/services/firebase-presence.service';
+import { usePeerPresence } from '../../src/hooks/usePeerPresence';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type FilterTab = 'All Messages' | 'Unread' | 'Priority';
@@ -98,14 +100,12 @@ function ConversationRow({
             {/* Avatar */}
             <View style={{ position: 'relative', margin: 12 }}>
                 <LetterAvatar name={item.name} size={52} avatarUrl={item.avatar || undefined} />
-                {item.isOnline && (
-                    <View style={{
-                        position: 'absolute', bottom: 1, right: 1,
-                        width: 13, height: 13, borderRadius: 7,
-                        backgroundColor: AURORA.green,
-                        borderWidth: 2, borderColor: AURORA.card,
-                    }} />
-                )}
+                <View style={{
+                    position: 'absolute', bottom: 1, right: 1,
+                    width: 13, height: 13, borderRadius: 7,
+                    backgroundColor: item.isOnline ? AURORA.green : AURORA.textMuted,
+                    borderWidth: 2, borderColor: AURORA.card,
+                }} />
             </View>
 
             {/* Content */}
@@ -158,6 +158,7 @@ function ConversationRow({
 // ─── Chat View ─────────────────────────────────────────────────────────────────
 function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => void }) {
     const { user } = useAuth();
+    const peerOnline = usePeerPresence(contact.id);
     const conversationId = contact.conversationId || (user?.id ? `${user.id}_${contact.id}` : '');
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -174,17 +175,20 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
             setLoadingMessages(false);
             return;
         }
-        let cancelled = false;
-        firestoreService.getMessages(conversationId, user.id).then((msgs) => {
-            if (!cancelled) {
+        setLoadingMessages(true);
+        const unsub = firestoreService.subscribeConversationMessages(
+            conversationId,
+            user.id,
+            (msgs) => {
                 setMessages(msgs as ChatMessage[]);
+                setLoadingMessages(false);
+            },
+            () => {
+                setMessages([]);
+                setLoadingMessages(false);
             }
-        }).catch(() => {
-            if (!cancelled) setMessages([]);
-        }).finally(() => {
-            if (!cancelled) setLoadingMessages(false);
-        });
-        return () => { cancelled = true; };
+        );
+        return unsub;
     }, [conversationId, user?.id]);
 
     // Always scroll to the latest message when opening a conversation.
@@ -202,12 +206,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
         if (!text || !user?.id || !conversationId || sending) return;
         setSending(true);
         try {
-            const msgId = await firestoreService.sendTextMessage(conversationId, user.id, text);
-            setMessages(prev => [...prev, {
-                id: msgId, senderId: 'me', type: 'text',
-                text,
-                time: 'Just now',
-            }]);
+            await firestoreService.sendTextMessage(conversationId, user.id, text);
             setMessage('');
         } catch (e) {
             console.error('Failed to send message:', e);
@@ -248,12 +247,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                 note: data.note,
                 timeSlots,
             };
-            const msgId = await firestoreService.sendSessionMessage(conversationId, user.id, sessionData);
-            setMessages(prev => [...prev, {
-                id: msgId, senderId: 'me', type: 'session',
-                session: sessionData,
-                time: 'Just now',
-            }]);
+            await firestoreService.sendSessionMessage(conversationId, user.id, sessionData);
         } catch (e) {
             console.error('Failed to send session invite:', e);
         } finally {
@@ -279,24 +273,11 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
             const slot = parsePreferredTimeToSlot(preferredTime);
             await firestoreService.confirmSlot(sessionId, slot);
             await firestoreService.updateSessionRequestMessageStatus(conversationId, sessionId, 'confirmed');
-            const autoMsgId = await firestoreService.sendTextMessage(
+            await firestoreService.sendTextMessage(
                 conversationId,
                 user.id,
                 `${AUTO_ACCEPTED_PREFIX}Just accepted your request`
             );
-
-            setMessages((prev) => {
-                const updated = prev.map((m) => {
-                    if (m.type === 'session_request' && m.sessionRequest.sessionId === sessionId) {
-                        return { ...m, sessionRequest: { ...m.sessionRequest, status: 'confirmed' } };
-                    }
-                    return m;
-                });
-                return [
-                    ...updated,
-                    { id: autoMsgId, senderId: 'me', type: 'text', text: `${AUTO_ACCEPTED_PREFIX}Just accepted your request`, time: 'Just now' },
-                ];
-            });
         } catch (e) {
             console.error('Failed to accept session request:', e);
         } finally {
@@ -335,24 +316,12 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                 note: data.note,
                 timeSlots: slots,
             };
-            const keepMsgId = await firestoreService.updateSessionInviteMessageScheduleForSession(
+            await firestoreService.updateSessionInviteMessageScheduleForSession(
                 conversationId,
                 user.id,
                 sessionId,
                 sessionData
             );
-            // Replace the existing session card in local UI to avoid duplicates until next refresh.
-            setMessages((prev) => [
-                ...prev.filter(
-                    (m) =>
-                        !(
-                            m.type === 'session' &&
-                            m.senderId === 'me' &&
-                            (m.session?.id === sessionId || (m.session as any)?.linkedSessionId === sessionId)
-                        )
-                ),
-                { id: keepMsgId, senderId: 'me' as const, type: 'session' as const, session: sessionData, time: 'Just now' },
-            ]);
             setShowInviteModalForSessionRequest(null);
         } catch (e) {
             console.error('Failed to propose slots:', e);
@@ -405,24 +374,6 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                         targetId: messageId,
                         metadata: { conversationId, messageType },
                     });
-                    setMessages((prev) => {
-                        const original = prev.find((m) => m.id === messageId);
-                        const senderId = original?.senderId ?? 'me';
-                        const time = (original as any)?.time ?? 'Just now';
-
-                        const placeholderText =
-                            messageType === 'session'
-                                ? '[Deleted session]'
-                                : messageType === 'session_request'
-                                    ? '[Deleted session request]'
-                                    : '[Deleted message]';
-
-                        return prev.map((m) =>
-                            m.id !== messageId
-                                ? m
-                                : ({ id: messageId, senderId, type: 'text', text: placeholderText, time } as any)
-                        );
-                    });
                 },
             },
         ]);
@@ -452,13 +403,13 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                             <View style={{
                                 width: 8, height: 8, borderRadius: 4,
-                                backgroundColor: contact.isOnline ? AURORA.green : AURORA.textMuted,
+                                backgroundColor: peerOnline ? AURORA.green : AURORA.textMuted,
                             }} />
                             <Text style={{
-                                color: contact.isOnline ? AURORA.green : AURORA.textMuted,
+                                color: peerOnline ? AURORA.green : AURORA.textMuted,
                                 fontSize: 12,
                             }}>
-                                {contact.isOnline ? 'Online' : 'Offline'}
+                                {peerOnline ? 'Online' : 'Offline'}
                             </Text>
                         </View>
                     </View>
@@ -838,6 +789,27 @@ export default function CounselorMessagesScreen() {
     const [showAddStudentModal, setShowAddStudentModal] = useState(false);
     const { studentId } = useLocalSearchParams<{ studentId?: string }>();
     const [autoOpenLocked, setAutoOpenLocked] = useState(false);
+    const [onlineByStudentId, setOnlineByStudentId] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        if (contacts.length === 0) {
+            setOnlineByStudentId({});
+            return;
+        }
+        return subscribeToUsersPresence(
+            contacts.map((c) => c.id),
+            setOnlineByStudentId
+        );
+    }, [contacts]);
+
+    const contactsWithPresence = useMemo(
+        () =>
+            contacts.map((c) => ({
+                ...c,
+                isOnline: onlineByStudentId[c.id] ?? false,
+            })),
+        [contacts, onlineByStudentId]
+    );
 
     useEffect(() => {
         // Reset when navigating to a different student thread.
@@ -868,12 +840,12 @@ export default function CounselorMessagesScreen() {
         if (!studentId) return;
         if (autoOpenLocked) return;
         if (selectedContact) return;
-        const found = contacts.find((c) => c.id === studentId);
+        const found = contactsWithPresence.find((c) => c.id === studentId);
         if (found) {
             setSelectedContact(found);
             setAutoOpenLocked(true); // prevent immediate re-opening after user presses back
         }
-    }, [loading, studentId, contacts, selectedContact]);
+    }, [loading, studentId, contactsWithPresence, selectedContact, autoOpenLocked]);
 
     const refreshConversations = () => {
         if (!user?.id) return;
@@ -911,12 +883,12 @@ export default function CounselorMessagesScreen() {
     const TABS: FilterTab[] = ['All Messages', 'Unread', 'Priority'];
 
     const filtered = activeTab === 'All Messages'
-        ? contacts
+        ? contactsWithPresence
         : activeTab === 'Unread'
-            ? contacts.filter(c => c.isUnread)
-            : contacts.filter(c => c.isAlerted);
+            ? contactsWithPresence.filter(c => c.isUnread)
+            : contactsWithPresence.filter(c => c.isAlerted);
 
-    const unreadCount = contacts.filter(c => c.isUnread).length;
+    const unreadCount = contactsWithPresence.filter(c => c.isUnread).length;
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgMessages }}>

@@ -5,6 +5,15 @@ import { getAuth, Auth, initializeAuth, getReactNativePersistence } from 'fireba
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getDatabase, type Database } from 'firebase/database';
+
+const inferredDatabaseUrl =
+    process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
+        ? `https://${process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID}-default-rtdb.asia-southeast1.firebasedatabase.app`
+        : undefined;
+
+const databaseURL =
+    process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL || inferredDatabaseUrl;
 
 const firebaseConfig = {
     apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -13,7 +22,8 @@ const firebaseConfig = {
     storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
     messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
     appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-    measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID
+    measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
+    ...(databaseURL ? { databaseURL } : {}),
 };
 
 // Initialize Firebase
@@ -34,5 +44,21 @@ if (getApps().length === 0) {
 export { auth };
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+/** Realtime Database — null if no databaseURL (presence disabled). */
+let rtdb: Database | null = null;
+if (databaseURL) {
+    try {
+        // Pass URL explicitly so regional hosts (e.g. *.asia-southeast1.firebasedatabase.app)
+        // always connect even if the FirebaseApp was first created without databaseURL in config.
+        rtdb = getDatabase(app, databaseURL);
+    } catch (e) {
+        console.warn('[firebase] Realtime Database init failed:', e);
+        rtdb = null;
+    }
+} else {
+    console.warn('[firebase] EXPO_PUBLIC_FIREBASE_DATABASE_URL is missing — presence disabled.');
+}
+export { rtdb };
 
 export default app;

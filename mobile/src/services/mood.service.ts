@@ -52,6 +52,18 @@ export const moodService = {
     }
   },
 
+  subscribeMoodLogs(
+    userId: string,
+    onNext: (logs: unknown[]) => void,
+    startDate?: string,
+    endDate?: string,
+    onError?: (error: Error) => void
+  ): () => void {
+    const startDateObj = startDate ? new Date(startDate) : undefined;
+    const endDateObj = endDate ? new Date(endDate) : undefined;
+    return firestoreService.subscribeMoodLogs(userId, startDateObj, endDateObj, onNext, onError);
+  },
+
   async updateMoodLog(logId: string, moodData: any) {
     try {
       console.log('🔥 Updating mood log:', logId);
