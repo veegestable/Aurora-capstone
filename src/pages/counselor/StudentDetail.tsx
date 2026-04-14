@@ -114,7 +114,7 @@ export default function StudentDetail() {
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 border-b border-aurora-gray-200 pb-6">
         <button
           onClick={() => navigate(-1)}
-          className="p-2 -ml-2 rounded-full hover:bg-aurora-gray-100 transition-colors w-max cursor-pointer"
+          className="p-2 -ml-2 rounded-full hover:bg-white/5 transition-colors w-max cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5 text-aurora-gray-600" />
         </button>

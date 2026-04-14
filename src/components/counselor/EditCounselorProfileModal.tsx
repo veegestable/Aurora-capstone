@@ -67,23 +67,23 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-aurora-lg w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-[#0B0D30] rounded-2xl border border-white/8 shadow-aurora-lg w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-aurora-gray-200 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8 shrink-0">
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 text-aurora-gray-500 hover:text-aurora-primary-dark transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-[#7B8EC8] hover:text-white transition-colors cursor-pointer"
             aria-label="Cancel"
           >
             <X className="w-4.5 h-4.5" />
             <span className="text-sm">Cancel</span>
           </button>
-          <h2 className="text-lg font-bold text-aurora-primary-dark">Edit Profile</h2>
+          <h2 className="text-lg font-bold text-white">Edit Profile</h2>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="text-sm font-bold text-aurora-secondary-blue hover:text-aurora-secondary-dark-blue
-                       disabled:text-aurora-gray-400 transition-colors cursor-pointer"
+            className="text-sm font-bold text-[#2D6BFF] hover:text-[#4D8BFF]
+                       disabled:text-[#4B5693] transition-colors cursor-pointer"
           >
             {saving ? 'Saving...' : 'Save'}
           </button>
@@ -116,9 +116,9 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingAvatar}
-                className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-aurora-secondary-blue
-                           flex items-center justify-center border-2 border-white
-                           hover:bg-aurora-secondary-dark-blue transition-colors cursor-pointer
+                className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#2D6BFF]
+                           flex items-center justify-center border-2 border-[#0B0D30]
+                           hover:bg-[#4D8BFF] transition-colors cursor-pointer
                            disabled:opacity-50"
                 aria-label="Change profile picture"
               >
@@ -129,36 +129,36 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
                 )}
               </button>
             </div>
-            <p className="text-xs text-aurora-gray-500 mt-2">MSU-IIT</p>
+            <p className="text-xs text-[#7B8EC8] mt-2">MSU-IIT</p>
           </div>
 
           {/* Full Name */}
           <div>
-            <label className="block text-sm font-semibold text-aurora-primary-dark mb-2">Full Name</label>
-            <div className="flex items-center gap-2.5 border border-aurora-gray-200 rounded-xl px-3.5 bg-aurora-gray-50">
-              <UserIcon className="w-4 h-4 text-aurora-gray-400 shrink-0" />
+            <label className="block text-xs font-semibold text-[#7B8EC8] mb-2 tracking-wide">Full Name</label>
+            <div className="flex items-center gap-2.5 border border-white/8 rounded-[12px] px-3.5 bg-[#10143C]">
+              <UserIcon className="w-4 h-4 text-[#4B5693] shrink-0" />
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your full name"
-                className="flex-1 py-3.5 text-[15px] text-aurora-primary-dark bg-transparent
-                           placeholder:text-aurora-gray-400 outline-none"
+                className="flex-1 py-3.5 text-[15px] text-white bg-transparent
+                           placeholder:text-[#4B5693] outline-none"
               />
             </div>
           </div>
 
           {/* Sex */}
           <div>
-            <label className="block text-sm font-semibold text-aurora-primary-dark mb-2">Sex</label>
+            <label className="block text-xs font-semibold text-[#7B8EC8] mb-2 tracking-wide">Sex</label>
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setSex('male')}
-                className={`flex-1 py-3.5 rounded-xl border-2 text-[15px] font-semibold transition-colors cursor-pointer ${
+                className={`flex-1 py-3.5 rounded-[12px] border text-[15px] font-semibold transition-colors cursor-pointer ${
                   sex === 'male'
-                    ? 'border-aurora-secondary-blue bg-aurora-secondary-blue/10 text-aurora-primary-dark'
-                    : 'border-aurora-gray-200 bg-aurora-gray-50 text-aurora-gray-500 hover:border-aurora-gray-300'
+                    ? 'border-[#2D6BFF] bg-[rgba(45,107,255,0.15)] text-white'
+                    : 'border-white/8 bg-[#10143C] text-[#7B8EC8] hover:border-white/12'
                 }`}
               >
                 Male
@@ -166,10 +166,10 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
               <button
                 type="button"
                 onClick={() => setSex('female')}
-                className={`flex-1 py-3.5 rounded-xl border-2 text-[15px] font-semibold transition-colors cursor-pointer ${
+                className={`flex-1 py-3.5 rounded-[12px] border text-[15px] font-semibold transition-colors cursor-pointer ${
                   sex === 'female'
-                    ? 'border-aurora-secondary-blue bg-aurora-secondary-blue/10 text-aurora-primary-dark'
-                    : 'border-aurora-gray-200 bg-aurora-gray-50 text-aurora-gray-500 hover:border-aurora-gray-300'
+                    ? 'border-[#2D6BFF] bg-[rgba(45,107,255,0.15)] text-white'
+                    : 'border-white/8 bg-[#10143C] text-[#7B8EC8] hover:border-white/12'
                 }`}
               >
                 Female
@@ -179,17 +179,17 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
 
           {/* Counselor Number */}
           <div>
-            <label className="block text-sm font-semibold text-aurora-primary-dark mb-2">
-              Counselor Number <span className="text-aurora-accent-red">*</span>
+            <label className="block text-xs font-semibold text-[#7B8EC8] mb-2 tracking-wide">
+              Counselor Number <span className="text-[#EF4444]">*</span>
             </label>
             <input
               type="text"
               value={counselorNumber}
               onChange={(e) => setCounselorNumber(e.target.value)}
               placeholder="e.g. 2015-0482"
-              className="w-full border border-aurora-gray-200 rounded-xl px-3.5 py-3.5 text-[15px]
-                         text-aurora-primary-dark bg-aurora-gray-50 placeholder:text-aurora-gray-400 outline-none
-                         focus:ring-2 focus:ring-aurora-secondary-blue/30 focus:border-aurora-secondary-blue"
+              className="w-full border border-white/8 rounded-[12px] px-3.5 py-3.5 text-[15px]
+                         text-white bg-[#10143C] placeholder:text-[#4B5693] outline-none
+                         focus:ring-2 focus:ring-[#2D6BFF]/30 focus:border-[#2D6BFF]"
             />
           </div>
 

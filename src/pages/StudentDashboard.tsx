@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import MoodCheckIn from '../components/MoodCheckIn'
@@ -13,14 +12,12 @@ import {
 export default function StudentDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [dynamicBackground, setDynamicBackground] = useState<string | undefined>()
 
   const firstName = user?.full_name?.split(' ')[0] || 'Student'
 
   return (
     <div
-      className="space-y-6 transition-all duration-500"
-      style={{ background: dynamicBackground || undefined }}
+      className="space-y-6"
     >
       {/* Welcome Header */}
       <div className="flex items-center justify-between">
@@ -37,7 +34,6 @@ export default function StudentDashboard() {
       {/* Mood Check-In */}
       <MoodCheckIn
         onMoodLogged={() => console.log('Mood check-in completed')}
-        onBackgroundChange={setDynamicBackground}
       />
 
       {/* Quick Actions */}

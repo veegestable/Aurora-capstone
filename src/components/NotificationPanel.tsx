@@ -48,26 +48,26 @@ export default function NotificationPanel() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'mood_reminder':
-        return <Smile className="w-5 h-5 text-teal-600" />;
+        return <Smile className="w-5 h-5 text-[#22C55E]" />;
       case 'event_reminder':
-        return <Calendar className="w-5 h-5 text-orange-600" />;
+        return <Calendar className="w-5 h-5 text-[#F97316]" />;
       case 'counselor_message':
-        return <MessageCircle className="w-5 h-5 text-blue-600" />;
+        return <MessageCircle className="w-5 h-5 text-[#2D6BFF]" />;
       default:
-        return <Bell className="w-5 h-5 text-gray-600" />;
+        return <Bell className="w-5 h-5 text-[#7B8EC8]" />;
     }
   };
 
   const getNotificationBgColor = (type: string) => {
     switch (type) {
       case 'mood_reminder':
-        return 'bg-teal-50 border-teal-200';
+        return 'bg-[rgba(34,197,94,0.08)] border-[rgba(34,197,94,0.2)]';
       case 'event_reminder':
-        return 'bg-orange-50 border-orange-200';
+        return 'bg-[rgba(249,115,22,0.08)] border-[rgba(249,115,22,0.2)]';
       case 'counselor_message':
-        return 'bg-blue-50 border-blue-200';
+        return 'bg-[rgba(45,107,255,0.08)] border-[rgba(45,107,255,0.2)]';
       default:
-        return 'bg-gray-50 border-gray-200';
+        return 'bg-white/3 border-white/8';
     }
   };
 
@@ -78,15 +78,15 @@ export default function NotificationPanel() {
     <div className="relative">
       <button
         onClick={() => setShowPanel(!showPanel)}
-        className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+        className="relative p-2 rounded-lg hover:bg-white/5 transition-colors"
       >
         {unreadCount > 0 ? (
-          <Bell className="w-6 h-6 text-gray-700" />
+          <Bell className="w-6 h-6 text-[#7B8EC8]" />
         ) : (
-          <BellOff className="w-6 h-6 text-gray-400" />
+          <BellOff className="w-6 h-6 text-[#4B5693]" />
         )}
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-semibold">
+          <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#EF4444] text-white text-xs rounded-full flex items-center justify-center font-semibold">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -98,10 +98,10 @@ export default function NotificationPanel() {
             className="fixed inset-0 z-40"
             onClick={() => setShowPanel(false)}
           />
-          <div className="absolute right-0 mt-2 w-96 max-h-128 overflow-y-auto bg-white rounded-xl shadow-2xl border border-gray-200 z-50">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-4">
-              <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
-              <p className="text-sm text-gray-600 mt-1">
+          <div className="absolute right-0 mt-2 w-96 max-h-128 overflow-y-auto bg-[#0B0D30] rounded-xl shadow-2xl border border-white/8 z-50">
+            <div className="sticky top-0 bg-[#0B0D30] border-b border-white/8 p-4">
+              <h3 className="text-lg font-semibold text-white">Notifications</h3>
+              <p className="text-sm text-[#7B8EC8] mt-1">
                 {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
               </p>
             </div>
@@ -109,14 +109,14 @@ export default function NotificationPanel() {
             <div className="p-2">
               {notifications.length === 0 ? (
                 <div className="text-center py-12">
-                  <BellOff className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-600">No notifications yet</p>
+                  <BellOff className="w-12 h-12 text-[#4B5693] mx-auto mb-3" />
+                  <p className="text-[#7B8EC8]">No notifications yet</p>
                 </div>
               ) : (
                 <>
                   {unreadNotifications.length > 0 && (
                     <div className="mb-2">
-                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-2 mb-2">
+                      <h4 className="text-xs font-semibold text-[#4B5693] uppercase tracking-wide px-2 mb-2">
                         New
                       </h4>
                       <div className="space-y-2">
@@ -130,10 +130,10 @@ export default function NotificationPanel() {
                                 {getNotificationIcon(notification.type)}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm text-gray-900 mb-1">
+                                <p className="text-sm text-white mb-1">
                                   {notification.message}
                                 </p>
-                                <p className="text-xs text-gray-600">
+                                <p className="text-xs text-[#7B8EC8]">
                                   {new Date(notification.scheduled_for).toLocaleString('en-US', {
                                     month: 'short',
                                     day: 'numeric',
@@ -144,10 +144,10 @@ export default function NotificationPanel() {
                               </div>
                               <button
                                 onClick={() => handleMarkAsRead(notification.id)}
-                                className="p-1.5 hover:bg-white rounded-lg transition-colors"
+                                className="p-1.5 hover:bg-white/5 rounded-lg transition-colors"
                                 title="Mark as read"
                               >
-                                <Check className="w-4 h-4 text-gray-600" />
+                                <Check className="w-4 h-4 text-[#7B8EC8]" />
                               </button>
                             </div>
                           </div>
@@ -158,24 +158,24 @@ export default function NotificationPanel() {
 
                   {readNotifications.length > 0 && (
                     <div>
-                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-2 mb-2 mt-4">
+                      <h4 className="text-xs font-semibold text-[#4B5693] uppercase tracking-wide px-2 mb-2 mt-4">
                         Earlier
                       </h4>
                       <div className="space-y-2 opacity-60">
                         {readNotifications.slice(0, 5).map((notification) => (
                           <div
                             key={notification.id}
-                            className="p-3 rounded-lg bg-gray-50 border border-gray-200"
+                            className="p-3 rounded-lg bg-white/3 border border-white/8"
                           >
                             <div className="flex items-start gap-3">
                               <div className="mt-0.5">
                                 {getNotificationIcon(notification.type)}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm text-gray-700 mb-1">
+                                <p className="text-sm text-[#7B8EC8] mb-1">
                                   {notification.message}
                                 </p>
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-[#4B5693]">
                                   {new Date(notification.scheduled_for).toLocaleString('en-US', {
                                     month: 'short',
                                     day: 'numeric',

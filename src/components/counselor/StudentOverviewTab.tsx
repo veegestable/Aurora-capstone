@@ -16,13 +16,13 @@ export function StudentOverviewTab({ student, moodLogs }: StudentOverviewTabProp
             <User className="w-4 h-4" /> Student Profile
           </h3>
           <div className="space-y-3">
-            <div className="flex justify-between border-b border-aurora-gray-100 pb-2">
+            <div className="flex justify-between border-b border-white/8 pb-2">
               <span className="text-aurora-primary-dark/60 text-sm">Role</span>
               <span className="font-semibold text-aurora-primary-dark text-sm capitalize">
                 {student.role || 'Student'}
               </span>
             </div>
-            <div className="flex justify-between border-b border-aurora-gray-100 pb-2">
+            <div className="flex justify-between border-b border-white/8 pb-2">
               <span className="text-aurora-primary-dark/60 text-sm">Year Level</span>
               <span className="font-semibold text-aurora-primary-dark text-sm">
                 {student.yearLevel || '1st Year'}

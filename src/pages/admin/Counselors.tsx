@@ -66,7 +66,7 @@ export default function AdminCounselors() {
 
       {pendingCount > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-          <p className="text-amber-600 text-sm font-semibold">
+          <p className="text-amber-500 text-sm font-semibold">
             {pendingCount} counselor{pendingCount !== 1 ? 's' : ''} awaiting approval
           </p>
         </div>

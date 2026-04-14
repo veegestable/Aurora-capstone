@@ -28,7 +28,7 @@ export function StudentNotesTab({
         value={notes}
         onChange={(e) => onNotesChange(e.target.value)}
         placeholder={`Write your observations or session notes for ${studentName} here...`}
-        className="w-full h-64 p-4 rounded-xl border-2 border-aurora-gray-200 bg-aurora-gray-50 focus:bg-white focus:border-aurora-secondary-blue outline-none resize-none transition-colors text-aurora-primary-dark"
+        className="w-full h-64 p-4 rounded-xl border border-white/8 bg-aurora-card-dark focus:bg-aurora-card focus:border-aurora-blue outline-none resize-none transition-colors text-white placeholder:text-aurora-text-muted"
       />
 
       <div className="flex justify-end pt-2">

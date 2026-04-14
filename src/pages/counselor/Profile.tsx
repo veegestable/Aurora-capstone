@@ -73,7 +73,7 @@ export default function CounselorProfile() {
           <button
             onClick={() => setShowEditProfile(true)}
             className="absolute bottom-0.5 right-0.5 w-8 h-8 rounded-full bg-aurora-secondary-blue
-                       flex items-center justify-center border-[2.5px] border-white cursor-pointer
+                       flex items-center justify-center border-[2.5px] border-[#0B0D30] cursor-pointer
                        hover:bg-aurora-secondary-dark-blue transition-colors"
             aria-label="Edit profile"
           >
