@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ChangeEvent } from 'react'
-import { Camera, Upload, Bot, Target, Check } from 'lucide-react'
+import { Camera, Upload, Bot, Target, Check, Sparkles } from 'lucide-react'
 import type { DetectedEmotion } from '../types/mood.types'
 import { EMOTION_COLORS } from '../utils/emotions'
 
@@ -124,28 +124,37 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
 
   return (
     <div className="card-aurora p-6">
-      <h3 className="text-xl text-white font-semibold mb-4">AI Emotion Detection</h3>
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-9 h-9 rounded-xl bg-linear-to-br from-[rgba(45,107,255,0.25)] to-[rgba(124,58,237,0.15)] flex items-center justify-center shadow-[0_0_15px_rgba(45,107,255,0.1)]">
+          <Sparkles className="w-[18px] h-[18px] text-aurora-blue" />
+        </div>
+        <h3 className="text-lg text-white font-semibold">AI Emotion Detection</h3>
+      </div>
 
       {!useCamera && !capturedImage && (
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <button
               onClick={startCamera}
-              className="inline-flex items-center gap-2 px-8 py-6 bg-[rgba(45,107,255,0.2)] border border-[rgba(45,107,255,0.35)] hover:bg-[rgba(45,107,255,0.3)] text-white font-medium text-base rounded-[14px] cursor-pointer transition-all hover:-translate-y-px hover:shadow-lg flex-col"
+              className="group flex flex-col items-center gap-2 px-6 py-6 bg-[rgba(45,107,255,0.1)] border border-[rgba(45,107,255,0.25)] hover:bg-[rgba(45,107,255,0.18)] text-white font-medium rounded-[14px] cursor-pointer transition-all hover:-translate-y-px hover:shadow-[0_0_20px_rgba(45,107,255,0.15)]"
               disabled={isCapturing}
             >
-              <Camera className="w-5 h-5 mb-1" />
-              Take Selfie
-              <span className="text-sm text-[#7B8EC8]">Use camera</span>
+              <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-[rgba(45,107,255,0.3)] to-[rgba(45,107,255,0.1)] flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Camera className="w-5 h-5 text-aurora-blue" />
+              </div>
+              <span className="font-semibold">Take Selfie</span>
+              <span className="text-xs text-aurora-text-sec">Use camera</span>
             </button>
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center justify-center gap-2 px-8 py-6 bg-white/5 border border-white/8 hover:bg-white/10 text-white font-medium text-base rounded-[14px] cursor-pointer transition-all flex-col"
+              className="group flex flex-col items-center gap-2 px-6 py-6 bg-white/3 border border-white/8 hover:bg-white/6 text-white font-medium rounded-[14px] cursor-pointer transition-all hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,255,255,0.04)]"
             >
-              <Upload className="w-5 h-5 mb-1" />
-              Upload Photo
-              <span className="text-sm text-[#7B8EC8]">From gallery</span>
+              <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-white/10 to-white/3 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Upload className="w-5 h-5 text-aurora-text-sec" />
+              </div>
+              <span className="font-semibold">Upload Photo</span>
+              <span className="text-xs text-aurora-text-sec">From gallery</span>
             </button>
           </div>
 
@@ -157,8 +166,9 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
             className="hidden"
           />
 
-          <div className="p-4 bg-[rgba(45,107,255,0.12)] border border-[rgba(45,107,255,0.25)] rounded-[12px]">
-            <p className="text-sm text-[#4D8BFF]">
+          <div className="flex items-start gap-3 p-4 bg-[rgba(45,107,255,0.08)] border border-[rgba(45,107,255,0.2)] rounded-[12px]">
+            <Bot className="w-4 h-4 text-aurora-blue shrink-0 mt-0.5" />
+            <p className="text-sm text-aurora-blue">
               <strong>AI will detect:</strong> Multiple emotions, confidence levels, and assign mood colors for your calendar
             </p>
           </div>
@@ -167,31 +177,31 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
 
       {useCamera && (
         <div className="flex flex-col items-center gap-4">
-          <div className="relative">
+          <div className="relative w-full max-w-[400px]">
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
-              className="rounded-[14px] shadow-md max-w-full border border-white/8"
-              style={{ maxWidth: '400px' }}
+              className="w-full rounded-[14px] shadow-aurora border border-white/8"
             />
-            <div className="absolute top-2 left-2 bg-[#EF4444] text-white px-2 py-1 rounded text-sm">
-              🔴 Live
+            <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-aurora-red/90 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-semibold">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              Live
             </div>
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <button
               onClick={capturePhoto}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-[rgba(34,197,94,0.2)] border border-[rgba(34,197,94,0.4)] hover:bg-[rgba(34,197,94,0.3)] text-[#22C55E] font-semibold text-base rounded-[14px] cursor-pointer transition-all"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-[rgba(34,197,94,0.15)] border border-[rgba(34,197,94,0.35)] hover:bg-[rgba(34,197,94,0.25)] text-aurora-green font-semibold rounded-[14px] cursor-pointer transition-all"
             >
-              <Camera className="w-4 h-4 mr-2" />
+              <Camera className="w-4 h-4" />
               Capture Photo
             </button>
             <button
               onClick={stopCamera}
-              className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-white/5 border border-white/8 hover:bg-white/10 text-[#7B8EC8] font-medium text-sm rounded-[14px] cursor-pointer transition-all"
+              className="inline-flex items-center gap-2 px-5 py-3 bg-white/5 border border-white/8 hover:bg-white/10 text-aurora-text-sec font-medium rounded-[14px] cursor-pointer transition-all"
             >
               Cancel
             </button>
@@ -201,19 +211,18 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
 
       {capturedImage && (
         <div className="flex flex-col items-center gap-4">
-          <div className="relative">
+          <div className="relative w-full max-w-[400px]">
             <img
               src={capturedImage}
               alt="Captured"
-              className="rounded-[14px] shadow-md max-w-full border border-white/8"
-              style={{ maxWidth: '400px' }}
+              className="w-full rounded-[14px] shadow-aurora border border-white/8"
             />
             {isAnalyzing && (
-              <div className="absolute inset-0 bg-black/50 rounded-[14px] flex items-center justify-center">
+              <div className="absolute inset-0 bg-aurora-bg/70 backdrop-blur-sm rounded-[14px] flex items-center justify-center">
                 <div className="text-center text-white">
-                  <div className="spinner mx-auto mb-2"></div>
-                  <p className="flex items-center justify-center gap-2">
-                    <Bot className="w-4 h-4" />
+                  <div className="spinner mx-auto mb-3"></div>
+                  <p className="flex items-center justify-center gap-2 text-sm font-medium">
+                    <Bot className="w-4 h-4 text-aurora-blue" />
                     AI is analyzing emotions...
                   </p>
                 </div>
@@ -224,27 +233,27 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
           {detectedEmotions.length > 0 && (
             <div className="w-full">
               <h4 className="font-semibold mb-3 flex items-center gap-2 text-white">
-                <Target className="w-4 h-4" />
+                <Target className="w-4 h-4 text-aurora-blue" />
                 Detected Emotions:
               </h4>
               <div className="space-y-2">
                 {detectedEmotions.map((emotion, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-white/5 border border-white/8 rounded-[12px]">
+                  <div key={index} className="flex items-center justify-between p-3 bg-white/3 border border-white/8 rounded-[12px]">
                     <div className="flex items-center gap-3">
                       <div
-                        className="w-4 h-4 rounded-full"
-                        style={{ backgroundColor: emotion.color }}
-                      ></div>
+                        className="w-4 h-4 rounded-full shadow-sm"
+                        style={{ backgroundColor: emotion.color, boxShadow: `0 0 8px ${emotion.color}40` }}
+                      />
                       <span className="font-medium capitalize text-white">{emotion.emotion}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 bg-white/8 rounded-full h-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-20 bg-white/8 rounded-full h-2 overflow-hidden">
                         <div
-                          className="bg-[#2D6BFF] h-2 rounded-full"
-                          style={{ width: `${emotion.confidence * 100}%` }}
-                        ></div>
+                          className="h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${emotion.confidence * 100}%`, backgroundColor: emotion.color }}
+                        />
                       </div>
-                      <span className="text-sm text-[#7B8EC8]">
+                      <span className="text-sm font-medium text-aurora-text-sec w-9 text-right">
                         {Math.round(emotion.confidence * 100)}%
                       </span>
                     </div>
@@ -254,15 +263,15 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
             </div>
           )}
 
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <button
               onClick={() => {
                 setCapturedImage(null);
                 setDetectedEmotions([]);
               }}
-              className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-white/5 border border-white/8 hover:bg-white/10 text-[#7B8EC8] font-medium text-sm rounded-[14px] cursor-pointer transition-all"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/5 border border-white/8 hover:bg-white/10 text-aurora-text-sec font-medium text-sm rounded-[14px] cursor-pointer transition-all"
             >
-              <Camera className="w-4 h-4 mr-2" />
+              <Camera className="w-4 h-4" />
               Take Another
             </button>
             {detectedEmotions.length > 0 && (
@@ -272,9 +281,9 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                   setCapturedImage(null);
                   setDetectedEmotions([]);
                 }}
-                className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-[rgba(34,197,94,0.2)] border border-[rgba(34,197,94,0.4)] hover:bg-[rgba(34,197,94,0.3)] text-[#22C55E] font-semibold text-sm rounded-[14px] cursor-pointer transition-all"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[rgba(34,197,94,0.15)] border border-[rgba(34,197,94,0.35)] hover:bg-[rgba(34,197,94,0.25)] text-aurora-green font-semibold text-sm rounded-[14px] cursor-pointer transition-all"
               >
-                <Check className="w-4 h-4 mr-2" />
+                <Check className="w-4 h-4" />
                 Save to Mood Log
               </button>
             )}
