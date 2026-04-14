@@ -8,7 +8,7 @@ import { Card } from './common/Card';
 
 interface MoodEntry extends MoodData {
     id: string;
-    created_at: Date;
+    created_at?: Date;
     log_date: Date;
 }
 

@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, Image,
-    Modal, Platform, Animated, Easing
+    Modal, Platform, TextInput, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, TrendingUp, Lightbulb, Camera, MessageSquare, BookOpen, X, CalendarPlus } from 'lucide-react-native';
+import { Bell, TrendingUp, Lightbulb, Camera, MessageSquare, BookOpen, X, CalendarPlus, ScanFace } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { router } from 'expo-router';
 import { moodService } from '../../services/mood.service';
+import type { MoodData } from '../../services/firebase-firestore.service';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../../components/common/LetterAvatar';
 import { MoodCheckIn } from '../../components/MoodCheckIn';
@@ -21,7 +22,12 @@ import {
     getDailyFeedback,
     taskCountFromLog,
 } from '../../utils/analytics/ethicsDailyAnalytics';
-import { calculateCheckInStreak } from '../../utils/analytics/dateKeys';
+import { calculateCheckInStreakByDayKey } from '../../utils/analytics/dateKeys';
+import { getDayKey } from '../../utils/dayKey';
+import { moodLogsToMoodEntries } from '../../utils/moodEntryNormalize';
+import { aggregateByDay } from '../../utils/moodAggregates';
+import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
+import { getDailyContext, setDailyContext } from '../../services/mood-firestore-v2.service';
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
 const MOOD_EMOTIONS = [
@@ -158,7 +164,7 @@ function AIInsightCard({ insight }: { insight: string }) {
         <View style={{
             backgroundColor: AURORA.card, borderRadius: 18,
             padding: 16, flexDirection: 'row', alignItems: 'flex-start',
-            gap: 12, borderWidth: 1, borderColor: AURORA.border,
+            gap: 12, borderWidth: 1, borderColor: AURORA.border, marginBottom: 16,
         }}>
             <View style={{
                 width: 44, height: 44, borderRadius: 22,
@@ -178,9 +184,16 @@ function AIInsightCard({ insight }: { insight: string }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function MoodLogScreen() {
     const { user } = useAuth();
+    const { dayResetHour, timezone } = useUserDaySettings();
     const [selectedMood, setSelectedMood] = useState<string | null>(null);
     const [showLogModal, setShowLogModal] = useState(false);
     const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
+    const [showEodModal, setShowEodModal] = useState(false);
+    const [eodExams, setEodExams] = useState(0);
+    const [eodQuizzes, setEodQuizzes] = useState(0);
+    const [eodDeadlines, setEodDeadlines] = useState(0);
+    const [eodAssignments, setEodAssignments] = useState(0);
+    const [eodNotes, setEodNotes] = useState('');
     const [stats, setStats] = useState({ streak: 0, topEmotion: 'happy' });
     const [insight, setInsight] = useState(
         'Complete a check-in for a short note based on your mood and tasks (no AI on this screen).'
@@ -190,7 +203,37 @@ export default function MoodLogScreen() {
 
     useEffect(() => {
         loadStats();
-    }, [user]);
+    }, [user, dayResetHour, timezone]);
+
+    const openEod = async () => {
+        if (!user) return;
+        const dk = getDayKey(new Date(), dayResetHour, timezone);
+        const existing = await getDailyContext(user.id, dk);
+        setEodExams(existing?.exams ?? 0);
+        setEodQuizzes(existing?.quizzes ?? 0);
+        setEodDeadlines(existing?.deadlines ?? 0);
+        setEodAssignments(existing?.assignments ?? 0);
+        setEodNotes(existing?.notes ?? '');
+        setShowEodModal(true);
+    };
+
+    const saveEod = async () => {
+        if (!user) return;
+        try {
+            const dk = getDayKey(new Date(), dayResetHour, timezone);
+            await setDailyContext(user.id, dk, {
+                exams: eodExams,
+                quizzes: eodQuizzes,
+                deadlines: eodDeadlines,
+                assignments: eodAssignments,
+                notes: eodNotes.trim(),
+            });
+            setShowEodModal(false);
+            loadStats();
+        } catch (e: any) {
+            Alert.alert('Could not save', e?.message || 'Try again');
+        }
+    };
 
     const loadStats = async () => {
         if (!user) return;
@@ -219,18 +262,46 @@ export default function MoodLogScreen() {
                     topEmotion = e;
                 }
             });
-            const streak = calculateCheckInStreak(logs as { log_date: Date }[], new Date());
+            const keys = new Set(
+                moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone)
+                    .map((e) => e.dayKey)
+                    .filter((x): x is string => !!x)
+            );
+            const streak = calculateCheckInStreakByDayKey(keys, new Date(), dayResetHour, timezone);
             setStats({ streak, topEmotion });
+            const dk = getDayKey(new Date(), dayResetHour, timezone);
+            const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
+            const todayAgg = aggregateByDay(entries, dk);
+            const ctx = await getDailyContext(user.id, dk);
+            const taskN = ctx ? ctx.exams + ctx.quizzes + ctx.deadlines + ctx.assignments : 0;
             const sorted = [...logs].sort((a: any, b: any) => {
                 const da = a.log_date instanceof Date ? a.log_date : new Date(a.log_date);
                 const db = b.log_date instanceof Date ? b.log_date : new Date(b.log_date);
                 return db.getTime() - da.getTime();
             });
-            const latest = sorted[0];
-            const moodScale = energyLevelToMoodScale(latest.energy_level ?? 5);
-            const tasks = taskCountFromLog(latest);
+            const latest = sorted[0] as any;
+            const moodScale =
+                todayAgg.entryCount > 0
+                    ? Math.min(5, Math.max(1, Math.round(todayAgg.avgEnergy)))
+                    : energyLevelToMoodScale(latest?.energy_level ?? 5);
+            const tasks = taskN > 0 ? taskN : taskCountFromLog(latest || {});
             const band = classifyStress(calculateStressLevel(moodScale, tasks));
-            setInsight(getDailyFeedback(band, moodScale));
+            let line = getDailyFeedback(band, moodScale);
+            if (todayAgg.entryCount > 0) {
+                line = `${line} Today: ${todayAgg.dominantMood} (avg intensity ${todayAgg.avgIntensity.toFixed(1)}/10).`;
+                if (todayAgg.entryCount > 1) {
+                    line = `${line} Based on ${todayAgg.entryCount} check-ins today.`;
+                }
+            }
+            if (ctx && (ctx.exams || ctx.quizzes || ctx.deadlines || ctx.assignments || ctx.notes?.trim())) {
+                const bits: string[] = [];
+                if (ctx.exams) bits.push(`${ctx.exams} exam(s)`);
+                if (ctx.quizzes) bits.push(`${ctx.quizzes} quiz(zes)`);
+                if (ctx.deadlines) bits.push(`${ctx.deadlines} deadline(s)`);
+                if (ctx.assignments) bits.push(`${ctx.assignments} assignment(s)`);
+                line = `${line} Context: ${bits.join(', ')}${ctx.notes?.trim() ? `. ${ctx.notes.trim()}` : ''}.`;
+            }
+            setInsight(line);
         } catch {
             setStats({ streak: 0, topEmotion: 'happy' });
         }
@@ -340,6 +411,75 @@ export default function MoodLogScreen() {
                     {/* ── AI Insight ─────────────────────────────────────────── */}
                     <AIInsightCard insight={insight} />
 
+                    <TouchableOpacity
+                        onPress={() => {
+                            triggerHaptic('light');
+                            router.push('/(student)/daily-selfie');
+                        }}
+                        activeOpacity={0.85}
+                        style={{
+                            backgroundColor: AURORA.card,
+                            borderRadius: 20,
+                            padding: 18,
+                            marginBottom: 12,
+                            borderWidth: 1,
+                            borderColor: AURORA.border,
+                            position: 'relative',
+                        }}
+                    >
+                        <View style={{
+                            position: 'absolute',
+                            top: 14,
+                            right: 14,
+                            paddingHorizontal: 8,
+                            paddingVertical: 3,
+                            borderRadius: 8,
+                            backgroundColor: 'rgba(148,163,184,0.2)',
+                        }}>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>Preview</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                            <View style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 14,
+                                backgroundColor: 'rgba(45,107,255,0.2)',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}>
+                                <ScanFace size={24} color={AURORA.blue} />
+                            </View>
+                            <View style={{ flex: 1, paddingRight: 56 }}>
+                                <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '800' }}>Daily Selfie</Text>
+                                <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 4 }}>
+                                    See what Aurora notices today
+                                </Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => {
+                            triggerHaptic('light');
+                            openEod();
+                        }}
+                        activeOpacity={0.85}
+                        style={{
+                            backgroundColor: AURORA.cardAlt,
+                            borderRadius: 16,
+                            padding: 16,
+                            marginBottom: 16,
+                            borderWidth: 1,
+                            borderColor: AURORA.border,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{ color: AURORA.blue, fontSize: 14, fontWeight: '700' }}>End of Day Review</Text>
+                        <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 4, textAlign: 'center' }}>
+                            Update today&apos;s workload context anytime
+                        </Text>
+                    </TouchableOpacity>
+
                     {/* ── Announcements (dynamic, from admin/counselor) ───────── */}
                     <AnnouncementSection role="student" />
                 </ScrollView>
@@ -377,10 +517,108 @@ export default function MoodLogScreen() {
                                 <X size={22} color={AURORA.textSec} />
                             </TouchableOpacity>
                         </View>
-                        <MoodCheckIn onComplete={() => { setShowLogModal(false); setSelectedMood(null); }} />
+                        <MoodCheckIn onComplete={() => { setShowLogModal(false); setSelectedMood(null); loadStats(); }} />
                     </View>
                 </Modal>
             )}
+
+            <Modal visible={showEodModal} animationType="slide" transparent onRequestClose={() => setShowEodModal(false)}>
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+                    <View style={{
+                        backgroundColor: AURORA.bg,
+                        borderTopLeftRadius: 20,
+                        borderTopRightRadius: 20,
+                        padding: 20,
+                        maxHeight: '88%',
+                    }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800' }}>End of Day Review</Text>
+                            <TouchableOpacity onPress={() => setShowEodModal(false)} style={{ padding: 8 }}>
+                                <X size={22} color={AURORA.textSec} />
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                            {([
+                                ['Exams', eodExams, setEodExams],
+                                ['Quizzes', eodQuizzes, setEodQuizzes],
+                                ['Deadlines', eodDeadlines, setEodDeadlines],
+                                ['Assignments', eodAssignments, setEodAssignments],
+                            ] as const).map(([label, val, setV]) => (
+                                <View key={label} style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    paddingVertical: 12,
+                                    borderBottomWidth: 1,
+                                    borderBottomColor: AURORA.border,
+                                }}>
+                                    <Text style={{ color: AURORA.textPrimary, fontSize: 15 }}>{label}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                        <TouchableOpacity
+                                            onPress={() => setV(Math.max(0, val - 1))}
+                                            style={{
+                                                width: 36,
+                                                height: 36,
+                                                borderRadius: 10,
+                                                backgroundColor: AURORA.cardAlt,
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            <Text style={{ color: AURORA.textSec, fontSize: 18, fontWeight: '700' }}>−</Text>
+                                        </TouchableOpacity>
+                                        <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700', minWidth: 24, textAlign: 'center' }}>
+                                            {val}
+                                        </Text>
+                                        <TouchableOpacity
+                                            onPress={() => setV(val + 1)}
+                                            style={{
+                                                width: 36,
+                                                height: 36,
+                                                borderRadius: 10,
+                                                backgroundColor: 'rgba(45,107,255,0.2)',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            <Text style={{ color: AURORA.blue, fontSize: 18, fontWeight: '700' }}>+</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+                            <Text style={{ color: AURORA.textSec, marginTop: 12, marginBottom: 8 }}>Notes (optional)</Text>
+                            <TextInput
+                                value={eodNotes}
+                                onChangeText={setEodNotes}
+                                placeholder="Anything about today…"
+                                placeholderTextColor={AURORA.textMuted}
+                                multiline
+                                style={{
+                                    minHeight: 100,
+                                    borderWidth: 1,
+                                    borderColor: AURORA.border,
+                                    borderRadius: 12,
+                                    padding: 12,
+                                    color: AURORA.textPrimary,
+                                    textAlignVertical: 'top',
+                                }}
+                            />
+                            <TouchableOpacity
+                                onPress={saveEod}
+                                style={{
+                                    marginTop: 20,
+                                    backgroundColor: AURORA.blue,
+                                    paddingVertical: 16,
+                                    borderRadius: 14,
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>Save</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }

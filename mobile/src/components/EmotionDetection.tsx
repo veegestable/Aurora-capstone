@@ -13,6 +13,8 @@ interface DetectedEmotion {
 
 interface EmotionDetectionProps {
     onEmotionDetected: (emotions: DetectedEmotion[]) => void;
+    /** Card heading (default: Daily Selfie). */
+    title?: string;
 }
 
 const EMOTION_COLORS: Record<string, string> = {
@@ -37,7 +39,7 @@ const getEmotionColor = (emotionName: string): string => {
     return EMOTION_COLORS[normalized] || AURORA.moodNeutral;
 };
 
-export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
+export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: EmotionDetectionProps) {
     const [isCameraVisible, setIsCameraVisible] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -182,7 +184,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
 
     return (
         <View style={{ backgroundColor: AURORA.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: AURORA.border }}>
-            <Text style={{ fontSize: 20, fontWeight: '600', color: AURORA.textPrimary, marginBottom: 16 }}>AI Emotion Detection</Text>
+            <Text style={{ fontSize: 20, fontWeight: '600', color: AURORA.textPrimary, marginBottom: 16 }}>{title}</Text>
 
             {!capturedImage ? (
                 <View style={{ flexDirection: 'row', gap: 16 }}>

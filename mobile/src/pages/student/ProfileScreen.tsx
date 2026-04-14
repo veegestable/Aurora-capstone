@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     TextInput, Switch, Alert, Image, Modal, Platform, ActivityIndicator,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +12,7 @@ import {
     Bell, Video, LogOut, User, ChevronDown,
 } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
+import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../../components/common/LetterAvatar';
 import {
@@ -421,11 +423,25 @@ function EditProfileModal({
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
+function formatResetHourLabel(h: number): string {
+    const d = new Date();
+    d.setHours(h, 0, 0, 0);
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
 export default function ProfileScreen() {
     const { user, signOut, updateUser, uploadAvatar } = useAuth();
+    const { dayResetHour, setDayResetHour } = useUserDaySettings();
     const [dailyReminders, setDailyReminders] = useState(true);
     const [aiCamera, setAiCamera] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
+    const [showDayStartPicker, setShowDayStartPicker] = useState(false);
+
+    const pickerValue = useMemo(() => {
+        const d = new Date();
+        d.setHours(dayResetHour, 0, 0, 0);
+        return d;
+    }, [dayResetHour]);
 
     const handleSignOut = () => {
         Alert.alert('Logout Account', 'Are you sure you want to sign out?', [
@@ -550,11 +566,73 @@ export default function ProfileScreen() {
                         />
                         <ToggleRow
                             icon={<Video size={18} color={AURORA.textSec} />}
-                            label="AI Camera Permissions"
+                            label="Camera (Daily Selfie)"
                             value={aiCamera}
                             onValueChange={setAiCamera}
                         />
+                        <TouchableOpacity
+                            onPress={() => setShowDayStartPicker(true)}
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                paddingVertical: 14,
+                                borderBottomWidth: 1,
+                                borderBottomColor: AURORA.border,
+                            }}
+                        >
+                            <Text style={{ flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '500' }}>Day starts at</Text>
+                            <Text style={{ color: AURORA.blue, fontSize: 14, fontWeight: '700' }}>
+                                {formatResetHourLabel(dayResetHour)}
+                            </Text>
+                        </TouchableOpacity>
+                        <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16, marginTop: 8, marginBottom: 4 }}>
+                            Changing this affects how today's entries are grouped going forward.
+                        </Text>
                     </View>
+                    <Modal visible={showDayStartPicker} transparent animationType="slide">
+                        <TouchableOpacity
+                            style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}
+                            activeOpacity={1}
+                            onPress={() => setShowDayStartPicker(false)}
+                        >
+                            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+                                <View
+                                    style={{
+                                        backgroundColor: AURORA.card,
+                                        padding: 16,
+                                        borderTopLeftRadius: 16,
+                                        borderTopRightRadius: 16,
+                                        borderWidth: 1,
+                                        borderColor: AURORA.border,
+                                    }}
+                                >
+                                    <DateTimePicker
+                                        value={pickerValue}
+                                        mode="time"
+                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                        onChange={async (_e, date) => {
+                                            if (Platform.OS === 'android') setShowDayStartPicker(false);
+                                            if (date) await setDayResetHour(date.getHours());
+                                        }}
+                                    />
+                                    {Platform.OS === 'ios' ? (
+                                        <TouchableOpacity
+                                            onPress={() => setShowDayStartPicker(false)}
+                                            style={{
+                                                marginTop: 12,
+                                                paddingVertical: 14,
+                                                borderRadius: 12,
+                                                backgroundColor: AURORA.blue,
+                                                alignItems: 'center',
+                                            }}
+                                        >
+                                            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Done</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
+                                </View>
+                            </TouchableOpacity>
+                        </TouchableOpacity>
+                    </Modal>
 
                     {/* ── Edit Profile Button ───────────────────────────────── */}
                     <TouchableOpacity

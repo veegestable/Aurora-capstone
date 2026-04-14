@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import * as Animatable from 'react-native-animatable';
 import Animated, {
     Easing,
@@ -14,9 +14,15 @@ import Animated, {
     withSequence,
     withTiming,
 } from 'react-native-reanimated';
-import { Sparkles, TrendingUp, Calendar, ClipboardList, Flame } from 'lucide-react-native';
+import { Sparkles, TrendingUp, Calendar, ClipboardList } from 'lucide-react-native';
 import { useAuth } from '../stores/AuthContext';
+import { useUserDaySettings } from '../stores/UserDaySettingsContext';
 import { moodService } from '../services/mood.service';
+import { getDailyContextsInRange, getDailyContext } from '../services/mood-firestore-v2.service';
+import {
+    buildWeekSummaryInput,
+    generateWeeklySummary,
+} from '../services/weeklySummaryGenerate.service';
 import type { MoodData } from '../services/firebase-firestore.service';
 import {
     fetchWeeklyAiAnalyticsWithPayload,
@@ -24,29 +30,46 @@ import {
     WEEKLY_SUMMARY_FALLBACK_STUDENT_INTRO,
     type WeeklyAiResult,
 } from '../services/weeklyAnalyticsAi.service';
-import { buildDailyChartPoints, moodDistributionCounts } from '../utils/analytics/chartSeries';
 import { buildLast7DaysPayload, summarizeWeekSeries } from '../utils/analytics/weeklySeries';
-import { calculateCheckInStreak } from '../utils/analytics/dateKeys';
+import { calculateCheckInStreakByDayKey } from '../utils/analytics/dateKeys';
+import { getDayKey } from '../utils/dayKey';
+import { moodLogsToMoodEntries } from '../utils/moodEntryNormalize';
+import { aggregateByDay, aggregateByHour, moodStabilityScore } from '../utils/moodAggregates';
+import { blendColors } from '../utils/blendColors';
 import {
     LineTrendChart,
-    TaskLoadBarChart,
-    MoodDistributionDonut,
-    MoodWeekStrip,
     ETHICS_ANALYTICS_FOOTER,
 } from './analytics/DescriptiveCharts';
+import { AnalyticsMoodWidgets } from './analytics/AnalyticsMoodWidgets';
 import {
     stressScoreToIndex,
     stressBandPlain,
     averageMoodPlainLine,
-    dominantStressPlain,
-    polishStudentBullet,
 } from '../utils/analytics/studentInsightsCopy';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useCountUp } from '../hooks/useCountUp';
 import { AURORA } from '../constants/aurora-colors';
 
-const CHART_DAYS = 21;
 const STREAK_MILESTONES = [3, 7, 14, 30];
+
+function hexToRgba(hex: string, alpha: number): string {
+    const cleaned = hex.replace('#', '');
+    const normalized = cleaned.length === 3
+        ? cleaned.split('').map((c) => c + c).join('')
+        : cleaned;
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function weekMoodTone(avgMood: number | null): { label: string; color: string } {
+    if (avgMood == null) return { label: 'Not enough check-ins', color: AURORA.blue };
+    if (avgMood >= 4.2) return { label: 'Mostly good', color: AURORA.moodHappy };
+    if (avgMood >= 3.4) return { label: 'Mostly okay', color: AURORA.moodNeutral };
+    if (avgMood >= 2.6) return { label: 'Mixed with lower moments', color: AURORA.moodSurprise };
+    return { label: 'Mostly low', color: AURORA.moodSad };
+}
 
 function EthicsLine() {
     return (
@@ -54,30 +77,6 @@ function EthicsLine() {
             {ETHICS_ANALYTICS_FOOTER}
         </Text>
     );
-}
-
-function FadeInChart({
-    children,
-    delay = 0,
-    reduceMotion,
-}: {
-    children: React.ReactNode;
-    delay?: number;
-    reduceMotion: boolean;
-}) {
-    const opacity = useSharedValue(reduceMotion ? 1 : 0);
-    useEffect(() => {
-        if (reduceMotion) {
-            opacity.value = 1;
-            return;
-        }
-        const t = setTimeout(() => {
-            opacity.value = withTiming(1, { duration: 580 });
-        }, delay);
-        return () => clearTimeout(t);
-    }, [delay, reduceMotion, opacity]);
-    const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-    return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 /** Shimmer row — Reanimated only (avoids moti → popmotion → broken framesync in Metro). */
@@ -168,12 +167,31 @@ function ChartSection({ children }: { children: React.ReactNode }) {
     );
 }
 
+function formatTodayContextLine(
+    c: { exams: number; quizzes: number; deadlines: number; assignments: number; notes?: string } | null
+): string | null {
+    if (!c) return null;
+    const parts: string[] = [];
+    if (c.exams) parts.push(`${c.exams} exam(s)`);
+    if (c.quizzes) parts.push(`${c.quizzes} quiz(zes)`);
+    if (c.deadlines) parts.push(`${c.deadlines} deadline(s)`);
+    if (c.assignments) parts.push(`${c.assignments} assignment(s)`);
+    if (c.notes?.trim()) parts.push(`note: ${c.notes.trim()}`);
+    return parts.length ? `Workload context today: ${parts.join(', ')}.` : null;
+}
+
 export default function Analytics() {
     const { user } = useAuth();
+    const { dayResetHour, timezone } = useUserDaySettings();
     const reduceMotion = useReducedMotion();
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [aiLoading, setAiLoading] = useState(false);
+    const [weekSummaryGenerating, setWeekSummaryGenerating] = useState(false);
+    const [analyticsView, setAnalyticsView] = useState<'today' | 'week'>('today');
+    const [weekSummaryTemplate, setWeekSummaryTemplate] = useState('');
+    const [todayContextLine, setTodayContextLine] = useState<string | null>(null);
+    const [activeWeekPill, setActiveWeekPill] = useState<'days' | 'checkins' | 'streak' | null>(null);
     const [logs, setLogs] = useState<(MoodData & { log_date: Date; id?: string })[]>([]);
     const [weeklyAi, setWeeklyAi] = useState<WeeklyAiResult | null>(null);
     const [celebrateMilestone, setCelebrateMilestone] = useState(false);
@@ -190,6 +208,31 @@ export default function Analytics() {
             setLogs(list);
             setLoading(false);
             setRefreshing(false);
+
+            const today = new Date();
+            today.setHours(12, 0, 0, 0);
+            const weekDayKeys: string[] = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(d.getDate() - i);
+                weekDayKeys.push(getDayKey(d, dayResetHour, timezone));
+            }
+            const todayKey = getDayKey(new Date(), dayResetHour, timezone);
+            try {
+                const ctxMap = await getDailyContextsInRange(user.id, weekDayKeys);
+                const tctx = ctxMap.get(todayKey) ?? (await getDailyContext(user.id, todayKey));
+                setTodayContextLine(formatTodayContextLine(tctx));
+                setWeekSummaryGenerating(true);
+                setWeekSummaryTemplate('');
+                const input = buildWeekSummaryInput(list, ctxMap, dayResetHour, timezone);
+                const tpl = await generateWeeklySummary(input);
+                setWeekSummaryTemplate(tpl);
+            } catch {
+                setTodayContextLine(null);
+                setWeekSummaryTemplate('');
+            } finally {
+                setWeekSummaryGenerating(false);
+            }
 
             setAiLoading(true);
             setWeeklyAi(null);
@@ -209,8 +252,9 @@ export default function Analytics() {
             setLoading(false);
             setRefreshing(false);
             setAiLoading(false);
+            setWeekSummaryGenerating(false);
         }
-    }, [user]);
+    }, [user, dayResetHour, timezone]);
 
     useEffect(() => {
         if (user) {
@@ -219,7 +263,65 @@ export default function Analytics() {
         }
     }, [user, load]);
 
-    const streak = calculateCheckInStreak(logs as { log_date: Date }[], new Date());
+    const streak = useMemo(() => {
+        const keys = new Set(
+            moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone)
+                .map((e) => e.dayKey)
+                .filter((x): x is string => !!x)
+        );
+        return calculateCheckInStreakByDayKey(keys, new Date(), dayResetHour, timezone);
+    }, [logs, dayResetHour, timezone]);
+
+    const todayMoodAgg = useMemo(() => {
+        const dk = getDayKey(new Date(), dayResetHour, timezone);
+        const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
+        return aggregateByDay(entries, dk);
+    }, [logs, dayResetHour, timezone]);
+
+    const todayEntries = useMemo(() => {
+        const dk = getDayKey(new Date(), dayResetHour, timezone);
+        const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
+        return entries.filter((e) => e.dayKey === dk);
+    }, [logs, dayResetHour, timezone]);
+
+    const todayHourly = useMemo(() => aggregateByHour(todayEntries), [todayEntries]);
+
+    const todayLineLabels = useMemo(
+        () => Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}h`),
+        []
+    );
+
+    const todayLineValues = useMemo(() => {
+        const byHour = new Map<number, number>();
+        for (const h of todayHourly) byHour.set(h.hour, h.avgIntensity);
+        return Array.from({ length: 24 }, (_, h) => byHour.get(h) ?? null);
+    }, [todayHourly]);
+
+    const todayBlended = useMemo(() => {
+        if (!todayEntries.length) return AURORA.blue;
+        return blendColors(todayEntries.map((e) => ({ color: e.color, intensity: e.intensity })));
+    }, [todayEntries]);
+
+    const todayStability = useMemo(() => {
+        const intensities = todayEntries.map((e) => e.intensity);
+        return moodStabilityScore(intensities);
+    }, [todayEntries]);
+
+    const weekMoodFromEntries = useMemo(() => {
+        const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        const keySet = new Set<string>();
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            keySet.add(getDayKey(d, dayResetHour, timezone));
+        }
+        const slice = entries.filter((x) => keySet.has(x.dayKey || ''));
+        if (!slice.length) return null;
+        const scales = slice.map((x) => Math.min(5, Math.max(1, Math.ceil(x.intensity / 2))));
+        return scales.reduce((a, b) => a + b, 0) / scales.length;
+    }, [logs, dayResetHour, timezone]);
     useEffect(() => {
         if (reduceMotion) {
             prevStreakRef.current = streak;
@@ -244,20 +346,11 @@ export default function Analytics() {
         load();
     };
 
-    const points = buildDailyChartPoints(logs as (MoodData & { log_date: Date })[], CHART_DAYS);
-    const dist = moodDistributionCounts(points);
     const weeklyPayload = buildLast7DaysPayload(logs as (MoodData & { log_date: Date })[]);
     const weekCard = summarizeWeekSeries(weeklyPayload);
 
-    const moodVals = points.map((p) => p.moodScale);
-    const stressVals = points.map((p) => p.stressScore);
-    const stressIndexVals = stressVals.map((v) => (v == null ? null : stressScoreToIndex(v)));
-    const taskVals = points.map((p) => p.tasks);
-    const labels = points.map((p) => p.labelShort);
-
     const totalCheckIns = logs.length;
-    const daysWithData = points.filter((p) => p.moodScale != null).length;
-    const donutTotal = dist.positive + dist.neutral + dist.low;
+    const weekDaysLogged = weeklyPayload.daily_mood.filter((m) => m >= 1 && m <= 5).length;
 
     const weekStressIndex =
         weekCard.avgStressScore != null ? stressScoreToIndex(weekCard.avgStressScore) : null;
@@ -265,10 +358,11 @@ export default function Analytics() {
         weekCard.dominantStress === '—' ? 'None' : weekCard.dominantStress
     );
 
-    const animMood = useCountUp(weekCard.avgMood, 820, weekCard.avgMood != null, reduceMotion);
+    const displayWeekAvgMood = weekMoodFromEntries ?? weekCard.avgMood;
     const animStress = useCountUp(weekStressIndex, 820, weekStressIndex != null, reduceMotion);
     const animTasks = useCountUp(weekCard.totalTasks, 700, true, reduceMotion);
     const animStreak = useCountUp(streak, 640, true, reduceMotion);
+    const weekMoodMeta = useMemo(() => weekMoodTone(displayWeekAvgMood), [displayWeekAvgMood]);
 
     const trendPlainSentence = useMemo(() => {
         if (!weeklyAi) return '';
@@ -311,64 +405,250 @@ export default function Analytics() {
                 )
             ) : null}
 
+            <View style={{ marginBottom: 12 }}>
+                <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>
+                    ANALYTICS VIEW
+                </Text>
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        alignSelf: 'flex-start',
+                        backgroundColor: 'rgba(124, 58, 237, 0.16)',
+                        borderRadius: 999,
+                        padding: 4,
+                        borderWidth: 1,
+                        borderColor: 'rgba(124, 58, 237, 0.38)',
+                        shadowColor: '#7C3AED',
+                        shadowOpacity: 0.22,
+                        shadowRadius: 10,
+                        shadowOffset: { width: 0, height: 6 },
+                        elevation: 4,
+                    }}
+                >
+                <TouchableOpacity
+                    onPress={() => setAnalyticsView('today')}
+                    style={{
+                        paddingVertical: 7,
+                        paddingHorizontal: 14,
+                        borderRadius: 999,
+                        alignItems: 'center',
+                        backgroundColor: analyticsView === 'today' ? AURORA.purple : 'transparent',
+                        borderWidth: analyticsView === 'today' ? 1 : 0,
+                        borderColor: analyticsView === 'today' ? 'rgba(255,255,255,0.22)' : 'transparent',
+                    }}
+                >
+                    <Text
+                        style={{
+                            color: analyticsView === 'today' ? '#FFFFFF' : AURORA.textMuted,
+                            fontWeight: '700',
+                            fontSize: 12,
+                        }}
+                    >
+                        Today
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    onPress={() => setAnalyticsView('week')}
+                    style={{
+                        paddingVertical: 7,
+                        paddingHorizontal: 14,
+                        borderRadius: 999,
+                        alignItems: 'center',
+                        backgroundColor: analyticsView === 'week' ? AURORA.purple : 'transparent',
+                        borderWidth: analyticsView === 'week' ? 1 : 0,
+                        borderColor: analyticsView === 'week' ? 'rgba(255,255,255,0.22)' : 'transparent',
+                    }}
+                >
+                    <Text
+                        style={{
+                            color: analyticsView === 'week' ? '#FFFFFF' : AURORA.textMuted,
+                            fontWeight: '700',
+                            fontSize: 12,
+                        }}
+                    >
+                        Week
+                    </Text>
+                </TouchableOpacity>
+                </View>
+            </View>
+
+            {analyticsView === 'today' ? (
+                <>
             <Text style={{ color: AURORA.textPrimary, fontSize: 22, fontWeight: '800', marginBottom: 8 }}>
-                Your week in view
+                Today analytics
             </Text>
             <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21, marginBottom: 8 }}>
-                Everything here is based only on what you already logged.
+                A focused view of your current day.
+            </Text>
+            <EthicsLine />
+
+            <ChartSection>
+                {todayEntries.length === 0 ? (
+                    <Text style={{ color: AURORA.textSec, fontSize: 14 }}>
+                        No check-ins yet today. Log your mood to unlock daily analytics.
+                    </Text>
+                ) : (
+                    <>
+                        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+                            <View style={{ flex: 1, backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12 }}>
+                                <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>TODAY MOOD</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: todayBlended }} />
+                                    <Text style={{ color: AURORA.textPrimary, fontSize: 16, fontWeight: '700', textTransform: 'capitalize' }}>
+                                        {todayMoodAgg.dominantMood}
+                                    </Text>
+                                </View>
+                                <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 6 }}>
+                                    Avg intensity {todayMoodAgg.avgIntensity.toFixed(1)}/10
+                                </Text>
+                            </View>
+                            <View style={{ flex: 1, backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12 }}>
+                                <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>CHECK-INS</Text>
+                                <Text style={{ color: AURORA.textPrimary, fontSize: 28, fontWeight: '900', marginTop: 6 }}>
+                                    {todayMoodAgg.entryCount}
+                                </Text>
+                                <Text style={{ color: AURORA.textSec, fontSize: 12 }}>today</Text>
+                            </View>
+                        </View>
+                        <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: 12 }}>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
+                                TODAY MOOD STABILITY
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 6 }}>
+                                <Text style={{ color: todayBlended, fontSize: 30, fontWeight: '900' }}>
+                                    {todayStability}%
+                                </Text>
+                                <Text style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 6 }}>
+                                    based on today&apos;s check-ins
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={{ marginBottom: 12 }}>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 8 }}>
+                                HOURLY TREND
+                            </Text>
+                            <LineTrendChart
+                                title="Mood spikes in 24 hours"
+                                caption="Higher points show hours where your mood intensity peaked."
+                                values={todayLineValues}
+                                labels={todayLineLabels}
+                                yMin={1}
+                                yMax={10}
+                                stroke={todayBlended}
+                                friendlyAxis={{
+                                    high: 'High intensity (10)',
+                                    mid: 'Middle (5)',
+                                    low: 'Low intensity (1)',
+                                }}
+                                chartHeight={180}
+                            />
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingBottom: 4 }}>
+                                    {todayHourly.map((h) => (
+                                        <View key={h.hour} style={{ alignItems: 'center', width: 26 }}>
+                                            <View
+                                                style={{
+                                                    width: 18,
+                                                    height: Math.max(8, h.avgIntensity * 5),
+                                                    borderRadius: 6,
+                                                    backgroundColor: h.blendedColor,
+                                                }}
+                                            />
+                                            <Text style={{ color: AURORA.textMuted, fontSize: 10, marginTop: 4 }}>
+                                                {String(h.hour).padStart(2, '0')}
+                                            </Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </ScrollView>
+                        </View>
+                        {todayContextLine ? (
+                            <Text style={{ color: AURORA.textMuted, fontSize: 12, lineHeight: 17 }}>{todayContextLine}</Text>
+                        ) : null}
+                    </>
+                )}
+            </ChartSection>
+                </>
+            ) : null}
+
+            {analyticsView === 'week' ? (
+                <>
+            <Text style={{ color: AURORA.textPrimary, fontSize: 22, fontWeight: '800', marginBottom: 8 }}>
+                Your week analytics
+            </Text>
+            <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21, marginBottom: 8 }}>
+                Quick mood highlights from your last 7 days.
             </Text>
             <EthicsLine />
 
             <View style={{ marginTop: 18, marginBottom: 8 }}>
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        flexWrap: 'wrap',
-                        gap: 10,
-                        marginBottom: 14,
-                    }}
-                >
+                {(() => {
+                    const weekPills = [
+                        { key: 'days' as const, emoji: '🔥', label: 'Days logged', value: `${weekDaysLogged}/7`, sub: 'active days' },
+                        { key: 'checkins' as const, emoji: '✍️', label: 'Check-ins', value: String(totalCheckIns), sub: 'entries this week' },
+                        { key: 'streak' as const, emoji: '🚀', label: 'Streak', value: String(Math.round(animStreak)), sub: 'days in a row' },
+                    ];
+                    const explainer = activeWeekPill === 'days'
+                        ? `${weekDaysLogged} out of 7 days had at least one mood check-in.`
+                        : activeWeekPill === 'checkins'
+                            ? `You logged ${totalCheckIns} mood entries this week in total.`
+                            : activeWeekPill === 'streak'
+                                    ? `You are on a ${Math.round(animStreak)} day streak.`
+                                    : null;
+                    return (
+                        <>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                        {weekPills.map((pill) => (
+                            <TouchableOpacity
+                                key={pill.label}
+                                activeOpacity={0.9}
+                                onPress={() => setActiveWeekPill((prev) => (prev === pill.key ? null : pill.key))}
+                                style={{
+                                    width: 140,
+                                    backgroundColor: activeWeekPill === pill.key ? 'rgba(45, 107, 255, 0.18)' : 'rgba(15, 24, 64, 0.88)',
+                                    padding: 13,
+                                    borderRadius: 18,
+                                    borderWidth: 1,
+                                    borderColor: activeWeekPill === pill.key ? AURORA.blue : AURORA.border,
+                                    shadowColor: activeWeekPill === pill.key ? AURORA.blue : '#000',
+                                    shadowOpacity: activeWeekPill === pill.key ? 0.28 : 0.18,
+                                    shadowRadius: activeWeekPill === pill.key ? 10 : 8,
+                                    shadowOffset: { width: 0, height: 6 },
+                                    elevation: activeWeekPill === pill.key ? 5 : 3,
+                                }}
+                            >
+                                <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
+                                    {pill.emoji} {pill.label.toUpperCase()}
+                                </Text>
+                                <Text style={{ color: AURORA.textPrimary, fontSize: 24, fontWeight: '900', marginTop: 8 }}>
+                                    {pill.value}
+                                </Text>
+                                <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 2 }} numberOfLines={2}>
+                                    {pill.sub}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </ScrollView>
+                {explainer ? (
                     <View
                         style={{
-                            flex: 1,
-                            minWidth: '47%',
-                            backgroundColor: AURORA.cardAlt,
-                            padding: 14,
-                            borderRadius: 16,
+                            backgroundColor: 'rgba(45, 107, 255, 0.12)',
                             borderWidth: 1,
-                            borderColor: AURORA.border,
+                            borderColor: 'rgba(45, 107, 255, 0.28)',
+                            borderRadius: 12,
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                            marginBottom: 12,
                         }}
                     >
-                        <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 6 }}>
-                            DAYS ON CHART
-                        </Text>
-                        <Text style={{ color: AURORA.textPrimary, fontSize: 26, fontWeight: '800' }}>
-                            {daysWithData}/{CHART_DAYS}
-                        </Text>
-                        <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 4 }}>
-                            days with a check-in in this window
-                        </Text>
+                        <Text style={{ color: AURORA.textSec, fontSize: 12, lineHeight: 17 }}>{explainer}</Text>
                     </View>
-                    <View
-                        style={{
-                            flex: 1,
-                            minWidth: '47%',
-                            backgroundColor: AURORA.cardAlt,
-                            padding: 14,
-                            borderRadius: 16,
-                            borderWidth: 1,
-                            borderColor: AURORA.border,
-                        }}
-                    >
-                        <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 6 }}>
-                            ALL ENTRIES
-                        </Text>
-                        <Text style={{ color: AURORA.textPrimary, fontSize: 26, fontWeight: '800' }}>{totalCheckIns}</Text>
-                        <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 4 }}>
-                            journal entries we loaded
-                        </Text>
-                    </View>
-                </View>
+                ) : null}
+                        </>
+                    );
+                })()}
 
                 <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>
                     Last 7 days
@@ -381,24 +661,43 @@ export default function Analytics() {
                     useNativeDriver
                     style={{
                         width: '100%',
-                        backgroundColor: AURORA.card,
-                        padding: 18,
-                        borderRadius: 18,
-                        marginBottom: 12,
-                        borderWidth: 2,
-                        borderColor: AURORA.blue,
+                        backgroundColor: hexToRgba(weekMoodMeta.color, 0.14),
+                        padding: 20,
+                        borderRadius: 22,
+                        marginBottom: 20,
+                        borderWidth: 1.5,
+                        borderColor: hexToRgba(weekMoodMeta.color, 0.75),
+                        shadowColor: weekMoodMeta.color,
+                        shadowOpacity: 0.26,
+                        shadowRadius: 16,
+                        shadowOffset: { width: 0, height: 10 },
+                        elevation: 7,
                     }}
                 >
-                    <TrendingUp size={22} color={AURORA.amber} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                        <TrendingUp size={22} color={AURORA.amber} />
+                        <View
+                            style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: 11,
+                                backgroundColor: weekMoodMeta.color,
+                                borderWidth: 1,
+                                borderColor: AURORA.border,
+                            }}
+                        />
+                    </View>
                     <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '800', marginTop: 12, letterSpacing: 0.6 }}>
-                        AVERAGE MOOD
+                        WEEK MOOD
                     </Text>
-                    <Text style={{ color: AURORA.textPrimary, fontSize: 36, fontWeight: '900', marginTop: 6 }}>
-                        {weekCard.avgMood != null ? animMood.toFixed(1) : '—'}
-                        <Text style={{ fontSize: 18, color: AURORA.textSec, fontWeight: '700' }}> / 5</Text>
+                    <Text style={{ color: AURORA.textPrimary, fontSize: 34, fontWeight: '900', marginTop: 6 }}>
+                        {weekMoodMeta.label}
                     </Text>
                     <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 10, lineHeight: 19 }}>
-                        From your check-in mood (1 low, 5 high). {averageMoodPlainLine(weekCard.avgMood)}
+                        {averageMoodPlainLine(displayWeekAvgMood)}
+                    </Text>
+                    <Text style={{ color: AURORA.textMuted, fontSize: 12, marginTop: 8 }}>
+                        {weekDaysLogged}/7 active days • {totalCheckIns} total check-ins
                     </Text>
                 </Animatable.View>
 
@@ -410,24 +709,29 @@ export default function Analytics() {
                         useNativeDriver
                         style={{
                             width: '48%',
-                            backgroundColor: AURORA.card,
+                            backgroundColor: 'rgba(13, 23, 67, 0.94)',
                             padding: 14,
-                            borderRadius: 16,
+                            borderRadius: 18,
                             borderWidth: 1,
-                            borderColor: AURORA.border,
+                            borderColor: 'rgba(98, 124, 255, 0.22)',
                             marginBottom: 10,
+                            shadowColor: '#000',
+                            shadowOpacity: 0.2,
+                            shadowRadius: 8,
+                            shadowOffset: { width: 0, height: 5 },
+                            elevation: 4,
                         }}
                     >
                         <ClipboardList size={20} color={AURORA.blue} />
                         <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginTop: 10 }}>
-                            TYPICAL STRESS INDEX
+                            😮‍💨 STRESS FEEL
                         </Text>
                         <Text style={{ color: AURORA.textPrimary, fontSize: 26, fontWeight: '800', marginTop: 4 }}>
                             {weekStressIndex != null ? Math.round(animStress) : '—'}
                             <Text style={{ fontSize: 13, color: AURORA.textSec, fontWeight: '600' }}> / 100</Text>
                         </Text>
                         <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 8, lineHeight: 16 }}>
-                            0 = calmer on paper, 100 = busier on paper (not medical). This week: {weekStressBandLabel}.
+                            {weekStressBandLabel} this week
                         </Text>
                     </Animatable.View>
                     <Animatable.View
@@ -437,63 +741,28 @@ export default function Analytics() {
                         useNativeDriver
                         style={{
                             width: '48%',
-                            backgroundColor: AURORA.card,
+                            backgroundColor: 'rgba(13, 23, 67, 0.94)',
                             padding: 14,
-                            borderRadius: 16,
+                            borderRadius: 18,
                             borderWidth: 1,
-                            borderColor: AURORA.border,
+                            borderColor: 'rgba(98, 124, 255, 0.22)',
                             marginBottom: 10,
+                            shadowColor: '#000',
+                            shadowOpacity: 0.2,
+                            shadowRadius: 8,
+                            shadowOffset: { width: 0, height: 5 },
+                            elevation: 4,
                         }}
                     >
                         <Calendar size={20} color={AURORA.green} />
                         <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginTop: 10 }}>
-                            TASKS LISTED
+                            📚 TASK LOAD
                         </Text>
                         <Text style={{ color: AURORA.textPrimary, fontSize: 26, fontWeight: '800', marginTop: 4 }}>
                             {Math.round(animTasks)}
                         </Text>
                         <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 8, lineHeight: 16 }}>
-                            Classes + exams + deadlines from check-ins.
-                        </Text>
-                    </Animatable.View>
-                    <Animatable.View
-                        animation={reduceMotion ? undefined : 'fadeInUp'}
-                        duration={reduceMotion ? 0 : 500}
-                        delay={reduceMotion ? 0 : 320}
-                        useNativeDriver
-                        style={{
-                            width: '100%',
-                            backgroundColor: AURORA.card,
-                            padding: 14,
-                            borderRadius: 16,
-                            borderWidth: 1,
-                            borderColor: AURORA.border,
-                            marginBottom: 10,
-                        }}
-                    >
-                        <Flame size={20} color={AURORA.purple} />
-                        <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginTop: 10 }}>
-                            STREAK
-                        </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                            <Text style={{ color: AURORA.textPrimary, fontSize: 26, fontWeight: '800' }}>
-                                {Math.round(animStreak)}
-                            </Text>
-                            {streak > 0 && !reduceMotion ? (
-                                <Animatable.Text
-                                    animation="pulse"
-                                    iterationCount="infinite"
-                                    duration={1600}
-                                    style={{ fontSize: 18 }}
-                                >
-                                    🔥
-                                </Animatable.Text>
-                            ) : null}
-                        </View>
-                        <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 8, lineHeight: 18 }}>
-                            {streak === 0
-                                ? 'Start your streak today — log how you are feeling!'
-                                : `Keep it going! You are on a ${streak}-day streak.`}
+                            from your check-ins
                         </Text>
                     </Animatable.View>
                 </View>
@@ -522,120 +791,22 @@ export default function Analytics() {
                 </Animatable.View>
             ) : null}
 
-            <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700', marginBottom: 4, marginTop: 4 }}>
-                Charts — last {CHART_DAYS} days
+            <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700', marginBottom: 10, marginTop: 4 }}>
+                Weekly insight
             </Text>
-            <Text style={{ color: AURORA.textMuted, fontSize: 12, marginBottom: 12 }}>Pull down to refresh.</Text>
-
-            <ChartSection>
-                <FadeInChart delay={0} reduceMotion={reduceMotion}>
-                    <MoodWeekStrip points={points} />
-                </FadeInChart>
-            </ChartSection>
-
-            <ChartSection>
-                <FadeInChart delay={reduceMotion ? 0 : 70} reduceMotion={reduceMotion}>
-                    <LineTrendChart
-                        title="Mood over time"
-                        caption="Each dot is a day you logged. Higher = better mood that day."
-                        values={moodVals}
-                        labels={labels}
-                        yMin={1}
-                        yMax={5}
-                        stroke={AURORA.green}
-                        friendlyAxis={{ high: 'Better mood (5)', mid: 'Okay (3)', low: 'Lower mood (1)' }}
-                        chartHeight={210}
-                    />
-                </FadeInChart>
-            </ChartSection>
-
-            <ChartSection>
-                <FadeInChart delay={reduceMotion ? 0 : 140} reduceMotion={reduceMotion}>
-                    <LineTrendChart
-                        title="Stress Index over time"
-                        caption="Same days as above. Higher = busier on paper, from your mood + tasks (not medical)."
-                        values={stressIndexVals}
-                        labels={labels}
-                        yMin={0}
-                        yMax={100}
-                        stroke={AURORA.purpleBright}
-                        friendlyAxis={{ high: 'Higher index (100)', mid: 'Halfway (50)', low: 'Lower index (0)' }}
-                        chartHeight={210}
-                    />
-                </FadeInChart>
-            </ChartSection>
-
-            <ChartSection>
-                <FadeInChart delay={reduceMotion ? 0 : 210} reduceMotion={reduceMotion}>
-                    <MoodDistributionDonut
-                        title="Your logged days"
-                        caption="Share of check-ins by mood level in this window."
-                        segments={[
-                            {
-                                label: '🟢 Good days',
-                                value: dist.positive,
-                                color: AURORA.green,
-                                hint: 'Mood 4–5 when you checked in.',
-                            },
-                            {
-                                label: '⚪ Okay days',
-                                value: dist.neutral,
-                                color: AURORA.textSec,
-                                hint: 'Mood 3 when you checked in.',
-                            },
-                            {
-                                label: '🔵 Low days',
-                                value: dist.low,
-                                color: AURORA.blue,
-                                hint: 'Mood 1–2 when you checked in.',
-                            },
-                        ]}
-                        centerValue={String(donutTotal)}
-                        centerLabel="check-ins"
-                    />
-                </FadeInChart>
-            </ChartSection>
-
-            <ChartSection>
-                <FadeInChart delay={reduceMotion ? 0 : 280} reduceMotion={reduceMotion}>
-                    <TaskLoadBarChart
-                        title="Tasks you listed"
-                        caption="Per day: classes + exams + deadlines from your check-in."
-                        tasks={taskVals}
-                        labels={labels}
-                        chartHeight={210}
-                    />
-                </FadeInChart>
-            </ChartSection>
 
             <View
                 style={{
-                    backgroundColor: AURORA.cardAlt,
-                    padding: 16,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: AURORA.border,
-                    marginBottom: 16,
-                }}
-            >
-                <Text style={{ color: AURORA.textPrimary, fontSize: 14, fontWeight: '700', marginBottom: 6 }}>
-                    Quick read
-                </Text>
-                <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 20 }}>
-                    {dominantStressPlain(weekCard.dominantStress)}
-                </Text>
-                <View style={{ marginTop: 10 }}>
-                    <EthicsLine />
-                </View>
-            </View>
-
-            <View
-                style={{
-                    backgroundColor: 'rgba(45, 107, 255, 0.12)',
+                    backgroundColor: 'rgba(22, 34, 92, 0.8)',
                     padding: 18,
-                    borderRadius: 20,
+                    borderRadius: 22,
                     borderWidth: 1,
-                    borderColor: AURORA.border,
+                    borderColor: 'rgba(91, 117, 255, 0.32)',
+                    shadowColor: '#5B75FF',
+                    shadowOpacity: 0.2,
+                    shadowRadius: 12,
+                    shadowOffset: { width: 0, height: 8 },
+                    elevation: 5,
                 }}
             >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -657,6 +828,19 @@ export default function Analytics() {
                         : WEEKLY_SUMMARY_FALLBACK_STUDENT_INTRO}
                 </Text>
 
+                {weekSummaryGenerating ? (
+                    <Text
+                        style={{
+                            color: AURORA.textMuted,
+                            fontSize: 12,
+                            marginBottom: 10,
+                            lineHeight: 17,
+                            fontStyle: 'italic',
+                        }}
+                    >
+                        Generating your summary…
+                    </Text>
+                ) : null}
                 {aiLoading ? (
                     <AISummarySkeleton reduceMotion={reduceMotion} />
                 ) : weeklyAi ? (
@@ -665,24 +849,8 @@ export default function Analytics() {
                             {trendPlainSentence}
                         </Text>
                         <Text style={{ color: AURORA.textPrimary, fontSize: 15, lineHeight: 22, marginBottom: 14 }}>
-                            {weeklyAi.summary}
+                            {weekSummaryTemplate.length > 0 ? weekSummaryTemplate : weeklyAi.summary}
                         </Text>
-                        <Text style={{ color: AURORA.textPrimary, fontSize: 14, fontWeight: '700', marginBottom: 8 }}>
-                            What stood out
-                        </Text>
-                        {weeklyAi.observations.map((o, i) => (
-                            <Text key={i} style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21, marginBottom: 6 }}>
-                                • {polishStudentBullet(o)}
-                            </Text>
-                        ))}
-                        <Text style={{ color: AURORA.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 14, marginBottom: 8 }}>
-                            Ideas to try
-                        </Text>
-                        {weeklyAi.recommendations.map((o, i) => (
-                            <Text key={i} style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21, marginBottom: 6 }}>
-                                • {o}
-                            </Text>
-                        ))}
                         {weeklyAi.support_note ? (
                             <Text style={{ color: AURORA.amber, fontSize: 14, marginTop: 14, lineHeight: 21 }}>
                                 {weeklyAi.support_note}
@@ -697,6 +865,18 @@ export default function Analytics() {
                     <EthicsLine />
                 </View>
             </View>
+
+            {totalCheckIns > 0 ? (
+                <ChartSection>
+                    <AnalyticsMoodWidgets
+                        logs={logs as (MoodData & { log_date: Date })[]}
+                        resetHour={dayResetHour}
+                        timezone={timezone}
+                    />
+                </ChartSection>
+            ) : null}
+                </>
+            ) : null}
         </ScrollView>
     );
 }

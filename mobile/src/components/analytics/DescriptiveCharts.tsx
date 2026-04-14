@@ -6,7 +6,7 @@
 import type { ReactElement } from 'react';
 import { Fragment, useEffect } from 'react';
 import { View, Text, useWindowDimensions, ScrollView } from 'react-native';
-import Svg, { Circle, Line, Rect, Path, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Line, Rect, Path, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import * as Animatable from 'react-native-animatable';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { AURORA } from '../../constants/aurora-colors';
@@ -77,6 +77,37 @@ export function LineTrendChart({
 
     const yBaseline = PAD_BASE.t + innerH;
     const gridYs = [0.25, 0.5, 0.75].map((frac) => PAD_BASE.t + innerH * frac);
+    const gradientId = `trend-grad-${title.replace(/\s+/g, '-').toLowerCase()}`;
+    const contiguousSegments: { i: number; v: number }[][] = [];
+    let current: { i: number; v: number }[] = [];
+    for (let i = 0; i < values.length; i++) {
+        const v = values[i];
+        if (v == null || Number.isNaN(v)) {
+            if (current.length > 0) contiguousSegments.push(current);
+            current = [];
+            continue;
+        }
+        current.push({ i, v });
+    }
+    if (current.length > 0) contiguousSegments.push(current);
+
+    const buildLinePath = (seg: { i: number; v: number }[]) => {
+        if (seg.length === 0) return '';
+        return seg
+            .map((p, idx) => {
+                const { x, y } = xy(p.i, p.v);
+                return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
+            })
+            .join(' ');
+    };
+
+    const buildAreaPath = (seg: { i: number; v: number }[]) => {
+        if (seg.length === 0) return '';
+        const first = seg[0];
+        const last = seg[seg.length - 1];
+        const linePath = buildLinePath(seg);
+        return `${linePath} L ${xAt(last.i)} ${yBaseline} L ${xAt(first.i)} ${yBaseline} Z`;
+    };
 
     return (
         <View style={{ marginBottom: 12 }}>
@@ -87,6 +118,12 @@ export function LineTrendChart({
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View>
                     <Svg width={W} height={chartHeight}>
+                        <Defs>
+                            <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                                <Stop offset="0%" stopColor={stroke} stopOpacity={0.32} />
+                                <Stop offset="100%" stopColor={stroke} stopOpacity={0.02} />
+                            </LinearGradient>
+                        </Defs>
                         {gridYs.map((gy, gi) => (
                             <Line
                                 key={`g-${gi}`}
@@ -150,38 +187,65 @@ export function LineTrendChart({
                                 />
                             );
                         })}
-                        {values.map((v, i) => {
-                            if (i >= n - 1) return null;
-                            const v2 = values[i + 1];
-                            if (v == null || v2 == null || Number.isNaN(v) || Number.isNaN(v2)) return null;
-                            const p1 = xy(i, v);
-                            const p2 = xy(i + 1, v2);
+                        {contiguousSegments.map((seg, si) => {
+                            const area = buildAreaPath(seg);
+                            if (!area) return null;
                             return (
-                                <Line
-                                    key={`ln-${i}`}
-                                    x1={p1.x}
-                                    y1={p1.y}
-                                    x2={p2.x}
-                                    y2={p2.y}
-                                    stroke={stroke}
-                                    strokeWidth={3}
-                                    strokeLinecap="round"
+                                <Path
+                                    key={`area-${si}`}
+                                    d={area}
+                                    fill={`url(#${gradientId})`}
                                 />
+                            );
+                        })}
+                        {contiguousSegments.map((seg, si) => {
+                            const d = buildLinePath(seg);
+                            if (!d) return null;
+                            return (
+                                <Fragment key={`line-${si}`}>
+                                    {/* Glow layer */}
+                                    <Path
+                                        d={d}
+                                        stroke={stroke}
+                                        strokeOpacity={0.22}
+                                        strokeWidth={9}
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        fill="none"
+                                    />
+                                    {/* Main line */}
+                                    <Path
+                                        d={d}
+                                        stroke={stroke}
+                                        strokeWidth={3.5}
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        fill="none"
+                                    />
+                                </Fragment>
                             );
                         })}
                         {values.map((v, i) => {
                             if (v == null || Number.isNaN(v)) return null;
                             const { x, y } = xy(i, v);
                             return (
-                                <Circle
-                                    key={`pt-${i}`}
-                                    cx={x}
-                                    cy={y}
-                                    r={5}
-                                    fill={stroke}
-                                    stroke={AURORA.card}
-                                    strokeWidth={2}
-                                />
+                                <Fragment key={`pt-${i}`}>
+                                    <Circle
+                                        cx={x}
+                                        cy={y}
+                                        r={7}
+                                        fill={stroke}
+                                        opacity={0.18}
+                                    />
+                                    <Circle
+                                        cx={x}
+                                        cy={y}
+                                        r={4.4}
+                                        fill={stroke}
+                                        stroke="#FFFFFF"
+                                        strokeWidth={1.4}
+                                    />
+                                </Fragment>
                             );
                         })}
                         {friendlyAxis ? (

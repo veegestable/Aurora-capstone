@@ -46,6 +46,12 @@ export interface MoodData {
   classes_count?: number;
   exams_count?: number;
   deadlines_count?: number;
+  /** Present when row comes from `moodLogs/{uid}/entries`. */
+  mood?: string;
+  intensity?: number;
+  color?: string;
+  dayKey?: string;
+  entryId?: string;
 }
 
 export interface ScheduleData {

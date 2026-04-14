@@ -591,7 +591,7 @@ export default function HistoryScreen() {
                                     fontSize: 13,
                                 }}
                             >
-                                Your week
+                                Analytics
                             </Text>
                         </TouchableOpacity>
                     </View>
