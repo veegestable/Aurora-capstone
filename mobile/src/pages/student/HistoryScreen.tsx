@@ -816,13 +816,13 @@ export default function HistoryScreen() {
                             <Text style={{ color: AURORA.textSec, fontSize: 11 }}>MSU-IIT CCS</Text>
                         </View>
                     </View>
-                    <TouchableOpacity style={{
+                    {/* <TouchableOpacity style={{
                         width: 38, height: 38, borderRadius: 19,
                         backgroundColor: AURORA.card, alignItems: 'center', justifyContent: 'center',
                         borderWidth: 1, borderColor: AURORA.border,
                     }}>
                         <Settings2 size={18} color={AURORA.textSec} />
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>

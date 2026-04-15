@@ -25,7 +25,7 @@ import {
 } from '../../../src/constants/ccs-student-programs';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type RiskLevel = 'HIGH RISK' | 'MEDIUM RISK' | 'LOW RISK';
+type RiskLevel = 'HIGH PRIORITY' | 'MEDIUM PRIORITY' | 'LOW PRIORITY';
 type ProgramFilter = 'All Students' | ProgramFilterCode;
 
 interface StudentEntry {
@@ -40,7 +40,7 @@ interface StudentEntry {
 }
 
 // ─── Mock risk overlay (applied to fetched students) ──────────────────────────
-const RISK_LEVELS: RiskLevel[] = ['HIGH RISK', 'MEDIUM RISK', 'LOW RISK'];
+const RISK_LEVELS: RiskLevel[] = ['HIGH PRIORITY', 'MEDIUM PRIORITY', 'LOW PRIORITY'];
 // const MOOD_EMOJIS: Record<RiskLevel, string> = {
 //     'HIGH RISK': '😢',
 //     'MEDIUM RISK': '😐',
@@ -65,18 +65,18 @@ function formatTimeAgo(date: Date): string {
 function deriveRiskFromMood(stressLevel?: number, energyLevel?: number): RiskLevel {
     const stress = stressLevel ?? 5;
     const energy = energyLevel ?? 5;
-    if (stress >= 7 || energy <= 2) return 'HIGH RISK';
-    if (stress >= 5 || energy <= 4) return 'MEDIUM RISK';
-    return 'LOW RISK';
+    if (stress >= 7 || energy <= 2) return 'HIGH PRIORITY';
+    if (stress >= 5 || energy <= 4) return 'MEDIUM PRIORITY';
+    return 'LOW PRIORITY';
 }
 
 function moodEmojiForRisk(r: RiskLevel): string {
     switch (r) {
-        case 'HIGH RISK':
+        case 'HIGH PRIORITY':
             return '😢';
-        case 'MEDIUM RISK':
+        case 'MEDIUM PRIORITY':
             return '😐';
-        case 'LOW RISK':
+        case 'LOW PRIORITY':
             return '😊';
     }
 }
@@ -84,11 +84,11 @@ function moodEmojiForRisk(r: RiskLevel): string {
 // ─── Risk helpers ──────────────────────────────────────────────────────────────
 function getRiskStyle(risk: RiskLevel) {
     switch (risk) {
-        case 'HIGH RISK':
+        case 'HIGH PRIORITY':
             return { border: AURORA.red, badgeBg: 'rgba(239,68,68,0.15)', text: AURORA.red };
-        case 'MEDIUM RISK':
+        case 'MEDIUM PRIORITY':
             return { border: AURORA.orange, badgeBg: 'rgba(249,115,22,0.15)', text: AURORA.orange };
-        case 'LOW RISK':
+        case 'LOW PRIORITY':
             return { border: AURORA.blue, badgeBg: 'rgba(45,107,255,0.15)', text: AURORA.blue };
     }
 }
@@ -383,7 +383,7 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS CS (Computer Science)',
         year_level: '4th',
-        riskLevel: 'HIGH RISK',
+        riskLevel: 'HIGH PRIORITY',
         lastLog: '2h ago',
     },
     {
@@ -392,7 +392,7 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS IS (Information Systems)',
         year_level: '2nd',
-        riskLevel: 'MEDIUM RISK',
+        riskLevel: 'MEDIUM PRIORITY',
         lastLog: '5h ago',
     },
     {
@@ -401,7 +401,7 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS IT (Information Technology)',
         year_level: '3rd',
-        riskLevel: 'LOW RISK',
+        riskLevel: 'LOW PRIORITY',
         lastLog: '1d ago',
     },
     {
@@ -410,7 +410,7 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS CS (Computer Science)',
         year_level: '1st',
-        riskLevel: 'LOW RISK',
+        riskLevel: 'LOW PRIORITY',
         lastLog: '3h ago',
     },
     {
@@ -419,7 +419,7 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS CA (Computer Application)',
         year_level: '4th',
-        riskLevel: 'MEDIUM RISK',
+        riskLevel: 'MEDIUM PRIORITY',
         lastLog: '12h ago',
     },
 ];

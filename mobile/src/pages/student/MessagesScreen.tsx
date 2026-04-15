@@ -919,14 +919,14 @@ export default function MessagesScreen() {
                         <Text style={{ color: '#FFFFFF', fontSize: 28, fontWeight: '800' }}>
                             Messages
                         </Text>
-                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                        {/* <View style={{ flexDirection: 'row', gap: 12 }}>
                             <TouchableOpacity style={{ padding: 4 }}>
                                 <Search size={22} color={AURORA.textSec} />
                             </TouchableOpacity>
                             <TouchableOpacity style={{ padding: 4 }}>
                                 <Settings2 size={22} color={AURORA.textSec} />
                             </TouchableOpacity>
-                        </View>
+                        </View> */}
                     </View>
                     <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}>
                         You are chatting with your assigned counselors here.

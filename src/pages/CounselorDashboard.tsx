@@ -179,16 +179,6 @@ export default function CounselorDashboard() {
           />
           <StatCard
             icon={
-              <div className="relative w-9 h-9 rounded-full bg-aurora-secondary-blue/10 flex items-center justify-center">
-                <MessageSquare className="w-[18px] h-[18px] text-aurora-secondary-blue" />
-                <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-aurora-secondary-blue" />
-              </div>
-            }
-            count={3}
-            label="New Messages"
-          />
-          <StatCard
-            icon={
               <div className="w-9 h-9 rounded-full bg-amber-400/10 flex items-center justify-center">
                 <Calendar className="w-[18px] h-[18px] text-amber-500" />
               </div>

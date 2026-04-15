@@ -379,9 +379,9 @@ export default function ResourcesScreen() {
                             MSU-IIT CCS
                         </Text>
                     </View>
-                    <TouchableOpacity onPress={() => triggerHaptic('light')} style={{ padding: 4 }}>
+                    {/* <TouchableOpacity onPress={() => triggerHaptic('light')} style={{ padding: 4 }}>
                         <Search size={22} color={AURORA.textSec} />
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                 </View>
 
                 {/* ── Category Tabs ─────────────────────────────────────────── */}
