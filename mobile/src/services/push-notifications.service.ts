@@ -15,7 +15,6 @@ export function configureNotificationHandler(): void {
   if (handlerConfigured) return;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
       shouldShowBanner: true,

@@ -12,6 +12,7 @@ import {
   Timestamp,
   doc,
   updateDoc,
+  writeBatch,
   deleteDoc,
   onSnapshot,
   type QuerySnapshot,
@@ -633,6 +634,43 @@ export const firestoreService = {
     }
   },
 
+  async markConversationAsRead(conversationId: string, viewerId: string): Promise<void> {
+    try {
+      const convRef = doc(db, 'conversations', conversationId);
+      const convSnap = await getDoc(convRef);
+      const conv = convSnap.data();
+      if (!conv) return;
+
+      const isCounselorViewer = conv.counselorId === viewerId;
+      const unreadField = isCounselorViewer ? 'unreadCountCounselor' : 'unreadCountStudent';
+
+      const updates: Promise<unknown>[] = [
+        updateDoc(convRef, { [unreadField]: 0 }),
+      ];
+
+      const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+      const snapshot = await getDocs(query(messagesRef, orderBy('createdAt', 'desc')));
+      snapshot.docs.forEach((d) => {
+        const data = d.data() as Record<string, unknown>;
+        const senderId = typeof data.senderId === 'string' ? data.senderId : '';
+        const isRead = data.isRead === true;
+        if (senderId && senderId !== viewerId && !isRead) {
+          updates.push(
+            updateDoc(doc(db, 'conversations', conversationId, 'messages', d.id), {
+              isRead: true,
+              readAt: Timestamp.now(),
+            })
+          );
+        }
+      });
+
+      await Promise.all(updates);
+    } catch (error: any) {
+      console.error('❌ Error marking conversation as read:', error);
+      throw error;
+    }
+  },
+
   /**
    * Real-time thread messages (student + counselor UIs).
    */
@@ -692,6 +730,35 @@ export const firestoreService = {
     } catch (error: any) {
       console.error('❌ Error sending message:', error);
       throw error;
+    }
+  },
+
+  async markConversationReadForStudent(conversationId: string, studentId: string) {
+    try {
+      const batch = writeBatch(db);
+      const convRef = doc(db, 'conversations', conversationId);
+
+      // Clear unread counter on conversation row.
+      batch.update(convRef, {
+        unreadCountStudent: 0,
+      });
+
+      // Mark unread inbound messages as read.
+      const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+      const unreadSnap = await getDocs(query(messagesRef, where('isRead', '==', false)));
+      unreadSnap.docs.forEach((msg) => {
+        const d = msg.data();
+        if (d.senderId !== studentId) {
+          batch.update(doc(db, 'conversations', conversationId, 'messages', msg.id), {
+            isRead: true,
+            readAt: Timestamp.now(),
+          });
+        }
+      });
+
+      await batch.commit();
+    } catch (error: any) {
+      console.error('❌ Error marking student conversation as read:', error);
     }
   },
 
@@ -998,12 +1065,12 @@ export const firestoreService = {
         }, opts.counselorData);
       }
       const preferredTimeStr = opts?.preferredTime ?? '';
-      const sessionData = {
+      const sessionData: Record<string, unknown> = {
         sessionId,
-        preferredTime: preferredTimeStr || undefined,
         note: note.trim(),
         status: 'requested',
       };
+      if (preferredTimeStr) sessionData.preferredTime = preferredTimeStr;
       const messagesRef = collection(db, 'conversations', conversationId, 'messages');
       const docRef = await addDoc(messagesRef, {
         senderId: studentId,
@@ -1249,9 +1316,9 @@ export const firestoreService = {
         sessionData: {
           ...existingSessionData,
           sessionId,
-          preferredTime: preferredTime || undefined,
           note: trimmedNote,
           status: 'requested',
+          ...(preferredTime ? { preferredTime } : {}),
         },
       });
 

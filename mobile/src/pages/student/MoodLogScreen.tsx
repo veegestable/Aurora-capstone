@@ -428,7 +428,12 @@ export default function MoodLogScreen() {
                 studentName={user?.full_name}
                 studentAvatar={user?.avatar_url}
                 onClose={() => setShowSessionRequestModal(false)}
-                onSuccess={() => router.push('/(student)/messages')}
+                onSuccess={({ counselorId }) =>
+                    router.push({
+                        pathname: '/(student)/messages',
+                        params: { counselorId, openSessionRequest: '1' },
+                    } as any)
+                }
             />
 
             {/* ── Log Mood Modal ─────────────────────────────────────────────── */}

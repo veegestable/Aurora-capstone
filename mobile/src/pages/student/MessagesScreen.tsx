@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Settings2, Info, Plus, Send, PenSquare, Phone } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../stores/AuthContext';
 import { firestoreService } from '../../services/firebase-firestore.service';
 import { AURORA } from '../../constants/aurora-colors';
@@ -28,7 +29,7 @@ import { subscribeToUsersPresence } from '../../services/firebase-presence.servi
 import { usePeerPresence } from '../../hooks/usePeerPresence';
 import * as Clipboard from 'expo-clipboard';
 
-type TabType = 'Counselors' | 'Peer Support' | 'Archive';
+type TabType = 'All messages' | 'Unread';
 
 const AUTO_ACCEPTED_PREFIX = '__AUTO_ACCEPTED__';
 
@@ -144,9 +145,11 @@ function ContactRow({
 function DirectMessageView({
     contact,
     onBack,
+    autoOpenSessionRequestModal = false,
 }: {
     contact: CounselorContact;
     onBack: () => void;
+    autoOpenSessionRequestModal?: boolean;
 }) {
     const { user } = useAuth();
     const [message, setMessage] = useState('');
@@ -159,12 +162,21 @@ function DirectMessageView({
     const [editingSessionRequest, setEditingSessionRequest] = useState<SessionRequestData | null>(null);
     const scrollViewRef = useRef<ScrollView>(null);
     const peerOnline = usePeerPresence(contact.id);
+    const openedByParamRef = useRef(false);
+
+    useEffect(() => {
+        if (!autoOpenSessionRequestModal) return;
+        if (openedByParamRef.current) return;
+        openedByParamRef.current = true;
+        setShowSessionRequestModal(true);
+    }, [autoOpenSessionRequestModal]);
 
     useEffect(() => {
         if (!contact.conversationId || !user?.id) {
             setLoadingMessages(false);
             return;
         }
+        firestoreService.markConversationAsRead(contact.conversationId, user.id).catch(() => {});
         setLoadingMessages(true);
         const unsub = firestoreService.subscribeConversationMessages(
             contact.conversationId,
@@ -721,12 +733,15 @@ function DirectMessageView({
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 export default function MessagesScreen() {
     const { user } = useAuth();
+    const router = useRouter();
+    const params = useLocalSearchParams<{ counselorId?: string; openSessionRequest?: string }>();
     const [activeTab, setActiveTab] = useState<TabType>('Counselors');
     const [selectedContact, setSelectedContact] = useState<CounselorContact | null>(null);
     const [contacts, setContacts] = useState<CounselorContact[]>([]);
     const [loading, setLoading] = useState(true);
     const [showSelectCounselorModal, setShowSelectCounselorModal] = useState(false);
     const [onlineByCounselorId, setOnlineByCounselorId] = useState<Record<string, boolean>>({});
+    const [autoOpenSessionRequestForContact, setAutoOpenSessionRequestForContact] = useState(false);
 
     useEffect(() => {
         if (!user?.id) {
@@ -801,6 +816,61 @@ export default function MessagesScreen() {
         }
     };
 
+    useEffect(() => {
+        if (!user?.id) return;
+        const counselorId = typeof params.counselorId === 'string' ? params.counselorId : '';
+        const shouldOpenRequest = params.openSessionRequest === '1';
+        if (!counselorId) return;
+
+        const openThreadFromParam = async () => {
+            const existing = contacts.find((c) => c.id === counselorId);
+            if (existing) {
+                setSelectedContact(existing);
+                setAutoOpenSessionRequestForContact(shouldOpenRequest);
+                router.replace('/(student)/messages');
+                return;
+            }
+
+            try {
+                const users = await firestoreService.getUsersByRole('counselor');
+                const counselor = (users as Counselor[]).find((u) => u.id === counselorId);
+                if (!counselor) return;
+
+                await firestoreService.addConversation(
+                    counselor.id,
+                    {
+                        id: user.id,
+                        name: user.full_name ?? 'Student',
+                        avatar: user.avatar_url ?? '',
+                    },
+                    {
+                        name: counselor.full_name ?? 'Counselor',
+                        avatar: counselor.avatar_url,
+                    }
+                );
+
+                const contact: CounselorContact = {
+                    id: counselor.id,
+                    conversationId: `${counselor.id}_${user.id}`,
+                    name: counselor.full_name ?? 'Counselor',
+                    preview: 'No messages yet',
+                    time: 'Just now',
+                    avatar: counselor.avatar_url ?? '',
+                    isOnline: false,
+                    isUnread: false,
+                };
+                setSelectedContact(contact);
+                setAutoOpenSessionRequestForContact(shouldOpenRequest);
+                router.replace('/(student)/messages');
+                refreshConversations();
+            } catch (e) {
+                console.error('Failed opening counselor thread from params:', e);
+            }
+        };
+
+        void openThreadFromParam();
+    }, [params.counselorId, params.openSessionRequest, contacts, user?.id]);
+
     if (selectedContact) {
         return (
             <DirectMessageView
@@ -808,15 +878,20 @@ export default function MessagesScreen() {
                     ...selectedContact,
                     isOnline: onlineByCounselorId[selectedContact.id] ?? false,
                 }}
+                autoOpenSessionRequestModal={autoOpenSessionRequestForContact}
                 onBack={() => {
                     setSelectedContact(null);
+                    setAutoOpenSessionRequestForContact(false);
                     refreshConversations();
                 }}
             />
         );
     }
 
-    const TABS: TabType[] = ['Counselors', 'Peer Support', 'Archive'];
+    const TABS: TabType[] = ['All messages', 'Unread'];
+    const visibleContacts = activeTab === 'Unread'
+        ? contacts.filter((c) => c.isUnread)
+        : contacts;
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgMessages }}>
@@ -832,7 +907,7 @@ export default function MessagesScreen() {
                             marginBottom: 4,
                         }}
                     >
-                        MSU-IIT CCS
+                        COUNSELOR CONVERSATIONS
                     </Text>
                     <View
                         style={{
@@ -853,6 +928,9 @@ export default function MessagesScreen() {
                             </TouchableOpacity>
                         </View>
                     </View>
+                    <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}>
+                        You are chatting with your assigned counselors here.
+                    </Text>
                 </View>
 
                 {/* Tabs */}
@@ -905,8 +983,8 @@ export default function MessagesScreen() {
                                 Loading conversations...
                             </Text>
                         </View>
-                    ) : activeTab === 'Counselors' && contacts.length > 0 ? (
-                        contacts.map((item) => (
+                    ) : visibleContacts.length > 0 ? (
+                        visibleContacts.map((item) => (
                             <ContactRow
                                 key={item.conversationId}
                                 item={{
@@ -921,16 +999,16 @@ export default function MessagesScreen() {
                                 }
                             />
                         ))
-                    ) : activeTab === 'Counselors' && contacts.length === 0 ? (
+                    ) : activeTab === 'Unread' ? (
                         <View style={{ paddingTop: 60, alignItems: 'center' }}>
                             <Text style={{ color: AURORA.textMuted, fontSize: 14, textAlign: 'center' }}>
-                                No conversations yet. Your counselor will invite you when they're ready to connect.
+                                No unread counselor messages right now.
                             </Text>
                         </View>
                     ) : (
                         <View style={{ paddingTop: 60, alignItems: 'center' }}>
-                            <Text style={{ color: AURORA.textMuted, fontSize: 14 }}>
-                                No conversations yet.
+                            <Text style={{ color: AURORA.textMuted, fontSize: 14, textAlign: 'center' }}>
+                                No conversations yet. Your counselor will invite you when they're ready to connect.
                             </Text>
                         </View>
                     )}
