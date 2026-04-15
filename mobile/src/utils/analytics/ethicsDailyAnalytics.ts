@@ -14,12 +14,20 @@ export function energyLevelToMoodScale(energy: number): number {
     return Math.min(5, Math.max(1, Math.ceil(e / 2)));
 }
 
-export function taskCountFromLog(log: {
-    classes_count?: number;
-    exams_count?: number;
-    deadlines_count?: number;
-}): number {
-    return (log.classes_count ?? 0) + (log.exams_count ?? 0) + (log.deadlines_count ?? 0);
+const SCHOOL_EVENT_TAGS = new Set([
+    'classes',
+    'study',
+    'quiz',
+    'exam',
+    'homework',
+    'deadline',
+    'group-project',
+    'presentation',
+]);
+
+export function taskCountFromLog(log: { event_tags?: string[] }): number {
+    const tags = Array.isArray(log.event_tags) ? log.event_tags : [];
+    return tags.filter((tag) => SCHOOL_EVENT_TAGS.has(tag)).length;
 }
 
 export function calculateStressLevel(mood: number, tasks: number): number {

@@ -6,6 +6,8 @@ import {
   getMoodLogEntries,
   subscribeMoodLogEntries,
   type MoodLogEntryRow,
+  type ContextCategoryKey,
+  type SleepQuality,
 } from './mood-firestore-v2.service';
 
 export type MergedMoodLog = MoodData & { id: string; created_at?: Date; log_date: Date };
@@ -26,6 +28,9 @@ function mapV2EntryToMoodData(e: MoodLogEntryRow, userId: string): MergedMoodLog
     intensity: e.intensity,
     color: e.color,
     dayKey: e.dayKey,
+    sleep_quality: e.sleepQuality,
+    event_categories: e.eventCategories ?? [],
+    event_tags: e.eventTags ?? [],
     created_at: logDate,
   };
 }
@@ -52,6 +57,16 @@ export const moodService = {
     const energy = Math.max(1, Math.min(5, Math.round((moodData.energy_level ?? 5) / 2)));
     const color = primary?.color || '#888888';
     const dayKey = moodData.dayKey;
+    const sleepQuality: SleepQuality =
+      moodData.sleep_quality === 'poor' || moodData.sleep_quality === 'good' || moodData.sleep_quality === 'fair'
+        ? moodData.sleep_quality
+        : 'fair';
+    const eventCategories = Array.isArray(moodData.event_categories)
+      ? (moodData.event_categories.filter((x: unknown) => typeof x === 'string') as ContextCategoryKey[])
+      : [];
+    const eventTags = Array.isArray(moodData.event_tags)
+      ? moodData.event_tags.filter((x: unknown) => typeof x === 'string')
+      : [];
     if (!dayKey || typeof dayKey !== 'string') {
       throw new Error('dayKey is required for mood logs');
     }
@@ -61,8 +76,11 @@ export const moodService = {
       intensity,
       stress,
       energy,
+      sleepQuality,
       color,
       dayKey,
+      eventCategories,
+      eventTags,
       timestamp: now,
     });
     const row: MoodLogEntryRow = {
@@ -71,8 +89,11 @@ export const moodService = {
       intensity: created.intensity,
       stress: created.stress,
       energy: created.energy,
+      sleepQuality: created.sleepQuality,
       color: created.color,
       dayKey: created.dayKey,
+      eventCategories: created.eventCategories ?? [],
+      eventTags: created.eventTags ?? [],
       timestamp: now,
     };
     return mapV2EntryToMoodData(row, user.uid);

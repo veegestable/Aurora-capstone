@@ -18,7 +18,6 @@ import { Sparkles, TrendingUp, Calendar, ClipboardList } from 'lucide-react-nati
 import { useAuth } from '../stores/AuthContext';
 import { useUserDaySettings } from '../stores/UserDaySettingsContext';
 import { moodService } from '../services/mood.service';
-import { getDailyContextsInRange, getDailyContext } from '../services/mood-firestore-v2.service';
 import {
     buildWeekSummaryInput,
     generateWeeklySummary,
@@ -51,6 +50,16 @@ import { useCountUp } from '../hooks/useCountUp';
 import { AURORA } from '../constants/aurora-colors';
 
 const STREAK_MILESTONES = [3, 7, 14, 30];
+const SCHOOL_EVENT_TAGS = new Set([
+    'classes',
+    'study',
+    'quiz',
+    'exam',
+    'homework',
+    'deadline',
+    'group-project',
+    'presentation',
+]);
 
 function hexToRgba(hex: string, alpha: number): string {
     const cleaned = hex.replace('#', '');
@@ -69,6 +78,117 @@ function weekMoodTone(avgMood: number | null): { label: string; color: string } 
     if (avgMood >= 3.4) return { label: 'Mostly okay', color: AURORA.moodNeutral };
     if (avgMood >= 2.6) return { label: 'Mixed with lower moments', color: AURORA.moodSurprise };
     return { label: 'Mostly low', color: AURORA.moodSad };
+}
+
+type SchoolAnalysis = {
+    totalSchoolEvents: number;
+    schoolCheckIns: number;
+    avgStress5: number;
+    avgMood5: number;
+    topSchoolEvents: string[];
+    dominantEmotion: string;
+    sleepPattern: 'mostly_good' | 'mixed' | 'mostly_poor' | 'unknown';
+    summary: string;
+};
+
+function toFiveScale(value: unknown, fallback = 3): number {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    if (n <= 5) return Math.max(1, Math.min(5, n));
+    return Math.max(1, Math.min(5, Math.round(n / 2)));
+}
+
+function analyzeSchoolLogs(
+    inputLogs: Array<
+        MoodData & {
+            log_date: Date;
+            event_tags?: string[];
+            event_categories?: string[];
+            stress_level?: number;
+            energy_level?: number;
+            sleep_quality?: 'poor' | 'fair' | 'good';
+            emotions?: Array<{ emotion?: string }>;
+        }
+    >
+): SchoolAnalysis | null {
+    const schoolLogs = inputLogs.filter((l) => {
+        const tags = Array.isArray(l.event_tags) ? l.event_tags : [];
+        return tags.some((t) => SCHOOL_EVENT_TAGS.has(t));
+    });
+    if (!schoolLogs.length) return null;
+
+    const eventCount = new Map<string, number>();
+    let totalSchoolEvents = 0;
+    let stressSum = 0;
+    let moodSum = 0;
+    const emotionCount = new Map<string, number>();
+    let goodSleepCount = 0;
+    let poorSleepCount = 0;
+    let sleepKnownCount = 0;
+
+    for (const log of schoolLogs) {
+        const tags = (Array.isArray(log.event_tags) ? log.event_tags : []).filter((t) => SCHOOL_EVENT_TAGS.has(t));
+        totalSchoolEvents += tags.length;
+        for (const tag of tags) eventCount.set(tag, (eventCount.get(tag) ?? 0) + 1);
+        stressSum += toFiveScale(log.stress_level, 3);
+        moodSum += toFiveScale(log.energy_level, 3);
+        const primaryEmotion = Array.isArray(log.emotions) ? (log.emotions[0]?.emotion || '').toLowerCase() : '';
+        if (primaryEmotion) emotionCount.set(primaryEmotion, (emotionCount.get(primaryEmotion) ?? 0) + 1);
+        const sq = log.sleep_quality;
+        if (sq === 'good' || sq === 'poor' || sq === 'fair') {
+            sleepKnownCount += 1;
+            if (sq === 'good') goodSleepCount += 1;
+            if (sq === 'poor') poorSleepCount += 1;
+        }
+    }
+
+    const avgStress5 = stressSum / schoolLogs.length;
+    const avgMood5 = moodSum / schoolLogs.length;
+    const topSchoolEvents = [...eventCount.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([tag, count]) => `${tag} (${count})`);
+    const dominantEmotion = [...emotionCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'neutral';
+    const sleepPattern: SchoolAnalysis['sleepPattern'] =
+        sleepKnownCount === 0 ? 'unknown' :
+            goodSleepCount / sleepKnownCount >= 0.6 ? 'mostly_good' :
+                poorSleepCount / sleepKnownCount >= 0.45 ? 'mostly_poor' : 'mixed';
+
+    let loadBand = 'Balanced load';
+    if (totalSchoolEvents === 0) {
+        loadBand = 'Light workload';
+    } else if (totalSchoolEvents <= 3) {
+        loadBand = 'Balanced load';
+    } else if (totalSchoolEvents <= 6) {
+        loadBand = 'Busy day';
+    } else {
+        loadBand = 'Heavy load';
+    }
+    let summary = `${loadBand}: your school-tagged check-ins show a stable mood and stress pattern.`;
+    if (avgMood5 >= 3.8 && avgStress5 <= 2.8 && sleepPattern === 'mostly_good') {
+        summary = `${loadBand}: strong pattern today/this week — good sleep plus ${dominantEmotion} mood aligns with lower school stress.`;
+    } else if (avgMood5 >= 3.4 && avgStress5 <= 3.3 && sleepPattern !== 'mostly_poor') {
+        summary = `${loadBand}: manageable pattern — mood is steady and stress remains in a controllable range.`;
+    } else if (avgStress5 >= 4 && (dominantEmotion === 'sadness' || dominantEmotion === 'anger' || dominantEmotion === 'sad')) {
+        summary = `${loadBand}: stress is elevated with lower-valence emotions; reduce load where possible and add recovery breaks.`;
+    } else if (sleepPattern === 'mostly_poor' && avgStress5 >= 3.3) {
+        summary = `${loadBand}: poor sleep appears to coincide with higher school stress in your logs.`;
+    } else if (dominantEmotion === 'neutral' && avgStress5 <= 3.6) {
+        summary = `${loadBand}: neutral mood with moderate stress suggests a steady but effort-heavy school day.`;
+    } else {
+        summary = `${loadBand}: mixed signals across mood, stress, sleep, and emotion patterns.`;
+    }
+
+    return {
+        totalSchoolEvents,
+        schoolCheckIns: schoolLogs.length,
+        avgStress5,
+        avgMood5,
+        topSchoolEvents,
+        dominantEmotion,
+        sleepPattern,
+        summary,
+    };
 }
 
 function EthicsLine() {
@@ -167,19 +287,6 @@ function ChartSection({ children }: { children: React.ReactNode }) {
     );
 }
 
-function formatTodayContextLine(
-    c: { exams: number; quizzes: number; deadlines: number; assignments: number; notes?: string } | null
-): string | null {
-    if (!c) return null;
-    const parts: string[] = [];
-    if (c.exams) parts.push(`${c.exams} exam(s)`);
-    if (c.quizzes) parts.push(`${c.quizzes} quiz(zes)`);
-    if (c.deadlines) parts.push(`${c.deadlines} deadline(s)`);
-    if (c.assignments) parts.push(`${c.assignments} assignment(s)`);
-    if (c.notes?.trim()) parts.push(`note: ${c.notes.trim()}`);
-    return parts.length ? `Workload context today: ${parts.join(', ')}.` : null;
-}
-
 export default function Analytics() {
     const { user } = useAuth();
     const { dayResetHour, timezone } = useUserDaySettings();
@@ -190,7 +297,6 @@ export default function Analytics() {
     const [weekSummaryGenerating, setWeekSummaryGenerating] = useState(false);
     const [analyticsView, setAnalyticsView] = useState<'today' | 'week'>('today');
     const [weekSummaryTemplate, setWeekSummaryTemplate] = useState('');
-    const [todayContextLine, setTodayContextLine] = useState<string | null>(null);
     const [activeWeekPill, setActiveWeekPill] = useState<'days' | 'checkins' | 'streak' | null>(null);
     const [logs, setLogs] = useState<(MoodData & { log_date: Date; id?: string })[]>([]);
     const [weeklyAi, setWeeklyAi] = useState<WeeklyAiResult | null>(null);
@@ -211,24 +317,13 @@ export default function Analytics() {
 
             const today = new Date();
             today.setHours(12, 0, 0, 0);
-            const weekDayKeys: string[] = [];
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date(today);
-                d.setDate(d.getDate() - i);
-                weekDayKeys.push(getDayKey(d, dayResetHour, timezone));
-            }
-            const todayKey = getDayKey(new Date(), dayResetHour, timezone);
             try {
-                const ctxMap = await getDailyContextsInRange(user.id, weekDayKeys);
-                const tctx = ctxMap.get(todayKey) ?? (await getDailyContext(user.id, todayKey));
-                setTodayContextLine(formatTodayContextLine(tctx));
                 setWeekSummaryGenerating(true);
                 setWeekSummaryTemplate('');
-                const input = buildWeekSummaryInput(list, ctxMap, dayResetHour, timezone);
+                const input = buildWeekSummaryInput(list, dayResetHour, timezone);
                 const tpl = await generateWeeklySummary(input);
                 setWeekSummaryTemplate(tpl);
             } catch {
-                setTodayContextLine(null);
                 setWeekSummaryTemplate('');
             } finally {
                 setWeekSummaryGenerating(false);
@@ -360,9 +455,38 @@ export default function Analytics() {
 
     const displayWeekAvgMood = weekMoodFromEntries ?? weekCard.avgMood;
     const animStress = useCountUp(weekStressIndex, 820, weekStressIndex != null, reduceMotion);
-    const animTasks = useCountUp(weekCard.totalTasks, 700, true, reduceMotion);
     const animStreak = useCountUp(streak, 640, true, reduceMotion);
     const weekMoodMeta = useMemo(() => weekMoodTone(displayWeekAvgMood), [displayWeekAvgMood]);
+    const todaySchoolAnalysis = useMemo(() => {
+        const dk = getDayKey(new Date(), dayResetHour, timezone);
+        const dayLogs = (logs as Array<MoodData & { log_date: Date; event_tags?: string[]; event_categories?: string[] }>)
+            .filter((l) => getDayKey(new Date(l.log_date), dayResetHour, timezone) === dk);
+        return analyzeSchoolLogs(dayLogs as any);
+    }, [logs, dayResetHour, timezone]);
+    const weekSchoolAnalysis = useMemo(() => {
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        const keySet = new Set<string>();
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            keySet.add(getDayKey(d, dayResetHour, timezone));
+        }
+        const weekLogs = (logs as Array<MoodData & { log_date: Date; event_tags?: string[]; event_categories?: string[] }>)
+            .filter((l) => keySet.has(getDayKey(new Date(l.log_date), dayResetHour, timezone)));
+        return analyzeSchoolLogs(weekLogs as any);
+    }, [logs, dayResetHour, timezone]);
+    const weekAcademicSignalAvg = useMemo(
+        () => (weekSchoolAnalysis ? weekSchoolAnalysis.totalSchoolEvents / 7 : null),
+        [weekSchoolAnalysis]
+    );
+    const weekAcademicLoadBand = useMemo(() => {
+        if (weekAcademicSignalAvg == null) return '—';
+        if (weekAcademicSignalAvg === 0) return 'Light workload';
+        if (weekAcademicSignalAvg <= 2) return 'Balanced load';
+        if (weekAcademicSignalAvg <= 4) return 'Busy day';
+        return 'Heavy load';
+    }, [weekAcademicSignalAvg]);
 
     const trendPlainSentence = useMemo(() => {
         if (!weeklyAi) return '';
@@ -523,6 +647,27 @@ export default function Analytics() {
                                 </Text>
                             </View>
                         </View>
+                        {todaySchoolAnalysis ? (
+                            <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: 12 }}>
+                                <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
+                                    ACADEMIC ANALYTICS (TODAY)
+                                </Text>
+                                <Text style={{ color: AURORA.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 7 }}>
+                                    {todaySchoolAnalysis.summary}
+                                </Text>
+                                <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 8, lineHeight: 18 }}>
+                                    School events: {todaySchoolAnalysis.totalSchoolEvents} across {todaySchoolAnalysis.schoolCheckIns} check-in(s)
+                                </Text>
+                                <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}>
+                                    Mood: {todaySchoolAnalysis.avgMood5.toFixed(1)}/5 • Stress: {todaySchoolAnalysis.avgStress5.toFixed(1)}/5
+                                </Text>
+                                {todaySchoolAnalysis.topSchoolEvents.length > 0 ? (
+                                    <Text style={{ color: AURORA.textMuted, fontSize: 11, marginTop: 6 }}>
+                                        Top school events: {todaySchoolAnalysis.topSchoolEvents.join(', ')}
+                                    </Text>
+                                ) : null}
+                            </View>
+                        ) : null}
                         <View style={{ marginBottom: 12 }}>
                             <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 8 }}>
                                 HOURLY TREND
@@ -536,35 +681,39 @@ export default function Analytics() {
                                 yMax={10}
                                 stroke={todayBlended}
                                 friendlyAxis={{
-                                    high: 'High intensity (10)',
-                                    mid: 'Middle (5)',
-                                    low: 'Low intensity (1)',
+                                    high: 'High',
+                                    mid: 'Mid',
+                                    low: 'Low',
                                 }}
                                 chartHeight={180}
+                                xSlot={30}
+                                labelEvery={3}
+                                zoomable
                             />
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingBottom: 4 }}>
+                            <View style={{ paddingBottom: 4 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
                                     {todayHourly.map((h) => (
-                                        <View key={h.hour} style={{ alignItems: 'center', width: 26 }}>
+                                        <View key={h.hour} style={{ alignItems: 'center', width: `${100 / Math.max(1, todayHourly.length)}%` }}>
                                             <View
                                                 style={{
-                                                    width: 18,
+                                                    width: 8,
                                                     height: Math.max(8, h.avgIntensity * 5),
                                                     borderRadius: 6,
                                                     backgroundColor: h.blendedColor,
                                                 }}
                                             />
-                                            <Text style={{ color: AURORA.textMuted, fontSize: 10, marginTop: 4 }}>
-                                                {String(h.hour).padStart(2, '0')}
-                                            </Text>
+                                            {h.hour % 3 === 0 ? (
+                                                <Text style={{ color: AURORA.textMuted, fontSize: 9, marginTop: 4 }}>
+                                                    {String(h.hour).padStart(2, '0')}
+                                                </Text>
+                                            ) : (
+                                                <View style={{ height: 14 }} />
+                                            )}
                                         </View>
                                     ))}
                                 </View>
-                            </ScrollView>
+                            </View>
                         </View>
-                        {todayContextLine ? (
-                            <Text style={{ color: AURORA.textMuted, fontSize: 12, lineHeight: 17 }}>{todayContextLine}</Text>
-                        ) : null}
                     </>
                 )}
             </ChartSection>
@@ -582,6 +731,36 @@ export default function Analytics() {
             <EthicsLine />
 
             <View style={{ marginTop: 18, marginBottom: 8 }}>
+                {weekSchoolAnalysis ? (
+                    <View
+                        style={{
+                            backgroundColor: 'rgba(45, 107, 255, 0.12)',
+                            borderRadius: 14,
+                            borderWidth: 1,
+                            borderColor: 'rgba(45, 107, 255, 0.32)',
+                            padding: 12,
+                            marginBottom: 12,
+                        }}
+                    >
+                        <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
+                            ACADEMIC ANALYTICS (WEEK)
+                        </Text>
+                        <Text style={{ color: AURORA.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 6 }}>
+                            {weekSchoolAnalysis.summary}
+                        </Text>
+                        <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 6, lineHeight: 18 }}>
+                            School events: {weekSchoolAnalysis.totalSchoolEvents} across {weekSchoolAnalysis.schoolCheckIns} school-tagged check-in(s)
+                        </Text>
+                        <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}>
+                            Mood: {weekSchoolAnalysis.avgMood5.toFixed(1)}/5 • Stress: {weekSchoolAnalysis.avgStress5.toFixed(1)}/5
+                        </Text>
+                        {weekSchoolAnalysis.topSchoolEvents.length > 0 ? (
+                            <Text style={{ color: AURORA.textMuted, fontSize: 11, marginTop: 6 }}>
+                                Top school events: {weekSchoolAnalysis.topSchoolEvents.join(', ')}
+                            </Text>
+                        ) : null}
+                    </View>
+                ) : null}
                 {(() => {
                     const weekPills = [
                         { key: 'days' as const, emoji: '🔥', label: 'Days logged', value: `${weekDaysLogged}/7`, sub: 'active days' },
@@ -756,13 +935,15 @@ export default function Analytics() {
                     >
                         <Calendar size={20} color={AURORA.green} />
                         <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginTop: 10 }}>
-                            📚 TASK LOAD
+                            📚 AVG ACADEMIC SIGNAL
                         </Text>
-                        <Text style={{ color: AURORA.textPrimary, fontSize: 26, fontWeight: '800', marginTop: 4 }}>
-                            {Math.round(animTasks)}
+                        <Text style={{ color: AURORA.textPrimary, fontSize: 20, fontWeight: '800', marginTop: 6, lineHeight: 24 }}>
+                            {weekAcademicLoadBand}
                         </Text>
                         <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 8, lineHeight: 16 }}>
-                            from your check-ins
+                            {weekAcademicSignalAvg != null
+                                ? `${weekAcademicSignalAvg.toFixed(1)} school events/day (7-day avg)`
+                                : 'No school-tagged check-ins this week'}
                         </Text>
                     </Animatable.View>
                 </View>

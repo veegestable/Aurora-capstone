@@ -18,8 +18,15 @@ import { db } from './firebase';
 export interface UserSettingsDoc {
   dayResetHour: number;
   timezone: string;
+  reminderHour?: number;
+  remindersEnabled?: boolean;
+  academicContextEnabled?: boolean;
+  enabledContextCategories?: ContextCategoryKey[];
   updatedAt?: Timestamp;
 }
+
+export type ContextCategoryKey = 'school' | 'health' | 'social' | 'fun' | 'productivity';
+export type SleepQuality = 'poor' | 'fair' | 'good';
 
 export interface DailyContextDoc {
   exams: number;
@@ -27,6 +34,7 @@ export interface DailyContextDoc {
   deadlines: number;
   assignments: number;
   notes: string;
+  sleepQuality?: SleepQuality;
   createdAt: Timestamp;
 }
 
@@ -35,9 +43,12 @@ export interface MoodLogEntryDoc {
   intensity: number;
   stress: number;
   energy: number;
+  sleepQuality: SleepQuality;
   timestamp: Timestamp;
   color: string;
   dayKey: string;
+  eventCategories?: ContextCategoryKey[];
+  eventTags?: string[];
 }
 
 /** Client-side row after reading Firestore (Date instead of Timestamp). */
@@ -46,6 +57,10 @@ export type MoodLogEntryRow = Omit<MoodLogEntryDoc, 'timestamp'> & { id: string;
 const DEFAULT_SETTINGS: UserSettingsDoc = {
   dayResetHour: 0,
   timezone: typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' : 'UTC',
+  reminderHour: 7,
+  remindersEnabled: true,
+  academicContextEnabled: true,
+  enabledContextCategories: ['school', 'health', 'social', 'fun', 'productivity'],
 };
 
 export async function getUserSettings(userId: string): Promise<UserSettingsDoc> {
@@ -56,13 +71,19 @@ export async function getUserSettings(userId: string): Promise<UserSettingsDoc> 
   return {
     dayResetHour: typeof d.dayResetHour === 'number' ? Math.min(23, Math.max(0, d.dayResetHour)) : 0,
     timezone: typeof d.timezone === 'string' && d.timezone.trim() ? d.timezone.trim() : DEFAULT_SETTINGS.timezone,
+    reminderHour: typeof d.reminderHour === 'number' ? Math.min(23, Math.max(0, d.reminderHour)) : (DEFAULT_SETTINGS.reminderHour ?? 7),
+    remindersEnabled: typeof d.remindersEnabled === 'boolean' ? d.remindersEnabled : (DEFAULT_SETTINGS.remindersEnabled ?? true),
+    academicContextEnabled: typeof d.academicContextEnabled === 'boolean' ? d.academicContextEnabled : true,
+    enabledContextCategories: Array.isArray(d.enabledContextCategories)
+      ? (d.enabledContextCategories.filter((x: unknown) => typeof x === 'string') as ContextCategoryKey[])
+      : [...(DEFAULT_SETTINGS.enabledContextCategories || [])],
     updatedAt: d.updatedAt,
   };
 }
 
 export async function updateUserSettings(
   userId: string,
-  partial: Partial<Pick<UserSettingsDoc, 'dayResetHour' | 'timezone'>>
+  partial: Partial<Pick<UserSettingsDoc, 'dayResetHour' | 'timezone' | 'reminderHour' | 'remindersEnabled' | 'academicContextEnabled' | 'enabledContextCategories'>>
 ): Promise<void> {
   const ref = doc(db, 'userSettings', userId);
   await setDoc(
@@ -82,8 +103,11 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
     intensity: entry.intensity,
     stress: entry.stress,
     energy: entry.energy,
+    sleepQuality: entry.sleepQuality,
     color: entry.color,
     dayKey: entry.dayKey,
+    eventCategories: entry.eventCategories ?? [],
+    eventTags: entry.eventTags ?? [],
     timestamp: Timestamp.fromDate(entry.timestamp),
   };
   const docRef = await addDoc(col, payload);
@@ -93,8 +117,11 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
     intensity: entry.intensity,
     stress: entry.stress,
     energy: entry.energy,
+    sleepQuality: entry.sleepQuality,
     color: entry.color,
     dayKey: entry.dayKey,
+    eventCategories: entry.eventCategories ?? [],
+    eventTags: entry.eventTags ?? [],
     timestamp: entry.timestamp,
   };
 }
@@ -191,6 +218,7 @@ export async function setDailyContext(
     deadlines: data.deadlines,
     assignments: data.assignments,
     notes: data.notes ?? '',
+    sleepQuality: data.sleepQuality,
     createdAt,
   });
 }

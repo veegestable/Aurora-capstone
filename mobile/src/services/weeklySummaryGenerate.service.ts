@@ -1,5 +1,4 @@
 import type { MoodData } from './firebase-firestore.service';
-import type { DailyContextDoc } from './mood-firestore-v2.service';
 import { getDayKey } from '../utils/dayKey';
 import { moodLogsToMoodEntries } from '../utils/moodEntryNormalize';
 import { aggregateByDay, aggregateEntriesAsSingleDay } from '../utils/moodAggregates';
@@ -13,7 +12,6 @@ export interface WeekSummaryInput {
   bestDay: string;
   hardestDay: string;
   totalEntries: number;
-  hadExamsOrDeadlines: boolean;
   dailyBreakdown: {
     day: string;
     dominantMood: string;
@@ -38,9 +36,6 @@ export function buildTemplateWeeklySummary(data: WeekSummaryInput): string {
   );
   if (data.bestDay !== '—' && data.hardestDay !== '—' && data.bestDay !== data.hardestDay) {
     parts.push(`You tended to rate highest on ${data.bestDay} and most strained on ${data.hardestDay}.`);
-  }
-  if (data.hadExamsOrDeadlines) {
-    parts.push('At least one day included exams or deadlines in your workload context.');
   }
   return parts.join(' ');
 }
@@ -68,7 +63,6 @@ export async function generateWeeklySummary(data: WeekSummaryInput): Promise<str
 
 export function buildWeekSummaryInput(
   logs: (MoodData & { log_date: Date })[],
-  contextByDay: Map<string, DailyContextDoc>,
   resetHour: number,
   timezone: string,
   weekLabel = 'this week'
@@ -132,11 +126,6 @@ export function buildWeekSummaryInput(
   }
 
   const roll = aggregateEntriesAsSingleDay(entries);
-  const hadExamsOrDeadlines = dayKeys.some((dk) => {
-    const c = contextByDay.get(dk);
-    return !!(c && (c.exams > 0 || c.deadlines > 0));
-  });
-
   return {
     weekLabel,
     dominantMood: roll.dominantMood,
@@ -145,7 +134,6 @@ export function buildWeekSummaryInput(
     bestDay,
     hardestDay,
     totalEntries: entries.length,
-    hadExamsOrDeadlines,
     dailyBreakdown,
   };
 }

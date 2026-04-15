@@ -5,6 +5,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   getDocs,
   getDoc,
   setDoc,
@@ -131,6 +132,42 @@ function looseSessionSlotFromRaw(raw: unknown): { date: string; time: string } |
     date: normalizeScheduleWhitespace(dateStr),
     time: normalizeScheduleWhitespace(tr != null ? String(tr).trim() : ''),
   };
+}
+
+async function createSessionNotification(
+  userId: string,
+  message: string,
+  targetRoute: '/(student)/messages' | '/(counselor)/messages' = '/(student)/messages',
+  eventKey?: string
+): Promise<void> {
+  try {
+    const key = (eventKey?.trim() || message.slice(0, 80).toLowerCase()).toLowerCase();
+    const recentQuery = query(
+      collection(db, 'notifications'),
+      where('user_id', '==', userId),
+      where('type', '==', 'counselor_message'),
+      where('notification_key', '==', key),
+      orderBy('created_at', 'desc'),
+      limit(1)
+    );
+    const recentSnap = await getDocs(recentQuery);
+    const lastCreatedAt = recentSnap.docs[0]?.data()?.created_at?.toDate?.() as Date | undefined;
+    // Basic anti-spam guard: do not resend near-identical session notices within 10 minutes.
+    if (lastCreatedAt && Date.now() - lastCreatedAt.getTime() < 10 * 60 * 1000) return;
+
+    await addDoc(collection(db, 'notifications'), {
+      user_id: userId,
+      type: 'counselor_message',
+      message,
+      status: 'pending',
+      notification_key: key,
+      target_route: targetRoute,
+      scheduled_for: Timestamp.now(),
+      created_at: Timestamp.now(),
+    });
+  } catch (error) {
+    console.warn('⚠️ Could not create session notification:', error);
+  }
 }
 
 export const firestoreService = {
@@ -926,6 +963,13 @@ export const firestoreService = {
         updatedAt: Timestamp.now(),
       };
       const docRef = await addDoc(collection(db, 'sessions'), docData);
+      await createSessionNotification(
+        studentId,
+        'Your counselor sent a session invitation. Open Messages to review and confirm your preferred slot.'
+        ,
+        '/(student)/messages',
+        `session:${docRef.id}:counselor_invite_created`
+      );
       return docRef.id;
     } catch (error: any) {
       console.error('❌ Error creating counselor session invite:', error);
@@ -981,6 +1025,14 @@ export const firestoreService = {
         lastSenderId: studentId,
         unreadCountCounselor: (conv?.unreadCountCounselor ?? 0) + 1,
       });
+      await createSessionNotification(
+        counselorId,
+        preferredTimeStr
+          ? `A student requested a counseling session for ${preferredTimeStr}.`
+          : 'A student requested a counseling session.',
+        '/(counselor)/messages',
+        `session:${sessionId}:student_request_created`
+      );
       return docRef.id;
     } catch (error: any) {
       console.error('❌ Error adding session request to conversation:', error);
@@ -1021,6 +1073,8 @@ export const firestoreService = {
   async proposeSlots(sessionId: string, slots: Array<{ date: string; time: string }>) {
     try {
       const sessionRef = doc(db, 'sessions', sessionId);
+      const snap = await getDoc(sessionRef);
+      const session = snap.data() as Record<string, any> | undefined;
       await updateDoc(sessionRef, {
         proposedSlots: slots,
         finalSlot: null,
@@ -1028,6 +1082,14 @@ export const firestoreService = {
         status: 'pending',
         updatedAt: Timestamp.now(),
       });
+      if (session?.studentId) {
+        await createSessionNotification(
+          String(session.studentId),
+          'Your counselor proposed new session times. Please choose and confirm a slot in Messages.',
+          '/(student)/messages',
+          `session:${sessionId}:slots_proposed_to_student`
+        );
+      }
     } catch (error: any) {
       console.error('❌ Error proposing slots:', error);
       throw error;
@@ -1037,12 +1099,22 @@ export const firestoreService = {
   async confirmSlot(sessionId: string, slot: { date: string; time: string }) {
     try {
       const sessionRef = doc(db, 'sessions', sessionId);
+      const snap = await getDoc(sessionRef);
+      const session = snap.data() as Record<string, any> | undefined;
       await updateDoc(sessionRef, {
         finalSlot: slot,
         confirmedSlot: slot,
         status: 'confirmed',
         updatedAt: Timestamp.now(),
       });
+      if (session?.studentId) {
+        await createSessionNotification(
+          String(session.studentId),
+          `Your session has been confirmed for ${slot.date} at ${slot.time}.`,
+          '/(student)/messages',
+          `session:${sessionId}:confirmed_for_student`
+        );
+      }
     } catch (error: any) {
       console.error('❌ Error confirming slot:', error);
       throw error;
@@ -1096,6 +1168,15 @@ export const firestoreService = {
         patch.studentId = uid;
       }
       await updateDoc(sessionRef, patch as any);
+      if (data?.counselorId) {
+        await createSessionNotification(
+          String(data.counselorId),
+          `A student confirmed the session for ${slot.date} at ${slot.time}.`,
+          '/(counselor)/messages'
+          ,
+          `session:${sessionId}:confirmed_for_counselor`
+        );
+      }
     } catch (error: any) {
       console.error('❌ Error confirming final slot:', error);
       throw error;

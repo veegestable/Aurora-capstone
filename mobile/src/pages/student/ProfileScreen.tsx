@@ -16,6 +16,11 @@ import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../../components/common/LetterAvatar';
 import {
+    clearDailyCheckInReminder,
+    scheduleDailyCheckInReminder,
+    sendTestDailyCheckInNotification,
+} from '../../services/push-notifications.service';
+import {
     CCS_COLLEGE_DEPARTMENT,
     DEGREE_PROGRAM_OPTIONS,
     formatCounselorStudentSubtitle,
@@ -431,17 +436,16 @@ function formatResetHourLabel(h: number): string {
 
 export default function ProfileScreen() {
     const { user, signOut, updateUser, uploadAvatar } = useAuth();
-    const { dayResetHour, setDayResetHour } = useUserDaySettings();
-    const [dailyReminders, setDailyReminders] = useState(true);
+    const { reminderHour, remindersEnabled, setReminderHour, setRemindersEnabled, loading: settingsLoading } = useUserDaySettings();
     const [aiCamera, setAiCamera] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
-    const [showDayStartPicker, setShowDayStartPicker] = useState(false);
+    const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
 
     const pickerValue = useMemo(() => {
         const d = new Date();
-        d.setHours(dayResetHour, 0, 0, 0);
+        d.setHours(reminderHour, 0, 0, 0);
         return d;
-    }, [dayResetHour]);
+    }, [reminderHour]);
 
     const handleSignOut = () => {
         Alert.alert('Logout Account', 'Are you sure you want to sign out?', [
@@ -452,6 +456,24 @@ export default function ProfileScreen() {
             }
         ]);
     };
+
+    useEffect(() => {
+        if (settingsLoading) return;
+        const run = async () => {
+            if (!remindersEnabled) {
+                await clearDailyCheckInReminder();
+                return;
+            }
+            const ok = await scheduleDailyCheckInReminder(reminderHour);
+            if (!ok) {
+                Alert.alert(
+                    'Notifications disabled',
+                    'Please allow notification permission so Aurora can remind you on your phone.'
+                );
+            }
+        };
+        void run();
+    }, [remindersEnabled, reminderHour, settingsLoading]);
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
@@ -561,8 +583,8 @@ export default function ProfileScreen() {
                         <ToggleRow
                             icon={<Bell size={18} color={AURORA.textSec} />}
                             label="Daily Check-in Reminders"
-                            value={dailyReminders}
-                            onValueChange={setDailyReminders}
+                            value={remindersEnabled}
+                            onValueChange={(v) => { void setRemindersEnabled(v); }}
                         />
                         <ToggleRow
                             icon={<Video size={18} color={AURORA.textSec} />}
@@ -571,7 +593,7 @@ export default function ProfileScreen() {
                             onValueChange={setAiCamera}
                         />
                         <TouchableOpacity
-                            onPress={() => setShowDayStartPicker(true)}
+                            onPress={() => setShowReminderTimePicker(true)}
                             style={{
                                 flexDirection: 'row',
                                 alignItems: 'center',
@@ -580,20 +602,45 @@ export default function ProfileScreen() {
                                 borderBottomColor: AURORA.border,
                             }}
                         >
-                            <Text style={{ flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '500' }}>Day starts at</Text>
+                            <Text style={{ flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '500' }}>Reminder time</Text>
                             <Text style={{ color: AURORA.blue, fontSize: 14, fontWeight: '700' }}>
-                                {formatResetHourLabel(dayResetHour)}
+                                {formatResetHourLabel(reminderHour)}
                             </Text>
                         </TouchableOpacity>
                         <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16, marginTop: 8, marginBottom: 4 }}>
-                            Changing this affects how today's entries are grouped going forward.
+                            We will remind you to start your day at this time (default 7:00 AM).
                         </Text>
+                        <TouchableOpacity
+                            onPress={async () => {
+                                const ok = await sendTestDailyCheckInNotification();
+                                if (!ok) {
+                                    Alert.alert(
+                                        'Notifications disabled',
+                                        'Please allow notification permission to receive the test reminder.'
+                                    );
+                                    return;
+                                }
+                                Alert.alert('Test sent', 'A test reminder was sent to your phone.');
+                            }}
+                            style={{
+                                marginTop: 10,
+                                marginBottom: 6,
+                                paddingVertical: 10,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                borderColor: 'rgba(45,107,255,0.35)',
+                                backgroundColor: 'rgba(45,107,255,0.12)',
+                                alignItems: 'center',
+                            }}
+                        >
+                            <Text style={{ color: AURORA.blue, fontSize: 12, fontWeight: '700' }}>Send test notification now</Text>
+                        </TouchableOpacity>
                     </View>
-                    <Modal visible={showDayStartPicker} transparent animationType="slide">
+                    <Modal visible={showReminderTimePicker} transparent animationType="slide">
                         <TouchableOpacity
                             style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}
                             activeOpacity={1}
-                            onPress={() => setShowDayStartPicker(false)}
+                            onPress={() => setShowReminderTimePicker(false)}
                         >
                             <TouchableOpacity activeOpacity={1} onPress={() => {}}>
                                 <View
@@ -611,13 +658,13 @@ export default function ProfileScreen() {
                                         mode="time"
                                         display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                                         onChange={async (_e, date) => {
-                                            if (Platform.OS === 'android') setShowDayStartPicker(false);
-                                            if (date) await setDayResetHour(date.getHours());
+                                            if (Platform.OS === 'android') setShowReminderTimePicker(false);
+                                            if (date) await setReminderHour(date.getHours());
                                         }}
                                     />
                                     {Platform.OS === 'ios' ? (
                                         <TouchableOpacity
-                                            onPress={() => setShowDayStartPicker(false)}
+                                            onPress={() => setShowReminderTimePicker(false)}
                                             style={{
                                                 marginTop: 12,
                                                 paddingVertical: 14,

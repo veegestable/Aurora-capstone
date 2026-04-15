@@ -1,13 +1,30 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { User, LogOut } from 'lucide-react-native';
 import { Card } from '../../components/common/Card';
+import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
+import type { ContextCategoryKey } from '../../services/mood-firestore-v2.service';
 
 export default function SettingsScreen() {
     const { user, updateUser, signOut } = useAuth();
+    const {
+        academicContextEnabled,
+        enabledContextCategories,
+        setAcademicContextEnabled,
+        setCategoryEnabled,
+    } = useUserDaySettings();
     const [fullName, setFullName] = useState(user?.full_name || '');
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+
+    const categoryLabels: Record<ContextCategoryKey, string> = {
+        school: 'School',
+        health: 'Health',
+        social: 'Social',
+        fun: 'Fun / Leisure',
+        productivity: 'Productivity',
+    };
 
     const handleUpdateProfile = async () => {
         if (!fullName.trim()) {
@@ -45,6 +62,28 @@ export default function SettingsScreen() {
                 }
             ]
         );
+    };
+
+    const handleAcademicToggle = async (enabled: boolean) => {
+        try {
+            setIsSavingPreferences(true);
+            await setAcademicContextEnabled(enabled);
+        } catch (error: any) {
+            Alert.alert('Error', error?.message || 'Could not update preference');
+        } finally {
+            setIsSavingPreferences(false);
+        }
+    };
+
+    const handleCategoryToggle = async (category: ContextCategoryKey, enabled: boolean) => {
+        try {
+            setIsSavingPreferences(true);
+            await setCategoryEnabled(category, enabled);
+        } catch (error: any) {
+            Alert.alert('Error', error?.message || 'Could not update category');
+        } finally {
+            setIsSavingPreferences(false);
+        }
     };
 
     return (
@@ -100,6 +139,44 @@ export default function SettingsScreen() {
                 </Card>
 
                 {/* Account Actions */}
+                <Card className="p-5">
+                    <Text className="text-lg font-semibold text-gray-800 mb-1">Mood Context</Text>
+                    <Text className="text-gray-500 mb-4">Customize optional mood-correlation categories</Text>
+
+                    <View className="flex-row items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-3">
+                        <View className="pr-3 flex-1">
+                            <Text className="text-sm font-semibold text-gray-800">Academic context mode</Text>
+                            <Text className="text-xs text-gray-500 mt-1">
+                                Enable school activity tags for academic mood analytics.
+                            </Text>
+                        </View>
+                        <Switch value={academicContextEnabled} onValueChange={handleAcademicToggle} disabled={isSavingPreferences} />
+                    </View>
+
+                    <Text className="text-xs font-semibold text-gray-500 mb-2">Enabled category packs</Text>
+                    {(['school', 'health', 'social', 'fun', 'productivity'] as ContextCategoryKey[]).map((category) => {
+                        const enabled = enabledContextCategories.includes(category);
+                        return (
+                            <View
+                                key={category}
+                                className="flex-row items-center justify-between border border-gray-200 rounded-xl px-4 py-3 mb-2"
+                            >
+                                <Text className="text-sm text-gray-800 font-medium">{categoryLabels[category]}</Text>
+                                <Switch
+                                    value={enabled}
+                                    onValueChange={(val) => handleCategoryToggle(category, val)}
+                                    disabled={isSavingPreferences || (!academicContextEnabled && category === 'school')}
+                                />
+                            </View>
+                        );
+                    })}
+                    {!academicContextEnabled && (
+                        <Text className="text-xs text-gray-500 mt-2">
+                            Academic mode is off. You can still use non-school categories.
+                        </Text>
+                    )}
+                </Card>
+
                 <Card className="p-5">
                     <Text className="text-lg font-semibold text-gray-800 mb-4">Account</Text>
 
