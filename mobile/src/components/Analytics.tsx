@@ -4,7 +4,16 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import {
+    View,
+    Text,
+    ScrollView,
+    ActivityIndicator,
+    RefreshControl,
+    TouchableOpacity,
+    AppState,
+    type AppStateStatus,
+} from 'react-native';
 import * as Animatable from 'react-native-animatable';
 import Animated, {
     Easing,
@@ -302,16 +311,46 @@ export default function Analytics() {
     const [weeklyAi, setWeeklyAi] = useState<WeeklyAiResult | null>(null);
     const [celebrateMilestone, setCelebrateMilestone] = useState(false);
     const prevStreakRef = useRef<number | null>(null);
+    const isRefreshingLogsRef = useRef(false);
+    const latestLogsRef = useRef<(MoodData & { log_date: Date; id?: string })[]>([]);
+
+    useEffect(() => {
+        latestLogsRef.current = logs;
+    }, [logs]);
+
+    const refreshMoodLogs = useCallback(
+        async (opts?: { setBusyState?: boolean }): Promise<(MoodData & { log_date: Date })[]> => {
+            if (!user) return [];
+            if (isRefreshingLogsRef.current) return latestLogsRef.current as (MoodData & { log_date: Date })[];
+
+            const shouldSetBusyState = opts?.setBusyState ?? false;
+            if (shouldSetBusyState) setRefreshing(true);
+            isRefreshingLogsRef.current = true;
+
+            try {
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - 45);
+                const moodLogs = await moodService.getMoodLogs(user.id, startDate.toISOString(), endDate.toISOString());
+                const list = (moodLogs || []) as (MoodData & { log_date: Date })[];
+                setLogs(list);
+                return list;
+            } catch (e) {
+                console.error('Analytics logs refresh failed', e);
+                if (shouldSetBusyState) setLogs([]);
+                return [];
+            } finally {
+                isRefreshingLogsRef.current = false;
+                if (shouldSetBusyState) setRefreshing(false);
+            }
+        },
+        [user]
+    );
 
     const load = useCallback(async () => {
         if (!user) return;
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 45);
         try {
-            const moodLogs = await moodService.getMoodLogs(user.id, startDate.toISOString(), endDate.toISOString());
-            const list = (moodLogs || []) as (MoodData & { log_date: Date })[];
-            setLogs(list);
+            const list = await refreshMoodLogs();
             setLoading(false);
             setRefreshing(false);
 
@@ -349,7 +388,7 @@ export default function Analytics() {
             setAiLoading(false);
             setWeekSummaryGenerating(false);
         }
-    }, [user, dayResetHour, timezone]);
+    }, [user, dayResetHour, timezone, refreshMoodLogs]);
 
     useEffect(() => {
         if (user) {
@@ -440,6 +479,30 @@ export default function Analytics() {
         setRefreshing(true);
         load();
     };
+
+    useEffect(() => {
+        if (!user || analyticsView !== 'today') return;
+
+        const intervalMs = 30_000;
+        const intervalId = setInterval(() => {
+            void refreshMoodLogs();
+        }, intervalMs);
+
+        return () => clearInterval(intervalId);
+    }, [user, analyticsView, refreshMoodLogs]);
+
+    useEffect(() => {
+        if (!user || analyticsView !== 'today') return;
+
+        const onAppStateChange = (state: AppStateStatus) => {
+            if (state === 'active') {
+                void refreshMoodLogs();
+            }
+        };
+
+        const sub = AppState.addEventListener('change', onAppStateChange);
+        return () => sub.remove();
+    }, [user, analyticsView, refreshMoodLogs]);
 
     const weeklyPayload = buildLast7DaysPayload(logs as (MoodData & { log_date: Date })[]);
     const weekCard = summarizeWeekSeries(weeklyPayload);
