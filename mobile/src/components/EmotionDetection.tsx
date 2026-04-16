@@ -4,6 +4,7 @@ import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, X, RefreshCw } from 'lucide-react-native';
 import { AURORA } from '../constants/aurora-colors';
+import { getEmotionLabel } from '../utils/moodColors';
 
 interface DetectedEmotion {
     emotion: string;
@@ -227,7 +228,7 @@ export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: 
                                 return (
                                     <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                                         <View style={{ backgroundColor: emotionColor, width: 16, height: 16, borderRadius: 8, marginRight: 10 }} />
-                                        <Text style={{ flex: 1, textTransform: 'capitalize', color: emotionColor, fontWeight: '600' }}>{emotion.emotion}</Text>
+                                        <Text style={{ flex: 1, color: emotionColor, fontWeight: '600' }}>{getEmotionLabel(emotion.emotion)}</Text>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1.2 }}>
                                             <View style={{ flex: 1, height: 8, backgroundColor: AURORA.cardAlt, borderRadius: 4, marginRight: 10 }}>
                                                 <View style={{ height: '100%', backgroundColor: emotionColor, borderRadius: 4, width: `${emotion.confidence * 100}%` }} />

@@ -21,6 +21,12 @@ import {
     energyLevelToMoodScale,
     getDailyFeedback,
 } from '../../utils/analytics/ethicsDailyAnalytics';
+import {
+    moodCategoryFromFive,
+    stressCategoryFromFive,
+    energyCategoryFromFive,
+} from '../../utils/analytics/metricCategories';
+import { getEmotionLabel } from '../../utils/moodColors';
 import { calculateCheckInStreakByDayKey } from '../../utils/analytics/dateKeys';
 import { getDayKey } from '../../utils/dayKey';
 import { moodLogsToMoodEntries } from '../../utils/moodEntryNormalize';
@@ -251,9 +257,19 @@ export default function MoodLogScreen() {
             const band = classifyStress(calculateStressLevel(moodScale, tasks));
             let line = getDailyFeedback(band, moodScale);
             if (todayAgg.entryCount > 0) {
-                line = `${line} Today: ${todayAgg.dominantMood} (avg intensity ${todayAgg.avgIntensity.toFixed(1)}/10).`;
-                if (todayAgg.entryCount > 1) {
-                    line = `${line} Based on ${todayAgg.entryCount} check-ins today.`;
+                const moodOnFive = Math.min(5, Math.max(1, Math.round(todayAgg.avgIntensity / 2)));
+                const dominantLabel = getEmotionLabel(todayAgg.dominantMood);
+                const moodCat = moodCategoryFromFive(moodOnFive);
+                const stressCat = stressCategoryFromFive(todayAgg.avgStress);
+                const energyCat = energyCategoryFromFive(todayAgg.avgEnergy);
+                if (todayAgg.entryCount === 1) {
+                    line =
+                        `${line} Your dominant emotion was ${dominantLabel}. In that check-in, your mood was ${moodCat}, ` +
+                        `your stress was ${stressCat}, and your energy was ${energyCat}.`;
+                } else {
+                    line =
+                        `${line} Your dominant emotion was ${dominantLabel}. Across ${todayAgg.entryCount} check-ins today, ` +
+                        `your mood was ${moodCat}, your stress was ${stressCat}, and your energy was ${energyCat}.`;
                 }
             }
             if (tasks > 0) {

@@ -9,6 +9,7 @@ import { useAuth } from '../../stores/AuthContext';
 import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
 import { moodService } from '../../services/mood.service';
 import { AURORA } from '../../constants/aurora-colors';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import Analytics from '../../components/Analytics';
 import { getDayKey } from '../../utils/dayKey';
 import {
@@ -718,14 +719,58 @@ const styles = StyleSheet.create({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 type JournalTab = 'calendar' | 'insights';
 
+const JOURNAL_TOGGLE_PAD = 4;
+
+/** Calendar body entrance when changing month (arrow prev / next). */
+function calendarMonthGridEnter(
+    reduceMotion: boolean,
+    edge: 'prev' | 'next' | null
+): { animation: 'fadeInLeft' | 'fadeInRight' | undefined; duration: number; useNativeDriver: true } {
+    if (reduceMotion || !edge) {
+        return { animation: undefined, duration: 0, useNativeDriver: true };
+    }
+    return {
+        animation: edge === 'next' ? 'fadeInRight' : 'fadeInLeft',
+        duration: 300,
+        useNativeDriver: true,
+    };
+}
+
 export default function HistoryScreen() {
     const { user } = useAuth();
     const { dayResetHour, timezone } = useUserDaySettings();
+    const reduceMotion = useReducedMotion();
     const [currentDate, setCurrentDate] = useState(new Date());
+    /** Last month change via chevron; null = initial mount (no enter animation). */
+    const [calendarMonthEnter, setCalendarMonthEnter] = useState<'prev' | 'next' | null>(null);
     const [moodData, setMoodData] = useState<MoodEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
     const [journalTab, setJournalTab] = useState<JournalTab>('calendar');
+    const [journalTrackW, setJournalTrackW] = useState(0);
+    const journalThumbX = useSharedValue(0);
+    const journalThumbW = useSharedValue(0);
+    const journalThumbStyle = useAnimatedStyle(() => ({
+        position: 'absolute',
+        top: JOURNAL_TOGGLE_PAD,
+        bottom: JOURNAL_TOGGLE_PAD,
+        left: JOURNAL_TOGGLE_PAD,
+        width: journalThumbW.value,
+        transform: [{ translateX: journalThumbX.value }],
+        backgroundColor: AURORA.blue,
+        borderRadius: 12,
+    }));
+
+    useEffect(() => {
+        if (journalTrackW <= 0) return;
+        const inner = journalTrackW - JOURNAL_TOGGLE_PAD * 2;
+        const seg = inner / 2;
+        const idx = journalTab === 'calendar' ? 0 : 1;
+        const dur = reduceMotion ? 0 : 240;
+        const easing = Easing.out(Easing.cubic);
+        journalThumbX.value = withTiming(idx * seg, { duration: dur, easing });
+        journalThumbW.value = withTiming(seg, { duration: dur, easing });
+    }, [journalTab, journalTrackW, reduceMotion]);
 
     useEffect(() => {
         if (!user?.id) {
@@ -781,7 +826,8 @@ export default function HistoryScreen() {
     };
 
     const navigateMonth = (dir: 'prev' | 'next') => {
-        setCurrentDate(prev => {
+        setCalendarMonthEnter(dir);
+        setCurrentDate((prev) => {
             const d = new Date(prev);
             d.setMonth(d.getMonth() + (dir === 'next' ? 1 : -1));
             return d;
@@ -800,6 +846,7 @@ export default function HistoryScreen() {
     }, [moodData, selectedDay, dayResetHour, timezone]);
     const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const calendarMonthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bg }}>
@@ -826,66 +873,69 @@ export default function HistoryScreen() {
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-                    {/* ── Journal / Insights toggle ───────────────────────────── */}
+                    {/* ── Journal / Insights toggle (sliding pill) ─────────────── */}
                     <View
                         style={{
-                            flexDirection: 'row',
                             backgroundColor: AURORA.cardAlt,
                             borderRadius: 14,
-                            padding: 4,
+                            padding: JOURNAL_TOGGLE_PAD,
                             marginBottom: 16,
                             borderWidth: 1,
                             borderColor: AURORA.border,
+                            position: 'relative',
+                            overflow: 'hidden',
                         }}
+                        onLayout={(e) => setJournalTrackW(e.nativeEvent.layout.width)}
                     >
-                        <TouchableOpacity
-                            onPress={() => setJournalTab('calendar')}
-                            style={{
-                                flex: 1,
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 8,
-                                paddingVertical: 10,
-                                borderRadius: 12,
-                                backgroundColor: journalTab === 'calendar' ? AURORA.blue : 'transparent',
-                            }}
-                        >
-                            <BookMarked size={18} color={journalTab === 'calendar' ? '#FFF' : AURORA.textSec} />
-                            <Text
+                        <Animated.View pointerEvents="none" style={journalThumbStyle} />
+                        <View style={{ flexDirection: 'row' }}>
+                            <TouchableOpacity
+                                onPress={() => setJournalTab('calendar')}
                                 style={{
-                                    color: journalTab === 'calendar' ? '#FFF' : AURORA.textSec,
-                                    fontWeight: '700',
-                                    fontSize: 13,
+                                    flex: 1,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                    paddingVertical: 10,
+                                    borderRadius: 12,
                                 }}
                             >
-                                Journal
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={() => setJournalTab('insights')}
-                            style={{
-                                flex: 1,
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 8,
-                                paddingVertical: 10,
-                                borderRadius: 12,
-                                backgroundColor: journalTab === 'insights' ? AURORA.blue : 'transparent',
-                            }}
-                        >
-                            <BarChart3 size={18} color={journalTab === 'insights' ? '#FFF' : AURORA.textSec} />
-                            <Text
+                                <BookMarked size={18} color={journalTab === 'calendar' ? '#FFF' : AURORA.textSec} />
+                                <Text
+                                    style={{
+                                        color: journalTab === 'calendar' ? '#FFF' : AURORA.textSec,
+                                        fontWeight: '700',
+                                        fontSize: 13,
+                                    }}
+                                >
+                                    Journal
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setJournalTab('insights')}
                                 style={{
-                                    color: journalTab === 'insights' ? '#FFF' : AURORA.textSec,
-                                    fontWeight: '700',
-                                    fontSize: 13,
+                                    flex: 1,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                    paddingVertical: 10,
+                                    borderRadius: 12,
                                 }}
                             >
-                                Analytics
-                            </Text>
-                        </TouchableOpacity>
+                                <BarChart3 size={18} color={journalTab === 'insights' ? '#FFF' : AURORA.textSec} />
+                                <Text
+                                    style={{
+                                        color: journalTab === 'insights' ? '#FFF' : AURORA.textSec,
+                                        fontWeight: '700',
+                                        fontSize: 13,
+                                    }}
+                                >
+                                    Analytics
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     {journalTab === 'insights' ? (
@@ -903,46 +953,62 @@ export default function HistoryScreen() {
                             <TouchableOpacity onPress={() => navigateMonth('prev')} style={{ padding: 4 }}>
                                 <ChevronLeft size={20} color={AURORA.textSec} />
                             </TouchableOpacity>
-                            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{monthLabel}</Text>
+                            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }}>
+                                <Animatable.View
+                                    key={`cal-month-title-${calendarMonthKey}`}
+                                    animation={reduceMotion || !calendarMonthEnter ? undefined : 'fadeIn'}
+                                    duration={reduceMotion ? 0 : 220}
+                                    useNativeDriver
+                                >
+                                    <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{monthLabel}</Text>
+                                </Animatable.View>
+                            </View>
                             <TouchableOpacity onPress={() => navigateMonth('next')} style={{ padding: 4 }}>
                                 <ChevronRight size={20} color={AURORA.textSec} />
                             </TouchableOpacity>
                         </View>
 
-                        {/* Weekday headers */}
-                        <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-                            {weekDays.map((d, i) => (
-                                <Text key={i} style={{
-                                    flex: 1, textAlign: 'center', color: AURORA.textMuted,
-                                    fontSize: 12, fontWeight: '700',
-                                }}>{d}</Text>
-                            ))}
-                        </View>
+                        <Animatable.View
+                            key={`cal-grid-${calendarMonthKey}`}
+                            {...calendarMonthGridEnter(reduceMotion, calendarMonthEnter)}
+                            style={{ width: '100%' }}
+                        >
+                            {/* Weekday headers */}
+                            <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                                {weekDays.map((d, i) => (
+                                    <Text key={i} style={{
+                                        flex: 1, textAlign: 'center', color: AURORA.textMuted,
+                                        fontSize: 12, fontWeight: '700',
+                                    }}>{d}</Text>
+                                ))}
+                            </View>
 
-                        {/* Days grid */}
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                            {calendarDays.map((day, idx) => {
-                                const isSelected = selectedDay?.date.toDateString() === day.date.toDateString();
-                                return (
-                                    <View
-                                        key={idx}
-                                        style={{
-                                            width: '14.28%', aspectRatio: 1,
-                                            alignItems: 'center', justifyContent: 'center',
-                                            paddingVertical: 2,
-                                            opacity: day.isCurrentMonth ? 1 : 0.25,
-                                        }}
-                                    >
-                                        <CalendarDayCell
-                                            dayNumber={day.date.getDate()}
-                                            logs={day.logs}
-                                            isSelected={isSelected}
-                                            onPress={() => setSelectedDay(day)}
-                                        />
-                                    </View>
-                                );
-                            })}
-                        </View>
+                            {/* Days grid */}
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                                {calendarDays.map((day, idx) => {
+                                    const isSelected = selectedDay?.date.toDateString() === day.date.toDateString();
+                                    const dayKey = `${day.date.getFullYear()}-${day.date.getMonth()}-${day.date.getDate()}`;
+                                    return (
+                                        <View
+                                            key={dayKey}
+                                            style={{
+                                                width: '14.28%', aspectRatio: 1,
+                                                alignItems: 'center', justifyContent: 'center',
+                                                paddingVertical: 2,
+                                                opacity: day.isCurrentMonth ? 1 : 0.25,
+                                            }}
+                                        >
+                                            <CalendarDayCell
+                                                dayNumber={day.date.getDate()}
+                                                logs={day.logs}
+                                                isSelected={isSelected}
+                                                onPress={() => setSelectedDay(day)}
+                                            />
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        </Animatable.View>
 
                         <CalendarLegend />
                     </View>

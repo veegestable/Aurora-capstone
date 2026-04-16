@@ -4,7 +4,7 @@
  */
 
 import type { ReactElement } from 'react';
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { View, Text, useWindowDimensions, ScrollView } from 'react-native';
 import Svg, { Circle, Line, Rect, Path, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import * as Animatable from 'react-native-animatable';
@@ -69,6 +69,7 @@ export function LineTrendChart({
     zoomable = false,
 }: LineTrendProps) {
     const { width: winW } = useWindowDimensions();
+    const trendScrollRef = useRef<ScrollView | null>(null);
     const n = values.length;
     const slot = xSlot ?? X_SLOT;
     const minInnerW = Math.max(1, (n - 1) * slot);
@@ -121,6 +122,23 @@ export function LineTrendChart({
         const linePath = buildLinePath(seg);
         return `${linePath} L ${xAt(last.i)} ${yBaseline} L ${xAt(first.i)} ${yBaseline} Z`;
     };
+
+    useEffect(() => {
+        if (fitToWidth) return;
+
+        const latestLoggedIndex = values.reduce<number>((latest, value, index) => {
+            if (value == null || Number.isNaN(value)) return latest;
+            return index;
+        }, -1);
+        if (latestLoggedIndex < 0) return;
+
+        // Start near the latest logged point so users see meaningful data first.
+        const targetX = Math.max(0, xAt(latestLoggedIndex) - PAD_BASE.l - fitW * 0.45);
+        const id = setTimeout(() => {
+            trendScrollRef.current?.scrollTo({ x: targetX, animated: false });
+        }, 0);
+        return () => clearTimeout(id);
+    }, [values, fitToWidth, fitW, xAt]);
 
     return (
         <View style={{ marginBottom: 12 }}>
@@ -331,6 +349,7 @@ export function LineTrendChart({
                 </View>
             ) : (
                 <ScrollView
+                    ref={trendScrollRef}
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     minimumZoomScale={zoomable ? 1 : undefined}

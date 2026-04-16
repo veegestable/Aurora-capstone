@@ -1,21 +1,22 @@
-import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, LayoutChangeEvent } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  LayoutChangeEvent,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+  Animated,
+  Easing,
+} from 'react-native';
 import type { MoodData } from '../../services/firebase-firestore.service';
 import { getDayKey } from '../../utils/dayKey';
 import { moodLogsToMoodEntries } from '../../utils/moodEntryNormalize';
 import { aggregateByDay, moodStabilityScore } from '../../utils/moodAggregates';
 import { blendColors } from '../../utils/blendColors';
 import { AURORA } from '../../constants/aurora-colors';
-
-function contrastText(bgHex: string): string {
-  const h = bgHex.replace('#', '');
-  if (h.length < 6) return '#0f172a';
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 160 ? '#0f172a' : '#f8fafc';
-}
+import { getEmotionLabel } from '../../utils/moodColors';
 
 function stabilityCopy(score: number): string {
   if (score >= 80) return 'Very stable — your mood has been consistent';
@@ -24,16 +25,52 @@ function stabilityCopy(score: number): string {
   return 'High variability — your mood shifted a lot';
 }
 
+function stressCategoryLabel(score: number | null | undefined): string {
+  if (score == null || !Number.isFinite(score)) return 'Not enough stress data';
+  if (score <= 1.8) return 'Very calm';
+  if (score <= 2.6) return 'Normal';
+  if (score <= 3.5) return 'Stressed';
+  return 'Very stressed';
+}
+
+function energyCategoryLabel(score: number | null | undefined): string {
+  if (score == null || !Number.isFinite(score)) return 'Not enough energy data';
+  if (score <= 1.8) return 'Very low energy';
+  if (score <= 2.6) return 'Low energy';
+  if (score <= 3.5) return 'Steady energy';
+  return 'High energy';
+}
+
 type Props = {
   logs: (MoodData & { log_date: Date })[];
   resetHour: number;
   timezone: string;
 };
 
+function AnimatedBar({ height, color, delay, animateKey }: { height: number; color: string; delay: number; animateKey: string }) {
+  const h = useMemo(() => new Animated.Value(0), []);
+  useEffect(() => {
+    h.setValue(0);
+    const timer = setTimeout(() => {
+      Animated.timing(h, {
+        toValue: height,
+        duration: 380,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [h, height, delay, animateKey]);
+  return <Animated.View style={{ height: h, backgroundColor: color, borderRadius: 4 }} />;
+}
+
 export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
-  const [period, setPeriod] = useState<'week' | 'month'>('week');
-  const [tip, setTip] = useState<{ label: string; text: string } | null>(null);
+  const [period, setPeriod] = useState<'week' | 'last30'>('week');
+  const [metric, setMetric] = useState<'stress' | 'energy'>('stress');
+  const [tip, setTip] = useState<{ label: string; text: string; emotion?: string; color?: string } | null>(null);
   const [chartW, setChartW] = useState(300);
+  const [last30ZoomScale, setLast30ZoomScale] = useState(1);
+  const toggleAnim = useMemo(() => new Animated.Value(0), []);
 
   const entries = useMemo(
     () => moodLogsToMoodEntries(logs, resetHour, timezone),
@@ -55,50 +92,57 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
     return out;
   }, [resetHour, timezone]);
 
-  const weekStripData = useMemo(() => {
-    return weekSlots.map(({ key, label }) => {
-      const agg = aggregateByDay(entries, key);
-      const moodShort =
-        agg.dominantMood && agg.dominantMood !== '—' ? agg.dominantMood.slice(0, 6) : '—';
-      return { key, label, agg, moodShort };
-    });
-  }, [entries, weekSlots]);
-
-  const glanceSentence = useMemo(() => {
-    const withData = weekStripData.filter((x) => x.agg.entryCount > 0);
-    if (withData.length === 0) return '';
-    let best = withData[0];
-    let hard = withData[0];
-    for (const x of withData) {
-      if (x.agg.avgIntensity > best.agg.avgIntensity) best = x;
-      const hRank = -x.agg.avgIntensity + x.agg.avgStress;
-      const hardRank = -hard.agg.avgIntensity + hard.agg.avgStress;
-      if (hRank > hardRank) hard = x;
-    }
-    return `You felt best on ${best.label} and most stressed on ${hard.label}.`;
-  }, [weekStripData]);
-
-  const barData = useMemo(() => {
+  const weekBarData = useMemo(() => {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
-    if (period === 'week') {
-      return weekSlots.map(({ key, label }) => ({
-        label,
-        key,
-        agg: aggregateByDay(entries, key),
-      }));
-    }
-    const rows: { label: string; agg: ReturnType<typeof aggregateByDay>; key: string }[] = [];
+    return weekSlots.map(({ key, label }) => ({
+      label,
+      key,
+      agg: aggregateByDay(entries, key),
+    }));
+  }, [entries, weekSlots]);
+
+  const last30BarData = useMemo(() => {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const rows: { label: string; key: string; date: Date; agg: ReturnType<typeof aggregateByDay> }[] = [];
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const key = getDayKey(d, resetHour, timezone);
-      const label = `${d.getMonth() + 1}/${d.getDate()}`;
-      rows.push({ label, key, agg: aggregateByDay(entries, key) });
+      const label = d.getDate() === 1 || i === 29 ? `${d.getMonth() + 1}/${d.getDate()}` : String(d.getDate());
+      rows.push({ label, key, date: d, agg: aggregateByDay(entries, key) });
     }
     return rows;
-  }, [entries, period, resetHour, timezone, weekSlots]);
+  }, [entries, resetHour, timezone]);
 
+  const last30WithDataCount = useMemo(
+    () => last30BarData.filter((d) => d.agg.entryCount > 0).length,
+    [last30BarData]
+  );
+  const last30AvgStress = useMemo(() => {
+    const withData = last30BarData.filter((d) => d.agg.entryCount > 0);
+    if (withData.length === 0) return null;
+    const sum = withData.reduce((acc, d) => acc + d.agg.avgStress, 0);
+    return sum / withData.length;
+  }, [last30BarData]);
+  const last30AvgEnergy = useMemo(() => {
+    const withData = last30BarData.filter((d) => d.agg.entryCount > 0);
+    if (withData.length === 0) return null;
+    const sum = withData.reduce((acc, d) => acc + d.agg.avgEnergy, 0);
+    return sum / withData.length;
+  }, [last30BarData]);
+  const last30MonthStarts = useMemo(
+    () =>
+      last30BarData
+        .map((d, i) => ({ i, date: d.date }))
+        .filter(({ i, date }) => i === 0 || date.getDate() === 1)
+        .map(({ i, date }) => ({
+          index: i,
+          label: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+        })),
+    [last30BarData]
+  );
   const stability = useMemo(() => {
     const end = new Date();
     end.setHours(23, 59, 59, 999);
@@ -121,65 +165,149 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
     if (w > 40) setChartW(w);
   };
 
-  const nBars = barData.length;
+  const nBars = weekBarData.length;
   const gap = 3;
   const barW = Math.max(5, (chartW - 24 - gap * (nBars - 1)) / nBars);
+  const showDenseLast30Labels = last30ZoomScale >= 1.6;
+  const toggleTrackWidth = 154;
+  const toggleThumbWidth = 72;
+
+  useEffect(() => {
+    Animated.timing(toggleAnim, {
+      toValue: period === 'week' ? 0 : 1,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [period, toggleAnim]);
+
+  useEffect(() => {
+    // Prevent stale selected-day details from carrying across period/metric switches.
+    setTip(null);
+  }, [period, metric]);
+
+  const toggleLeft = toggleAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [3, toggleTrackWidth - toggleThumbWidth - 3],
+  });
 
   return (
     <View style={{ marginTop: 8 }}>
-      {/* Widget C */}
-      <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>
-        Your week at a glance
-      </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-        <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
-          {weekStripData.map((cell) => {
-            const bg =
-              cell.agg.entryCount > 0 ? cell.agg.blendedColor : 'rgba(148,163,184,0.35)';
-            return (
-              <View
-                key={cell.key}
-                style={{
-                  minWidth: 72,
-                  paddingVertical: 10,
-                  paddingHorizontal: 8,
-                  borderRadius: 14,
-                  backgroundColor: bg,
-                  borderWidth: 1,
-                  borderColor: AURORA.border,
-                }}
-              >
-                <Text style={{ color: contrastText(bg), fontSize: 11, fontWeight: '800' }}>{cell.label}</Text>
-                <Text
-                  style={{ color: contrastText(bg), fontSize: 12, fontWeight: '600', marginTop: 4 }}
-                  numberOfLines={1}
-                >
-                  {cell.moodShort}
-                </Text>
-              </View>
-            );
-          })}
+      {/* Widget A */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
+        <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700' }}>Mood stability</Text>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>
+            TIME RANGE
+          </Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              backgroundColor: 'rgba(124, 58, 237, 0.14)',
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: 'rgba(124, 58, 237, 0.3)',
+              padding: 3,
+              gap: 4,
+              width: toggleTrackWidth,
+              position: 'relative',
+            }}
+          >
+            <Animated.View
+              style={{
+                position: 'absolute',
+                top: 3,
+                left: toggleLeft,
+                width: toggleThumbWidth,
+                height: 30,
+                borderRadius: 999,
+                backgroundColor: AURORA.purple,
+              }}
+            />
+            <TouchableOpacity
+              onPress={() => setPeriod('week')}
+              activeOpacity={0.9}
+              style={{
+                width: toggleThumbWidth,
+                paddingVertical: 6,
+                borderRadius: 999,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: period === 'week' ? '#fff' : AURORA.textMuted, fontWeight: '700', fontSize: 12 }}>
+                7 days
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setPeriod('last30')}
+              activeOpacity={0.9}
+              style={{
+                width: toggleThumbWidth,
+                paddingVertical: 6,
+                borderRadius: 999,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: period === 'last30' ? '#fff' : AURORA.textMuted, fontWeight: '700', fontSize: 12 }}>
+                30 days
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </ScrollView>
-      {glanceSentence ? (
-        <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 19, marginBottom: 20 }}>
-          {glanceSentence}
+      </View>
+      <View
+        style={{
+          backgroundColor: AURORA.card,
+          borderRadius: 16,
+          padding: 18,
+          borderWidth: 1,
+          borderColor: AURORA.border,
+          marginBottom: 16,
+        }}
+      >
+        <Text style={{ fontSize: 42, fontWeight: '900', color: stability.blended }}>{stability.score}%</Text>
+        <Text style={{ color: AURORA.textPrimary, fontSize: 16, fontWeight: '700', marginTop: 4 }}>Mood Stability</Text>
+        <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 19, marginTop: 8 }}>
+          {stabilityCopy(stability.score)}
         </Text>
-      ) : null}
+      </View>
 
       {/* Widget B */}
+      <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 6 }}>
+        METRIC
+      </Text>
+      <View style={{ flexDirection: 'row', marginBottom: 10, gap: 14 }}>
+        <TouchableOpacity
+          onPress={() => setMetric('stress')}
+          activeOpacity={0.9}
+          style={{
+            paddingBottom: 6,
+            borderBottomWidth: 2,
+            borderBottomColor: metric === 'stress' ? AURORA.purple : 'transparent',
+          }}
+        >
+          <Text style={{ color: metric === 'stress' ? AURORA.textPrimary : AURORA.textMuted, fontSize: 13, fontWeight: '800' }}>
+            😵 Stress
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setMetric('energy')}
+          activeOpacity={0.9}
+          style={{
+            paddingBottom: 6,
+            borderBottomWidth: 2,
+            borderBottomColor: metric === 'energy' ? AURORA.purple : 'transparent',
+          }}
+        >
+          <Text style={{ color: metric === 'energy' ? AURORA.textPrimary : AURORA.textMuted, fontSize: 13, fontWeight: '800' }}>
+            ⚡ Energy
+          </Text>
+        </TouchableOpacity>
+      </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700', flex: 1, paddingRight: 8 }}>
-          {period === 'week' ? 'Your daily mood this week' : 'Your daily mood this month'}
+          {metric === 'stress' ? 'Daily stress trend' : 'Daily energy trend'}
         </Text>
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <TouchableOpacity onPress={() => setPeriod('week')}>
-            <Text style={{ color: period === 'week' ? AURORA.blue : AURORA.textMuted, fontWeight: '700' }}>Week</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setPeriod('month')}>
-            <Text style={{ color: period === 'month' ? AURORA.blue : AURORA.textMuted, fontWeight: '700' }}>Month</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       <View
@@ -193,78 +321,336 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
         }}
         onLayout={onChartLayout}
       >
-        <ScrollView horizontal={period === 'month'} showsHorizontalScrollIndicator={period === 'month'}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: chartH, gap }}>
-            {barData.map((b, i) => {
-              const maxH = chartH - 20;
-              const has = b.agg.entryCount > 0;
-              const h = has ? Math.max(8, (b.agg.avgIntensity / 10) * maxH) : 8;
-              const fill = has ? b.agg.blendedColor : 'rgba(148,163,184,0.35)';
-              return (
-                <TouchableOpacity
-                  key={`${b.key}-${i}`}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    if (!has) {
-                      setTip({ label: b.label, text: 'No data' });
-                      return;
-                    }
-                    setTip({
-                      label: b.label,
-                      text: `${b.agg.dominantMood} · avg intensity ${b.agg.avgIntensity.toFixed(1)} · ${b.agg.entryCount} check-in${b.agg.entryCount === 1 ? '' : 's'}`,
-                    });
+        {period === 'week' ? (
+          <>
+            <ScrollView horizontal={false} showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: chartH, gap }}>
+                {weekBarData.map((b, i) => {
+                  const maxH = chartH - 20;
+                  const has = b.agg.entryCount > 0;
+                  const score = metric === 'stress' ? b.agg.avgStress : b.agg.avgEnergy;
+                  const h = has ? Math.max(8, (score / 5) * maxH) : 8;
+                  const fill = has ? b.agg.blendedColor : 'rgba(148,163,184,0.35)';
+                  return (
+                    <TouchableOpacity
+                      key={`${b.key}-${i}`}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        if (!has) {
+                          setTip({ label: b.label, text: 'No data' });
+                          return;
+                        }
+                        setTip({
+                          label: b.key
+                            ? new Date(b.key).toLocaleDateString('en-US', { weekday: 'long' })
+                            : b.label,
+                          text: `${
+                            metric === 'stress'
+                              ? stressCategoryLabel(b.agg.avgStress)
+                              : energyCategoryLabel(b.agg.avgEnergy)
+                          } · ${b.agg.entryCount} check-in${b.agg.entryCount === 1 ? '' : 's'}`,
+                          emotion: b.agg.dominantMood && b.agg.dominantMood !== '—' ? b.agg.dominantMood : undefined,
+                          color: b.agg.blendedColor,
+                        });
+                      }}
+                      style={{ width: barW, height: chartH, justifyContent: 'flex-end' }}
+                    >
+                      <AnimatedBar
+                        height={h}
+                        color={fill}
+                        delay={Math.min(220, i * 24)}
+                        animateKey={`week-${period}-${b.key}`}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+            <View style={{ flexDirection: 'row', gap, marginTop: 6 }}>
+              {weekBarData.map((b, i) => (
+                <Text
+                  key={`lbl-${i}`}
+                  style={{
+                    color: AURORA.textMuted,
+                    fontSize: 9,
+                    width: barW,
+                    textAlign: 'center',
                   }}
-                  style={{ width: barW, height: chartH, justifyContent: 'flex-end' }}
+                  numberOfLines={1}
                 >
-                  <View style={{ height: h, backgroundColor: fill, borderRadius: 4 }} />
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </ScrollView>
-        <ScrollView horizontal={period === 'month'} showsHorizontalScrollIndicator={false}>
-          <View style={{ flexDirection: 'row', gap, marginTop: 6 }}>
-            {barData.map((b, i) => (
-              <Text
-                key={`lbl-${i}`}
+                  {b.label}
+                </Text>
+              ))}
+            </View>
+            {tip ? (
+              <View
                 style={{
-                  color: AURORA.textMuted,
-                  fontSize: 9,
-                  width: barW,
-                  textAlign: 'center',
+                  marginTop: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  backgroundColor: 'rgba(91, 117, 255, 0.16)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(91, 117, 255, 0.28)',
                 }}
-                numberOfLines={1}
               >
-                {b.label}
-              </Text>
-            ))}
-          </View>
-        </ScrollView>
-        {tip ? (
-          <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 8 }}>
-            {tip.label}: {tip.text}
-          </Text>
-        ) : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                    <Text style={{ color: AURORA.textPrimary, fontSize: 12, fontWeight: '700', flexShrink: 1 }}>
+                      {tip.label}
+                    </Text>
+                    {tip.emotion ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        
+                        <Text style={{ fontSize: 11, fontWeight: '800' }}>
+                          <Text style={{ color: AURORA.textMuted }}>Dominant Mood: </Text>
+                          <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 999,
+                            backgroundColor: tip.color || AURORA.purple,
+                            borderWidth: 1,
+                            borderColor: 'rgba(255,255,255,0.45)',
+                            marginRight: 4,
+                          }}
+                        />
+                          <Text style={{ color: AURORA.textPrimary }}>{getEmotionLabel(tip.emotion)}</Text>
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                  {tip.text.split('·').map((part) => (
+                    <View
+                      key={`${tip.label}-${part.trim()}`}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 999,
+                        backgroundColor: 'rgba(124, 58, 237, 0.28)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(124, 58, 237, 0.55)',
+                      }}
+                    >
+                      <Text style={{ color: AURORA.textPrimary, fontSize: 11, fontWeight: '700' }}>
+                        {part.trim()}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator
+              minimumZoomScale={1}
+              maximumZoomScale={3}
+              pinchGestureEnabled
+              bouncesZoom
+              onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+                const z = e.nativeEvent.zoomScale ?? 1;
+                setLast30ZoomScale(z);
+              }}
+              scrollEventThrottle={16}
+            >
+              <View style={{ width: Math.max(520, chartW + 120), position: 'relative' }}>
+                {last30MonthStarts.map((m) => (
+                  <Text
+                    key={`wm-${m.index}-${m.label}`}
+                    style={{
+                      position: 'absolute',
+                      left: m.index * (14 + gap),
+                      top: 28,
+                      color: 'rgba(148,163,184,0.18)',
+                      fontSize: 18,
+                      fontWeight: '900',
+                      letterSpacing: 1.2,
+                    }}
+                  >
+                    {m.label}
+                  </Text>
+                ))}
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: chartH, gap }}>
+                  {last30BarData.map((b, i) => {
+                    const maxH = chartH - 20;
+                    const has = b.agg.entryCount > 0;
+                    const score = metric === 'stress' ? b.agg.avgStress : b.agg.avgEnergy;
+                    const h = has ? Math.max(8, (score / 5) * maxH) : 8;
+                    const fill = has ? b.agg.blendedColor : 'rgba(148,163,184,0.35)';
+                    const isMonthStart = b.date.getDate() === 1;
+                    const isFirst = i === 0;
+                    return (
+                      <View key={`${b.key}-${i}`} style={{ width: 14, height: chartH, justifyContent: 'flex-end', position: 'relative' }}>
+                        {(isMonthStart && !isFirst) ? (
+                          <View
+                            style={{
+                              position: 'absolute',
+                              left: -Math.round(gap / 2),
+                              top: 0,
+                              bottom: 0,
+                              width: 1,
+                              backgroundColor: 'rgba(148,163,184,0.45)',
+                            }}
+                          />
+                        ) : null}
+                        <TouchableOpacity
+                          activeOpacity={0.85}
+                          onPress={() => {
+                            if (!has) {
+                              setTip({
+                                label: b.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                                text: 'No data',
+                              });
+                              return;
+                            }
+                            setTip({
+                              label: b.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                              text: `${
+                                metric === 'stress'
+                                  ? stressCategoryLabel(b.agg.avgStress)
+                                  : energyCategoryLabel(b.agg.avgEnergy)
+                              } · ${b.agg.entryCount} check-in${b.agg.entryCount === 1 ? '' : 's'}`,
+                              emotion: b.agg.dominantMood && b.agg.dominantMood !== '—' ? b.agg.dominantMood : undefined,
+                              color: b.agg.blendedColor,
+                            });
+                          }}
+                          style={{ width: 14, height: chartH, justifyContent: 'flex-end' }}
+                        >
+                          <AnimatedBar
+                            height={h}
+                            color={fill}
+                            delay={Math.min(220, i * 10)}
+                            animateKey={`last30-${period}-${b.key}`}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+                <View style={{ flexDirection: 'row', gap, marginTop: 6 }}>
+                  {last30BarData.map((b, i) => (
+                    <View key={`lbl30-${i}`} style={{ width: 14, alignItems: 'center' }}>
+                      <Text
+                        style={{
+                          color: AURORA.textMuted,
+                          fontSize: 8,
+                          width: 14,
+                          textAlign: 'center',
+                        }}
+                        numberOfLines={1}
+                      >
+                        {showDenseLast30Labels || i % 3 === 0 || b.date.getDate() === 1 ? b.label : ''}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+              <View
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  backgroundColor: 'rgba(91, 117, 255, 0.16)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(91, 117, 255, 0.3)',
+                }}
+              >
+                <Text style={{ color: AURORA.textPrimary, fontSize: 11, fontWeight: '700' }}>
+                  {last30WithDataCount > 0
+                    ? `${last30WithDataCount}/30 logged`
+                    : 'No check-ins in the last 30 days yet'}
+                </Text>
+              </View>
+              {last30WithDataCount > 0 ? (
+                <View
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    backgroundColor: 'rgba(124, 58, 237, 0.18)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(124, 58, 237, 0.35)',
+                  }}
+                >
+                  <Text style={{ color: AURORA.textPrimary, fontSize: 11, fontWeight: '700' }}>
+                    {metric === 'stress'
+                      ? `Stress level: ${stressCategoryLabel(last30AvgStress)}`
+                      : `Energy level: ${energyCategoryLabel(last30AvgEnergy)}`}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            {tip ? (
+              <View
+                style={{
+                  marginTop: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  backgroundColor: 'rgba(91, 117, 255, 0.16)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(91, 117, 255, 0.28)',
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                    <Text style={{ color: AURORA.textPrimary, fontSize: 12, fontWeight: '700', flexShrink: 1 }}>
+                      {tip.label}
+                    </Text>
+                    {tip.emotion ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        
+                        <Text style={{ fontSize: 11, fontWeight: '800' }}>
+                          <Text style={{ color: AURORA.textMuted }}>Dominant Mood: </Text>
+                          <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 999,
+                            backgroundColor: tip.color || AURORA.purple,
+                            borderWidth: 1,
+                            borderColor: 'rgba(255,255,255,0.45)',
+                            marginRight: 4,
+                          }}
+                        />
+                          <Text style={{ color: AURORA.textPrimary }}>{getEmotionLabel(tip.emotion)}</Text>
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                  {tip.text.split('·').map((part) => (
+                    <View
+                      key={`${tip.label}-${part.trim()}`}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 999,
+                        backgroundColor: 'rgba(124, 58, 237, 0.28)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(124, 58, 237, 0.55)',
+                      }}
+                    >
+                      <Text style={{ color: AURORA.textPrimary, fontSize: 11, fontWeight: '700' }}>
+                        {part.trim()}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+          </>
+        )}
       </View>
 
-      {/* Widget A */}
-      <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700', marginBottom: 8 }}>Mood stability</Text>
-      <View
-        style={{
-          backgroundColor: AURORA.card,
-          borderRadius: 16,
-          padding: 18,
-          borderWidth: 1,
-          borderColor: AURORA.border,
-          marginBottom: 8,
-        }}
-      >
-        <Text style={{ fontSize: 42, fontWeight: '900', color: stability.blended }}>{stability.score}%</Text>
-        <Text style={{ color: AURORA.textPrimary, fontSize: 16, fontWeight: '700', marginTop: 4 }}>Mood Stability</Text>
-        <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 19, marginTop: 8 }}>
-          {stabilityCopy(stability.score)}
-        </Text>
-      </View>
     </View>
   );
 }

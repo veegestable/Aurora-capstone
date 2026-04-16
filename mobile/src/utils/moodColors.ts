@@ -11,15 +11,39 @@ export const EMOTION_LABELS = {
   surprise: 'Surprise',
   anger: 'Angry',
   sadness: 'Sad',
-  neutral: 'Neutral'
+  neutral: 'Neutral',
 } as const;
 
+/** Map API / model strings to one of the five student-facing mood names. */
+const EMOTION_ALIASES: Record<string, keyof typeof EMOTION_LABELS> = {
+  joy: 'joy',
+  happiness: 'joy',
+  happy: 'joy',
+  surprise: 'surprise',
+  surprised: 'surprise',
+  anger: 'anger',
+  angry: 'anger',
+  sadness: 'sadness',
+  sad: 'sadness',
+  neutral: 'neutral',
+};
+
 export function getEmotionColor(emotion: string): string {
-  return EMOTION_COLORS[emotion as keyof typeof EMOTION_COLORS] || EMOTION_COLORS.neutral;
+  const key = (emotion || '').toLowerCase().replace(/_/g, ' ');
+  const mapped = EMOTION_ALIASES[key];
+  if (mapped) return EMOTION_COLORS[mapped];
+  if (key in EMOTION_COLORS) return EMOTION_COLORS[key as keyof typeof EMOTION_COLORS];
+  return EMOTION_COLORS.neutral;
 }
 
 export function getEmotionLabel(emotion: string): string {
-  return EMOTION_LABELS[emotion as keyof typeof EMOTION_LABELS] || emotion;
+  const raw = (emotion || '').trim();
+  if (!raw || raw === '—' || raw === '-') return raw;
+  const key = raw.toLowerCase().replace(/_/g, ' ');
+  const mapped = EMOTION_ALIASES[key];
+  if (mapped) return EMOTION_LABELS[mapped];
+  if (key in EMOTION_LABELS) return EMOTION_LABELS[key as keyof typeof EMOTION_LABELS];
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
 
 export function blendColors(colors: string[]): string {
