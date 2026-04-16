@@ -9,6 +9,21 @@ export interface CounselorContact {
   isUnread: boolean
 }
 
+export interface StudentContact {
+  id: string
+  conversationId: string
+  name: string
+  preview: string
+  time: string
+  avatar: string
+  isOnline: boolean
+  isUnread: boolean
+  isAlerted: boolean
+  borderColor?: string
+  program?: string
+  studentId: string
+}
+
 export interface TextMessage {
   id: string
   senderId: 'me' | 'them'

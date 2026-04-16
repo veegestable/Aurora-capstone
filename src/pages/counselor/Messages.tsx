@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import { ContactRow } from '../../components/messages/ContactRow'
 import { DirectMessageView } from '../../components/messages/DirectMessageView'
-import type { CounselorContact } from '../../types/message.types'
+import type { StudentContact } from '../../types/message.types'
 
 type FilterTab = 'All Messages' | 'Unread' | 'Priority'
 
@@ -12,8 +12,8 @@ const TABS: FilterTab[] = ['All Messages', 'Unread', 'Priority']
 export default function Messages() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<FilterTab>('All Messages')
-  const [selectedContact, setSelectedContact] = useState<CounselorContact | null>(null)
-  const [contacts, setContacts] = useState<CounselorContact[]>([])
+  const [selectedContact, setSelectedContact] = useState<StudentContact | null>(null)
+  const [contacts, setContacts] = useState<StudentContact[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export default function Messages() {
     }
     let isCancelled = false
     messagesService
-      .getConversationsForStudent(user.id)
+      .getConversationsForCounselor(user.id)
       .then((convos) => {
         if (!isCancelled) setContacts(convos)
       })
@@ -39,7 +39,7 @@ export default function Messages() {
   const refreshConversations = () => {
     if (!user?.id) return
     messagesService
-      .getConversationsForStudent(user.id)
+      .getConversationsForCounselor(user.id)
       .then(setContacts)
       .catch(() => setContacts([]))
   }
@@ -63,7 +63,7 @@ export default function Messages() {
       ? contacts
       : activeTab === 'Unread'
         ? contacts.filter((c) => c.isUnread)
-        : contacts // "Priority" — show all for now
+        : contacts.filter((c) => c.isAlerted)
 
   const unreadCount = contacts.filter((c) => c.isUnread).length
 
@@ -79,7 +79,6 @@ export default function Messages() {
           {unreadCount} Unread Conversation{unreadCount !== 1 ? 's' : ''}
         </p>
       </div>
-
       {/* Filter Tabs */}
       <div className="flex border-b border-aurora-gray-200">
         {TABS.map((tab) => (
@@ -96,7 +95,6 @@ export default function Messages() {
           </button>
         ))}
       </div>
-
       {/* Contact List */}
       <div>
         {isLoading ? (
