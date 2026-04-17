@@ -9,10 +9,24 @@ import {
     classifyStress,
     energyLevelToMoodScale,
     type StressBand,
-    taskCountFromLog,
 } from './ethicsDailyAnalytics';
 
 export type DayStress = StressBand | 'None';
+const SCHOOL_EVENT_TAGS = new Set([
+    'classes',
+    'study',
+    'quiz',
+    'exam',
+    'homework',
+    'deadline',
+    'group-project',
+    'presentation',
+]);
+
+function schoolSignalCountFromLog(log: { event_tags?: string[] }): number {
+    const tags = Array.isArray(log.event_tags) ? log.event_tags : [];
+    return tags.filter((tag) => SCHOOL_EVENT_TAGS.has(tag)).length;
+}
 
 export interface WeeklySeriesPayload {
     dates: string[];
@@ -58,7 +72,7 @@ export function buildLast7DaysPayload(
             continue;
         }
         const mood = energyLevelToMoodScale(log.energy_level ?? 5);
-        const tasks = taskCountFromLog(log);
+        const tasks = schoolSignalCountFromLog(log);
         const stressScore = calculateStressLevel(mood, tasks);
         daily_mood.push(mood);
         daily_stress.push(classifyStress(stressScore));

@@ -34,7 +34,7 @@ interface DashboardSessionRequestModalProps {
     studentName?: string;
     studentAvatar?: string;
     onClose: () => void;
-    onSuccess: () => void;
+    onSuccess: (payload: { counselorId: string }) => void;
 }
 
 export default function DashboardSessionRequestModal({
@@ -88,7 +88,7 @@ export default function DashboardSessionRequestModal({
                         : undefined,
                 },
             );
-            onSuccess();
+            onSuccess({ counselorId: selectedCounselorId });
             onClose();
         } catch (e) {
             console.error('Failed to create session request:', e);
@@ -146,7 +146,11 @@ export default function DashboardSessionRequestModal({
                                     activeOpacity={0.8}
                                 >
                                     <View style={{ marginRight: 12 }}>
-                                        <LetterAvatar name={c.full_name ?? 'Counselor'} size={44} />
+                                        <LetterAvatar
+                                            name={c.full_name ?? 'Counselor'}
+                                            size={44}
+                                            avatarUrl={c.avatar_url}
+                                        />
                                     </View>
                                     <View style={styles.counselorInfo}>
                                         <Text style={styles.counselorName}>

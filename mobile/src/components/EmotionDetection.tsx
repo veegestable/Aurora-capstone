@@ -4,6 +4,7 @@ import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, X, RefreshCw } from 'lucide-react-native';
 import { AURORA } from '../constants/aurora-colors';
+import { getEmotionLabel } from '../utils/moodColors';
 
 interface DetectedEmotion {
     emotion: string;
@@ -13,6 +14,8 @@ interface DetectedEmotion {
 
 interface EmotionDetectionProps {
     onEmotionDetected: (emotions: DetectedEmotion[]) => void;
+    /** Card heading (default: Daily Selfie). */
+    title?: string;
 }
 
 const EMOTION_COLORS: Record<string, string> = {
@@ -37,7 +40,7 @@ const getEmotionColor = (emotionName: string): string => {
     return EMOTION_COLORS[normalized] || AURORA.moodNeutral;
 };
 
-export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
+export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: EmotionDetectionProps) {
     const [isCameraVisible, setIsCameraVisible] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -182,7 +185,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
 
     return (
         <View style={{ backgroundColor: AURORA.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: AURORA.border }}>
-            <Text style={{ fontSize: 20, fontWeight: '600', color: AURORA.textPrimary, marginBottom: 16 }}>AI Emotion Detection</Text>
+            <Text style={{ fontSize: 20, fontWeight: '600', color: AURORA.textPrimary, marginBottom: 16 }}>{title}</Text>
 
             {!capturedImage ? (
                 <View style={{ flexDirection: 'row', gap: 16 }}>
@@ -225,7 +228,7 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
                                 return (
                                     <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                                         <View style={{ backgroundColor: emotionColor, width: 16, height: 16, borderRadius: 8, marginRight: 10 }} />
-                                        <Text style={{ flex: 1, textTransform: 'capitalize', color: emotionColor, fontWeight: '600' }}>{emotion.emotion}</Text>
+                                        <Text style={{ flex: 1, color: emotionColor, fontWeight: '600' }}>{getEmotionLabel(emotion.emotion)}</Text>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1.2 }}>
                                             <View style={{ flex: 1, height: 8, backgroundColor: AURORA.cardAlt, borderRadius: 4, marginRight: 10 }}>
                                                 <View style={{ height: '100%', backgroundColor: emotionColor, borderRadius: 4, width: `${emotion.confidence * 100}%` }} />

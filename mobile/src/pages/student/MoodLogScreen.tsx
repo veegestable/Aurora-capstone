@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, Image,
-    Modal, Platform, Animated, Easing
+    Modal, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, TrendingUp, Lightbulb, Camera, MessageSquare, BookOpen, X, CalendarPlus } from 'lucide-react-native';
+import { Bell, TrendingUp, Lightbulb, Camera, MessageSquare, BookOpen, X, CalendarPlus, ScanFace } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { router } from 'expo-router';
 import { moodService } from '../../services/mood.service';
+import type { MoodData } from '../../services/firebase-firestore.service';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../../components/common/LetterAvatar';
 import { MoodCheckIn } from '../../components/MoodCheckIn';
@@ -19,9 +20,18 @@ import {
     classifyStress,
     energyLevelToMoodScale,
     getDailyFeedback,
-    taskCountFromLog,
 } from '../../utils/analytics/ethicsDailyAnalytics';
-import { calculateCheckInStreak } from '../../utils/analytics/dateKeys';
+import {
+    moodCategoryFromFive,
+    stressCategoryFromFive,
+    energyCategoryFromFive,
+} from '../../utils/analytics/metricCategories';
+import { getEmotionLabel } from '../../utils/moodColors';
+import { calculateCheckInStreakByDayKey } from '../../utils/analytics/dateKeys';
+import { getDayKey } from '../../utils/dayKey';
+import { moodLogsToMoodEntries } from '../../utils/moodEntryNormalize';
+import { aggregateByDay } from '../../utils/moodAggregates';
+import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
 const MOOD_EMOTIONS = [
@@ -158,7 +168,7 @@ function AIInsightCard({ insight }: { insight: string }) {
         <View style={{
             backgroundColor: AURORA.card, borderRadius: 18,
             padding: 16, flexDirection: 'row', alignItems: 'flex-start',
-            gap: 12, borderWidth: 1, borderColor: AURORA.border,
+            gap: 12, borderWidth: 1, borderColor: AURORA.border, marginBottom: 16,
         }}>
             <View style={{
                 width: 44, height: 44, borderRadius: 22,
@@ -178,6 +188,7 @@ function AIInsightCard({ insight }: { insight: string }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function MoodLogScreen() {
     const { user } = useAuth();
+    const { dayResetHour, timezone } = useUserDaySettings();
     const [selectedMood, setSelectedMood] = useState<string | null>(null);
     const [showLogModal, setShowLogModal] = useState(false);
     const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
@@ -190,7 +201,7 @@ export default function MoodLogScreen() {
 
     useEffect(() => {
         loadStats();
-    }, [user]);
+    }, [user, dayResetHour, timezone]);
 
     const loadStats = async () => {
         if (!user) return;
@@ -219,18 +230,52 @@ export default function MoodLogScreen() {
                     topEmotion = e;
                 }
             });
-            const streak = calculateCheckInStreak(logs as { log_date: Date }[], new Date());
+            const keys = new Set(
+                moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone)
+                    .map((e) => e.dayKey)
+                    .filter((x): x is string => !!x)
+            );
+            const streak = calculateCheckInStreakByDayKey(keys, new Date(), dayResetHour, timezone);
             setStats({ streak, topEmotion });
+            const dk = getDayKey(new Date(), dayResetHour, timezone);
+            const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
+            const todayAgg = aggregateByDay(entries, dk);
             const sorted = [...logs].sort((a: any, b: any) => {
                 const da = a.log_date instanceof Date ? a.log_date : new Date(a.log_date);
                 const db = b.log_date instanceof Date ? b.log_date : new Date(b.log_date);
                 return db.getTime() - da.getTime();
             });
-            const latest = sorted[0];
-            const moodScale = energyLevelToMoodScale(latest.energy_level ?? 5);
-            const tasks = taskCountFromLog(latest);
+            const latest = sorted[0] as any;
+            const moodScale =
+                todayAgg.entryCount > 0
+                    ? Math.min(5, Math.max(1, Math.round(todayAgg.avgEnergy)))
+                    : energyLevelToMoodScale(latest?.energy_level ?? 5);
+            const latestTags = Array.isArray(latest?.event_tags) ? latest.event_tags : [];
+            const tasks = latestTags.filter((t: string) =>
+                ['classes', 'study', 'quiz', 'exam', 'homework', 'deadline', 'group-project', 'presentation'].includes(t)
+            ).length;
             const band = classifyStress(calculateStressLevel(moodScale, tasks));
-            setInsight(getDailyFeedback(band, moodScale));
+            let line = getDailyFeedback(band, moodScale);
+            if (todayAgg.entryCount > 0) {
+                const moodOnFive = Math.min(5, Math.max(1, Math.round(todayAgg.avgIntensity / 2)));
+                const dominantLabel = getEmotionLabel(todayAgg.dominantMood);
+                const moodCat = moodCategoryFromFive(moodOnFive);
+                const stressCat = stressCategoryFromFive(todayAgg.avgStress);
+                const energyCat = energyCategoryFromFive(todayAgg.avgEnergy);
+                if (todayAgg.entryCount === 1) {
+                    line =
+                        `${line} Your dominant emotion was ${dominantLabel}. In that check-in, your mood was ${moodCat}, ` +
+                        `your stress was ${stressCat}, and your energy was ${energyCat}.`;
+                } else {
+                    line =
+                        `${line} Your dominant emotion was ${dominantLabel}. Across ${todayAgg.entryCount} check-ins today, ` +
+                        `your mood was ${moodCat}, your stress was ${stressCat}, and your energy was ${energyCat}.`;
+                }
+            }
+            if (tasks > 0) {
+                line = `${line} School context was captured in this check-in.`;
+            }
+            setInsight(line);
         } catch {
             setStats({ streak: 0, topEmotion: 'happy' });
         }
@@ -340,6 +385,53 @@ export default function MoodLogScreen() {
                     {/* ── AI Insight ─────────────────────────────────────────── */}
                     <AIInsightCard insight={insight} />
 
+                    <TouchableOpacity
+                        onPress={() => {
+                            triggerHaptic('light');
+                            router.push('/(student)/daily-selfie');
+                        }}
+                        activeOpacity={0.85}
+                        style={{
+                            backgroundColor: AURORA.card,
+                            borderRadius: 20,
+                            padding: 18,
+                            marginBottom: 12,
+                            borderWidth: 1,
+                            borderColor: AURORA.border,
+                            position: 'relative',
+                        }}
+                    >
+                        <View style={{
+                            position: 'absolute',
+                            top: 14,
+                            right: 14,
+                            paddingHorizontal: 8,
+                            paddingVertical: 3,
+                            borderRadius: 8,
+                            backgroundColor: 'rgba(148,163,184,0.2)',
+                        }}>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>Preview</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                            <View style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 14,
+                                backgroundColor: 'rgba(45,107,255,0.2)',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}>
+                                <ScanFace size={24} color={AURORA.blue} />
+                            </View>
+                            <View style={{ flex: 1, paddingRight: 56 }}>
+                                <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '800' }}>Daily Selfie</Text>
+                                <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 4 }}>
+                                    See what Aurora notices today
+                                </Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+
                     {/* ── Announcements (dynamic, from admin/counselor) ───────── */}
                     <AnnouncementSection role="student" />
                 </ScrollView>
@@ -352,7 +444,12 @@ export default function MoodLogScreen() {
                 studentName={user?.full_name}
                 studentAvatar={user?.avatar_url}
                 onClose={() => setShowSessionRequestModal(false)}
-                onSuccess={() => router.push('/(student)/messages')}
+                onSuccess={({ counselorId }) =>
+                    router.push({
+                        pathname: '/(student)/messages',
+                        params: { counselorId, openSessionRequest: '1' },
+                    } as any)
+                }
             />
 
             {/* ── Log Mood Modal ─────────────────────────────────────────────── */}
@@ -377,10 +474,11 @@ export default function MoodLogScreen() {
                                 <X size={22} color={AURORA.textSec} />
                             </TouchableOpacity>
                         </View>
-                        <MoodCheckIn onComplete={() => { setShowLogModal(false); setSelectedMood(null); }} />
+                        <MoodCheckIn onComplete={() => { setShowLogModal(false); setSelectedMood(null); loadStats(); }} />
                     </View>
                 </Modal>
             )}
+
         </View>
     );
 }

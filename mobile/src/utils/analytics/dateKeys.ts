@@ -1,3 +1,5 @@
+import { getDayKey } from '../dayKey';
+
 /** Calendar day key in local terms (avoids UTC drift for "today"). */
 export function calendarDayKeyLocal(d: Date): string {
     const y = d.getFullYear();
@@ -31,6 +33,24 @@ export function calculateCheckInStreak(logs: { log_date: Date }[], fromDate = ne
     const d = new Date(fromDate);
     d.setHours(12, 0, 0, 0);
     while (keys.has(calendarDayKeyLocal(d))) {
+        streak++;
+        d.setDate(d.getDate() - 1);
+    }
+    return streak;
+}
+
+/** Streak using explicit Aurora `dayKey` values (respects day reset hour). */
+export function calculateCheckInStreakByDayKey(
+    dayKeys: Iterable<string>,
+    fromDate = new Date(),
+    resetHour: number,
+    timezone: string
+): number {
+    const keys = new Set(dayKeys);
+    let streak = 0;
+    const d = new Date(fromDate);
+    d.setHours(12, 0, 0, 0);
+    while (keys.has(getDayKey(d, resetHour, timezone))) {
         streak++;
         d.setDate(d.getDate() - 1);
     }

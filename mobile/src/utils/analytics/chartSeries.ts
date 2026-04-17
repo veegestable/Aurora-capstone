@@ -8,7 +8,6 @@ import {
     calculateStressLevel,
     classifyMood,
     energyLevelToMoodScale,
-    taskCountFromLog,
 } from './ethicsDailyAnalytics';
 
 export interface DailyChartPoint {
@@ -17,6 +16,22 @@ export interface DailyChartPoint {
     moodScale: number | null;
     stressScore: number | null;
     tasks: number;
+}
+
+const SCHOOL_EVENT_TAGS = new Set([
+    'classes',
+    'study',
+    'quiz',
+    'exam',
+    'homework',
+    'deadline',
+    'group-project',
+    'presentation',
+]);
+
+function schoolSignalCountFromLog(log: { event_tags?: string[] }): number {
+    const tags = Array.isArray(log.event_tags) ? log.event_tags : [];
+    return tags.filter((tag) => SCHOOL_EVENT_TAGS.has(tag)).length;
 }
 
 function latestLogForDay(
@@ -55,7 +70,7 @@ export function buildDailyChartPoints(
             continue;
         }
         const moodScale = energyLevelToMoodScale(log.energy_level ?? 5);
-        const tasks = taskCountFromLog(log);
+        const tasks = schoolSignalCountFromLog(log);
         const stressScore = calculateStressLevel(moodScale, tasks);
         out.push({ dateKey: key, labelShort, moodScale, stressScore, tasks });
     }

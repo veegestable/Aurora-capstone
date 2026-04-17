@@ -1,25 +1,57 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Image, PanResponder } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Image, PanResponder, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import * as Animatable from 'react-native-animatable';
-import { EmotionDetection } from './EmotionDetection';
+import { SvgUri } from 'react-native-svg';
+import Animated, {
+    Easing,
+    ReduceMotion,
+    cancelAnimation,
+    interpolate,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withTiming,
+} from 'react-native-reanimated';
+import {
+    ArrowLeft,
+    ArrowRight,
+    Briefcase,
+    Check,
+    GraduationCap,
+    Heart,
+    MoonStar,
+    PartyPopper,
+    ShieldPlus,
+    Sparkles,
+    Users,
+    Zap,
+    MessageSquare,
+} from 'lucide-react-native';
 import { moodService } from '../services/mood.service';
-import { useAuth } from '../stores/AuthContext';
-import { Sparkles, Zap, ClipboardList, ArrowLeft, ArrowRight, Check, Camera, Hand, Moon, Heart, PenLine } from 'lucide-react-native';
 import { AURORA } from '../constants/aurora-colors';
+import { useAuth } from '../stores/AuthContext';
+import { useUserDaySettings } from '../stores/UserDaySettingsContext';
 import {
     calculateStressLevel,
     classifyStress,
-    energyLevelToMoodScale,
     getDailyFeedback,
-    taskCountFromLog,
 } from '../utils/analytics/ethicsDailyAnalytics';
 import { logSuddenMoodDropIfNeeded } from '../utils/analytics/suddenMoodChange';
 import { getMostRecentLogNotOnSameCalendarDay } from '../utils/analytics/dateKeys';
+import { getDayKey } from '../utils/dayKey';
+import {
+    getDailyContext,
+    setDailyContext,
+    type ContextCategoryKey,
+    type DailyContextDoc,
+    type SleepQuality,
+} from '../services/mood-firestore-v2.service';
 
 interface MoodCheckInProps {
     onComplete?: () => void;
 }
-
 
 interface DetectedEmotion {
     emotion: string;
@@ -27,16 +59,37 @@ interface DetectedEmotion {
     color: string;
 }
 
-const SimpleSlider = ({ value, onValueChange, minimumTrackTintColor, thumbTintColor, onSlidingStart, onSlidingComplete }: any) => {
+type CategoryConfig = {
+    key: ContextCategoryKey;
+    title: string;
+    helper: string;
+    icon: React.ReactNode;
+    tags: string[];
+};
+
+const SCHOOL_TAGS = ['classes', 'study', 'quiz', 'exam', 'homework', 'deadline', 'group-project', 'presentation'];
+
+const MANUAL_EMOTIONS = [
+    { name: 'joy', color: AURORA.moodHappy, label: 'Happy', image: require('../assets/moods3d/happy-3d.png'), svg: require('../assets/moodsSvg/happy1.svg') },
+    { name: 'sadness', color: AURORA.moodSad, label: 'Sad', image: require('../assets/moods3d/sad-3d.png'), svg: require('../assets/moodsSvg/sad.svg') },
+    { name: 'anger', color: AURORA.moodAngry, label: 'Angry', image: require('../assets/moods3d/angry-3d.png'), svg: require('../assets/moodsSvg/angry.svg') },
+    { name: 'surprise', color: AURORA.moodSurprise, label: 'Surprise', image: require('../assets/moods3d/surprise-3d.png'), svg: require('../assets/moodsSvg/surprise.svg') },
+    { name: 'neutral', color: AURORA.moodNeutral, label: 'Neutral', image: require('../assets/moods3d/neutral-3d.png'), svg: require('../assets/moodsSvg/neutral4.svg') },
+];
+
+const SimpleSlider = ({
+    value,
+    onValueChange,
+    minimumTrackTintColor,
+    thumbTintColor,
+    onSlidingStart,
+    onSlidingComplete,
+}: any) => {
     const widthRef = useRef(0);
     const startValue = useRef(0);
-
-    // Refs for callbacks to ensure PanResponder always uses the latest functions
     const onValueChangeRef = useRef(onValueChange);
     const onSlidingStartRef = useRef(onSlidingStart);
     const onSlidingCompleteRef = useRef(onSlidingComplete);
-
-    // Keep refs updated
     onValueChangeRef.current = onValueChange;
     onSlidingStartRef.current = onSlidingStart;
     onSlidingCompleteRef.current = onSlidingComplete;
@@ -47,864 +100,682 @@ const SimpleSlider = ({ value, onValueChange, minimumTrackTintColor, thumbTintCo
             onMoveShouldSetPanResponderCapture: () => true,
             onPanResponderTerminationRequest: () => false,
             onPanResponderGrant: (evt) => {
-                if (onSlidingStartRef.current) onSlidingStartRef.current();
-                const tapX = evt.nativeEvent.locationX;
+                onSlidingStartRef.current?.();
                 const width = widthRef.current;
-                if (width > 0) {
-                    const val = Math.max(0, Math.min(1, tapX / width));
-                    startValue.current = val;
-                    if (onValueChangeRef.current) onValueChangeRef.current(val);
-                }
+                if (width <= 0) return;
+                const val = Math.max(0, Math.min(1, evt.nativeEvent.locationX / width));
+                startValue.current = val;
+                onValueChangeRef.current?.(val);
             },
-            onPanResponderMove: (evt, gestureState) => {
-                const { dx } = gestureState;
+            onPanResponderMove: (_evt, gestureState) => {
                 const width = widthRef.current;
-                if (width > 0) {
-                    const newVal = Math.max(0, Math.min(1, startValue.current + (dx / width)));
-                    if (onValueChangeRef.current) onValueChangeRef.current(newVal);
-                }
+                if (width <= 0) return;
+                const newVal = Math.max(0, Math.min(1, startValue.current + gestureState.dx / width));
+                onValueChangeRef.current?.(newVal);
             },
-            onPanResponderRelease: () => {
-                if (onSlidingCompleteRef.current) onSlidingCompleteRef.current();
-            },
-            onPanResponderTerminate: () => {
-                if (onSlidingCompleteRef.current) onSlidingCompleteRef.current();
-            },
+            onPanResponderRelease: () => onSlidingCompleteRef.current?.(),
+            onPanResponderTerminate: () => onSlidingCompleteRef.current?.(),
         })
     ).current;
 
     return (
         <View
             style={{ height: 40, width: '100%', justifyContent: 'center' }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onLayout={(e) => {
                 widthRef.current = e.nativeEvent.layout.width;
             }}
             {...panResponder.panHandlers}
         >
             <View pointerEvents="none" style={{ height: 4, backgroundColor: AURORA.cardAlt, borderRadius: 2 }}>
-                <View style={{
-                    width: `${value * 100}%`,
-                    height: '100%',
-                    backgroundColor: minimumTrackTintColor,
-                    borderRadius: 2
-                }} />
+                <View style={{ width: `${value * 100}%`, height: '100%', backgroundColor: minimumTrackTintColor, borderRadius: 2 }} />
             </View>
-            <View pointerEvents="none" style={{
-                position: 'absolute',
-                left: `${value * 100}%`,
-                marginLeft: -10,
-                width: 20,
-                height: 20,
-                borderRadius: 10,
-                backgroundColor: thumbTintColor,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 3.84,
-                elevation: 5,
-                borderWidth: 2,
-                borderColor: AURORA.bg
-            }} />
+            <View
+                pointerEvents="none"
+                style={{
+                    position: 'absolute',
+                    left: `${value * 100}%`,
+                    marginLeft: -10,
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: thumbTintColor,
+                    borderWidth: 2,
+                    borderColor: AURORA.bg,
+                }}
+            />
         </View>
     );
 };
 
-const EMOTION_COLOR_MAP: Record<string, string> = {
-    joy: AURORA.moodHappy,
-    happiness: AURORA.moodHappy,
-    happy: AURORA.moodHappy,
-    surprise: AURORA.moodSurprise,
-    surprised: AURORA.moodSurprise,
-    anger: AURORA.moodAngry,
-    angry: AURORA.moodAngry,
-    sadness: AURORA.moodSad,
-    sad: AURORA.moodSad,
-    neutral: AURORA.moodNeutral,
-    fear: '#9333EA',
-    fearful: '#9333EA',
-    disgust: '#059669',
-    disgusted: '#059669',
-};
-
-const getEmotionColor = (emotionName: string): string => {
-    const normalized = emotionName.toLowerCase().trim();
-    return EMOTION_COLOR_MAP[normalized] || AURORA.moodNeutral;
-};
-
-const MANUAL_EMOTIONS = [
-    { name: 'joy', color: AURORA.moodHappy, label: 'Happy', image: require('../assets/happy.png') },
-    { name: 'sadness', color: AURORA.moodSad, label: 'Sad', image: require('../assets/sad.png') },
-    { name: 'anger', color: AURORA.moodAngry, label: 'Angry', image: require('../assets/angry.png') },
-    { name: 'surprise', color: AURORA.moodSurprise, label: 'Surprise', image: require('../assets/surprise.png') },
-    { name: 'neutral', color: AURORA.moodNeutral, label: 'Neutral', image: require('../assets/neutral.png') }
-];
-
-type CheckInMode = 'manual' | 'camera';
-
 export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
     const { user } = useAuth();
+    const { dayResetHour, timezone, academicContextEnabled, enabledContextCategories } = useUserDaySettings();
+
     const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>([]);
-    const [notes, setNotes] = useState('');
-    const [isManualMode, setIsManualMode] = useState(true);
+    const [intensityTen, setIntensityTen] = useState(6);
+    const [energyLevel, setEnergyLevel] = useState(3);
+    const [stressLevel, setStressLevel] = useState(3);
+    const [sleepQuality, setSleepQuality] = useState<SleepQuality | null>(null);
+    const [dailyContext, setDailyContextState] = useState<DailyContextDoc | null>(null);
+    const [sleepCapturedToday, setSleepCapturedToday] = useState(false);
+    const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+    const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
-    const [energyLevel, setEnergyLevel] = useState(5);
-    const [stressLevel, setStressLevel] = useState(3);
-    const [existingLogId, setExistingLogId] = useState<string | null>(null);
-    const [classesCount, setClassesCount] = useState(0);
-    const [examsCount, setExamsCount] = useState(0);
-    const [deadlinesCount, setDeadlinesCount] = useState(0);
-    const [sleepQuality, setSleepQuality] = useState<number>(2); // 1: poor, 2: fair, 3: good
-    const [currentStep, setCurrentStep] = useState(1);
+    const [dayKey, setDayKey] = useState('');
     const [isScrollEnabled, setIsScrollEnabled] = useState(true);
-    const totalSteps = 3;
-    const selectedEmotion = selectedEmotions[0];
 
-    const loadDailyMood = async () => {
-        if (user) {
-            try {
-                const log = await moodService.getTodayMoodLog(user.id);
-                if (log) {
-                    setExistingLogId(log.id);
-                    setSelectedEmotions(log.emotions);
-                    setNotes(log.notes);
-                    setEnergyLevel(log.energy_level);
-                    setStressLevel(log.stress_level);
-                    setIsManualMode(log.detection_method === 'manual');
-                    if (log.classes_count !== undefined) setClassesCount(log.classes_count);
-                    if (log.exams_count !== undefined) setExamsCount(log.exams_count);
-                    if (log.deadlines_count !== undefined) setDeadlinesCount(log.deadlines_count);
-                    if (log.sleep_quality !== undefined) {
-                        // Handle both number and legacy string types
-                        const val = log.sleep_quality as any;
-                        if (typeof val === 'number') {
-                            setSleepQuality(val);
-                        } else if (val === 'poor') {
-                            setSleepQuality(1);
-                        } else if (val === 'fair') {
-                            setSleepQuality(2);
-                        } else if (val === 'good') {
-                            setSleepQuality(3);
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Error checking existing mood log:', error);
-            }
-        }
+    const selectedEmotion = selectedEmotions[0];
+    const selectedManualEmotion =
+        MANUAL_EMOTIONS.find((emotion) => emotion.name === selectedEmotion?.emotion) ?? MANUAL_EMOTIONS[4];
+    const firstName = user?.full_name ? user.full_name.split(' ')[0] : 'there';
+    const totalSteps = 3;
+
+    const floatingProgress = useSharedValue(0);
+    useEffect(() => {
+        floatingProgress.value = withRepeat(
+            withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.sin), reduceMotion: ReduceMotion.Never }),
+            -1,
+            true
+        );
+        return () => cancelAnimation(floatingProgress);
+    }, [floatingProgress]);
+
+    const floatingMoodStyle = useAnimatedStyle(() => ({
+        transform: [
+            { translateY: interpolate(floatingProgress.value, [0, 1], [0, -10]) },
+            { scale: interpolate(floatingProgress.value, [0, 1], [1, 1.02]) },
+        ],
+    }));
+    const floatingShadowStyle = useAnimatedStyle(() => ({
+        opacity: interpolate(floatingProgress.value, [0, 1], [0.24, 0.12]),
+        transform: [
+            { scaleX: interpolate(floatingProgress.value, [0, 1], [1, 0.86]) },
+            { scaleY: interpolate(floatingProgress.value, [0, 1], [1, 0.86]) },
+        ],
+    }));
+
+    const renderMoodVisual = (emotion: (typeof MANUAL_EMOTIONS)[0], size: number) => {
+        const source = Image.resolveAssetSource(emotion.svg);
+        if (source?.uri) return <SvgUri uri={source.uri} width={size} height={size} />;
+        return <Image source={emotion.image} style={{ width: size, height: size }} resizeMode="contain" />;
     };
 
+    const enabledCategorySet = new Set<ContextCategoryKey>(enabledContextCategories);
+    const isCategoryEnabled = (k: ContextCategoryKey) =>
+        k === 'school' ? academicContextEnabled && enabledCategorySet.has('school') : enabledCategorySet.has(k);
+
+    const categoryConfigs: CategoryConfig[] = [
+        { key: 'school' as const, title: 'School', helper: 'Academic activities and pressure.', icon: <GraduationCap size={16} color={AURORA.blue} />, tags: SCHOOL_TAGS },
+        { key: 'health' as const, title: 'Health', helper: 'Physical condition and body signals.', icon: <ShieldPlus size={16} color={AURORA.green} />, tags: ['headache', 'pain', 'sick', 'medication', 'exercise', 'nap', 'period', 'low-appetite', 'binge-eating'] },
+        { key: 'social' as const, title: 'Social', helper: 'Relationships and interactions.', icon: <Users size={16} color={AURORA.purple} />, tags: ['friends', 'family', 'partner', 'conflict', 'alone', 'social-media'] },
+        { key: 'fun' as const, title: 'Fun / Leisure', helper: 'Recreation and enjoyment.', icon: <PartyPopper size={16} color={AURORA.amber} />, tags: ['gaming', 'movie-series', 'music', 'travel', 'shopping', 'restaurant', 'hobby', 'outdoor'] },
+        { key: 'productivity' as const, title: 'Productivity', helper: 'Workload and life tasks.', icon: <Briefcase size={16} color={AURORA.red} />, tags: ['work', 'chores', 'finance', 'commute', 'screen-overload'] },
+    ].filter((x) => isCategoryEnabled(x.key));
+
     useEffect(() => {
-        loadDailyMood();
-    }, [user]);
+        setDayKey(getDayKey(new Date(), dayResetHour, timezone));
+    }, [dayResetHour, timezone]);
+
+    useEffect(() => {
+        const loadDaily = async () => {
+            if (!user?.id || !dayKey) return;
+            try {
+                const ctx = await getDailyContext(user.id, dayKey);
+                setDailyContextState(ctx);
+                if (ctx?.sleepQuality) {
+                    setSleepQuality(ctx.sleepQuality);
+                    setSleepCapturedToday(true);
+                } else {
+                    setSleepCapturedToday(false);
+                }
+            } catch {
+                setDailyContextState(null);
+                setSleepCapturedToday(false);
+            }
+        };
+        loadDaily();
+    }, [user?.id, dayKey]);
+
+    const closeModalThenRoute = (path: '/(student)/messages' | '/(student)/resources') => {
+        onComplete?.();
+        setTimeout(() => router.push(path), 0);
+    };
+
+    const toggleTag = (tag: string) => {
+        setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag]));
+    };
 
     const handleNext = () => {
         if (currentStep === 1 && selectedEmotions.length === 0) {
-            Alert.alert('Please select a mood', 'How are you feeling right now?');
+            Alert.alert('Please select a mood', 'Pick your current emotion before continuing.');
             return;
         }
-        if (currentStep < totalSteps) setCurrentStep(c => c + 1);
-    };
-
-    const handleBack = () => {
-        if (currentStep > 1) setCurrentStep(c => c - 1);
-    };
-
-    const handleAIEmotionDetected = (emotions: DetectedEmotion[]) => {
-        // Ensure each emotion has the correct color from our mapping
-        const emotionsWithColors = emotions.map(e => ({
-            ...e,
-            color: getEmotionColor(e.emotion)
-        }));
-        setSelectedEmotions(emotionsWithColors);
-        setIsManualMode(false);
-    };
-
-    const handleModeSwitch = (manual: boolean) => {
-        // Clear selected emotions when switching modes to prevent stacking
-        if (manual !== isManualMode) {
-            setSelectedEmotions([]);
+        if (currentStep === 2 && !sleepCapturedToday && !sleepQuality) {
+            Alert.alert('Sleep quality is required', 'Please set sleep quality once for today.');
+            return;
         }
-        setIsManualMode(manual);
-    };
-
-    const handleManualEmotionToggle = (emotion: typeof MANUAL_EMOTIONS[0]) => {
-        // Normalize emotion name for comparison (handle variants like "angry" vs "anger")
-        const normalizeEmotionName = (name: string) => {
-            const variants: Record<string, string> = {
-                anger: 'angry',
-                angry: 'angry',
-                sadness: 'sad',
-                sad: 'sad',
-                joy: 'happy',
-                happiness: 'happy',
-                happy: 'happy',
-                surprise: 'surprise',
-                surprised: 'surprise',
-                neutral: 'neutral',
-            };
-            return variants[name.toLowerCase()] || name.toLowerCase();
-        };
-
-        const normalizedNew = normalizeEmotionName(emotion.name);
-        const existing = selectedEmotions.find(e => normalizeEmotionName(e.emotion) === normalizedNew);
-        
-        if (existing) {
-            // Remove the emotion (toggle off)
-            setSelectedEmotions(prev => prev.filter(e => normalizeEmotionName(e.emotion) !== normalizedNew));
-        } else {
-            // Add new emotion, but first remove any variant that might exist
-            setSelectedEmotions(prev => [
-                ...prev.filter(e => normalizeEmotionName(e.emotion) !== normalizedNew),
-                {
-                    emotion: emotion.name,
-                    confidence: 0.7,
-                    color: emotion.color
-                }
-            ]);
-        }
-    };
-
-    const checkCounselorReferral = (stress: number, emotions: DetectedEmotion[]) => {
-        const negativeEmotions = ['sadness', 'anger', 'fear'];
-        const hasHighNegativeEmotion = emotions.some(e =>
-            negativeEmotions.includes(e.emotion) && e.confidence > 0.6
-        );
-
-        if (stress >= 8 || hasHighNegativeEmotion) {
-            Alert.alert(
-                'Need Support?',
-                'It looks like you might be going through a tough time. Would you like to connect with a counselor?',
-                [
-                    { text: 'No thanks', style: 'cancel' },
-                    { text: 'Yes, please', onPress: () => {
-                        onComplete?.();
-                    }}
-                ]
-            );
-        }
+        if (currentStep < totalSteps) setCurrentStep((c) => c + 1);
     };
 
     const handleSubmit = async () => {
-        if (selectedEmotions.length === 0) {
-            Alert.alert('Error', 'Please select at least one emotion');
-            return;
-        }
-
         if (!user) {
             Alert.alert('Error', 'Please log in to save mood');
             return;
         }
+        if (selectedEmotions.length === 0 || (!sleepCapturedToday && !sleepQuality)) {
+            Alert.alert('Missing data', 'Mood is required. Sleep quality is needed only once per day.');
+            return;
+        }
 
+        const dk = dayKey || getDayKey(new Date(), dayResetHour, timezone);
         try {
             setIsSubmitting(true);
-
-            checkCounselorReferral(stressLevel, selectedEmotions);
-
-            const moodData = {
-                emotions: selectedEmotions,
-                notes,
+            await moodService.createMoodLog({
+                emotions: selectedEmotions.map((e) => ({ ...e, confidence: intensityTen / 10 })),
                 log_date: new Date(),
-                energy_level: energyLevel,
-                stress_level: stressLevel,
-                classes_count: classesCount,
-                exams_count: examsCount,
-                deadlines_count: deadlinesCount,
-                sleep_quality: sleepQuality,
-                detection_method: isManualMode ? 'manual' : 'ai' as const
-            };
+                energy_level: energyLevel * 2,
+                stress_level: stressLevel * 2,
+                sleep_quality: sleepQuality || 'fair',
+                dayKey: dk,
+                event_categories: categoryConfigs.filter((c) => c.tags.some((t) => selectedTags.includes(t))).map((c) => c.key),
+                event_tags: selectedTags,
+                detection_method: 'manual',
+            });
 
-            if (existingLogId) {
-                await moodService.updateMoodLog(existingLogId, moodData);
-            } else {
-                const newLog = await moodService.createMoodLog(moodData);
-                setExistingLogId(newLog.id);
+            const shouldUpdateDailyContext = !sleepCapturedToday && !!sleepQuality;
+            if (shouldUpdateDailyContext) {
+                const existing = await getDailyContext(user.id, dk);
+                await setDailyContext(user.id, dk, {
+                    exams: existing?.exams || 0,
+                    quizzes: existing?.quizzes || 0,
+                    deadlines: existing?.deadlines || 0,
+                    assignments: existing?.assignments || 0,
+                    notes: existing?.notes || '',
+                    sleepQuality: existing?.sleepQuality || sleepQuality || undefined,
+                });
             }
 
             try {
                 const weekAgo = new Date();
                 weekAgo.setDate(weekAgo.getDate() - 14);
-                const recent = await moodService.getMoodLogs(
-                    user.id,
-                    weekAgo.toISOString(),
-                    new Date().toISOString()
-                );
-                const prev = getMostRecentLogNotOnSameCalendarDay(recent, new Date());
-                logSuddenMoodDropIfNeeded(prev?.energy_level, energyLevel);
+                const recent = await moodService.getMoodLogs(user.id, weekAgo.toISOString(), new Date().toISOString());
+                const prev = getMostRecentLogNotOnSameCalendarDay(recent as { log_date: Date; energy_level?: number }[], new Date());
+                logSuddenMoodDropIfNeeded(prev?.energy_level, energyLevel * 2);
             } catch {
-                /* silent — no user-facing interpretation */
+                // no-op
             }
 
-            // Instead of resetting, show the success view
             setIsSubmitting(false);
             setIsSubmitted(true);
-            await loadDailyMood(); // Reload to ensure we have the latest state (e.g. ID)
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to check in');
             setIsSubmitting(false);
+            Alert.alert('Error', error?.message || 'Failed to check in');
         }
     };
 
-    const Counter = ({ label, value, onChange }: { label: string, value: number, onChange: (v: number) => void }) => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: AURORA.border }}>
-            <Text style={{ color: AURORA.textPrimary, fontWeight: '500', fontSize: 16, flex: 1 }}>{label}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <TouchableOpacity
-                    onPress={() => onChange(Math.max(0, value - 1))}
-                    style={{ width: 36, height: 36, backgroundColor: AURORA.cardAlt, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
-                    activeOpacity={0.7}
-                >
-                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: AURORA.textSec }}>−</Text>
-                </TouchableOpacity>
-                <View style={{ width: 40, height: 40, backgroundColor: AURORA.cardDark, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: AURORA.textPrimary }}>{value}</Text>
-                </View>
-                <TouchableOpacity
-                    onPress={() => onChange(value + 1)}
-                    style={{ width: 36, height: 36, backgroundColor: 'rgba(45, 107, 255, 0.15)', borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
-                    activeOpacity={0.7}
-                >
-                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: AURORA.blue }}>+</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
-
-    const stepLabels = ['Mood', 'Context', 'Notes'];
-    
-    const StepIndicator = () => (
-        <View style={{ marginBottom: 32, paddingHorizontal: 8 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                {[1, 2, 3].map((step) => (
-                    <React.Fragment key={step}>
-                        <View style={{ alignItems: 'center' }}>
-                            <View 
-                                style={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 20,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    marginBottom: 8,
-                                    backgroundColor: currentStep > step ? AURORA.green : (currentStep === step ? AURORA.blue : AURORA.cardAlt)
-                                }}
-                            >
-                                {currentStep > step ? (
-                                    <Check size={20} color={AURORA.textPrimary} strokeWidth={3} />
-                                ) : (
-                                    <Text style={{ fontWeight: 'bold', color: currentStep === step ? AURORA.textPrimary : AURORA.textMuted }}>
-                                        {step}
-                                    </Text>
-                                )}
-                            </View>
-                            <Text style={{ fontSize: 12, fontWeight: '500', color: currentStep >= step ? AURORA.blue : AURORA.textMuted }}>
-                                {stepLabels[step - 1]}
-                            </Text>
-                        </View>
-                        {step < 3 && (
-                            <View style={{ flex: 1, height: 4, marginHorizontal: 12, borderRadius: 2, backgroundColor: currentStep > step ? AURORA.green : AURORA.cardAlt }} />
-                        )}
-                    </React.Fragment>
-                ))}
-            </View>
-        </View>
-    );
+    const schoolTagCount = selectedTags.filter((tag) => SCHOOL_TAGS.includes(tag)).length;
+    const workloadBand =
+        schoolTagCount === 0 ? 'Light day' : schoolTagCount <= 2 ? 'Balanced load' : schoolTagCount <= 4 ? 'Busy day' : 'Heavy load';
 
     if (isSubmitted) {
-        const moodScale = energyLevelToMoodScale(energyLevel);
-        const tasks = taskCountFromLog({
-            classes_count: classesCount,
-            exams_count: examsCount,
-            deadlines_count: deadlinesCount,
-        });
-        const stressBand = classifyStress(calculateStressLevel(moodScale, tasks));
+        const moodScale = Math.min(5, Math.max(1, energyLevel));
+        const stressBand = classifyStress(calculateStressLevel(moodScale, schoolTagCount));
         const dailyBody = getDailyFeedback(stressBand, moodScale);
         const isPositive = moodScale >= 4 && stressBand !== 'High';
+        const totalCheckIns = selectedTags.length + 1;
         return (
-            <View 
-                style={{ 
-                    flex: 1, 
-                    backgroundColor: AURORA.bg,
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    padding: 24 
-                }}
-            >
+            <View style={{ flex: 1, backgroundColor: AURORA.bg, padding: 16, paddingTop: 14, paddingBottom: 20 }}>
                 <Animatable.View
-                    animation="zoomIn"
+                    animation="fadeInUp"
                     duration={520}
                     useNativeDriver
                     style={{
                         backgroundColor: AURORA.card,
-                        padding: 32,
-                        borderRadius: 24,
-                        width: '100%',
-                        alignItems: 'center',
                         borderWidth: 1,
                         borderColor: AURORA.border,
+                        borderRadius: 18,
+                        padding: 14,
+                        alignItems: 'center',
+                        marginBottom: 10,
                     }}
                 >
-                    <View 
-                        style={{
-                            padding: 20,
-                            borderRadius: 9999,
-                            marginBottom: 24,
-                            backgroundColor: isPositive ? 'rgba(254, 189, 3, 0.15)' : 'rgba(45, 107, 255, 0.15)'
-                        }}
+                    <Animatable.View
+                        animation="pulse"
+                        duration={2200}
+                        iterationCount="infinite"
+                        easing="ease-in-out"
+                        useNativeDriver
+                        style={{ padding: 10, borderRadius: 999, marginBottom: 10, backgroundColor: isPositive ? 'rgba(254, 189, 3, 0.2)' : 'rgba(120, 74, 255, 0.2)' }}
                     >
-                        {isPositive ? (
-                            <Sparkles size={48} color={AURORA.amber} />
-                        ) : (
-                            <Heart size={48} color={AURORA.blue} />
-                        )}
-                    </View>
-
-                    <View style={{ alignItems: 'center', marginBottom: 32 }}>
-                        <Text style={{ fontSize: 24, fontWeight: 'bold', color: AURORA.textPrimary, textAlign: 'center', marginBottom: 12 }}>
-                            Thanks for checking in
-                        </Text>
-                        <Text style={{ color: AURORA.textSec, textAlign: 'center', fontSize: 16, lineHeight: 24, paddingHorizontal: 16 }}>
-                            {dailyBody}
-                        </Text>
-                    </View>
-
-                    <View 
-                        style={{ 
-                            flexDirection: 'row', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            marginBottom: 32, 
-                            backgroundColor: AURORA.cardAlt, 
-                            paddingHorizontal: 16, 
-                            paddingVertical: 12, 
-                            borderRadius: 16,
-                            gap: 12 
-                        }}
-                    >
-                        <View 
-                            style={{ 
-                                width: 16, 
-                                height: 16, 
-                                borderRadius: 8,
-                                backgroundColor: selectedEmotion?.color || AURORA.blue 
-                            }} 
+                        <Image
+                            source={require('../assets/logos/logomark light gradient.png')}
+                            style={{ width: 30, height: 30 }}
+                            resizeMode="contain"
                         />
-                        <Text style={{ fontWeight: '600', color: AURORA.textPrimary, textTransform: 'capitalize' }}>
-                            Feeling {selectedEmotion?.emotion || 'great'}
-                        </Text>
-                        <Text style={{ color: AURORA.textMuted }}>•</Text>
-                        <Text style={{ color: AURORA.textSec }}>
-                            Mood slider {energyLevel}/10
-                        </Text>
-                    </View>
+                    </Animatable.View>
+                    <Text style={{ color: AURORA.textPrimary, fontSize: 19, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>
+                        Thank you for checking in,{'\n'}{firstName}!
+                    </Text>
+                    <Text style={{ color: AURORA.textSec, textAlign: 'center', fontSize: 13, lineHeight: 18 }}>{dailyBody}</Text>
+                </Animatable.View>
 
-                    <View style={{ width: '100%', gap: 12 }}>
+                <Animatable.View
+                    animation="fadeInUp"
+                    delay={90}
+                    duration={520}
+                    useNativeDriver
+                    style={{
+                        borderRadius: 20,
+                        borderWidth: 1.5,
+                        borderColor: '#8E3CF7',
+                        backgroundColor: 'rgba(65, 31, 109, 0.35)',
+                        padding: 14,
+                        marginBottom: 10,
+                    }}
+                >
+                    <Text style={{ color: AURORA.textPrimary, fontWeight: '700', fontSize: 16, marginBottom: 10 }}>
+                        A supportive space for you
+                    </Text>
+                    <Animatable.View animation="pulse" duration={2600} delay={500} iterationCount="infinite" easing="ease-in-out" useNativeDriver>
+                        <TouchableOpacity
+                            onPress={() => closeModalThenRoute('/(student)/messages')}
+                            style={{
+                                backgroundColor: 'rgba(255,255,255,0.14)',
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                borderColor: 'rgba(255,255,255,0.2)',
+                                paddingVertical: 7,
+                                paddingHorizontal: 10,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 5,
+                            }}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={{ color: AURORA.textPrimary, fontWeight: '700', fontSize: 12 }}>
+                                Talk to a Counselor
+                            </Text>
+                            <MessageSquare size={12} color={AURORA.textPrimary} />
+                        </TouchableOpacity>
+                    </Animatable.View>
+                </Animatable.View>
+
+                <Animatable.View
+                    animation="fadeInUp"
+                    delay={140}
+                    duration={520}
+                    useNativeDriver
+                    style={{
+                        borderRadius: 20,
+                        borderWidth: 1,
+                        borderColor: AURORA.border,
+                        backgroundColor: AURORA.card,
+                        padding: 12,
+                        marginBottom: 10,
+                    }}
+                >
+                    <Text style={{ color: AURORA.amber, fontWeight: '700', fontSize: 11, marginBottom: 4 }}>RECOMMENDED</Text>
+                    <Text style={{ color: AURORA.textPrimary, fontSize: 16, fontWeight: '700', marginBottom: 10 }}>
+                        5-minute Breathing Exercise
+                    </Text>
+                    <Animatable.View animation="fadeIn" duration={800} delay={250} useNativeDriver>
+                        <TouchableOpacity onPress={() => closeModalThenRoute('/(student)/resources')} activeOpacity={0.85}>
+                            <Animatable.View
+                            animation="pulse"
+                            duration={2800}
+                            delay={800}
+                            iterationCount="infinite"
+                            easing="ease-in-out"
+                            useNativeDriver
+                            style={{
+                                height: 80,
+                                borderRadius: 12,
+                                backgroundColor: 'rgba(45, 107, 255, 0.18)',
+                                borderWidth: 1,
+                                borderColor: AURORA.border,
+                                paddingHorizontal: 12,
+                                paddingVertical: 9,
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <Text style={{ color: AURORA.textPrimary, fontWeight: '700', fontSize: 13 }}>Calm reset for your day</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <Text style={{ color: AURORA.textSec, fontSize: 12 }}>5 Min</Text>
+                                <Text style={{ color: AURORA.amber, fontWeight: '700', fontSize: 12 }}>TRY NOW →</Text>
+                            </View>
+                            </Animatable.View>
+                        </TouchableOpacity>
+                    </Animatable.View>
+                </Animatable.View>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                    <Animatable.View animation="fadeInUp" delay={180} duration={450} useNativeDriver style={{ flex: 1 }}>
+                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 10 }}>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 10, marginBottom: 3 }}>STREAK</Text>
+                            <Text style={{ color: AURORA.textPrimary, fontWeight: '800', fontSize: 21 }}>
+                                {Math.max(1, schoolTagCount + 1)} Days
+                            </Text>
+                        </View>
+                    </Animatable.View>
+                    <Animatable.View animation="fadeInUp" delay={240} duration={450} useNativeDriver style={{ flex: 1 }}>
+                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 10 }}>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 10, marginBottom: 3 }}>CHECK-INS</Text>
+                            <Text style={{ color: AURORA.textPrimary, fontWeight: '800', fontSize: 21 }}>
+                                {totalCheckIns}
+                            </Text>
+                        </View>
+                    </Animatable.View>
+                </View>
+
+                <Animatable.View
+                    animation="fadeInUp"
+                    delay={260}
+                    duration={500}
+                    useNativeDriver
+                    style={{
+                        borderRadius: 999,
+                        shadowColor: '#6A35FF',
+                        shadowOffset: { width: 0, height: 10 },
+                        shadowOpacity: 0.45,
+                        shadowRadius: 18,
+                        elevation: 10,
+                    }}
+                >
+                    <Animatable.View animation="pulse" duration={2400} delay={900} iterationCount="infinite" easing="ease-in-out" useNativeDriver>
                         <TouchableOpacity
                             onPress={() => onComplete?.()}
-                            style={{
-                                backgroundColor: AURORA.blue,
-                                paddingVertical: 16,
-                                borderRadius: 12,
-                                alignItems: 'center',
-                            }}
+                            activeOpacity={0.9}
+                            style={{ borderRadius: 999, overflow: 'hidden' }}
                         >
-                            <Text style={{ color: AURORA.textPrimary, fontWeight: '600', fontSize: 16 }}>Done</Text>
+                            <LinearGradient
+                                colors={['#2D6BFF', '#5A46FF', '#8E3CF7']}
+                                start={{ x: 0, y: 0.5 }}
+                                end={{ x: 1, y: 0.5 }}
+                                style={{
+                                    width: '100%',
+                                    paddingVertical: 13,
+                                    borderRadius: 999,
+                                    alignItems: 'center',
+                                    borderWidth: 1,
+                                    borderColor: 'rgba(255,255,255,0.22)',
+                                }}
+                            >
+                                <Text style={{ color: AURORA.textPrimary, fontWeight: '700', fontSize: 16 }}>Done</Text>
+                            </LinearGradient>
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={() => setIsSubmitted(false)}
-                            style={{
-                                paddingVertical: 12,
-                                borderRadius: 12,
-                                alignItems: 'center',
-                            }}
-                        >
-                            <Text style={{ color: AURORA.textSec, fontWeight: '500' }}>Edit Log</Text>
-                        </TouchableOpacity>
-                    </View>
+                    </Animatable.View>
                 </Animatable.View>
             </View>
         );
     }
 
+    const isMoodStep = currentStep === 1;
+    const isVitalityStep = currentStep === 2;
+    const isContextStep = currentStep === 3;
+
     return (
-        <ScrollView
-            style={{ flex: 1, backgroundColor: AURORA.bg }}
-            contentContainerStyle={{ paddingBottom: 120, flexGrow: 1 }}
-            scrollEnabled={isScrollEnabled}
-            showsVerticalScrollIndicator={false}
-        >
+        <ScrollView style={{ flex: 1, backgroundColor: AURORA.bg }} contentContainerStyle={{ paddingBottom: 120 }} scrollEnabled={isScrollEnabled} showsVerticalScrollIndicator={false}>
             <View style={{ padding: 20, paddingTop: 24 }}>
-                <View style={{ marginBottom: 24 }}>
-                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: AURORA.textPrimary, textAlign: 'center', marginBottom: 8 }}>
-                        {currentStep === 1 && `Hey ${user?.full_name ? user.full_name.split(' ')[0] : 'there'}!`}
-                        {currentStep === 2 && "What's on your mind?"}
-                        {currentStep === 3 && "Final thoughts"}
+                <Animatable.View animation="fadeInDown" duration={400} useNativeDriver style={{ marginBottom: 22 }}>
+                    <Text style={{ fontSize: 24, fontWeight: '800', color: AURORA.textPrimary, textAlign: 'center', marginBottom: 8 }}>
+                        {isMoodStep && `Hey ${firstName}!`}
+                        {isVitalityStep && 'Energy, stress, and sleep'}
+                        {isContextStep && 'What affected your mood?'}
                     </Text>
-                    <Text style={{ color: AURORA.textSec, textAlign: 'center', fontSize: 16 }}>
-                        {currentStep === 1 && "How are you feeling right now?"}
-                        {currentStep === 2 && "Let's understand what's affecting you"}
-                        {currentStep === 3 && "Add any notes before we wrap up"}
+                    <Text style={{ color: AURORA.textSec, textAlign: 'center', fontSize: 15 }}>
+                        {isMoodStep && 'Pick your mood and intensity first.'}
+                        {isVitalityStep && 'Sleep quality is required for each check-in.'}
+                        {isContextStep && 'Optional tags for modern trend and correlation analysis.'}
                     </Text>
+                </Animatable.View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 26 }}>
+                    {['Mood', 'Vitals', 'Context'].map((label, idx) => {
+                        const step = idx + 1;
+                        const active = currentStep >= step;
+                        return (
+                            <View key={label} style={{ alignItems: 'center', flex: 1 }}>
+                                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: active ? AURORA.blue : AURORA.cardAlt, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+                                    <Text style={{ color: active ? AURORA.textPrimary : AURORA.textMuted, fontWeight: '700' }}>{step}</Text>
+                                </View>
+                                <Text style={{ fontSize: 12, color: active ? AURORA.blue : AURORA.textMuted }}>{label}</Text>
+                            </View>
+                        );
+                    })}
                 </View>
 
-                <StepIndicator />
-
-                {/* STEP 1: MOOD & INTENSITY */}
-                {currentStep === 1 && (
-                    <View style={{ gap: 24 }}>
-                        {/* Mode Toggle */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'center', backgroundColor: AURORA.cardAlt, borderRadius: 16, padding: 6, alignSelf: 'center' }}>
-                            <TouchableOpacity
-                                onPress={() => handleModeSwitch(false)}
-                                style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    paddingHorizontal: 20,
-                                    paddingVertical: 12,
-                                    borderRadius: 12,
-                                    backgroundColor: !isManualMode ? AURORA.card : 'transparent',
-                                }}
-                                activeOpacity={0.7}
-                            >
-                                <Camera size={18} color={!isManualMode ? AURORA.blue : AURORA.textMuted} />
-                                <Text style={{ marginLeft: 8, fontWeight: '600', color: !isManualMode ? AURORA.blue : AURORA.textMuted }}>
-                                    AI Camera
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => handleModeSwitch(true)}
-                                style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    paddingHorizontal: 20,
-                                    paddingVertical: 12,
-                                    borderRadius: 12,
-                                    backgroundColor: isManualMode ? AURORA.card : 'transparent',
-                                }}
-                                activeOpacity={0.7}
-                            >
-                                <Hand size={18} color={isManualMode ? AURORA.blue : AURORA.textMuted} />
-                                <Text style={{ marginLeft: 8, fontWeight: '600', color: isManualMode ? AURORA.blue : AURORA.textMuted }}>
-                                    Manual
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {!isManualMode ? (
-                            <EmotionDetection onEmotionDetected={handleAIEmotionDetected} />
-                        ) : (
-                            <View style={{ backgroundColor: AURORA.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: AURORA.border }}>
-                                <Text style={{ fontWeight: '600', color: AURORA.textPrimary, marginBottom: 16, textAlign: 'center' }}>
-                                    Select how you're feeling
-                                </Text>
-                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12 }}>
-                                    {MANUAL_EMOTIONS.map(emotion => {
-                                        const isSelected = selectedEmotions.some(e => e.emotion === emotion.name);
-                                        return (
-                                            <TouchableOpacity
-                                                key={emotion.name}
-                                                onPress={() => handleManualEmotionToggle(emotion)}
-                                                style={{
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    width: 72,
-                                                    height: 88,
-                                                    borderRadius: 16,
-                                                    backgroundColor: isSelected ? `${emotion.color}20` : AURORA.cardAlt,
-                                                    borderWidth: isSelected ? 2 : 1,
-                                                    borderColor: isSelected ? emotion.color : AURORA.border
-                                                }}
-                                                activeOpacity={0.7}
-                                            >
-                                                <Image
-                                                    source={emotion.image}
-                                                    style={{ width: 40, height: 40 }}
-                                                    resizeMode="contain"
-                                                />
-                                                <Text style={{ fontWeight: '500', fontSize: 12, marginTop: 6, color: isSelected ? emotion.color : AURORA.textSec }}>
-                                                    {emotion.label}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-                            </View>
-                        )}
-
-                        {selectedEmotions.length > 0 && (
-                            <View style={{ backgroundColor: AURORA.card, borderRadius: 16, padding: 20, marginTop: 8, borderWidth: 1, borderColor: AURORA.border }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: `${getEmotionColor(selectedEmotions[0]?.emotion || 'neutral')}20`, alignItems: 'center', justifyContent: 'center' }}>
-                                        <Zap size={16} color={getEmotionColor(selectedEmotions[0]?.emotion || 'neutral')} />
-                                    </View>
-                                    <Text style={{ fontWeight: 'bold', color: AURORA.textPrimary }}>Intensity Level</Text>
-                                </View>
-                                {selectedEmotions.map((emotion, index) => {
-                                    const emotionColor = getEmotionColor(emotion.emotion);
+                {isMoodStep && (
+                    <View style={{ gap: 16 }}>
+                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
+                            <Text style={{ color: AURORA.textPrimary, textAlign: 'center', fontWeight: '700', marginBottom: 12 }}>Select emotion</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
+                                {MANUAL_EMOTIONS.map((emotion) => {
+                                    const selected = selectedEmotions.some((x) => x.emotion === emotion.name);
                                     return (
-                                        <View key={index} style={{ marginBottom: 16 }}>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: emotionColor }} />
-                                                    <Text style={{ textTransform: 'capitalize', fontWeight: '600', color: emotionColor }}>
-                                                        {emotion.emotion}
-                                                    </Text>
-                                                </View>
-                                                <View style={{ backgroundColor: `${emotionColor}20`, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 9999 }}>
-                                                    <Text style={{ fontWeight: 'bold', color: emotionColor }}>
-                                                        {Math.round(emotion.confidence * 100)}%
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                            <SimpleSlider
-                                                value={emotion.confidence}
-                                                onValueChange={(val: number) => {
-                                                    const newEmotions = [...selectedEmotions];
-                                                    newEmotions[index].confidence = val;
-                                                    setSelectedEmotions(newEmotions);
-                                                }}
-                                                minimumTrackTintColor={emotionColor}
-                                                thumbTintColor={emotionColor}
-                                                onSlidingStart={() => setIsScrollEnabled(false)}
-                                                onSlidingComplete={() => setIsScrollEnabled(true)}
-                                            />
-                                        </View>
+                                        <TouchableOpacity
+                                            key={emotion.name}
+                                            onPress={() => setSelectedEmotions([{ emotion: emotion.name, confidence: intensityTen / 10, color: emotion.color }])}
+                                            style={{
+                                                width: 68,
+                                                height: 84,
+                                                borderRadius: 16,
+                                                borderWidth: selected ? 2 : 1,
+                                                borderColor: selected ? emotion.color : AURORA.border,
+                                                backgroundColor: selected ? `${emotion.color}24` : AURORA.cardAlt,
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            {renderMoodVisual(emotion, 34)}
+                                            <Text style={{ marginTop: 6, fontSize: 12, color: selected ? emotion.color : AURORA.textSec, fontWeight: '700' }}>{emotion.label}</Text>
+                                        </TouchableOpacity>
                                     );
                                 })}
                             </View>
+                        </View>
+                        {selectedEmotions.length > 0 && (
+                            <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
+                                <View
+                                    style={{
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderRadius: 20,
+                                        paddingVertical: 18,
+                                        marginBottom: 12,
+                                        backgroundColor: `${selectedManualEmotion.color}16`,
+                                        borderWidth: 1.5,
+                                        borderColor: `${selectedManualEmotion.color}55`,
+                                    }}
+                                >
+                                    <Animated.View style={[{ alignItems: 'center', justifyContent: 'center' }, floatingMoodStyle]}>
+                                        {renderMoodVisual(selectedManualEmotion, 128)}
+                                    </Animated.View>
+                                    <Animated.View
+                                        style={[
+                                            {
+                                                width: 84,
+                                                height: 14,
+                                                borderRadius: 999,
+                                                backgroundColor: '#000',
+                                                marginTop: 4,
+                                                marginBottom: 6,
+                                            },
+                                            floatingShadowStyle,
+                                        ]}
+                                    />
+                                    <Text style={{ color: selectedManualEmotion.color, fontWeight: '800', fontSize: 26 }}>
+                                        {selectedManualEmotion.label}
+                                    </Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                    <Zap size={16} color={selectedManualEmotion.color} />
+                                    <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>Intensity (1-10)</Text>
+                                </View>
+                                <SimpleSlider
+                                    value={(intensityTen - 1) / 9}
+                                    onValueChange={(val: number) => setIntensityTen(Math.max(1, Math.min(10, Math.round(1 + val * 9))))}
+                                    minimumTrackTintColor={selectedManualEmotion.color}
+                                    thumbTintColor={selectedManualEmotion.color}
+                                    onSlidingStart={() => setIsScrollEnabled(false)}
+                                    onSlidingComplete={() => setIsScrollEnabled(true)}
+                                />
+                            </View>
                         )}
                     </View>
                 )}
 
-                {/* STEP 2: CONTEXT (Academic, Sleep, Energy, Stress) */}
-                {currentStep === 2 && (
-                    <View style={{ gap: 16 }}>
-                        {/* Selected Emotion Summary */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 16, backgroundColor: AURORA.card, borderRadius: 16, borderWidth: 1, borderColor: AURORA.border, alignSelf: 'center' }}>
-                            <Text style={{ color: AURORA.textSec, marginRight: 8 }}>Currently feeling</Text>
-                            <View style={{ width: 12, height: 12, borderRadius: 6, marginRight: 8, backgroundColor: selectedEmotion?.color || AURORA.blue }} />
-                            <Text style={{ fontWeight: 'bold', color: AURORA.textPrimary, textTransform: 'capitalize' }}>
-                                {selectedEmotion?.emotion || 'Unknown'}
+                {isVitalityStep && (
+                    <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <Zap size={16} color={AURORA.amber} />
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>Energy</Text>
+                                <Text style={{ color: AURORA.textMuted, fontWeight: '500' }}>(1-5)</Text>
+                            </View>
+                        </View>
+                        <SimpleSlider
+                            value={(energyLevel - 1) / 4}
+                            onValueChange={(val: number) => setEnergyLevel(Math.max(1, Math.min(5, Math.round(1 + val * 4))))}
+                            minimumTrackTintColor={AURORA.amber}
+                            thumbTintColor={AURORA.amber}
+                            onSlidingStart={() => setIsScrollEnabled(false)}
+                            onSlidingComplete={() => setIsScrollEnabled(true)}
+                        />
+                        <Text style={{ color: AURORA.amber, marginBottom: 16, fontWeight: '700' }}>{energyLevel}</Text>
+
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <Heart size={16} color={AURORA.red} />
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>Stress</Text>
+                                <Text style={{ color: AURORA.textMuted, fontWeight: '500' }}>(1-5)</Text>
+                            </View>
+                        </View>
+                        <SimpleSlider
+                            value={(stressLevel - 1) / 4}
+                            onValueChange={(val: number) => setStressLevel(Math.max(1, Math.min(5, Math.round(1 + val * 4))))}
+                            minimumTrackTintColor={AURORA.red}
+                            thumbTintColor={AURORA.red}
+                            onSlidingStart={() => setIsScrollEnabled(false)}
+                            onSlidingComplete={() => setIsScrollEnabled(true)}
+                        />
+                        <Text style={{ color: AURORA.red, marginBottom: 16, fontWeight: '700' }}>{stressLevel}</Text>
+
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <MoonStar size={16} color={AURORA.blue} />
+                            <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>
+                                Sleep quality {sleepCapturedToday ? '(already set today)' : '(set once daily)'}
                             </Text>
                         </View>
-
-                        {/* Academic Load Card */}
-                        <View style={{ backgroundColor: AURORA.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: AURORA.border }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(45, 107, 255, 0.15)', alignItems: 'center', justifyContent: 'center' }}>
-                                    <ClipboardList size={20} color={AURORA.blue} />
-                                </View>
-                                <View>
-                                    <Text style={{ fontWeight: 'bold', fontSize: 18, color: AURORA.textPrimary }}>Academic Load</Text>
-                                    <Text style={{ color: AURORA.textSec, fontSize: 14 }}>What's on your plate today?</Text>
-                                </View>
-                            </View>
-                            <Counter label="Classes Today" value={classesCount} onChange={setClassesCount} />
-                            <Counter label="Upcoming Exams" value={examsCount} onChange={setExamsCount} />
-                            <Counter label="Deadlines" value={deadlinesCount} onChange={setDeadlinesCount} />
-                        </View>
-
-                        {/* Vitality Card */}
-                        <View style={{ backgroundColor: AURORA.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: AURORA.border }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(254, 189, 3, 0.15)', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Zap size={20} color={AURORA.amber} />
-                                </View>
-                                <View>
-                                    <Text style={{ fontWeight: 'bold', fontSize: 18, color: AURORA.textPrimary }}>Vitality</Text>
-                                    <Text style={{ color: AURORA.textSec, fontSize: 14 }}>How's your body feeling?</Text>
-                                </View>
-                            </View>
-
-                            {/* Sleep Quality */}
-                            <View style={{ marginBottom: 24 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                                    <Moon size={16} color={AURORA.purple} />
-                                    <Text style={{ color: AURORA.textPrimary, fontWeight: '600' }}>Sleep Quality</Text>
-                                </View>
-                                <View style={{ flexDirection: 'row', gap: 8 }}>
-                                    {[
-                                        { label: 'Poor', value: 1, emoji: '😴' },
-                                        { label: 'Fair', value: 2, emoji: '😐' },
-                                        { label: 'Good', value: 3, emoji: '😊' }
-                                    ].map((option) => (
-                                        <TouchableOpacity
-                                            key={option.value}
-                                            onPress={() => setSleepQuality(option.value)}
-                                            style={{
-                                                flex: 1,
-                                                paddingVertical: 12,
-                                                borderRadius: 12,
-                                                alignItems: 'center',
-                                                backgroundColor: sleepQuality === option.value ? 'rgba(124, 58, 237, 0.15)' : AURORA.cardAlt,
-                                                borderWidth: sleepQuality === option.value ? 2 : 1,
-                                                borderColor: sleepQuality === option.value ? AURORA.purple : AURORA.border
-                                            }}
-                                            activeOpacity={0.7}
-                                        >
-                                            <Text style={{ fontSize: 20, marginBottom: 4 }}>{option.emoji}</Text>
-                                            <Text style={{ fontWeight: '600', fontSize: 14, color: sleepQuality === option.value ? AURORA.purpleBright : AURORA.textSec }}>
-                                                {option.label}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </View>
-
-                            {/* Energy Level */}
-                            <View style={{ marginBottom: 20 }}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                    <Text style={{ fontWeight: '600', color: AURORA.textPrimary }}>Energy Level</Text>
-                                    <View style={{ backgroundColor: 'rgba(254, 189, 3, 0.15)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 9999 }}>
-                                        <Text style={{ fontWeight: 'bold', color: AURORA.amber }}>{energyLevel}/10</Text>
-                                    </View>
-                                </View>
-                                <SimpleSlider
-                                    value={energyLevel / 10}
-                                    onValueChange={(val: number) => setEnergyLevel(Math.max(1, Math.round(val * 10)))}
-                                    minimumTrackTintColor={AURORA.amber}
-                                    thumbTintColor={AURORA.amber}
-                                    onSlidingStart={() => setIsScrollEnabled(false)}
-                                    onSlidingComplete={() => setIsScrollEnabled(true)}
-                                />
-                            </View>
-
-                            {/* Stress Level */}
-                            <View>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                    <Text style={{ fontWeight: '600', color: AURORA.textPrimary }}>Stress Level</Text>
-                                    <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 9999 }}>
-                                        <Text style={{ fontWeight: 'bold', color: AURORA.red }}>{stressLevel}/10</Text>
-                                    </View>
-                                </View>
-                                <SimpleSlider
-                                    value={stressLevel / 10}
-                                    onValueChange={(val: number) => setStressLevel(Math.max(1, Math.round(val * 10)))}
-                                    minimumTrackTintColor={AURORA.red}
-                                    thumbTintColor={AURORA.red}
-                                    onSlidingStart={() => setIsScrollEnabled(false)}
-                                    onSlidingComplete={() => setIsScrollEnabled(true)}
-                                />
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                                    <Text style={{ fontSize: 12, color: AURORA.textMuted }}>Relaxed</Text>
-                                    <Text style={{ fontSize: 12, color: AURORA.textMuted }}>Overwhelmed</Text>
-                                </View>
-                            </View>
+                        <Text style={{ color: AURORA.textMuted, fontSize: 12, marginBottom: 10 }}>
+                            {sleepCapturedToday
+                                ? 'You already logged sleep quality today. You can continue without changing it.'
+                                : 'Set this once on your first mood log today.'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                            {(['poor', 'fair', 'good'] as SleepQuality[]).map((quality) => {
+                                const selected = sleepQuality === quality;
+                                return (
+                                    <TouchableOpacity
+                                        key={quality}
+                                        onPress={() => setSleepQuality(quality)}
+                                        style={{
+                                            flex: 1,
+                                            borderRadius: 12,
+                                            paddingVertical: 12,
+                                            borderWidth: 1,
+                                            borderColor: selected ? AURORA.blue : AURORA.border,
+                                            backgroundColor: selected ? 'rgba(45, 107, 255, 0.18)' : AURORA.cardAlt,
+                                            opacity: sleepCapturedToday ? 0.75 : 1,
+                                            alignItems: 'center',
+                                            flexDirection: 'row',
+                                            justifyContent: 'center',
+                                            gap: 6,
+                                        }}
+                                        disabled={sleepCapturedToday}
+                                    >
+                                        <MoonStar size={14} color={selected ? AURORA.blue : AURORA.textSec} />
+                                        <Text style={{ color: selected ? AURORA.blue : AURORA.textSec, fontWeight: '700' }}>
+                                            {quality.charAt(0).toUpperCase() + quality.slice(1)}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </View>
                     </View>
                 )}
 
-                {/* STEP 3: JOURNAL & SUBMIT */}
-                {currentStep === 3 && (
-                    <View style={{ gap: 16 }}>
-                        {/* Quick Summary */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: AURORA.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: AURORA.border }}>
-                            <View style={{ alignItems: 'center', flex: 1 }}>
-                                <View style={{ width: 12, height: 12, borderRadius: 6, marginBottom: 4, backgroundColor: selectedEmotion?.color || AURORA.blue }} />
-                                <Text style={{ fontSize: 12, color: AURORA.textMuted }}>Mood</Text>
-                                <Text style={{ fontWeight: '600', color: AURORA.textPrimary, textTransform: 'capitalize', fontSize: 14 }}>
-                                    {selectedEmotion?.emotion || '-'}
-                                </Text>
-                            </View>
-                            <View style={{ width: 1, backgroundColor: AURORA.border }} />
-                            <View style={{ alignItems: 'center', flex: 1 }}>
-                                <Zap size={12} color={AURORA.amber} />
-                                <Text style={{ fontSize: 12, color: AURORA.textMuted, marginTop: 4 }}>Energy</Text>
-                                <Text style={{ fontWeight: '600', color: AURORA.textPrimary, fontSize: 14 }}>{energyLevel}/10</Text>
-                            </View>
-                            <View style={{ width: 1, backgroundColor: AURORA.border }} />
-                            <View style={{ alignItems: 'center', flex: 1 }}>
-                                <Heart size={12} color={AURORA.red} />
-                                <Text style={{ fontSize: 12, color: AURORA.textMuted, marginTop: 4 }}>Stress</Text>
-                                <Text style={{ fontWeight: '600', color: AURORA.textPrimary, fontSize: 14 }}>{stressLevel}/10</Text>
-                            </View>
+                {isContextStep && (
+                    <View style={{ gap: 12 }}>
+                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Text style={{ color: AURORA.textSec }}>Academic signal</Text>
+                            <Text style={{ color: AURORA.blue, fontWeight: '700' }}>{workloadBand}</Text>
                         </View>
-
-                        {/* Journal Card */}
-                        <View style={{ backgroundColor: AURORA.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: AURORA.border }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(124, 58, 237, 0.15)', alignItems: 'center', justifyContent: 'center' }}>
-                                    <PenLine size={20} color={AURORA.purple} />
-                                </View>
-                                <View>
-                                    <Text style={{ fontWeight: 'bold', fontSize: 18, color: AURORA.textPrimary }}>Journal</Text>
-                                    <Text style={{ color: AURORA.textSec, fontSize: 14 }}>Optional but helpful</Text>
-                                </View>
+                        {categoryConfigs.length === 0 ? (
+                            <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 14 }}>
+                                <Text style={{ color: AURORA.textSec }}>No categories enabled. You can turn them on in Settings.</Text>
                             </View>
-                            <TextInput
-                                style={{ backgroundColor: AURORA.cardAlt, borderWidth: 1, borderColor: AURORA.border, borderRadius: 12, padding: 16, color: AURORA.textPrimary, fontSize: 16, lineHeight: 24, minHeight: 140, textAlignVertical: 'top' }}
-                                placeholder="What's on your mind? Write about triggers, thoughts, or anything you want to remember..."
-                                placeholderTextColor={AURORA.textMuted}
-                                multiline
-                                value={notes}
-                                onChangeText={setNotes}
-                                numberOfLines={6}
-                            />
-                        </View>
-
-                        {/* Encouragement Banner */}
-                        <View style={{ backgroundColor: 'rgba(45, 107, 255, 0.1)', padding: 16, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 16, borderWidth: 1, borderColor: 'rgba(45, 107, 255, 0.2)' }}>
-                            <View style={{ backgroundColor: 'rgba(45, 107, 255, 0.15)', padding: 12, borderRadius: 9999 }}>
-                                <Sparkles size={22} color={AURORA.blue} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ color: AURORA.textPrimary, fontWeight: '600', marginBottom: 2 }}>You're doing great!</Text>
-                                <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 20 }}>
-                                    Self-awareness is the first step to positive change. Keep it up!
-                                </Text>
-                            </View>
-                        </View>
+                        ) : (
+                            categoryConfigs.map((category, idx) => (
+                                <Animatable.View key={category.key} animation="fadeInUp" duration={320} delay={idx * 80} useNativeDriver style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 12 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                        {category.icon}
+                                        <View>
+                                            <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>{category.title}</Text>
+                                            <Text style={{ color: AURORA.textMuted, fontSize: 12 }}>{category.helper}</Text>
+                                        </View>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                        {category.tags.map((tag) => {
+                                            const selected = selectedTags.includes(tag);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={tag}
+                                                    onPress={() => toggleTag(tag)}
+                                                    style={{
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 7,
+                                                        borderRadius: 999,
+                                                        borderWidth: 1,
+                                                        borderColor: selected ? AURORA.blue : AURORA.border,
+                                                        backgroundColor: selected ? 'rgba(45, 107, 255, 0.2)' : AURORA.cardAlt,
+                                                    }}
+                                                >
+                                                    <Text style={{ color: selected ? AURORA.blue : AURORA.textSec, fontSize: 12, fontWeight: '700' }}>{tag}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </Animatable.View>
+                            ))
+                        )}
                     </View>
                 )}
             </View>
 
-            {/* NAVIGATION BUTTONS - Fixed at bottom */}
-            <View style={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, backgroundColor: AURORA.bg }}>
+            <View style={{ paddingHorizontal: 20, paddingBottom: 18 }}>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                     {currentStep > 1 && (
                         <TouchableOpacity
-                            onPress={handleBack}
-                            style={{
-                                flex: 1,
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                paddingVertical: 16,
-                                borderRadius: 12,
-                                borderWidth: 1,
-                                borderColor: AURORA.border,
-                                backgroundColor: AURORA.card
-                            }}
+                            onPress={() => setCurrentStep((c) => c - 1)}
+                            style={{ flex: 1, backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 }}
                         >
-                            <ArrowLeft size={18} color={AURORA.textSec} />
-                            <Text style={{ fontWeight: '600', color: AURORA.textSec, marginLeft: 8 }}>Back</Text>
+                            <ArrowLeft size={16} color={AURORA.textSec} />
+                            <Text style={{ color: AURORA.textSec, fontWeight: '700' }}>Back</Text>
                         </TouchableOpacity>
                     )}
-
                     <TouchableOpacity
                         onPress={currentStep === totalSteps ? handleSubmit : handleNext}
                         disabled={isSubmitting}
-                        style={{
-                            flex: 1,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            paddingVertical: 16,
-                            borderRadius: 12,
-                            backgroundColor: isSubmitting ? AURORA.textMuted : AURORA.blue,
-                            opacity: isSubmitting ? 0.7 : 1
-                        }}
+                        style={{ flex: 1, backgroundColor: isSubmitting ? AURORA.textMuted : AURORA.blue, borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 }}
                     >
-                        <Text style={{ fontWeight: '600', color: AURORA.textPrimary, fontSize: 16 }}>
-                            {isSubmitting ? 'Saving...' : (currentStep === totalSteps ? 'Complete Check-In' : 'Continue')}
+                        <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>
+                            {isSubmitting ? 'Saving...' : currentStep === totalSteps ? 'Save check-in' : 'Continue'}
                         </Text>
-                        {!isSubmitting && currentStep < totalSteps && (
-                            <ArrowRight size={18} color={AURORA.textPrimary} style={{ marginLeft: 8 }} />
-                        )}
-                        {!isSubmitting && currentStep === totalSteps && (
-                            <Check size={18} color={AURORA.textPrimary} style={{ marginLeft: 8 }} />
-                        )}
+                        {!isSubmitting && currentStep < totalSteps && <ArrowRight size={16} color={AURORA.textPrimary} />}
+                        {!isSubmitting && currentStep === totalSteps && <Check size={16} color={AURORA.textPrimary} />}
                     </TouchableOpacity>
                 </View>
             </View>

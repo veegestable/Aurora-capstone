@@ -85,11 +85,11 @@ function getInitials(name: string): string {
 function getSeverityStyle(severity: CaseSeverity) {
     switch (severity) {
         case 'high':
-            return { text: AURORA.red, bg: 'rgba(239,68,68,0.15)', border: `${AURORA.red}55`, label: 'HIGH RISK' };
+            return { text: AURORA.red, bg: 'rgba(239,68,68,0.15)', border: `${AURORA.red}55`, label: 'HIGH PRIORITY' };
         case 'medium':
-            return { text: AURORA.orange, bg: 'rgba(249,115,22,0.15)', border: `${AURORA.orange}55`, label: 'MEDIUM RISK' };
+            return { text: AURORA.orange, bg: 'rgba(249,115,22,0.15)', border: `${AURORA.orange}55`, label: 'MEDIUM PRIORITY' };
         case 'low':
-            return { text: AURORA.amber, bg: 'rgba(254,189,3,0.12)', border: `${AURORA.amber}55`, label: 'LOW RISK' };
+            return { text: AURORA.amber, bg: 'rgba(254,189,3,0.12)', border: `${AURORA.amber}55`, label: 'LOW PRIORITY' };
     }
 }
 

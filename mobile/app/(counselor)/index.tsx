@@ -23,26 +23,27 @@ import { firestoreService } from '../../src/services/firebase-firestore.service'
 import { AnnouncementSection } from '../../src/components/announcements/AnnouncementSection';
 import { triggerHaptic } from '../../src/utils/haptics';
 import { formatCounselorStudentSubtitle } from '../../src/constants/ccs-student-programs';
+import { getSessionScheduledDate } from '../../src/utils/sessionScheduling';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type RiskLevel = 'HIGH RISK' | 'MEDIUM' | 'RESOLVED';
+type PriorityLevel = 'HIGH PRIORITY' | 'MEDIUM PRIORITY' | 'LOW PRIORITY';
 
 interface FlagItem {
     id: string;
     name: string;
     program: string;
     time: string;
-    risk: RiskLevel;
+    risk: PriorityLevel;
     avatar: string;
 }
 
 // ─── Helpers: derive risk from mood log ─────────────────────────────────────────
-function deriveRiskFromMood(stressLevel?: number, energyLevel?: number): RiskLevel {
+function deriveRiskFromMood(stressLevel?: number, energyLevel?: number): PriorityLevel {
     const stress = stressLevel ?? 5;
     const energy = energyLevel ?? 5;
-    if (stress >= 7 || energy <= 2) return 'HIGH RISK';
-    if (stress >= 5 || energy <= 4) return 'MEDIUM';
-    return 'RESOLVED';
+    if (stress >= 7 || energy <= 2) return 'HIGH PRIORITY';
+    if (stress >= 5 || energy <= 4) return 'MEDIUM PRIORITY';
+    return 'LOW PRIORITY';
 }
 
 function formatTimeAgo(date: Date): string {
@@ -57,14 +58,14 @@ function formatTimeAgo(date: Date): string {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-function getRiskStyle(risk: RiskLevel) {
+function getRiskStyle(risk: PriorityLevel) {
     switch (risk) {
-        case 'HIGH RISK':
+        case 'HIGH PRIORITY':
             return { border: AURORA.red, badgeBg: 'rgba(239,68,68,0.18)', text: AURORA.red };
-        case 'MEDIUM':
+        case 'MEDIUM PRIORITY':
             return { border: AURORA.orange, badgeBg: 'rgba(249,115,22,0.18)', text: AURORA.orange };
-        case 'RESOLVED':
-            return { border: AURORA.green, badgeBg: 'rgba(34,197,94,0.18)', text: AURORA.green };
+        case 'LOW PRIORITY':
+            return { border: AURORA.blue, badgeBg: 'rgba(45,107,255,0.18)', text: AURORA.blue };
     }
 }
 
@@ -151,7 +152,7 @@ export default function CounselorHomeScreen() {
     const { user } = useAuth();
     const [studentCount, setStudentCount] = useState<number>(0);
     const [recentFlags, setRecentFlags] = useState<FlagItem[]>([]);
-    const [criticalRisks, setCriticalRisks] = useState<number>(0);
+    const [upcomingAcceptedSessions, setUpcomingAcceptedSessions] = useState<number>(0);
     const [loading, setLoading] = useState(true);
     const firstName = user?.full_name?.split(' ')[0] || 'Counselor';
 
@@ -196,20 +197,37 @@ export default function CounselorHomeScreen() {
                             year_level: student.year_level,
                         }) || 'CCS',
                         time: lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No logs',
-                        risk: deriveRiskFromMood(stressLevel, energyLevel) as RiskLevel,
+                        risk: deriveRiskFromMood(stressLevel, energyLevel) as PriorityLevel,
                         avatar: (student as any).avatar_url ?? '',
                     }))
                     .sort((a, b) => {
-                        const order = { 'HIGH RISK': 0, 'MEDIUM': 1, 'RESOLVED': 2 };
+                        const order = { 'HIGH PRIORITY': 0, 'MEDIUM PRIORITY': 1, 'LOW PRIORITY': 2 };
                         return (order[a.risk] ?? 2) - (order[b.risk] ?? 2);
                     });
 
                 setRecentFlags(flags);
-                setCriticalRisks(flags.filter((f) => f.risk === 'HIGH RISK').length);
+
+                if (user?.id) {
+                    const sessions = await firestoreService.getSessionsForCounselor(user.id);
+                    const now = Date.now();
+                    const upcoming = (sessions as Array<Record<string, any>>).filter((s) => {
+                        if (s?.status !== 'confirmed') return false;
+                        const dt = getSessionScheduledDate({
+                            finalSlot: (s.finalSlot as any) ?? null,
+                            confirmedSlot: (s.confirmedSlot as any) ?? null,
+                            proposedSlots: Array.isArray(s.proposedSlots) ? (s.proposedSlots as any) : [],
+                            preferredTimeFromStudent: typeof s.preferredTimeFromStudent === 'string' ? s.preferredTimeFromStudent : undefined,
+                        });
+                        return !!dt && dt.getTime() >= now;
+                    }).length;
+                    setUpcomingAcceptedSessions(upcoming);
+                } else {
+                    setUpcomingAcceptedSessions(0);
+                }
             } catch {
                 if (!cancelled) {
                     setRecentFlags([]);
-                    setCriticalRisks(0);
+                    setUpcomingAcceptedSessions(0);
                 }
             } finally {
                 if (!cancelled) setLoading(false);
@@ -218,7 +236,7 @@ export default function CounselorHomeScreen() {
 
         fetchData();
         return () => { cancelled = true; };
-    }, []);
+    }, [user?.id]);
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
@@ -295,55 +313,19 @@ export default function CounselorHomeScreen() {
                             icon={
                                 <View style={{
                                     width: 38, height: 38, borderRadius: 19,
-                                    backgroundColor: 'rgba(239,68,68,0.2)',
+                                    backgroundColor: 'rgba(16,185,129,0.2)',
                                     alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                    <AlertTriangle size={18} color={AURORA.red} />
+                                    <Calendar size={18} color={AURORA.green} />
                                 </View>
                             }
-                            count={criticalRisks}
-                            label="Critical Risks"
-                            cardBg="rgba(90,0,20,0.5)"
+                            count={upcomingAcceptedSessions}
+                            label="Upcoming Accepted Sessions"
+                            cardBg="rgba(5,67,52,0.5)"
                         />
                     </View>
 
-                    {/* Stat Cards Row 2 */}
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 28 }}>
-                        <StatCard
-                            icon={
-                                <View style={{ position: 'relative', width: 38, height: 38 }}>
-                                    <View style={{
-                                        width: 38, height: 38, borderRadius: 19,
-                                        backgroundColor: 'rgba(45,107,255,0.12)',
-                                        alignItems: 'center', justifyContent: 'center',
-                                    }}>
-                                        <MessageSquare size={18} color={AURORA.blue} />
-                                    </View>
-                                    <View style={{
-                                        position: 'absolute', top: 2, right: 2,
-                                        width: 8, height: 8, borderRadius: 4,
-                                        backgroundColor: AURORA.blue,
-                                        borderWidth: 1.5, borderColor: AURORA.card,
-                                    }} />
-                                </View>
-                            }
-                            count={3}
-                            label="New Messages"
-                        />
-                        <StatCard
-                            icon={
-                                <View style={{
-                                    width: 38, height: 38, borderRadius: 19,
-                                    backgroundColor: 'rgba(254,189,3,0.12)',
-                                    alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                    <Calendar size={18} color={AURORA.amber} />
-                                </View>
-                            }
-                            count={8}
-                            label="Pending Follow-ups"
-                        />
-                    </View>
+
 
                     {/* Recent Flags */}
                     <View style={{

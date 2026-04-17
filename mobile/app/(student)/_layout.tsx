@@ -156,6 +156,12 @@ function StudentTabs() {
                     ),
                 }}
             />
+            <Tabs.Screen
+                name="daily-selfie"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }

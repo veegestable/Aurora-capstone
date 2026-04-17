@@ -4,9 +4,9 @@
  */
 
 import type { ReactElement } from 'react';
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { View, Text, useWindowDimensions, ScrollView } from 'react-native';
-import Svg, { Circle, Line, Rect, Path, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Line, Rect, Path, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import * as Animatable from 'react-native-animatable';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { AURORA } from '../../constants/aurora-colors';
@@ -43,6 +43,10 @@ interface LineTrendProps {
     formatY?: (v: number) => string;
     friendlyAxis?: FriendlyAxisLabels;
     chartHeight?: number;
+    fitToWidth?: boolean;
+    labelEvery?: number;
+    xSlot?: number;
+    zoomable?: boolean;
 }
 
 const TREND_LEGEND = '● Logged day     ○ No check-in that day';
@@ -59,14 +63,24 @@ export function LineTrendChart({
     formatY = (v) => String(Math.round(v * 100) / 100),
     friendlyAxis,
     chartHeight = DEFAULT_H,
+    fitToWidth = false,
+    labelEvery = 1,
+    xSlot,
+    zoomable = false,
 }: LineTrendProps) {
     const { width: winW } = useWindowDimensions();
+    const trendScrollRef = useRef<ScrollView | null>(null);
     const n = values.length;
-    const innerW = Math.max(1, (n - 1) * X_SLOT);
+    const slot = xSlot ?? X_SLOT;
+    const minInnerW = Math.max(1, (n - 1) * slot);
+    const fitW = Math.max(240, winW - 48);
+    const innerW = fitToWidth ? Math.max(1, fitW - PAD_BASE.l - PAD_BASE.r) : minInnerW;
     const W = PAD_BASE.l + innerW + PAD_BASE.r;
     const innerH = chartHeight - PAD_BASE.t - PAD_BASE.b;
+    const step = n > 1 ? innerW / (n - 1) : 0;
+    const labelSlot = fitToWidth ? Math.max(18, step) : slot;
 
-    const xAt = (i: number) => PAD_BASE.l + i * X_SLOT;
+    const xAt = (i: number) => PAD_BASE.l + i * step;
 
     const xy = (i: number, v: number) => {
         const x = xAt(i);
@@ -77,6 +91,54 @@ export function LineTrendChart({
 
     const yBaseline = PAD_BASE.t + innerH;
     const gridYs = [0.25, 0.5, 0.75].map((frac) => PAD_BASE.t + innerH * frac);
+    const gradientId = `trend-grad-${title.replace(/\s+/g, '-').toLowerCase()}`;
+    const contiguousSegments: { i: number; v: number }[][] = [];
+    let current: { i: number; v: number }[] = [];
+    for (let i = 0; i < values.length; i++) {
+        const v = values[i];
+        if (v == null || Number.isNaN(v)) {
+            if (current.length > 0) contiguousSegments.push(current);
+            current = [];
+            continue;
+        }
+        current.push({ i, v });
+    }
+    if (current.length > 0) contiguousSegments.push(current);
+
+    const buildLinePath = (seg: { i: number; v: number }[]) => {
+        if (seg.length === 0) return '';
+        return seg
+            .map((p, idx) => {
+                const { x, y } = xy(p.i, p.v);
+                return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
+            })
+            .join(' ');
+    };
+
+    const buildAreaPath = (seg: { i: number; v: number }[]) => {
+        if (seg.length === 0) return '';
+        const first = seg[0];
+        const last = seg[seg.length - 1];
+        const linePath = buildLinePath(seg);
+        return `${linePath} L ${xAt(last.i)} ${yBaseline} L ${xAt(first.i)} ${yBaseline} Z`;
+    };
+
+    useEffect(() => {
+        if (fitToWidth) return;
+
+        const latestLoggedIndex = values.reduce<number>((latest, value, index) => {
+            if (value == null || Number.isNaN(value)) return latest;
+            return index;
+        }, -1);
+        if (latestLoggedIndex < 0) return;
+
+        // Start near the latest logged point so users see meaningful data first.
+        const targetX = Math.max(0, xAt(latestLoggedIndex) - PAD_BASE.l - fitW * 0.45);
+        const id = setTimeout(() => {
+            trendScrollRef.current?.scrollTo({ x: targetX, animated: false });
+        }, 0);
+        return () => clearTimeout(id);
+    }, [values, fitToWidth, fitW, xAt]);
 
     return (
         <View style={{ marginBottom: 12 }}>
@@ -84,9 +146,15 @@ export function LineTrendChart({
                 {title}
             </Text>
             <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 19, marginBottom: 12 }}>{caption}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {fitToWidth ? (
                 <View>
                     <Svg width={W} height={chartHeight}>
+                        <Defs>
+                            <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                                <Stop offset="0%" stopColor={stroke} stopOpacity={0.32} />
+                                <Stop offset="100%" stopColor={stroke} stopOpacity={0.02} />
+                            </LinearGradient>
+                        </Defs>
                         {gridYs.map((gy, gi) => (
                             <Line
                                 key={`g-${gi}`}
@@ -150,38 +218,65 @@ export function LineTrendChart({
                                 />
                             );
                         })}
-                        {values.map((v, i) => {
-                            if (i >= n - 1) return null;
-                            const v2 = values[i + 1];
-                            if (v == null || v2 == null || Number.isNaN(v) || Number.isNaN(v2)) return null;
-                            const p1 = xy(i, v);
-                            const p2 = xy(i + 1, v2);
+                        {contiguousSegments.map((seg, si) => {
+                            const area = buildAreaPath(seg);
+                            if (!area) return null;
                             return (
-                                <Line
-                                    key={`ln-${i}`}
-                                    x1={p1.x}
-                                    y1={p1.y}
-                                    x2={p2.x}
-                                    y2={p2.y}
-                                    stroke={stroke}
-                                    strokeWidth={3}
-                                    strokeLinecap="round"
+                                <Path
+                                    key={`area-${si}`}
+                                    d={area}
+                                    fill={`url(#${gradientId})`}
                                 />
+                            );
+                        })}
+                        {contiguousSegments.map((seg, si) => {
+                            const d = buildLinePath(seg);
+                            if (!d) return null;
+                            return (
+                                <Fragment key={`line-${si}`}>
+                                    {/* Glow layer */}
+                                    <Path
+                                        d={d}
+                                        stroke={stroke}
+                                        strokeOpacity={0.22}
+                                        strokeWidth={9}
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        fill="none"
+                                    />
+                                    {/* Main line */}
+                                    <Path
+                                        d={d}
+                                        stroke={stroke}
+                                        strokeWidth={3.5}
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        fill="none"
+                                    />
+                                </Fragment>
                             );
                         })}
                         {values.map((v, i) => {
                             if (v == null || Number.isNaN(v)) return null;
                             const { x, y } = xy(i, v);
                             return (
-                                <Circle
-                                    key={`pt-${i}`}
-                                    cx={x}
-                                    cy={y}
-                                    r={5}
-                                    fill={stroke}
-                                    stroke={AURORA.card}
-                                    strokeWidth={2}
-                                />
+                                <Fragment key={`pt-${i}`}>
+                                    <Circle
+                                        cx={x}
+                                        cy={y}
+                                        r={7}
+                                        fill={stroke}
+                                        opacity={0.18}
+                                    />
+                                    <Circle
+                                        cx={x}
+                                        cy={y}
+                                        r={4.4}
+                                        fill={stroke}
+                                        stroke="#FFFFFF"
+                                        strokeWidth={1.4}
+                                    />
+                                </Fragment>
                             );
                         })}
                         {friendlyAxis ? (
@@ -226,12 +321,13 @@ export function LineTrendChart({
                     </Svg>
                     <View style={{ width: W, height: 44, marginTop: 4, position: 'relative' }}>
                         {labels.map((lb, i) => (
+                            i % Math.max(1, labelEvery) === 0 ? (
                             <View
                                 key={`${lb}-${i}`}
                                 style={{
                                     position: 'absolute',
-                                    left: xAt(i) - X_SLOT / 2,
-                                    width: X_SLOT,
+                                    left: xAt(i) - labelSlot / 2,
+                                    width: labelSlot,
                                     top: 0,
                                     alignItems: 'center',
                                 }}
@@ -247,10 +343,113 @@ export function LineTrendChart({
                                     {lb}
                                 </Text>
                             </View>
+                            ) : null
                         ))}
                     </View>
                 </View>
-            </ScrollView>
+            ) : (
+                <ScrollView
+                    ref={trendScrollRef}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    minimumZoomScale={zoomable ? 1 : undefined}
+                    maximumZoomScale={zoomable ? 3 : undefined}
+                    bouncesZoom={zoomable}
+                    pinchGestureEnabled={zoomable}
+                >
+                    <View>
+                        <Svg width={W} height={chartHeight}>
+                            <Defs>
+                                <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <Stop offset="0%" stopColor={stroke} stopOpacity={0.32} />
+                                    <Stop offset="100%" stopColor={stroke} stopOpacity={0.02} />
+                                </LinearGradient>
+                            </Defs>
+                            {gridYs.map((gy, gi) => (
+                                <Line
+                                    key={`g-${gi}`}
+                                    x1={PAD_BASE.l}
+                                    y1={gy}
+                                    x2={PAD_BASE.l + innerW}
+                                    y2={gy}
+                                    stroke={AURORA.borderLight}
+                                    strokeWidth={1}
+                                    strokeDasharray="5,6"
+                                    opacity={0.45}
+                                />
+                            ))}
+                            <Line x1={PAD_BASE.l} y1={yBaseline} x2={PAD_BASE.l + innerW} y2={yBaseline} stroke={AURORA.borderLight} strokeWidth={1.2} />
+                            <Line x1={PAD_BASE.l} y1={PAD_BASE.t} x2={PAD_BASE.l} y2={yBaseline} stroke={AURORA.borderLight} strokeWidth={1.2} />
+                            {values.map((v, i) => {
+                                if (v != null) return null;
+                                const x = xAt(i);
+                                return <Circle key={`gh-${i}`} cx={x} cy={yBaseline} r={3.5} fill="rgba(255,255,255,0.14)" stroke="rgba(255,255,255,0.12)" strokeWidth={1} />;
+                            })}
+                            {values.map((v, i) => {
+                                if (i >= n - 1) return null;
+                                const v2 = values[i + 1];
+                                if (v != null || v2 != null) return null;
+                                return <Line key={`gb-${i}`} x1={xAt(i)} y1={yBaseline} x2={xAt(i + 1)} y2={yBaseline} stroke="rgba(255,255,255,0.12)" strokeWidth={1} strokeDasharray="4,5" />;
+                            })}
+                            {contiguousSegments.map((seg, si) => {
+                                const area = buildAreaPath(seg);
+                                if (!area) return null;
+                                return <Path key={`area-${si}`} d={area} fill={`url(#${gradientId})`} />;
+                            })}
+                            {contiguousSegments.map((seg, si) => {
+                                const d = buildLinePath(seg);
+                                if (!d) return null;
+                                return (
+                                    <Fragment key={`line-${si}`}>
+                                        <Path d={d} stroke={stroke} strokeOpacity={0.22} strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                                        <Path d={d} stroke={stroke} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                                    </Fragment>
+                                );
+                            })}
+                            {values.map((v, i) => {
+                                if (v == null || Number.isNaN(v)) return null;
+                                const { x, y } = xy(i, v);
+                                return (
+                                    <Fragment key={`pt-${i}`}>
+                                        <Circle cx={x} cy={y} r={7} fill={stroke} opacity={0.18} />
+                                        <Circle cx={x} cy={y} r={4.4} fill={stroke} stroke="#FFFFFF" strokeWidth={1.4} />
+                                    </Fragment>
+                                );
+                            })}
+                            {friendlyAxis ? (
+                                <>
+                                    <SvgText x={6} y={PAD_BASE.t + 10} fill={AURORA.textSec} fontSize="10" fontWeight="600">{friendlyAxis.high}</SvgText>
+                                    <SvgText x={6} y={PAD_BASE.t + innerH / 2 + 4} fill={AURORA.textMuted} fontSize="9">{friendlyAxis.mid}</SvgText>
+                                    <SvgText x={6} y={PAD_BASE.t + innerH - 2} fill={AURORA.textSec} fontSize="10" fontWeight="600">{friendlyAxis.low}</SvgText>
+                                </>
+                            ) : (
+                                <>
+                                    <SvgText x={6} y={PAD_BASE.t + 10} fill={AURORA.textMuted} fontSize="10">{formatY(yMax)}</SvgText>
+                                    <SvgText x={6} y={PAD_BASE.t + innerH - 2} fill={AURORA.textMuted} fontSize="10">{formatY(yMin)}</SvgText>
+                                </>
+                            )}
+                        </Svg>
+                        <View style={{ width: W, height: 44, marginTop: 4, position: 'relative' }}>
+                            {labels.map((lb, i) => (
+                                <View
+                                    key={`${lb}-${i}`}
+                                    style={{
+                                        position: 'absolute',
+                                        left: xAt(i) - labelSlot / 2,
+                                        width: labelSlot,
+                                        top: 0,
+                                        alignItems: 'center',
+                                    }}
+                                >
+                                    <Text style={{ color: AURORA.textSec, fontSize: 10, fontWeight: '500', textAlign: 'center' }}>
+                                        {lb}
+                                    </Text>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                </ScrollView>
+            )}
             <Text style={{ color: AURORA.textMuted, fontSize: 11, marginTop: 8 }}>{TREND_LEGEND}</Text>
             <Text style={{ color: AURORA.textMuted, fontSize: 11, marginTop: 4, lineHeight: 16 }}>
                 {TREND_GAP_NOTE}

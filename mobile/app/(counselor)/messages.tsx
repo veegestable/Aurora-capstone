@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     Search, ArrowLeft, AlertTriangle,
-    Info, Plus, Send, RotateCcw, UserPlus,
+    Info, Plus, Send, RotateCcw, PenSquare, ChevronRight,
 } from 'lucide-react-native';
 import { useAuth } from '../../src/stores/AuthContext';
 import { useMessagesContactStore, type MessageContact } from '../../src/stores/messagesContactStore';
@@ -911,25 +911,45 @@ export default function CounselorMessagesScreen() {
                             </Text>
                         </View>
                         <TouchableOpacity
-                            style={{ alignItems: 'center', padding: 6 }}
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 8,
+                                paddingVertical: 7,
+                                paddingHorizontal: 10,
+                                borderRadius: 12,
+                                backgroundColor: AURORA.blue,
+                                borderWidth: 1.5,
+                                borderColor: 'rgba(255,255,255,0.25)',
+                                shadowColor: AURORA.blue,
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.35,
+                                shadowRadius: 8,
+                                elevation: 6,
+                            }}
                             onPress={() => router.push('/(counselor)/session-history')}
-                            activeOpacity={0.7}
+                            activeOpacity={0.85}
                         >
-                            <RotateCcw size={22} color={AURORA.textSec} />
-                            <Text style={{ color: AURORA.textSec, fontSize: 9, fontWeight: '600', marginTop: 2 }}>
-                                History
+                            <View
+                                style={{
+                                    width: 20,
+                                    height: 20,
+                                    borderRadius: 10,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    backgroundColor: 'rgba(255,255,255,0.22)',
+                                }}
+                            >
+                                <RotateCcw size={12} color="#FFFFFF" />
+                            </View>
+                            <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '800', letterSpacing: 0.2 }}>
+                                Session History
                             </Text>
+                            <ChevronRight size={12} color="#FFFFFF" />
                         </TouchableOpacity>
-                        <TouchableOpacity style={{ padding: 6 }} activeOpacity={0.7}>
+                        {/* <TouchableOpacity style={{ padding: 6 }} activeOpacity={0.7}>
                             <Search size={22} color={AURORA.textSec} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={{ padding: 6 }}
-                            activeOpacity={0.7}
-                            onPress={() => setShowAddStudentModal(true)}
-                        >
-                            <UserPlus size={22} color={AURORA.blue} />
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                     </View>
 
                     <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
@@ -997,6 +1017,29 @@ export default function CounselorMessagesScreen() {
                         ))
                     )}
                 </ScrollView>
+
+                <TouchableOpacity
+                    onPress={() => setShowAddStudentModal(true)}
+                    style={{
+                        position: 'absolute',
+                        bottom: 20,
+                        right: 20,
+                        width: 56,
+                        height: 56,
+                        borderRadius: 28,
+                        backgroundColor: AURORA.blue,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        shadowColor: AURORA.blue,
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.5,
+                        shadowRadius: 12,
+                        elevation: 8,
+                    }}
+                    activeOpacity={0.85}
+                >
+                    <PenSquare size={22} color="#FFFFFF" />
+                </TouchableOpacity>
 
                 {user?.id ? (
                     <SelectStudentModal
