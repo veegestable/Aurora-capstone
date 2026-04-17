@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { counselorService } from '../services/counselor'
 import { firestoreService } from '../services/firebase-firestore'
 import { sessionsService } from '../services/sessions'
+import { messagesService } from '../services/messages'
 import { SessionCard } from '../components/sessions/SessionCard'
 import type { Session } from '../types/session.types'
 import {
@@ -22,7 +23,6 @@ interface FlagItem {
   risk: RiskLevel
 }
 
-// Stat Card 
 interface StatCardProps {
   icon: React.ReactNode
   count: string | number
@@ -42,7 +42,6 @@ function StatCard({ icon, count, label, accent }: StatCardProps) {
   )
 }
 
-// Flag Row 
 function FlagRow({ item }: { item: FlagItem }) {
   const style = getDashboardRiskStyle(item.risk)
 
@@ -73,12 +72,12 @@ function FlagRow({ item }: { item: FlagItem }) {
   )
 }
 
-// Main 
 export default function CounselorDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [studentCount, setStudentCount] = useState(0)
   const [criticalRisks, setCriticalRisks] = useState(0)
+  const [unreadMessages, setUnreadMessages] = useState(0)
   const [recentFlags, setRecentFlags] = useState<FlagItem[]>([])
   const [pendingSessions, setPendingSessions] = useState<Session[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -94,7 +93,6 @@ export default function CounselorDashboard() {
         if (cancelled) return
         setStudentCount(students.length)
 
-        // Fetch recent mood logs for each student (limit 15 for perf)
         const limit = Math.min(15, students.length)
         const studentsWithMood = await Promise.all(
           students.slice(0, limit).map(async (s) => {
@@ -132,8 +130,14 @@ export default function CounselorDashboard() {
         setCriticalRisks(flags.filter((f) => f.risk === 'HIGH RISK').length)
 
         if (user?.id) {
-          const sessions = await sessionsService.getSessionsForCounselor(user.id)
-          if (!cancelled) setPendingSessions(sessions.filter((s) => s.status === 'requested' || s.status === 'pending'))
+          const [sessions, convos] = await Promise.all([
+            sessionsService.getSessionsForCounselor(user.id),
+            messagesService.getConversationsForCounselor(user.id),
+          ])
+          if (!cancelled) {
+            setPendingSessions(sessions.filter((s) => s.status === 'requested' || s.status === 'pending'))
+            setUnreadMessages(convos.filter((c) => c.isUnread).length)
+          }
         }
       } catch (error) {
         console.error('Error fetching counselor dashboard data:', error)
@@ -191,11 +195,13 @@ export default function CounselorDashboard() {
             icon={
               <div className="relative w-9 h-9 rounded-full bg-aurora-secondary-blue/10 flex items-center justify-center">
                 <MessageSquare className="w-[18px] h-[18px] text-aurora-secondary-blue" />
-                <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-aurora-secondary-blue" />
+                {unreadMessages > 0 && (
+                  <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-aurora-secondary-blue" />
+                )}
               </div>
             }
-            count={"—"}
-            label="New Messages"
+            count={unreadMessages}
+            label="Unread Messages"
           />
           <StatCard
             icon={
@@ -204,7 +210,7 @@ export default function CounselorDashboard() {
               </div>
             }
             count={pendingSessions.length}
-            label="Pending Follow-ups"
+            label="Session Requests"
           />
         </div>
       </div>

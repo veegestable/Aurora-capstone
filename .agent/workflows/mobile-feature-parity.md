@@ -378,11 +378,11 @@ Collections used across features (verify rules allow web client access):
 
 | Phase | Gap | Effort | Status |
 |---|---|---|---|
-| A1 | Counselor messages query fix | Small | Not started |
-| B1 | Real AI emotion detection | Small | Not started |
-| B2 | Dynamic dashboard metrics | Medium | Not started |
-| B3 | Session request/invite flow | Large | Not started |
-| B4 | Counselor dashboard dynamic stats | Small | Not started |
+| A1 | Counselor messages query fix | Small | ✅ Done |
+| B1 | Real AI emotion detection | Small | ✅ Done |
+| B2 | Dynamic dashboard metrics | Medium | ✅ Done |
+| B3 | Session request/invite flow | Large | ✅ Done |
+| B4 | Counselor dashboard dynamic stats | Small | ✅ Done |
 | C1 | Online presence (green dot) | Medium | Not started |
 | C2 | Announcements system | Medium | Not started |
 | C3 | Audit logging (write + read) | Medium | Not started |
