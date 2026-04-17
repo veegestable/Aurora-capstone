@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { counselorService } from '../services/counselor'
 import { firestoreService } from '../services/firebase-firestore'
+import { sessionsService } from '../services/sessions'
+import { SessionCard } from '../components/sessions/SessionCard'
+import type { Session } from '../types/session.types'
 import {
   Users, AlertTriangle, MessageSquare,
   Calendar, ChevronRight,
@@ -73,9 +76,11 @@ function FlagRow({ item }: { item: FlagItem }) {
 // Main 
 export default function CounselorDashboard() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [studentCount, setStudentCount] = useState(0)
   const [criticalRisks, setCriticalRisks] = useState(0)
   const [recentFlags, setRecentFlags] = useState<FlagItem[]>([])
+  const [pendingSessions, setPendingSessions] = useState<Session[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   const firstName = user?.full_name?.split(' ')[0] || 'Counselor'
@@ -125,6 +130,11 @@ export default function CounselorDashboard() {
 
         setRecentFlags(flags)
         setCriticalRisks(flags.filter((f) => f.risk === 'HIGH RISK').length)
+
+        if (user?.id) {
+          const sessions = await sessionsService.getSessionsForCounselor(user.id)
+          if (!cancelled) setPendingSessions(sessions.filter((s) => s.status === 'requested' || s.status === 'pending'))
+        }
       } catch (error) {
         console.error('Error fetching counselor dashboard data:', error)
         if (!cancelled) {
@@ -184,7 +194,7 @@ export default function CounselorDashboard() {
                 <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-aurora-secondary-blue" />
               </div>
             }
-            count={3}
+            count={"—"}
             label="New Messages"
           />
           <StatCard
@@ -193,7 +203,7 @@ export default function CounselorDashboard() {
                 <Calendar className="w-[18px] h-[18px] text-amber-500" />
               </div>
             }
-            count={8}
+            count={pendingSessions.length}
             label="Pending Follow-ups"
           />
         </div>
@@ -232,6 +242,25 @@ export default function CounselorDashboard() {
           </div>
         )}
       </div>
+
+      {/* Pending Session Requests */}
+      {pendingSessions.length > 0 && (
+        <div>
+          <h3 className="text-lg font-extrabold text-aurora-primary-dark mb-3 font-heading">
+            Session Requests
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {pendingSessions.slice(0, 4).map((session) => (
+              <SessionCard
+                key={session.id}
+                session={session}
+                onAction={() => navigate('/counselor/messages')}
+                actionLabel="View in Messages"
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -5,14 +5,20 @@ import MoodCheckIn from '../components/MoodCheckIn'
 import { moodService } from '../services/mood'
 import { computeStreak, computeTrend, computeDailyInsight } from '../utils/analytics'
 import type { TrendDirection } from '../utils/analytics'
+import { SessionRequestModal } from '../components/sessions/SessionRequestModal'
 import {
-  MessageSquare, BookOpen, CalendarPlus,
-  TrendingUp, TrendingDown, Minus, Sparkles,
+  MessageSquare,
+  BookOpen,
+  CalendarPlus,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Sparkles,
 } from 'lucide-react'
 
-const trendMeta: Record<TrendDirection, { icon: typeof TrendingUp; label: string; sub: string; }> = {
+const trendMeta: Record<TrendDirection, { icon: typeof TrendingUp; label: string; sub: string }> = {
   Improving: { icon: TrendingUp, label: 'Improving', sub: 'Great progress!' },
-  Stable: { icon: Minus, label: 'Stable', sub: 'Consistency ✦' },
+  Stable:    { icon: Minus,       label: 'Stable',    sub: 'Consistency ✦' },
   Declining: { icon: TrendingDown, label: 'Declining', sub: 'Take it easy' },
 }
 
@@ -22,7 +28,10 @@ export default function StudentDashboard() {
 
   const [streak, setStreak] = useState(0)
   const [trend, setTrend] = useState<TrendDirection>('Stable')
-  const [insight, setInsight] = useState('Complete a check-in to get a personalized note based on your mood and energy.')
+  const [insight, setInsight] = useState(
+    'Complete a check-in to get a personalized note based on your mood and energy.'
+  )
+  const [showSessionModal, setShowSessionModal] = useState(false)
 
   const firstName = user?.full_name?.split(' ')[0] || 'Student'
 
@@ -52,7 +61,7 @@ export default function StudentDashboard() {
   }, [user?.id])
 
   const TrendIcon = trendMeta[trend].icon
-  
+
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
@@ -82,12 +91,14 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+
       {/* Mood Check-In */}
       <MoodCheckIn onMoodLogged={loadStats} />
+
       {/* Quick Actions */}
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
         <button
-          onClick={() => {/* TODO: open session request modal */}}
+          onClick={() => setShowSessionModal(true)}
           className="card-aurora flex flex-col items-center justify-center py-5 px-2 hover:shadow-[0_0_20px_rgba(45,107,255,0.1)] transition-all cursor-pointer group"
           aria-label="Request a session"
         >
@@ -98,6 +109,7 @@ export default function StudentDashboard() {
             Request Session
           </span>
         </button>
+
         <button
           onClick={() => navigate('/student/messages')}
           className="card-aurora flex flex-col items-center justify-center py-5 px-2 hover:shadow-[0_0_20px_rgba(124,58,237,0.1)] transition-all cursor-pointer group"
@@ -110,6 +122,7 @@ export default function StudentDashboard() {
             Messages
           </span>
         </button>
+
         <button
           onClick={() => navigate('/student/resources')}
           className="card-aurora flex flex-col items-center justify-center py-5 px-2 hover:shadow-[0_0_20px_rgba(34,197,94,0.1)] transition-all cursor-pointer group"
@@ -123,9 +136,9 @@ export default function StudentDashboard() {
           </span>
         </button>
       </div>
+
       {/* Stats Row */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        {/* Streak Card */}
         <div className="card-aurora relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-linear-to-b from-aurora-orange to-aurora-amber rounded-r-full" />
           <div className="pl-3">
@@ -137,15 +150,13 @@ export default function StudentDashboard() {
                 <span className="text-lg">🔥</span>
               </div>
               <div>
-                <p className="text-2xl font-extrabold text-white leading-tight">
-                  {streak}
-                </p>
+                <p className="text-2xl font-extrabold text-white leading-tight">{streak}</p>
                 <p className="text-xs text-aurora-text-sec">Days</p>
               </div>
             </div>
           </div>
         </div>
-        {/* Trend Card */}
+
         <div className="card-aurora relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-linear-to-b from-aurora-blue to-aurora-blue-light rounded-r-full" />
           <div className="pl-3">
@@ -166,7 +177,8 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
-      {/* AI Insight Card */}
+
+      {/* Daily Note */}
       <div className="card-aurora relative overflow-hidden">
         <div className="absolute inset-0 bg-linear-to-r from-[rgba(124,58,237,0.06)] to-transparent pointer-events-none" />
         <div className="relative flex items-start space-x-4">
@@ -182,12 +194,20 @@ export default function StudentDashboard() {
                 </span>
               )}
             </h3>
-            <p className="text-sm text-aurora-text-sec leading-relaxed">
-              {insight}
-            </p>
+            <p className="text-sm text-aurora-text-sec leading-relaxed">{insight}</p>
           </div>
         </div>
       </div>
+
+      {/* Session Request Modal */}
+      <SessionRequestModal
+        visible={showSessionModal}
+        studentId={user?.id ?? ''}
+        studentName={user?.full_name}
+        studentAvatar={user?.avatar_url ?? undefined}
+        onClose={() => setShowSessionModal(false)}
+        onSuccess={() => setShowSessionModal(false)}
+      />
     </div>
   )
 }
