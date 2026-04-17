@@ -3,6 +3,18 @@ import { Camera, Upload, Bot, Target, Check, Sparkles } from 'lucide-react'
 import type { DetectedEmotion } from '../types/mood.types'
 import { EMOTION_COLORS } from '../utils/emotions'
 
+const EMOTION_API_URL = import.meta.env.VITE_EMOTION_API_URL
+
+const getEmotionColor = (emotionName: string): string => {
+  const normalized = emotionName.toLowerCase().trim()
+  return EMOTION_COLORS[normalized] ?? '#808080'
+}
+
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const res = await fetch(dataUrl)
+  return res.blob()
+}
+
 interface EmotionDetectionProps {
   onEmotionDetected: (emotions: DetectedEmotion[]) => void
 }
@@ -33,9 +45,9 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
       setMediaStream(stream)
       setUseCamera(true)
     } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Unable to access camera. Please check permissions.');
-      setIsCapturing(false);
+      console.error('Error accessing camera:', error)
+      alert('Unable to access camera. Please check permissions.')
+      setIsCapturing(false)
     }
   }
 
@@ -90,36 +102,61 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
     }
   }
 
-  const analyzeEmotion = async (imageData: string) => {
+  const analyzeEmotion = async (imageDataUrl: string) => {
     setIsAnalyzing(true)
 
     try {
-      const mockEmotions = await mockEmotionAnalysis(imageData)
-      setDetectedEmotions(mockEmotions)
-      onEmotionDetected(mockEmotions)
+      if (!EMOTION_API_URL) {
+        throw new Error('Emotion API URL is not configured. Set VITE_EMOTION_API_URL in your .env file.')
+      }
+
+      const blob = await dataUrlToBlob(imageDataUrl)
+      const formData = new FormData()
+      formData.append('file', blob, 'photo.jpg')
+
+      const response = await fetch(`${EMOTION_API_URL}/api/emotion/analyze-upload`, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(`API Error: ${response.status} - ${text}`)
+      }
+
+      const result = await response.json()
+
+      if (!result.success || !result.face_detected) {
+        throw new Error(
+          !result.face_detected
+            ? 'No face detected in the image. Please try again with a clearer photo.'
+            : result.error || 'Unknown API error'
+        )
+      }
+
+      let emotions: DetectedEmotion[] = []
+
+      if (result.emotions) {
+        emotions = Object.entries(result.emotions).map(([emotion, score]) => ({
+          emotion: emotion.toLowerCase(),
+          confidence: (score as number) / 100,
+          color: getEmotionColor(emotion),
+        }))
+      }
+
+      const topEmotions = emotions
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, 3)
+
+      setDetectedEmotions(topEmotions)
+      onEmotionDetected(topEmotions)
     } catch (error) {
       console.error('Emotion analysis failed:', error)
-      alert('Failed to analyze emotions. Please try again.')
+      alert(error instanceof Error ? error.message : 'Failed to analyze emotions. Please try again.')
     } finally {
       setIsAnalyzing(false)
     }
-  }
-
-  const mockEmotionAnalysis = async (_imageData: string): Promise<DetectedEmotion[]> => {
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    const possibleEmotions = [
-      { emotion: 'joy', confidence: Math.random() * 0.4 + 0.3, color: EMOTION_COLORS.joy },
-      { emotion: 'sadness', confidence: Math.random() * 0.3 + 0.1, color: EMOTION_COLORS.sadness },
-      { emotion: 'neutral', confidence: Math.random() * 0.5 + 0.2, color: EMOTION_COLORS.neutral },
-      { emotion: 'surprise', confidence: Math.random() * 0.2 + 0.05, color: EMOTION_COLORS.surprise },
-      { emotion: 'love', confidence: Math.random() * 0.3 + 0.1, color: EMOTION_COLORS.love }
-    ]
-
-    return possibleEmotions
-      .filter(emotion => emotion.confidence > 0.15)
-      .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 3);
   }
 
   return (
@@ -266,8 +303,8 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
           <div className="flex gap-3">
             <button
               onClick={() => {
-                setCapturedImage(null);
-                setDetectedEmotions([]);
+                setCapturedImage(null)
+                setDetectedEmotions([])
               }}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/5 border border-white/8 hover:bg-white/10 text-aurora-text-sec font-medium text-sm rounded-[14px] cursor-pointer transition-all"
             >
@@ -277,9 +314,8 @@ export function EmotionDetection({ onEmotionDetected }: EmotionDetectionProps) {
             {detectedEmotions.length > 0 && (
               <button
                 onClick={() => {
-                  alert('Emotions saved to your mood log!');
-                  setCapturedImage(null);
-                  setDetectedEmotions([]);
+                  setCapturedImage(null)
+                  setDetectedEmotions([])
                 }}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-[rgba(34,197,94,0.15)] border border-[rgba(34,197,94,0.35)] hover:bg-[rgba(34,197,94,0.25)] text-aurora-green font-semibold text-sm rounded-[14px] cursor-pointer transition-all"
               >

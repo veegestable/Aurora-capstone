@@ -5,6 +5,7 @@ import { LetterAvatar } from '../LetterAvatar'
 import { ChatBubble } from './ChatBubble'
 import { ArrowLeft, Send, Info } from 'lucide-react'
 import type { CounselorContact, ChatMessage } from '../../types/message.types'
+import { usePeerPresence } from '../../hooks/usePeerPresence'
 
 interface DirectMessageViewProps {
   contact: CounselorContact
@@ -18,6 +19,8 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const peerOnline = usePeerPresence(contact.id)
+  const isOnline = peerOnline || contact.isOnline
 
   useEffect(() => {
     if (!contact.conversationId || !user?.id) {
@@ -89,7 +92,12 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
         </button>
 
         <div className="flex items-center gap-3">
-          <LetterAvatar name={contact.name} size={36} />
+          <div className="relative">
+            <LetterAvatar name={contact.name} size={36} />
+            {isOnline && (
+              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-aurora-accent-green border-2 border-white" />
+            )}
+          </div>
           <div className="text-center">
             <p className="font-bold text-aurora-primary-dark text-sm">
               {contact.name}
@@ -97,11 +105,11 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
             <div className="flex items-center justify-center gap-1.5">
               <div
                 className={`w-2 h-2 rounded-full ${
-                  contact.isOnline ? 'bg-aurora-accent-green' : 'bg-aurora-gray-400'
+                  isOnline ? 'bg-aurora-accent-green' : 'bg-aurora-gray-400'
                 }`}
               />
               <span className="text-xs text-aurora-gray-500">
-                {contact.isOnline ? 'Online now' : 'Offline'}
+                {isOnline ? 'Online now' : 'Offline'}
               </span>
             </div>
           </div>

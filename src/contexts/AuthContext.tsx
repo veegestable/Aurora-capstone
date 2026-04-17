@@ -3,6 +3,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../config/firebase'
 import { authService, UserProfile } from '../services/firebase-auth'
 import { User } from '../types/user.types'
+import { presenceService } from '../services/presence'
 
 interface AuthContextType {
   user: User | null
@@ -38,9 +39,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     console.log('🔥 Setting up Firebase auth listener...')
+
+    let stopPresence: (() => void) | undefined
     
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log('🔥 Auth state changed:', firebaseUser?.email)
+
+      stopPresence?.()
+      stopPresence = undefined
+
+      // Presence must use the Firebase Auth uid (RTDB rules: auth.uid === $uid).
+      // Start as soon as Auth is ready — do not wait for Firestore profile, 
+      // or RTDB never gets writes.
+      if (firebaseUser?.uid) stopPresence = presenceService.startMyPresence(firebaseUser.uid)
       
       if (firebaseUser) {
         // User is signed in
@@ -64,7 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     // Cleanup subscription on unmount
-    return () => unsubscribe()
+    return () => {
+      stopPresence?.()
+      unsubscribe()
+    }
   }, [])
 
   const signIn = async (email: string, password: string) => {
@@ -128,6 +142,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
+      const uid = auth.currentUser?.uid
+
+      if (uid) {
+        try {
+          await presenceService.setMyPresenceOfflineNow(uid)
+        } catch (e) {
+          console.warn('[presence] Could not set offline before sign out:', e)
+        }
+      }
+
       await authService.signOut()
       setUser(null)
       console.log('✅ Sign out successful')
