@@ -22,6 +22,10 @@ export interface UserSettingsDoc {
   remindersEnabled?: boolean;
   academicContextEnabled?: boolean;
   enabledContextCategories?: ContextCategoryKey[];
+  /** When true, counselors may see a short window of self-reported check-in summaries (see counselor-checkin-policy). */
+  shareCheckInsWithGuidance?: boolean;
+  /** One-time in-app disclosure on the student dashboard (briefing modal). */
+  checkInSharingBriefingSeen?: boolean;
   updatedAt?: Timestamp;
 }
 
@@ -77,13 +81,24 @@ export async function getUserSettings(userId: string): Promise<UserSettingsDoc> 
     enabledContextCategories: Array.isArray(d.enabledContextCategories)
       ? (d.enabledContextCategories.filter((x: unknown) => typeof x === 'string') as ContextCategoryKey[])
       : [...(DEFAULT_SETTINGS.enabledContextCategories || [])],
+    shareCheckInsWithGuidance: typeof d.shareCheckInsWithGuidance === 'boolean' ? d.shareCheckInsWithGuidance : false,
+    checkInSharingBriefingSeen: typeof d.checkInSharingBriefingSeen === 'boolean' ? d.checkInSharingBriefingSeen : false,
     updatedAt: d.updatedAt,
   };
 }
 
 export async function updateUserSettings(
   userId: string,
-  partial: Partial<Pick<UserSettingsDoc, 'dayResetHour' | 'timezone' | 'reminderHour' | 'remindersEnabled' | 'academicContextEnabled' | 'enabledContextCategories'>>
+  partial: Partial<Pick<UserSettingsDoc,
+    | 'dayResetHour'
+    | 'timezone'
+    | 'reminderHour'
+    | 'remindersEnabled'
+    | 'academicContextEnabled'
+    | 'enabledContextCategories'
+    | 'shareCheckInsWithGuidance'
+    | 'checkInSharingBriefingSeen'
+  >>
 ): Promise<void> {
   const ref = doc(db, 'userSettings', userId);
   await setDoc(

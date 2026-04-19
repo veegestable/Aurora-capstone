@@ -11,7 +11,7 @@ import { useAuth } from '../../src/stores/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import { BlurView } from 'expo-blur';
 import { StyleSheet, View } from 'react-native';
-import { Home, Users, AlertTriangle, MessageSquare, User } from 'lucide-react-native';
+import { Home, Users, MessageSquare, User } from 'lucide-react-native';
 import { AURORA } from '../../src/constants/aurora-colors';
 import { triggerHaptic } from '../../src/utils/haptics';
 import { AnimatedTabBarButton } from '../../src/components/navigation/AnimatedTabBarButton';
@@ -111,28 +111,7 @@ function CounselorTabs() {
                     ),
                 }}
             />
-            <Tabs.Screen
-                name="risk-center"
-                options={{
-                    title: 'Risks',
-                    tabBarIcon: ({ color, focused }) => (
-                        <View style={{ position: 'relative' }}>
-                            <AlertTriangle size={focused ? 24 : 22} color={color} />
-                        </View>
-                    ),
-                    tabBarBadge: '5',
-                    tabBarBadgeStyle: {
-                        backgroundColor: AURORA.red,
-                        fontSize: 9,
-                        minWidth: 16,
-                        height: 16,
-                        lineHeight: 16,
-                    },
-                    tabBarButton: (props) => (
-                        <AnimatedTabBarButton {...(props as object)} routeName="risk-center" />
-                    ),
-                }}
-            />
+            <Tabs.Screen name="risk-center" options={{ href: null }} />
             <Tabs.Screen
                 name="messages"
                 options={{

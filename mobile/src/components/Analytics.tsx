@@ -1223,7 +1223,7 @@ export default function Analytics() {
                                 activeOpacity={0.9}
                                 onPress={() => setActiveWeekPill((prev) => (prev === pill.key ? null : pill.key))}
                                 style={{
-                                    width: 140,
+                                    width: 113,
                                     backgroundColor: activeWeekPill === pill.key ? 'rgba(45, 107, 255, 0.18)' : 'rgba(15, 24, 64, 0.88)',
                                     padding: 13,
                                     borderRadius: 18,

@@ -17,28 +17,16 @@ import { aggregateByDay, moodStabilityScore } from '../../utils/moodAggregates';
 import { blendColors } from '../../utils/blendColors';
 import { AURORA } from '../../constants/aurora-colors';
 import { getEmotionLabel } from '../../utils/moodColors';
+import {
+  energyCategoryLabelFromFive,
+  stressCategoryLabelFromFive,
+} from '../../utils/analytics/metricCategories';
 
 function stabilityCopy(score: number): string {
   if (score >= 80) return 'Very stable — your mood has been consistent';
   if (score >= 60) return 'Mostly stable — a few noticeable shifts';
   if (score >= 40) return 'Some fluctuation this period';
   return 'High variability — your mood shifted a lot';
-}
-
-function stressCategoryLabel(score: number | null | undefined): string {
-  if (score == null || !Number.isFinite(score)) return 'Not enough stress data';
-  if (score <= 1.8) return 'Very calm';
-  if (score <= 2.6) return 'Normal';
-  if (score <= 3.5) return 'Stressed';
-  return 'Very stressed';
-}
-
-function energyCategoryLabel(score: number | null | undefined): string {
-  if (score == null || !Number.isFinite(score)) return 'Not enough energy data';
-  if (score <= 1.8) return 'Very low energy';
-  if (score <= 2.6) return 'Low energy';
-  if (score <= 3.5) return 'Steady energy';
-  return 'High energy';
 }
 
 type Props = {
@@ -346,8 +334,8 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
                             : b.label,
                           text: `${
                             metric === 'stress'
-                              ? stressCategoryLabel(b.agg.avgStress)
-                              : energyCategoryLabel(b.agg.avgEnergy)
+                              ? stressCategoryLabelFromFive(b.agg.avgStress)
+                              : energyCategoryLabelFromFive(b.agg.avgEnergy)
                           } · ${b.agg.entryCount} check-in${b.agg.entryCount === 1 ? '' : 's'}`,
                           emotion: b.agg.dominantMood && b.agg.dominantMood !== '—' ? b.agg.dominantMood : undefined,
                           color: b.agg.blendedColor,
@@ -512,8 +500,8 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
                               label: b.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
                               text: `${
                                 metric === 'stress'
-                                  ? stressCategoryLabel(b.agg.avgStress)
-                                  : energyCategoryLabel(b.agg.avgEnergy)
+                                  ? stressCategoryLabelFromFive(b.agg.avgStress)
+                                  : energyCategoryLabelFromFive(b.agg.avgEnergy)
                               } · ${b.agg.entryCount} check-in${b.agg.entryCount === 1 ? '' : 's'}`,
                               emotion: b.agg.dominantMood && b.agg.dominantMood !== '—' ? b.agg.dominantMood : undefined,
                               color: b.agg.blendedColor,
@@ -581,8 +569,8 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
                 >
                   <Text style={{ color: AURORA.textPrimary, fontSize: 11, fontWeight: '700' }}>
                     {metric === 'stress'
-                      ? `Stress level: ${stressCategoryLabel(last30AvgStress)}`
-                      : `Energy level: ${energyCategoryLabel(last30AvgEnergy)}`}
+                      ? `Stress level: ${stressCategoryLabelFromFive(last30AvgStress)}`
+                      : `Energy level: ${energyCategoryLabelFromFive(last30AvgEnergy)}`}
                   </Text>
                 </View>
               ) : null}

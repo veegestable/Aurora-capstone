@@ -1003,7 +1003,7 @@ export default function CounselorMessagesScreen() {
                         <View style={{ paddingTop: 60, alignItems: 'center' }}>
                             <Text style={{ color: AURORA.textMuted, fontSize: 14, textAlign: 'center' }}>
                                 {contacts.length === 0
-                                    ? 'No conversations yet. Tap + to add a student, or invite from the Risk Center.'
+                                    ? 'No conversations yet. Tap + to add a student, or invite from the Student Directory.'
                                     : 'No conversations match this filter.'}
                             </Text>
                         </View>

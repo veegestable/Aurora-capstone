@@ -2,6 +2,24 @@
  * Plain-language buckets for 1–5 analytics scales (matches student Analytics copy).
  */
 
+/** Title-case labels — same bands as `AnalyticsMoodWidgets` stress / energy cards. */
+export function stressCategoryLabelFromFive(score: number | null | undefined): string {
+    if (score == null || !Number.isFinite(score)) return 'Not enough stress data';
+    if (score <= 1.8) return 'Very calm';
+    if (score <= 2.6) return 'Normal';
+    if (score <= 3.5) return 'Stressed';
+    return 'Very stressed';
+}
+
+/** Title-case labels — same bands as `AnalyticsMoodWidgets` stress / energy cards. */
+export function energyCategoryLabelFromFive(score: number | null | undefined): string {
+    if (score == null || !Number.isFinite(score)) return 'Not enough energy data';
+    if (score <= 1.8) return 'Very low energy';
+    if (score <= 2.6) return 'Low energy';
+    if (score <= 3.5) return 'Steady energy';
+    return 'High energy';
+}
+
 export function stressCategoryFromFive(avg: number | null): string {
     if (avg == null) return 'not enough stress data';
     if (avg <= 1.8) return 'very calm';

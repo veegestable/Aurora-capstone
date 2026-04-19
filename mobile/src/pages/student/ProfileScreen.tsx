@@ -27,6 +27,9 @@ import {
     formatYearLevelForDisplay,
     matchLegacyDepartmentToProgramValue,
 } from '../../constants/ccs-student-programs';
+import { getUserSettings, updateUserSettings } from '../../services/mood-firestore-v2.service';
+import { COUNSELOR_CHECKIN_WINDOW_DAYS, COUNSELOR_VISIBLE_CHECKIN_SUMMARY } from '../../constants/counselor-checkin-policy';
+import { Shield } from 'lucide-react-native';
 
 // ─── Section Header ───────────────────────────────────────────────────────────
 function SectionHeader({ icon, title }: { icon?: React.ReactNode; title: string }) {
@@ -69,20 +72,23 @@ function PrivacyRow({ icon, title, description }: { icon: React.ReactNode; title
 
 // ─── Toggle Row ───────────────────────────────────────────────────────────────
 function ToggleRow({
-    icon, label, value, onValueChange
+    icon, label, value, onValueChange, disabled,
 }: {
     icon: React.ReactNode; label: string; value: boolean; onValueChange: (v: boolean) => void;
+    disabled?: boolean;
 }) {
     return (
         <View style={{
             flexDirection: 'row', alignItems: 'center',
             paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: AURORA.border,
+            opacity: disabled ? 0.55 : 1,
         }}>
             <View style={{ marginRight: 12 }}>{icon}</View>
             <Text style={{ flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '500' }}>{label}</Text>
             <Switch
                 value={value}
                 onValueChange={onValueChange}
+                disabled={disabled}
                 trackColor={{ false: AURORA.cardAlt, true: AURORA.blue }}
                 thumbColor="#FFFFFF"
             />
@@ -440,6 +446,8 @@ export default function ProfileScreen() {
     const [aiCamera, setAiCamera] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
     const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
+    const [shareCheckInsWithGuidance, setShareCheckInsWithGuidance] = useState(false);
+    const [sharePrefsLoading, setSharePrefsLoading] = useState(true);
 
     const pickerValue = useMemo(() => {
         const d = new Date();
@@ -456,6 +464,25 @@ export default function ProfileScreen() {
             }
         ]);
     };
+
+    useEffect(() => {
+        if (!user?.id) return;
+        let cancelled = false;
+        setSharePrefsLoading(true);
+        (async () => {
+            try {
+                const s = await getUserSettings(user.id);
+                if (!cancelled) setShareCheckInsWithGuidance(!!s.shareCheckInsWithGuidance);
+            } catch {
+                if (!cancelled) setShareCheckInsWithGuidance(false);
+            } finally {
+                if (!cancelled) setSharePrefsLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.id]);
 
     useEffect(() => {
         if (settingsLoading) return;
@@ -563,13 +590,48 @@ export default function ProfileScreen() {
                     }}>
                         <PrivacyRow
                             icon={<Eye size={18} color={AURORA.green} />}
-                            title="What counselors see"
-                            description="Aggregated mood trends, crisis alerts, and your scheduled appointments."
+                            title="What counselors can see"
+                            description={
+                                shareCheckInsWithGuidance
+                                    ? `Summaries from your last ${COUNSELOR_CHECKIN_WINDOW_DAYS} days of check-ins only. ${COUNSELOR_VISIBLE_CHECKIN_SUMMARY} This is self-report data, not a diagnosis.`
+                                    : 'With sharing off, guidance can still see your directory info (e.g. name and program) for scheduling, but not recent check-in summaries in Aurora.'
+                            }
                         />
                         <PrivacyRow
                             icon={<Lock size={18} color={AURORA.blue} />}
-                            title="What stays private"
-                            description="Specific journal entries, AI-analyzed facial micro-expressions, and chat logs."
+                            title="What stays private by default"
+                            description="Check-in notes you write in your journal flow, messages until you chat with guidance, and other app areas not listed when sharing is on."
+                        />
+                    </View>
+
+                    {/* ── Guidance check-in sharing ───────────────────────── */}
+                    <SectionHeader
+                        icon={<Shield size={14} color={AURORA.blue} />}
+                        title="GUIDANCE & CHECK-INS"
+                    />
+                    <View style={{
+                        backgroundColor: AURORA.card, borderRadius: 16,
+                        paddingHorizontal: 16,
+                        borderWidth: 1, borderColor: AURORA.border,
+                    }}>
+                        <Text style={{ color: AURORA.textSec, fontSize: 12, lineHeight: 18, paddingTop: 12, paddingBottom: 4 }}>
+                            Opt in so counselors can see a short summary of recent self-reported stress and energy to support outreach. Turn off anytime.
+                        </Text>
+                        <ToggleRow
+                            icon={<Shield size={18} color={AURORA.textSec} />}
+                            label="Share recent check-ins with guidance"
+                            value={shareCheckInsWithGuidance}
+                            disabled={sharePrefsLoading}
+                            onValueChange={async (v) => {
+                                if (!user?.id || sharePrefsLoading) return;
+                                setShareCheckInsWithGuidance(v);
+                                try {
+                                    await updateUserSettings(user.id, { shareCheckInsWithGuidance: v });
+                                } catch {
+                                    setShareCheckInsWithGuidance(!v);
+                                    Alert.alert('Could not update', 'Please try again.');
+                                }
+                            }}
                         />
                     </View>
 

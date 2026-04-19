@@ -6,7 +6,7 @@
  * Fetches real student data from Firestore.
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, Image,
     TextInput, FlatList, ActivityIndicator,
@@ -23,9 +23,17 @@ import {
     PROGRAM_FILTER_LABELS,
     type ProgramFilterCode,
 } from '../../../src/constants/ccs-student-programs';
+import { fetchStudentCheckInContextForCounselor } from '../../../src/services/counselor-checkin-context.service';
+import {
+    type CounselorSignalPill,
+    COUNSELOR_SIGNAL_LABEL,
+    COUNSELOR_SIGNAL_SORT,
+    counselorSignalFromLogs,
+} from '../../../src/constants/counselor-checkin-signals';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useAuth } from '../../../src/stores/AuthContext';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type RiskLevel = 'HIGH PRIORITY' | 'MEDIUM PRIORITY' | 'LOW PRIORITY';
 type ProgramFilter = 'All Students' | ProgramFilterCode;
 
 interface StudentEntry {
@@ -35,20 +43,9 @@ interface StudentEntry {
     program?: string;
     year_level?: string;
     avatar_url?: string;
-    riskLevel: RiskLevel;
+    /** Counselor-facing self-report signal (not clinical risk). */
+    signal: CounselorSignalPill;
     lastLog: string;
-}
-
-// ─── Mock risk overlay (applied to fetched students) ──────────────────────────
-const RISK_LEVELS: RiskLevel[] = ['HIGH PRIORITY', 'MEDIUM PRIORITY', 'LOW PRIORITY'];
-// const MOOD_EMOJIS: Record<RiskLevel, string> = {
-//     'HIGH RISK': '😢',
-//     'MEDIUM RISK': '😐',
-//     'LOW RISK': '😊',
-// };
-
-function assignMockRisk(index: number): RiskLevel {
-    return RISK_LEVELS[index % RISK_LEVELS.length];
 }
 
 function formatTimeAgo(date: Date): string {
@@ -62,40 +59,25 @@ function formatTimeAgo(date: Date): string {
     return `${diffDays}d ago`;
 }
 
-function deriveRiskFromMood(stressLevel?: number, energyLevel?: number): RiskLevel {
-    const stress = stressLevel ?? 5;
-    const energy = energyLevel ?? 5;
-    if (stress >= 7 || energy <= 2) return 'HIGH PRIORITY';
-    if (stress >= 5 || energy <= 4) return 'MEDIUM PRIORITY';
-    return 'LOW PRIORITY';
-}
-
-function moodEmojiForRisk(r: RiskLevel): string {
-    switch (r) {
-        case 'HIGH PRIORITY':
-            return '😢';
-        case 'MEDIUM PRIORITY':
-            return '😐';
-        case 'LOW PRIORITY':
-            return '😊';
-    }
-}
-
-// ─── Risk helpers ──────────────────────────────────────────────────────────────
-function getRiskStyle(risk: RiskLevel) {
-    switch (risk) {
-        case 'HIGH PRIORITY':
+// ─── Signal helpers (self-report framing) ─────────────────────────────────────
+function getSignalStyle(signal: CounselorSignalPill) {
+    switch (signal) {
+        case 'higher_self_report':
             return { border: AURORA.red, badgeBg: 'rgba(239,68,68,0.15)', text: AURORA.red };
-        case 'MEDIUM PRIORITY':
+        case 'moderate_self_report':
             return { border: AURORA.orange, badgeBg: 'rgba(249,115,22,0.15)', text: AURORA.orange };
-        case 'LOW PRIORITY':
+        case 'typical_self_report':
             return { border: AURORA.blue, badgeBg: 'rgba(45,107,255,0.15)', text: AURORA.blue };
+        case 'no_checkins':
+            return { border: AURORA.amber, badgeBg: 'rgba(254,189,3,0.1)', text: AURORA.amber };
+        case 'sharing_off':
+            return { border: AURORA.textMuted, badgeBg: 'rgba(148,163,184,0.12)', text: AURORA.textMuted };
     }
 }
 
 // ─── Student Card ──────────────────────────────────────────────────────────────
 function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () => void }) {
-    const style = getRiskStyle(student.riskLevel);
+    const style = getSignalStyle(student.signal);
     const programText = formatCounselorStudentSubtitle({
         department: student.department,
         program: student.program,
@@ -121,28 +103,37 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
                 <LetterAvatar name={student.full_name ?? 'Student'} size={56} avatarUrl={student.avatar_url} />
             </View>
 
-            {/* Info */}
-            <View style={{ flex: 1, paddingVertical: 14 }}>
-                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginBottom: 2 }}>
+            {/* Info — minWidth:0 so long CCS · program · year lines wrap instead of clipping under overflow:hidden */}
+            <View style={{ flex: 1, minWidth: 0, paddingVertical: 14, paddingRight: 8 }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginBottom: 2 }} numberOfLines={1}>
                     {student.full_name}
                 </Text>
-                <Text style={{
-                    color: AURORA.textSec, fontSize: 11,
-                    fontWeight: '700', letterSpacing: 0.5, marginBottom: 8,
-                }}>
+                <Text
+                    style={{
+                        color: AURORA.textSec, fontSize: 11,
+                        fontWeight: '700', letterSpacing: 0.5, marginBottom: 8,
+                    }}
+                    numberOfLines={3}
+                    ellipsizeMode="tail"
+                >
                     {programText}
                 </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <View style={{
+                        flexShrink: 0,
                         backgroundColor: style.badgeBg, borderRadius: 8,
                         paddingHorizontal: 8, paddingVertical: 4,
                         borderWidth: 1, borderColor: `${style.text}44`,
                     }}>
-                        <Text style={{ color: style.text, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
-                            {student.riskLevel}
+                        <Text style={{ color: style.text, fontSize: 10, fontWeight: '800', letterSpacing: 0.35 }} numberOfLines={2}>
+                            {COUNSELOR_SIGNAL_LABEL[student.signal]}
                         </Text>
                     </View>
-                    <Text style={{ color: AURORA.textMuted, fontSize: 11, marginRight: 12 }}>
+                    <Text
+                        style={{ color: AURORA.textMuted, fontSize: 11, flexShrink: 1, minWidth: 0, textAlign: 'right' }}
+                        numberOfLines={2}
+                        ellipsizeMode="tail"
+                    >
                         Last log: {student.lastLog}
                     </Text>
                 </View>
@@ -192,6 +183,11 @@ function FilterChip({
 
 // ─── Main Screen ────────────────────────────────────────────────────────────────
 export default function CounselorStudentsScreen() {
+    const router = useRouter();
+    const { user } = useAuth();
+    const { openStudentId } = useLocalSearchParams<{ openStudentId?: string }>();
+    const lastProcessedOpenId = useRef<string | null>(null);
+
     const [students, setStudents] = useState<StudentEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -199,21 +195,48 @@ export default function CounselorStudentsScreen() {
     const [selectedStudent, setSelectedStudent] = useState<StudentEntry | null>(null);
 
     useEffect(() => {
+        if (openStudentId == null || openStudentId === '') {
+            lastProcessedOpenId.current = null;
+            return;
+        }
+        if (students.length === 0) return;
+        if (lastProcessedOpenId.current === openStudentId) return;
+        const match = students.find((s) => s.id === openStudentId);
+        if (match) {
+            lastProcessedOpenId.current = openStudentId;
+            setSelectedStudent(match);
+            router.setParams({ openStudentId: undefined });
+        } else {
+            lastProcessedOpenId.current = openStudentId;
+            router.setParams({ openStudentId: undefined });
+        }
+    }, [openStudentId, students, router]);
+
+    useEffect(() => {
         const fetchStudents = async () => {
             try {
                 const raw = await firestoreService.getUsersByRole('student');
                 const mapped: StudentEntry[] = await Promise.all(
-                    raw.map(async (s, i) => {
-                        let lastLog = 'No logs';
-                        let riskLevel = assignMockRisk(i);
+                    raw.map(async (s) => {
+                        let lastLog = 'No check-ins yet';
+                        let signal: CounselorSignalPill = 'no_checkins';
                         try {
-                            const logs = await firestoreService.getMoodLogs(s.id);
-                            const latest = logs[0] as any;
-                            if (latest?.log_date) {
-                                lastLog = formatTimeAgo(new Date(latest.log_date));
-                                riskLevel = deriveRiskFromMood(latest?.stress_level, latest?.energy_level);
+                            const { sharingEnabled, logs } = await fetchStudentCheckInContextForCounselor(s.id);
+                            signal = counselorSignalFromLogs(sharingEnabled, logs);
+                            if (!sharingEnabled) {
+                                lastLog = 'Sharing off';
+                            } else {
+                                const latest = logs[0] as any;
+                                if (latest?.log_date) {
+                                    lastLog = formatTimeAgo(new Date(latest.log_date));
+                                } else {
+                                    lastLog = 'No check-ins yet';
+                                }
                             }
-                        } catch { /* use fallbacks */ }
+                        } catch {
+                            signal = 'sharing_off';
+                            lastLog = '—';
+                        }
                         return {
                             id: s.id,
                             full_name: s.full_name || 'Student',
@@ -221,8 +244,7 @@ export default function CounselorStudentsScreen() {
                             program: s.program,
                             year_level: s.year_level,
                             avatar_url: s.avatar_url,
-                            riskLevel,
-                            moodEmoji: moodEmojiForRisk(riskLevel),
+                            signal,
                             lastLog,
                         };
                     })
@@ -262,7 +284,7 @@ export default function CounselorStudentsScreen() {
                 );
             });
         }
-        return list;
+        return [...list].sort((a, b) => COUNSELOR_SIGNAL_SORT[a.signal] - COUNSELOR_SIGNAL_SORT[b.signal]);
     }, [students, activeFilter, searchQuery]);
 
     return (
@@ -279,7 +301,7 @@ export default function CounselorStudentsScreen() {
                                 Student Directory
                             </Text>
                             <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 3 }}>
-                                Manage and monitor student wellness
+                                Open a student to see optional check-ins or invite them to a session
                             </Text>
                         </View>
                         <TouchableOpacity style={{
@@ -369,6 +391,10 @@ export default function CounselorStudentsScreen() {
                     visible={!!selectedStudent}
                     student={selectedStudent}
                     onClose={() => setSelectedStudent(null)}
+                    counselorId={user?.id}
+                    counselorName={user?.full_name ?? undefined}
+                    counselorAvatar={user?.avatar_url ?? undefined}
+                    signalRiskLevel={selectedStudent?.signal}
                 />
             </SafeAreaView>
         </View>
@@ -383,7 +409,7 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS CS (Computer Science)',
         year_level: '4th',
-        riskLevel: 'HIGH PRIORITY',
+        signal: 'higher_self_report',
         lastLog: '2h ago',
     },
     {
@@ -392,8 +418,8 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS IS (Information Systems)',
         year_level: '2nd',
-        riskLevel: 'MEDIUM PRIORITY',
-        lastLog: '5h ago',
+        signal: 'sharing_off',
+        lastLog: 'Sharing off',
     },
     {
         id: 'm3',
@@ -401,7 +427,7 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS IT (Information Technology)',
         year_level: '3rd',
-        riskLevel: 'LOW PRIORITY',
+        signal: 'typical_self_report',
         lastLog: '1d ago',
     },
     {
@@ -410,7 +436,7 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS CS (Computer Science)',
         year_level: '1st',
-        riskLevel: 'LOW PRIORITY',
+        signal: 'typical_self_report',
         lastLog: '3h ago',
     },
     {
@@ -419,7 +445,7 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS CA (Computer Application)',
         year_level: '4th',
-        riskLevel: 'MEDIUM PRIORITY',
+        signal: 'moderate_self_report',
         lastLog: '12h ago',
     },
 ];

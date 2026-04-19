@@ -32,6 +32,8 @@ import { getDayKey } from '../../utils/dayKey';
 import { moodLogsToMoodEntries } from '../../utils/moodEntryNormalize';
 import { aggregateByDay, moodStabilityScore } from '../../utils/moodAggregates';
 import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
+import { getUserSettings, updateUserSettings } from '../../services/mood-firestore-v2.service';
+import { COUNSELOR_CHECKIN_WINDOW_DAYS } from '../../constants/counselor-checkin-policy';
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
 const MOOD_EMOTIONS = [
@@ -240,6 +242,7 @@ export default function MoodLogScreen() {
     const [selectedMood, setSelectedMood] = useState<string | null>(null);
     const [showLogModal, setShowLogModal] = useState(false);
     const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
+    const [showCheckInSharingBriefing, setShowCheckInSharingBriefing] = useState(false);
     const [stats, setStats] = useState({
         streak: 0,
         topEmotion: 'happy',
@@ -256,6 +259,24 @@ export default function MoodLogScreen() {
     useEffect(() => {
         loadStats();
     }, [user, dayResetHour, timezone]);
+
+    useEffect(() => {
+        if (!user?.id) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const s = await getUserSettings(user.id);
+                if (!cancelled && !s.checkInSharingBriefingSeen) {
+                    setShowCheckInSharingBriefing(true);
+                }
+            } catch {
+                /* ignore */
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.id]);
 
     const loadStats = async () => {
         if (!user) return;
@@ -556,6 +577,75 @@ export default function MoodLogScreen() {
             />
 
             {/* ── Log Mood Modal ─────────────────────────────────────────────── */}
+            <Modal
+                visible={showCheckInSharingBriefing}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowCheckInSharingBriefing(false)}
+            >
+                <View style={{
+                    flex: 1,
+                    backgroundColor: 'rgba(0,0,0,0.55)',
+                    justifyContent: 'center',
+                    paddingHorizontal: 24,
+                }}>
+                    <View style={{
+                        backgroundColor: AURORA.card,
+                        borderRadius: 20,
+                        padding: 22,
+                        borderWidth: 1,
+                        borderColor: AURORA.border,
+                    }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800', marginBottom: 10 }}>
+                            Check-ins & guidance
+                        </Text>
+                        <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21, marginBottom: 8 }}>
+                            If you turn on sharing in Settings, counselors can see a brief summary from your last{' '}
+                            {COUNSELOR_CHECKIN_WINDOW_DAYS} days of self-reported stress and energy — not your private notes, and not a diagnosis.
+                        </Text>
+                        <Text style={{ color: AURORA.textMuted, fontSize: 12, lineHeight: 18, marginBottom: 18 }}>
+                            Default is off; you stay in control.
+                        </Text>
+                        <TouchableOpacity
+                            onPress={async () => {
+                                if (user?.id) {
+                                    try {
+                                        await updateUserSettings(user.id, { checkInSharingBriefingSeen: true });
+                                    } catch {
+                                        /* still dismiss */
+                                    }
+                                }
+                                setShowCheckInSharingBriefing(false);
+                            }}
+                            style={{
+                                backgroundColor: AURORA.blue,
+                                borderRadius: 14,
+                                paddingVertical: 14,
+                                alignItems: 'center',
+                            }}
+                        >
+                            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>Got it</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={async () => {
+                                if (user?.id) {
+                                    try {
+                                        await updateUserSettings(user.id, { checkInSharingBriefingSeen: true });
+                                    } catch {
+                                        /* ignore */
+                                    }
+                                }
+                                setShowCheckInSharingBriefing(false);
+                                router.push('/(student)/profile');
+                            }}
+                            style={{ paddingVertical: 14, alignItems: 'center' }}
+                        >
+                            <Text style={{ color: AURORA.blue, fontSize: 14, fontWeight: '700' }}>Open Settings</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
             {showLogModal && (
                 <Modal
                     visible={showLogModal}

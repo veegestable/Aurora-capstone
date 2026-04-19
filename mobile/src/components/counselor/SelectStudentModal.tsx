@@ -175,7 +175,7 @@ export default function SelectStudentModal({
                                         size={44}
                                         avatarUrl={s.avatar_url || undefined}
                                     />
-                                    <View style={{ flex: 1 }}>
+                                    <View style={{ flex: 1, minWidth: 0 }}>
                                         <Text style={styles.name}>{s.full_name || 'Student'}</Text>
                                         {(s.department || s.program || s.year_level) && (
                                             <Text style={styles.sub} numberOfLines={2}>

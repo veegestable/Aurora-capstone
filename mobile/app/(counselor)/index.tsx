@@ -24,26 +24,22 @@ import { AnnouncementSection } from '../../src/components/announcements/Announce
 import { triggerHaptic } from '../../src/utils/haptics';
 import { formatCounselorStudentSubtitle } from '../../src/constants/ccs-student-programs';
 import { getSessionScheduledDate } from '../../src/utils/sessionScheduling';
+import { fetchStudentCheckInContextForCounselor } from '../../src/services/counselor-checkin-context.service';
+import {
+    type CounselorSignalPill,
+    COUNSELOR_SIGNAL_LABEL,
+    COUNSELOR_SIGNAL_SORT,
+    counselorSignalFromLogs,
+} from '../../src/constants/counselor-checkin-signals';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type PriorityLevel = 'HIGH PRIORITY' | 'MEDIUM PRIORITY' | 'LOW PRIORITY';
-
 interface FlagItem {
     id: string;
     name: string;
     program: string;
     time: string;
-    risk: PriorityLevel;
+    signal: CounselorSignalPill;
     avatar: string;
-}
-
-// ─── Helpers: derive risk from mood log ─────────────────────────────────────────
-function deriveRiskFromMood(stressLevel?: number, energyLevel?: number): PriorityLevel {
-    const stress = stressLevel ?? 5;
-    const energy = energyLevel ?? 5;
-    if (stress >= 7 || energy <= 2) return 'HIGH PRIORITY';
-    if (stress >= 5 || energy <= 4) return 'MEDIUM PRIORITY';
-    return 'LOW PRIORITY';
 }
 
 function formatTimeAgo(date: Date): string {
@@ -58,14 +54,18 @@ function formatTimeAgo(date: Date): string {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-function getRiskStyle(risk: PriorityLevel) {
-    switch (risk) {
-        case 'HIGH PRIORITY':
+function getSignalStyle(signal: CounselorSignalPill) {
+    switch (signal) {
+        case 'higher_self_report':
             return { border: AURORA.red, badgeBg: 'rgba(239,68,68,0.18)', text: AURORA.red };
-        case 'MEDIUM PRIORITY':
+        case 'moderate_self_report':
             return { border: AURORA.orange, badgeBg: 'rgba(249,115,22,0.18)', text: AURORA.orange };
-        case 'LOW PRIORITY':
+        case 'typical_self_report':
             return { border: AURORA.blue, badgeBg: 'rgba(45,107,255,0.18)', text: AURORA.blue };
+        case 'no_checkins':
+            return { border: AURORA.amber, badgeBg: 'rgba(254,189,3,0.1)', text: AURORA.amber };
+        case 'sharing_off':
+            return { border: AURORA.textMuted, badgeBg: 'rgba(148,163,184,0.12)', text: AURORA.textMuted };
     }
 }
 
@@ -103,13 +103,16 @@ function StatCard({ icon, count, label, cardBg }: StatCardProps) {
 }
 
 function FlagRow({ item }: { item: FlagItem }) {
-    const style = getRiskStyle(item.risk);
+    const style = getSignalStyle(item.signal);
     return (
         <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => {
                 triggerHaptic('light');
-                router.push({ pathname: '/(counselor)/risk-center', params: { studentId: item.id } });
+                router.push({
+                    pathname: '/(counselor)/students',
+                    params: { openStudentId: item.id },
+                });
             }}
             style={{
                 flexDirection: 'row', alignItems: 'center',
@@ -122,27 +125,34 @@ function FlagRow({ item }: { item: FlagItem }) {
             <View style={{ margin: 12 }}>
                 <LetterAvatar name={item.name} size={48} avatarUrl={item.avatar} />
             </View>
-            <View style={{ flex: 1 }}>
-                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>
+            <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }} numberOfLines={1}>
                     {item.name}
                 </Text>
-                <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}>
+                <Text
+                    style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                >
                     {item.program} · {item.time}
                 </Text>
             </View>
             <View style={{
+                flexShrink: 0,
                 backgroundColor: style.badgeBg, borderRadius: 12,
                 paddingHorizontal: 10, paddingVertical: 5, marginRight: 8,
                 borderWidth: 1, borderColor: `${style.text}44`,
             }}>
                 <Text style={{
                     color: style.text, fontSize: 10,
-                    fontWeight: '800', letterSpacing: 0.5,
-                }}>
-                    {item.risk}
+                    fontWeight: '800', letterSpacing: 0.35,
+                }} numberOfLines={2}>
+                    {COUNSELOR_SIGNAL_LABEL[item.signal]}
                 </Text>
             </View>
-            <ChevronRight size={16} color={AURORA.textMuted} style={{ marginRight: 12 }} />
+            <View style={{ flexShrink: 0 }}>
+                <ChevronRight size={16} color={AURORA.textMuted} style={{ marginRight: 12 }} />
+            </View>
         </TouchableOpacity>
     );
 }
@@ -171,16 +181,21 @@ export default function CounselorHomeScreen() {
                 const studentsWithMood = await Promise.all(
                     students.slice(0, limit).map(async (s) => {
                         try {
-                            const logs = await firestoreService.getMoodLogs(s.id);
-                            const latest = logs[0];
+                            const { sharingEnabled, logs } = await fetchStudentCheckInContextForCounselor(s.id);
+                            const latest = logs[0] as { log_date?: Date; stress_level?: number; energy_level?: number } | undefined;
                             return {
                                 student: s,
-                                stressLevel: (latest as any)?.stress_level,
-                                energyLevel: (latest as any)?.energy_level,
-                                lastLogDate: (latest as any)?.log_date,
+                                sharingEnabled,
+                                logs,
+                                lastLogDate: latest?.log_date,
                             };
                         } catch {
-                            return { student: s, stressLevel: undefined, energyLevel: undefined, lastLogDate: undefined };
+                            return {
+                                student: s,
+                                sharingEnabled: false,
+                                logs: [] as { stress_level?: number; energy_level?: number }[],
+                                lastLogDate: undefined as Date | undefined,
+                            };
                         }
                     })
                 );
@@ -188,22 +203,24 @@ export default function CounselorHomeScreen() {
                 if (cancelled) return;
 
                 const flags: FlagItem[] = studentsWithMood
-                    .map(({ student, stressLevel, energyLevel, lastLogDate }) => ({
-                        id: student.id,
-                        name: student.full_name || 'Student',
-                        program: formatCounselorStudentSubtitle({
-                            department: student.department,
-                            program: student.program,
-                            year_level: student.year_level,
-                        }) || 'CCS',
-                        time: lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No logs',
-                        risk: deriveRiskFromMood(stressLevel, energyLevel) as PriorityLevel,
-                        avatar: (student as any).avatar_url ?? '',
-                    }))
-                    .sort((a, b) => {
-                        const order = { 'HIGH PRIORITY': 0, 'MEDIUM PRIORITY': 1, 'LOW PRIORITY': 2 };
-                        return (order[a.risk] ?? 2) - (order[b.risk] ?? 2);
-                    });
+                    .map(({ student, sharingEnabled, logs, lastLogDate }) => {
+                        const signal = counselorSignalFromLogs(sharingEnabled, logs);
+                        return {
+                            id: student.id,
+                            name: student.full_name || 'Student',
+                            program: formatCounselorStudentSubtitle({
+                                department: student.department,
+                                program: student.program,
+                                year_level: student.year_level,
+                            }) || 'CCS',
+                            time: !sharingEnabled
+                                ? 'Sharing off'
+                                : (lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No check-ins yet'),
+                            signal,
+                            avatar: (student as any).avatar_url ?? '',
+                        };
+                    })
+                    .sort((a, b) => COUNSELOR_SIGNAL_SORT[a.signal] - COUNSELOR_SIGNAL_SORT[b.signal]);
 
                 setRecentFlags(flags);
 
@@ -333,12 +350,12 @@ export default function CounselorHomeScreen() {
                         alignItems: 'center', marginBottom: 14,
                     }}>
                         <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800' }}>
-                            Recent Flags
+                            Recent check-ins
                         </Text>
                         <TouchableOpacity
                             onPress={() => {
                                 triggerHaptic('light');
-                                router.push('/(counselor)/risk-center');
+                                router.push('/(counselor)/students');
                             }}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                         >
@@ -358,7 +375,7 @@ export default function CounselorHomeScreen() {
                     ) : recentFlags.length === 0 ? (
                         <View style={{ paddingVertical: 24, alignItems: 'center' }}>
                             <Text style={{ color: AURORA.textMuted, fontSize: 14 }}>
-                                No student flags to display.
+                                No students to show here yet.
                             </Text>
                         </View>
                     ) : (
