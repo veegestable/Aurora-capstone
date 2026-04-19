@@ -20,14 +20,14 @@ export function WeeklyNarrative() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const load = async () => {
+  const load = async (forceRefresh = false) => {
     if (!user?.id) return
     setIsLoading(true)
     setError(null)
     try {
       const end = new Date()
       const start = new Date()
-      start.setDate(end.getDate() - 21) // fetch 3 weeks to cover the 7-day window
+      start.setDate(end.getDate() - 21)
       const logs = await moodService.getMoodLogs(
         user.id,
         start.toISOString(),
@@ -40,7 +40,11 @@ export function WeeklyNarrative() {
         energy_level: l.energy_level ?? 5,
         stress_level: l.stress_level ?? 3,
       }))
-      const narrative = await analyticsService.fetchWeeklyNarrative(normalized)
+      const narrative = await analyticsService.fetchWeeklyNarrative(
+        user.id,
+        normalized,
+        forceRefresh
+      )
       setResult(narrative)
     } catch (err) {
       console.error('[WeeklyNarrative] load failed:', err)
@@ -60,7 +64,7 @@ export function WeeklyNarrative() {
         <h4 className="text-lg font-semibold text-white mb-2">Weekly Summary</h4>
         <p className="text-[#EF4444] text-sm">{error}</p>
         <button
-          onClick={load}
+          onClick={() => load(true)}
           className="mt-3 text-sm text-[#2D6BFF] hover:underline cursor-pointer"
         >
           Try again
@@ -101,7 +105,7 @@ export function WeeklyNarrative() {
           )}
         </h4>
         <button
-          onClick={load}
+          onClick={() => load(true)}
           disabled={isLoading}
           className="p-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
           aria-label="Refresh weekly summary"
