@@ -1,3 +1,4 @@
+import { WeeklyNarrative } from './analytics/WeeklyNarrative'
 import { TrendingUp, Smile, Calendar, AlertCircle, Flame, Sun, Moon, Sunrise } from 'lucide-react'
 import { getEmotionLabel, getEmotionColor } from '../utils/moodColors'
 import { useAnalytics } from '../hooks/useAnalytics'
@@ -10,7 +11,7 @@ export default function Analytics() {
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-4 border-[#2D6BFF] border-t-transparent rounded-full animate-spin" />
       </div>
-    );
+    )
   }
 
   return (
@@ -190,8 +191,8 @@ export default function Analytics() {
         <div className="flex items-end gap-2 h-48">
           {stats.weeklyTrend.map(({ week, averageIntensity }, index) => {
             const maxIntensity =
-              Math.max(...stats.weeklyTrend.map(w => w.averageIntensity)) || 1;
-            const height = (averageIntensity / maxIntensity) * 100;
+              Math.max(...stats.weeklyTrend.map(w => w.averageIntensity)) || 1
+            const height = (averageIntensity / maxIntensity) * 100
             return (
               <div key={week} className="flex-1 flex flex-col items-center gap-2">
                 <div
@@ -201,10 +202,13 @@ export default function Analytics() {
                 />
                 <span className="text-xs text-[#7B8EC8]">W{index + 1}</span>
               </div>
-            );
+            )
           })}
         </div>
       </div>
+
+      {/* Weekly AI Narrative */}
+      <WeeklyNarrative />
     </div>
-  );
+  )
 }
