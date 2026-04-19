@@ -30,7 +30,7 @@ import { getEmotionLabel } from '../../utils/moodColors';
 import { calculateCheckInStreakByDayKey } from '../../utils/analytics/dateKeys';
 import { getDayKey } from '../../utils/dayKey';
 import { moodLogsToMoodEntries } from '../../utils/moodEntryNormalize';
-import { aggregateByDay } from '../../utils/moodAggregates';
+import { aggregateByDay, moodStabilityScore } from '../../utils/moodAggregates';
 import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
@@ -132,8 +132,42 @@ function StreakCard({ streak }: { streak: number }) {
     );
 }
 
+function moodKeyForConsistency(raw: string): 'happy' | 'neutral' | 'sad' | 'angry' | 'surprise' | 'other' {
+    const key = (raw || '').toLowerCase().trim();
+    if (key === 'joy' || key === 'happiness' || key === 'happy') return 'happy';
+    if (key === 'neutral') return 'neutral';
+    if (key === 'sad' || key === 'sadness') return 'sad';
+    if (key === 'angry' || key === 'anger') return 'angry';
+    if (key === 'surprise' || key === 'surprised') return 'surprise';
+    return 'other';
+}
+
+function trendLabelFromStability(score: number): string {
+    if (score >= 80) return 'Very steady';
+    if (score >= 60) return 'Mostly steady';
+    if (score >= 40) return 'Mixed pattern';
+    return 'Shifting pattern';
+}
+
+function consistencyMessage(score: number): string {
+    if (score >= 80) return 'Positive pattern is strong';
+    if (score >= 60) return 'Positive pattern is building';
+    if (score >= 40) return 'Positive pattern is mixed';
+    return 'Positive pattern is low';
+}
+
 // ─── Trend Card ──────────────────────────────────────────────────────────────
-function TrendCard({ topEmotion }: { topEmotion: string }) {
+function TrendCard({
+    trendLabel,
+    dominantEmotion,
+    consistencyScore,
+    consistencyText,
+}: {
+    trendLabel: string;
+    dominantEmotion: string;
+    consistencyScore: number;
+    consistencyText: string;
+}) {
     return (
         <View style={{
             flex: 1, backgroundColor: AURORA.card, borderRadius: 12,
@@ -149,14 +183,28 @@ function TrendCard({ topEmotion }: { topEmotion: string }) {
                 <TrendingUp size={16} color={AURORA.blue} />
             </View>
             <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800', lineHeight: 16 }}>
-                STABLE
+                {trendLabel.toUpperCase()}
             </Text>
             <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800', lineHeight: 16 }}>
-                {topEmotion.toUpperCase() || 'HAPPY'}
+                {dominantEmotion.toUpperCase() || 'HAPPY'}
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 3 }}>
+            <View style={{ marginTop: 7 }}>
+                <View style={{ height: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)' }}>
+                    <View
+                        style={{
+                            width: `${Math.max(0, Math.min(100, consistencyScore))}%`,
+                            height: 6,
+                            borderRadius: 999,
+                            backgroundColor: consistencyScore >= 60 ? AURORA.amber : AURORA.blue,
+                        }}
+                    />
+                </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 3, flexWrap: 'wrap' }}>
                 <Text style={{ color: AURORA.amber, fontSize: 9 }}>✦</Text>
-                <Text style={{ color: AURORA.amber, fontSize: 10, fontWeight: '600' }}>Consistency</Text>
+                <Text style={{ color: AURORA.amber, fontSize: 10, fontWeight: '600' }}>
+                    {consistencyText} ({Math.round(consistencyScore)}%)
+                </Text>
             </View>
         </View>
     );
@@ -192,7 +240,13 @@ export default function MoodLogScreen() {
     const [selectedMood, setSelectedMood] = useState<string | null>(null);
     const [showLogModal, setShowLogModal] = useState(false);
     const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
-    const [stats, setStats] = useState({ streak: 0, topEmotion: 'happy' });
+    const [stats, setStats] = useState({
+        streak: 0,
+        topEmotion: 'happy',
+        trendLabel: 'Stable mood',
+        consistencyScore: 50,
+        consistencyText: 'Mixed consistency',
+    });
     const [insight, setInsight] = useState(
         'Complete a check-in for a short note based on your mood and tasks (no AI on this screen).'
     );
@@ -210,7 +264,13 @@ export default function MoodLogScreen() {
             const start = new Date(); start.setDate(start.getDate() - 30);
             const logs = await moodService.getMoodLogs(user.id, start.toISOString(), end.toISOString());
             if (!logs || logs.length === 0) {
-                setStats({ streak: 0, topEmotion: 'happy' });
+                setStats({
+                    streak: 0,
+                    topEmotion: 'happy',
+                    trendLabel: 'Stable mood',
+                    consistencyScore: 50,
+                    consistencyText: 'Mixed consistency',
+                });
                 setInsight(
                     'Complete a check-in for a short note based on your mood and tasks (no AI on this screen).'
                 );
@@ -236,9 +296,41 @@ export default function MoodLogScreen() {
                     .filter((x): x is string => !!x)
             );
             const streak = calculateCheckInStreakByDayKey(keys, new Date(), dayResetHour, timezone);
-            setStats({ streak, topEmotion });
             const dk = getDayKey(new Date(), dayResetHour, timezone);
             const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
+            const now = new Date();
+            now.setHours(12, 0, 0, 0);
+            const last7Keys = new Set<string>();
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(now);
+                d.setDate(d.getDate() - i);
+                last7Keys.add(getDayKey(d, dayResetHour, timezone));
+            }
+            const last7Entries = entries.filter((e) => !!e.dayKey && last7Keys.has(e.dayKey));
+            const positiveCount = last7Entries.reduce((count, e) => {
+                const moodKey = moodKeyForConsistency(e.mood);
+                return moodKey === 'happy' || moodKey === 'neutral' ? count + 1 : count;
+            }, 0);
+            const positiveRatio = last7Entries.length > 0 ? positiveCount / last7Entries.length : 0.5;
+            const avgStress = last7Entries.length > 0
+                ? last7Entries.reduce((sum, e) => sum + e.stress, 0) / last7Entries.length
+                : 3;
+            const avgEnergy = last7Entries.length > 0
+                ? last7Entries.reduce((sum, e) => sum + e.energy, 0) / last7Entries.length
+                : 3;
+            const stability = moodStabilityScore(last7Entries.map((e) => e.intensity));
+            const stressFactor = 1 - ((avgStress - 1) / 4);
+            const energyFactor = (avgEnergy - 1) / 4;
+            let consistencyScore = (positiveRatio * 0.6 + stressFactor * 0.25 + energyFactor * 0.15) * 100;
+            if (positiveRatio < 0.4 && avgStress >= 3.5) consistencyScore -= 10;
+            consistencyScore = Math.max(0, Math.min(100, consistencyScore));
+            setStats({
+                streak,
+                topEmotion,
+                trendLabel: trendLabelFromStability(stability),
+                consistencyScore,
+                consistencyText: consistencyMessage(consistencyScore),
+            });
             const todayAgg = aggregateByDay(entries, dk);
             const sorted = [...logs].sort((a: any, b: any) => {
                 const da = a.log_date instanceof Date ? a.log_date : new Date(a.log_date);
@@ -277,7 +369,13 @@ export default function MoodLogScreen() {
             }
             setInsight(line);
         } catch {
-            setStats({ streak: 0, topEmotion: 'happy' });
+            setStats({
+                streak: 0,
+                topEmotion: 'happy',
+                trendLabel: 'Stable mood',
+                consistencyScore: 50,
+                consistencyText: 'Mixed consistency',
+            });
         }
     };
 
@@ -379,7 +477,12 @@ export default function MoodLogScreen() {
                     {/* ── Stats Row ──────────────────────────────────────────── */}
                     <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
                         <StreakCard streak={stats.streak} />
-                        <TrendCard topEmotion={stats.topEmotion} />
+                        <TrendCard
+                            trendLabel={stats.trendLabel}
+                            dominantEmotion={getEmotionLabel(stats.topEmotion)}
+                            consistencyScore={stats.consistencyScore}
+                            consistencyText={stats.consistencyText}
+                        />
                     </View>
 
                     {/* ── AI Insight ─────────────────────────────────────────── */}

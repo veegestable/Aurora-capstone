@@ -20,6 +20,11 @@ export interface WeekSummaryInput {
   }[];
 }
 
+export type WeeklySummaryResult = {
+  summary: string;
+  source: 'ai' | 'fallback';
+};
+
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const functions = getFunctions();
 
@@ -44,20 +49,20 @@ export function buildTemplateWeeklySummary(data: WeekSummaryInput): string {
  * Phase B — AI weekly summary via OpenRouter.
  * Falls back to deterministic template if API key/network/model is unavailable.
  */
-export async function generateWeeklySummary(data: WeekSummaryInput): Promise<string> {
+export async function generateWeeklySummary(data: WeekSummaryInput): Promise<WeeklySummaryResult> {
   const fallback = buildTemplateWeeklySummary(data);
 
   try {
-    const callable = httpsCallable<WeekSummaryInput, { summary?: string }>(
+    const callable = httpsCallable<WeekSummaryInput, { summary?: string; fromAi?: boolean }>(
       functions,
       'generateWeeklySummaryAi'
     );
     const resp = await callable(data);
     const text = resp.data?.summary?.trim();
-    if (!text) return fallback;
-    return text;
+    if (!text) return { summary: fallback, source: 'fallback' };
+    return { summary: text, source: resp.data?.fromAi ? 'ai' : 'fallback' };
   } catch {
-    return fallback;
+    return { summary: fallback, source: 'fallback' };
   }
 }
 

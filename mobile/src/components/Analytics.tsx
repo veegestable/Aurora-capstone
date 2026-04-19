@@ -416,6 +416,7 @@ export default function Analytics() {
     const [refreshing, setRefreshing] = useState(false);
     const [aiLoading, setAiLoading] = useState(false);
     const [weekSummaryGenerating, setWeekSummaryGenerating] = useState(false);
+    const [weekSummarySource, setWeekSummarySource] = useState<'ai' | 'fallback' | null>(null);
     const [analyticsView, setAnalyticsView] = useState<'today' | 'week'>('today');
     /** Measured relative to the inner row (thumb uses same coords + outer horizontal padding). */
     const [analyticsViewSegments, setAnalyticsViewSegments] = useState<{
@@ -529,11 +530,14 @@ export default function Analytics() {
             try {
                 setWeekSummaryGenerating(true);
                 setWeekSummaryTemplate('');
+                setWeekSummarySource(null);
                 const input = buildWeekSummaryInput(list, dayResetHour, timezone);
-                const tpl = await generateWeeklySummary(input);
-                setWeekSummaryTemplate(tpl);
+                const summary = await generateWeeklySummary(input);
+                setWeekSummaryTemplate(summary.summary);
+                setWeekSummarySource(summary.source);
             } catch {
                 setWeekSummaryTemplate('');
+                setWeekSummarySource('fallback');
             } finally {
                 setWeekSummaryGenerating(false);
             }
@@ -925,7 +929,7 @@ export default function Analytics() {
                             onPress={() => setAnalyticsView('today')}
                             onLayout={(e) => onAnalyticsViewSegmentLayout('today', e)}
                             style={{
-                                flex: 1,
+                                width: 104,
                                 minWidth: 72,
                                 paddingVertical: 7,
                                 paddingHorizontal: 12,
@@ -952,7 +956,7 @@ export default function Analytics() {
                             onPress={() => setAnalyticsView('week')}
                             onLayout={(e) => onAnalyticsViewSegmentLayout('week', e)}
                             style={{
-                                flex: 1,
+                                width: 104,
                                 minWidth: 72,
                                 paddingVertical: 7,
                                 paddingHorizontal: 12,
@@ -1381,6 +1385,11 @@ export default function Analytics() {
                         Generating your summary…
                     </Text>
                 ) : null}
+                {!weekSummaryGenerating && weekSummaryTemplate ? (
+                    <Text style={{ color: AURORA.textMuted, fontSize: 11, marginBottom: 10 }}>
+                        Weekly summary source: {weekSummarySource === 'ai' ? 'AI' : 'fallback template'}
+                    </Text>
+                ) : null}
                 {aiLoading ? (
                     <AISummarySkeleton reduceMotion={reduceMotion} />
                 ) : weeklyAi ? (
@@ -1401,7 +1410,7 @@ export default function Analytics() {
                                     gap: 6,
                                 }}
                             >
-                                <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
+                                <Text style={{ color: AURORA.textPrimary, fontSize: 10, fontWeight: '700' }}>
                                     ACADEMIC EVENT MIX (LAST 7 DAYS)
                                 </Text>
                                 {weekSchoolAnalysis.topSchoolEvents.map((item) => {
@@ -1410,8 +1419,8 @@ export default function Analytics() {
                                     return (
                                         <View key={`weekly-summary-school-${item.label}`}>
                                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                                                <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '700' }}>{item.label}</Text>
-                                                <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '700' }}>{item.count}</Text>
+                                                <Text style={{ color: AURORA.green, fontSize: 11, fontWeight: '700' }}>{item.label}</Text>
+                                                <Text style={{ color: AURORA.green, fontSize: 11, fontWeight: '700' }}>{item.count}</Text>
                                             </View>
                                             <View style={{ height: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' }}>
                                                 <View

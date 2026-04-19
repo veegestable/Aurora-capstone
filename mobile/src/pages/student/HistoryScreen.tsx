@@ -860,7 +860,7 @@ export default function HistoryScreen() {
                         <Text style={{ fontSize: 18 }}>✦</Text>
                         <View>
                             <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '800' }}>Aurora Mood Blend</Text>
-                            <Text style={{ color: AURORA.textSec, fontSize: 11 }}>MSU-IIT CCS</Text>
+                            
                         </View>
                     </View>
                     {/* <TouchableOpacity style={{
