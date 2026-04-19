@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
 import { adminService, type AdminCounselorUser } from '../../services/admin'
+import { auditLogsService } from '../../services/audit-logs'
 import { StatusBadge } from '../../components/admin/StatusBadge'
 import { LetterAvatar } from '../../components/LetterAvatar'
 import { Users, Check, X, RefreshCw } from 'lucide-react'
 import type { CounselorApprovalStatus } from '../../types/user.types'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function AdminCounselors() {
+  const { user } = useAuth()
   const [counselors, setCounselors] = useState<AdminCounselorUser[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -31,6 +34,14 @@ export default function AdminCounselors() {
     setUpdatingId(c.id)
     try {
       await adminService.updateCounselorApproval(c.id, status)
+      auditLogsService.writeAuditLog({
+        performedBy: user?.id ?? 'unknown',
+        performedByRole: 'admin',
+        action: `counselor_${action}`,
+        targetType: 'user',
+        targetId: c.id,
+        metadata: { counselorName: c.full_name, newStatus: status }
+      })
       await loadCounselors()
     } catch {
       alert(`Could not ${action} counselor. Please try again.`)

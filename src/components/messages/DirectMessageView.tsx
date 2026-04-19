@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
+import { auditLogsService } from '../../services/audit-logs'
 import { LetterAvatar } from '../LetterAvatar'
 import { ChatBubble } from './ChatBubble'
 import { ArrowLeft, Send, Info } from 'lucide-react'
@@ -65,6 +66,13 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
         { id: msgId, senderId: 'me', type: 'text', text, time: 'Just now' },
       ])
       setMessage('')
+      auditLogsService.writeAuditLog({
+        performedBy: user.id,
+        performedByRole: user.role ?? 'unknown',
+        action: 'message_sent',
+        targetType: 'conversation',
+        targetId: contact.conversationId
+      })
     } catch (error) {
       console.error('Failed to send message:', error)
     } finally {
