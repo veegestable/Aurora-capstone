@@ -383,8 +383,8 @@ Collections used across features (verify rules allow web client access):
 | B2 | Dynamic dashboard metrics | Medium | ✅ Done |
 | B3 | Session request/invite flow | Large | ✅ Done |
 | B4 | Counselor dashboard dynamic stats | Small | ✅ Done |
-| C1 | Online presence (green dot) | Medium | Not started |
-| C2 | Announcements system | Medium | Not started |
+| C1 | Online presence (green dot) | Medium | ✅ Done |
+| C2 | Announcements system | Medium | ✅ Done |
 | C3 | Audit logging (write + read) | Medium | Not started |
 | C4 | OpenAI weekly narrative | Small | Not started |
 | C5 | Counselor session history | Medium | Not started |

@@ -1,6 +1,6 @@
 # Mobile Feature Parity — Progress Log
 
-**Last updated:** April 16, 2026
+**Last updated:** April 17, 2026
 **Parent workflow:** `.agent/workflows/mobile-feature-parity.md`
 **Mode:** Ask Mode (read-only, copy-paste snippets)
 
@@ -9,8 +9,9 @@
 ## How to Resume
 
 1. Open `.agent/workflows/mobile-feature-parity.md` for full context on rules, branding tokens, architecture, and remaining feature specs.
-2. The next item to implement is **C1 (Online Presence / Green Dot)**.
-3. Follow the same pattern used for A1–B4: read the mobile reference files, read the web files, provide complete copy-paste-ready snippets with exact file paths.
+2. The next item to implement is **C3 (Audit Logging — Write + Read)**.
+3. Follow the same pattern used for A1–C2: read the mobile reference files, read the web files, provide complete copy-paste-ready snippets with exact file paths.
+4. Note on branding: student-facing surfaces use the Aurora dark theme tokens listed in the workflow doc. Admin pages use a lighter palette (`bg-white` cards with `text-aurora-primary-dark`, `bg-aurora-secondary-blue`, `border-aurora-gray-200`). Match the surrounding page when in doubt — see `src/pages/admin/Counselors.tsx` for the admin pattern and `src/pages/StudentDashboard.tsx` for the student pattern.
 
 ---
 
@@ -88,14 +89,90 @@
 
 ---
 
+### C1: Online Presence (Green Dot) ✅
+
+**Problem:** No presence system on web. Mobile counselors could not see when web students were online and vice versa.
+
+**Files created (service — follows verb-based subfolder pattern from `sessions/`):**
+- `src/services/presence/helpers.ts` — Private constants + `PRESENCE_PATH`, `presenceRef()`, `logPresenceError()`
+- `src/services/presence/get/isPresenceAvailable.ts` — Returns `true` if RTDB is initialized
+- `src/services/presence/get/subscribeToUsersPresence.ts` — Live subscription to multiple UIDs via `onValue`
+- `src/services/presence/post/startMyPresence.ts` — Writes `{ online: true, lastSeen }` to `presence/{uid}`, registers `onDisconnect` offline write, wires `visibilitychange` for tab backgrounding
+- `src/services/presence/put/setMyPresenceOfflineNow.ts` — Explicit offline write (must be called before `signOut()` — RTDB rules reject writes from unauthenticated clients)
+- `src/services/presence/index.ts` — Barrel export as `presenceService`
+
+**Files created (hooks):**
+- `src/hooks/usePeerPresence.ts` — Returns `boolean` for a single peer; also exports `useUsersPresence(uids)` for a list → `Map<string, boolean>`
+- `src/hooks/usePresence.ts` — Convenience hook for the current user's own status + RTDB availability flag
+
+**Files modified:**
+- `src/config/firebase.ts` — Added `getDatabase` import, `databaseURL` with an inferred fallback (`<projectId>-default-rtdb.asia-southeast1.firebasedatabase.app`), nullable `rtdb` export with warning log when `VITE_FIREBASE_DATABASE_URL` is missing
+- `src/contexts/AuthContext.tsx` — `onAuthStateChanged` now calls `presenceService.startMyPresence(uid)` and stores the returned cleanup; `signOut()` calls `setMyPresenceOfflineNow(uid)` **before** `authService.signOut()` to avoid RTDB permission errors
+- `src/components/messages/ContactRow.tsx` — Uses `usePeerPresence(contact.uid)`; green dot now reflects real-time status
+- `src/components/messages/DirectMessageView.tsx` — Chat header avatar + "Online" text driven by `usePeerPresence`
+- `.env.example` — Added `VITE_FIREBASE_DATABASE_URL`
+
+**Pitfall (found during testing):** Initially the mobile counselor could see the web student online but not vice versa — because the web `ContactRow`/`DirectMessageView` were still reading a static `contact.isOnline` field (hardcoded to `false` by the messages service). The fix was wiring the `usePeerPresence` hook into both components.
+
+**RTDB rules suggestion** (add to Realtime Database in Firebase console):
+```
+{
+  "rules": {
+    "presence": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
+```
+
+---
+
+### C2: Announcements System ✅
+
+**Problem:** Admin announcements page was a placeholder. No student-facing display. No service.
+
+**Files created (types + service — verb-based subfolder pattern):**
+- `src/types/announcement.types.ts` — `Announcement`, `CreateAnnouncementInput`, `UpdateAnnouncementInput`, `AnnouncementTargetRole` (`'all' | 'student' | 'counselor'`)
+- `src/services/announcements/helpers.ts` — Private: `THREE_WEEKS_MS` TTL, `MOCK_ANNOUNCEMENTS` fallback, `mapAnnouncementsForRole` (filters by role + TTL), `mapAnnouncementsAll` (admin view)
+- `src/services/announcements/get/listForRole.ts` — One-shot fetch with role/TTL filter, mock fallback on error
+- `src/services/announcements/get/subscribeForRole.ts` — Live subscription with role/TTL filter, mock fallback on error
+- `src/services/announcements/get/listAll.ts` — Admin-only unfiltered one-shot fetch
+- `src/services/announcements/get/subscribeAll.ts` — Admin-only unfiltered live subscription
+- `src/services/announcements/post/createAnnouncement.ts` — Creates `announcements` doc with `createdAt` server timestamp
+- `src/services/announcements/post/uploadAnnouncementImage.ts` — Uploads `File` to Storage at `announcements/{uid}/{timestamp}.jpg`
+- `src/services/announcements/put/updateAnnouncement.ts` — Partial update; `imageUrl: null` removes the image
+- `src/services/announcements/delete/deleteAnnouncement.ts` — Removes the doc (does not purge Storage image — future cleanup)
+- `src/services/announcements/index.ts` — Barrel export as `announcementsService`
+
+**Files created (UI):**
+- `src/components/announcements/AnnouncementBanner.tsx` — Auto-rotating carousel (5s interval, pause on hover), dot pagination, arrow nav visible on hover, click opens detail modal, `compact` prop hides the internal header. Uses `subscribeForRole`.
+- `src/components/announcements/AnnouncementDetailModal.tsx` — Read-only expanded view with image, title, content, meta (author + date + target role).
+- `src/components/announcements/AnnouncementFormModal.tsx` — Admin create/edit modal. Single component handles both flows via optional `announcement` prop. Image upload uses native `<input type="file">`. Tracks three image states (existing / picked / removed) so pure text edits never touch Storage.
+- `src/components/announcements/AnnouncementAdminCard.tsx` — Admin list row with thumbnail, target-role badge, meta, Edit/Delete icon buttons.
+
+**Files modified:**
+- `src/pages/admin/Announcements.tsx` — Replaced `AdminPlaceholder` with full CRUD page. Live subscription via `subscribeAll`, filter chips (All / Students / Counselors), `window.confirm` delete, wired to `AnnouncementFormModal`.
+- `src/pages/StudentDashboard.tsx` — Added `AnnouncementBanner` in a 2-col grid **below** Mood Check-in / Quick Actions / Stats, paired with the Daily Note card. Initial placement at the very top of the dashboard was reverted on design review — it visually out-competed the Mood Check-in which is the dashboard's primary action.
+
+**Web-vs-mobile differences:**
+- Mobile had separate `AddAnnouncementModal` and `EditAnnouncementModal`; web uses a single `AnnouncementFormModal` with mode driven by the `announcement` prop.
+- Mobile uses `expo-image-picker` and `uploadImage(path, uri)`; web uses HTML `<input type="file">` with a `File` + Firebase Storage `uploadBytes` directly.
+
+**Pitfalls (found during testing):**
+- Initial "not showing" complaint was transient caching — the banner did subscribe correctly. Added a debug log briefly, reverted once confirmed working.
+- Design review on placement: a full-width Announcements section at the top of the student dashboard violates the content hierarchy (Mood Check-in is the primary CTA). Pair with the Daily Note in a 2-col grid below the stats instead.
+
+---
+
 ## Remaining Phases
 
 ### Phase C: Medium Priority (real-time + communication)
 
 | Item | Description | Effort |
 |------|-------------|--------|
-| **C1** | Online presence (green dot) — Firebase RTDB `presence/{uid}` with `onDisconnect` | Medium |
-| **C2** | Announcements system — admin CRUD + student-facing banner | Medium |
 | **C3** | Audit logging — write on sensitive actions + admin log viewer | Medium |
 | **C4** | OpenAI weekly analytics narrative | Small |
 | **C5** | Counselor session history screen + route | Medium |
