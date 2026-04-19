@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthed() {
+      return request.auth != null;
+    }
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isAdmin()     { return isAuthed() && myRole() == 'admin'; }
+    function isCounselor() { return isAuthed() && myRole() == 'counselor'; }
+
+    match /users/{uid} {
+      allow read: if isAuthed();
+      allow write: if isAuthed() && (request.auth.uid == uid || isAdmin());
+    }
+
+    match /announcements/{id} {
+      allow read: if isAuthed();
+      allow create: if isAuthed()
+        && request.resource.data.createdBy == request.auth.uid
+        && (isAdmin() || isCounselor());
+      allow update, delete: if isAuthed()
+        && (resource.data.createdBy == request.auth.uid || isAdmin());
+    }
+
+    match /conversations/{id} {
+      allow read, update: if isAuthed()
+        && (resource.data.counselorId == request.auth.uid
+            || resource.data.studentId == request.auth.uid);
+      allow create: if isAuthed()
+        && (request.resource.data.counselorId == request.auth.uid
+            || request.resource.data.studentId == request.auth.uid);
+      allow delete: if isAdmin();
+
+      match /messages/{msgId} {
+        allow read, create: if isAuthed()
+          && (get(/databases/$(database)/documents/conversations/$(id)).data.counselorId == request.auth.uid
+              || get(/databases/$(database)/documents/conversations/$(id)).data.studentId == request.auth.uid);
+        allow update: if isAuthed()
+          && resource.data.senderId == request.auth.uid;
+        allow delete: if isAuthed()
+          && (resource.data.senderId == request.auth.uid || isAdmin());
+      }
+    }
+
+    match /sessions/{id} {
+      allow read, update: if isAuthed()
+        && (resource.data.counselorId == request.auth.uid
+            || resource.data.studentId == request.auth.uid);
+      allow create: if isAuthed();
+      allow delete: if isAdmin();
+    }
+
+    match /mood_logs/{id} {
+      allow read: if isAuthed()
+        && (resource.data.userId == request.auth.uid || isCounselor() || isAdmin());
+      allow create: if isAuthed()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthed()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    match /audit_logs/{id} {
+      allow read: if isAdmin();
+      allow create: if isAuthed();
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

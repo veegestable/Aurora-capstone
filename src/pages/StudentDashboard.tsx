@@ -6,13 +6,10 @@ import { moodService } from '../services/mood'
 import { computeStreak, computeTrend, computeDailyInsight } from '../utils/analytics'
 import type { TrendDirection } from '../utils/analytics'
 import { SessionRequestModal } from '../components/sessions/SessionRequestModal'
+import { AnnouncementBanner } from '../components/announcements/AnnouncementBanner'
 import {
-  MessageSquare,
-  BookOpen,
-  CalendarPlus,
-  TrendingUp,
-  TrendingDown,
-  Minus,
+  MessageSquare, BookOpen, CalendarPlus,
+  TrendingUp, TrendingDown, Minus,
   Sparkles,
 } from 'lucide-react'
 
@@ -178,25 +175,31 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      {/* Daily Note */}
-      <div className="card-aurora relative overflow-hidden">
-        <div className="absolute inset-0 bg-linear-to-r from-[rgba(124,58,237,0.06)] to-transparent pointer-events-none" />
-        <div className="relative flex items-start space-x-4">
-          <div className="w-11 h-11 rounded-full bg-linear-to-br from-[rgba(124,58,237,0.3)] to-[rgba(124,58,237,0.1)] flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(124,58,237,0.15)]">
-            <Sparkles className="w-5 h-5 text-aurora-purple" />
-          </div>
-          <div>
-            <h3 className="font-bold text-white mb-1 flex items-center gap-2">
-              Daily Note
-              {streak > 0 && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-aurora-purple bg-[rgba(124,58,237,0.15)] px-2 py-0.5 rounded-full">
-                  Updated
-                </span>
-              )}
-            </h3>
-            <p className="text-sm text-aurora-text-sec leading-relaxed">{insight}</p>
+      {/* Reflective: personal note + community updates */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+        {/* Daily Note */}
+        <div className="card-aurora relative overflow-hidden">
+          <div className="absolute inset-0 bg-linear-to-r from-[rgba(124,58,237,0.06)] to-transparent pointer-events-none" />
+          <div className="relative flex items-start space-x-4">
+            <div className="w-11 h-11 rounded-full bg-linear-to-br from-[rgba(124,58,237,0.3)] to-[rgba(124,58,237,0.1)] flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(124,58,237,0.15)]">
+              <Sparkles className="w-5 h-5 text-aurora-purple" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white mb-1 flex items-center gap-2">
+                Daily Note
+                {streak > 0 && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-aurora-purple bg-[rgba(124,58,237,0.15)] px-2 py-0.5 rounded-full">
+                    Updated
+                  </span>
+                )}
+              </h3>
+              <p className="text-sm text-aurora-text-sec leading-relaxed">{insight}</p>
+            </div>
           </div>
         </div>
+
+        {/* Announcements */}
+        <AnnouncementBanner role="student" />
       </div>
 
       {/* Session Request Modal */}
