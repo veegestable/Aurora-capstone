@@ -387,6 +387,6 @@ Collections used across features (verify rules allow web client access):
 | C2 | Announcements system | Medium | ✅ Done |
 | C3 | Audit logging (write + read) | Medium | ✅ Done |
 | C4 | OpenAI weekly narrative | Small | ✅ Done |
-| C5 | Counselor session history | Medium | Not started |
-| D1 | Zen ambient audio | Small | Not started |
-| D2 | Admin settings | Small | Not started |
+| C5 | Counselor session history | Medium | ✅ Done |
+| D1 | Zen ambient audio | Small | ✅ Done |
+| D2 | Admin settings | Small | ✅ Done |

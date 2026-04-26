@@ -185,8 +185,8 @@ description:
 
 | Item | Description | Effort |
 |------|-------------|--------|
-| **D1** | Zen ambient audio playback (HTML5 Audio API) | Small |
-| **D2** | Admin settings page (replace placeholder) | Small |
+| **D1** | Zen ambient audio playback (HTML5 Audio API) | ~~Small~~ ✅ Done |
+| **D2** | Admin settings page (replace placeholder) | ~~Small~~ ✅ Done |
 
 ---
 
