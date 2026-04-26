@@ -390,3 +390,256 @@ Collections used across features (verify rules allow web client access):
 | C5 | Counselor session history | Medium | ✅ Done |
 | D1 | Zen ambient audio | Small | ✅ Done |
 | D2 | Admin settings | Small | ✅ Done |
+| **E1** | **Counselor Signals system (replace risk levels)** | **Large** | ❌ Not started |
+| **E2** | **StudentProfileModal with check-in summary** | **Medium** | ❌ Not started |
+| **E3** | **Daily Selfie Screen** | **Small** | ❌ Not started |
+| **E4** | **Mood V2 dual-source merging** | **Medium** | ❌ Not started |
+| **E5** | **UserDaySettings context** | **Medium** | ❌ Not started |
+| **E6** | **Weekly Summary via Cloud Functions** | **Small** | ❌ Not started |
+| **E7** | **Counselor Profile — Edit Modal + avatar upload** | **Medium** | ❌ Not started |
+| **F1** | **Admin Students (real page)** | **Medium** | ❌ Not started |
+| **F2** | **Admin Resources (real page)** | **Medium** | ❌ Not started |
+| **F3** | **Admin Analytics (real page)** | **Small** | ❌ Not started |
+| **F4** | **Admin CounselorDetail** | **Small** | ❌ Not started |
+| **F5** | **Admin StudentDetail** | **Small** | ❌ Not started |
+| **F6** | **Admin ResourceDetail** | **Small** | ❌ Not started |
+
+---
+
+## 5. Round 2 — New Feature Gaps (Post-Round 1)
+
+> These gaps were identified on 2026-04-26 after comparing the latest mobile codebase against the web. They represent new features your co-worker added to mobile since the original parity doc was written.
+
+### Phase E: New Mobile Features
+
+#### E1. Counselor Check-In Signals System (Replace Risk Levels)
+
+**Problem:** The web uses `HIGH RISK`, `MEDIUM RISK`, `LOW RISK` labels with clinical-sounding language throughout the counselor dashboard, risk center, and student list. The mobile has **completely replaced** this with an ethics-compliant **Counselor Signals** system: `higher_self_report`, `moderate_self_report`, `typical_self_report`, `no_checkins`, `sharing_off`.
+
+**Mobile reference:**
+- `mobile/src/constants/counselor-checkin-signals.ts` — `CounselorSignalPill` type, `counselorSignalFromLogs()` function, label/sort maps
+- `mobile/src/constants/counselor-checkin-policy.ts` — `COUNSELOR_CHECKIN_WINDOW_DAYS = 3`, window start helper
+- `mobile/src/services/counselor-checkin-context.service.ts` — fetches student check-in context with sharing consent check
+- `mobile/app/(counselor)/index.tsx` — dashboard uses signals, not risk levels
+- `mobile/app/(counselor)/students/index.tsx` — student directory uses signals
+- `mobile/app/(counselor)/risk-center.tsx` — **deprecated**, now just redirects to `/students`
+
+**Implementation steps:**
+1. Port `CounselorSignalPill` type and constants to `src/constants/counselor-checkin-signals.ts`.
+2. Port `counselor-checkin-policy.ts` to `src/constants/counselor-checkin-policy.ts`.
+3. Create `src/services/counselor-checkin-context.service.ts` — reads `userSettings/{studentId}.shareCheckInsWithGuidance` and fetches recent mood logs.
+4. Update `CounselorDashboard.tsx` — replace `RiskLevel` with `CounselorSignalPill`, replace "Recent Flags" with "Recent check-ins", use signal-based sorting and badge styles.
+5. Update `counselor/Students.tsx` — replace risk level badges with signal pills.
+6. Deprecate or redirect `counselor/RiskCenter.tsx` — redirect to `/counselor/students` (matching mobile pattern).
+7. Update `src/utils/riskHelpers.ts` or create `src/utils/signalHelpers.ts` with web-equivalent signal derivation and badge styling.
+
+**Files to touch:**
+- `src/constants/counselor-checkin-signals.ts` (new)
+- `src/constants/counselor-checkin-policy.ts` (new)
+- `src/services/counselor-checkin-context.service.ts` (new)
+- `src/pages/CounselorDashboard.tsx` (replace risk model)
+- `src/pages/counselor/Students.tsx` (replace risk model)
+- `src/pages/counselor/RiskCenter.tsx` (deprecate / redirect)
+- `src/components/counselor/StudentCard.tsx` (update badge)
+- `src/components/counselor/RiskCaseCard.tsx` (update or remove)
+- `src/components/counselor/FilterChip.tsx` (update filter options)
+- `src/utils/riskHelpers.ts` (update or replace)
+
+---
+
+#### E2. StudentProfileModal with Check-In Summary Panel
+
+**Problem:** When a counselor taps a student in the mobile student directory, a `StudentProfileModal` opens showing the student's avatar, program, and a **check-in summary panel** (last N days of self-reported mood data: check-in count, dominant mood, average stress/energy, mood stability score). The web just navigates to `StudentDetail.tsx` with no check-in summary.
+
+**Mobile reference:**
+- `mobile/src/components/counselor/StudentProfileModal.tsx` (~21KB) — full modal with `CounselorCheckInSummaryPanel`, expandable stat tiles, "Invite to session" button
+- Uses `fetchStudentCheckInContextForCounselor()`, `moodLogsToMoodEntries()`, `aggregateEntriesAsSingleDay()`, `moodStabilityScore()`
+
+**Implementation steps:**
+1. Create `src/components/counselor/StudentProfileModal.tsx` — centered overlay dialog (not bottom sheet).
+2. Port the `CounselorCheckInSummaryPanel` logic: stat tiles for check-in count, dominant mood, avg stress, avg energy, mood stability.
+3. Wire it into `counselor/Students.tsx` — clicking a student opens the modal instead of (or in addition to) navigating to `StudentDetail`.
+4. Add "Invite to session (open chat)" button that creates a conversation and navigates to messages.
+
+**Files to touch:**
+- `src/components/counselor/StudentProfileModal.tsx` (new)
+- `src/pages/counselor/Students.tsx` (wire modal)
+- Depends on E1 (signals) and E4 (mood v2) being done first.
+
+---
+
+#### E3. Daily Selfie Screen (Standalone Emotion Detection)
+
+**Problem:** Mobile has a dedicated `daily-selfie` route under the student tab that opens the `EmotionDetection` component as a full-screen experience with a "Daily Selfie" title. The web has no equivalent standalone route.
+
+**Mobile reference:** `mobile/app/(student)/daily-selfie.tsx` — simple screen wrapping `EmotionDetection` with a back button.
+
+**Implementation steps:**
+1. Create `src/pages/student/DailySelfie.tsx` — page wrapping `EmotionDetection` component with page header.
+2. Add route in `App.tsx`: `/student/daily-selfie`.
+3. Add nav link or quick-action button on `StudentDashboard.tsx`.
+
+**Files to touch:**
+- `src/pages/student/DailySelfie.tsx` (new)
+- `src/App.tsx` (add route)
+- `src/pages/StudentDashboard.tsx` (add quick action)
+- `src/layouts/StudentLayout.tsx` (optionally add nav item)
+
+---
+
+#### E4. Mood V2 Dual-Source Merging
+
+**Problem:** Mobile now reads mood data from **two Firestore sources** and merges them:
+1. Legacy `mood_logs` collection (flat documents)
+2. V2 `moodLogs/{userId}/entries` subcollection (new, structured entries with `dayKey`, `eventCategories`, `eventTags`, `sleepQuality`)
+
+The web only reads from the legacy `mood_logs` collection. If students are using the updated mobile MoodCheckIn (which writes to v2), the web misses those entries entirely.
+
+**Mobile reference:**
+- `mobile/src/services/mood.service.ts` — `moodService.getMoodLogs()` reads both sources, `mergeAndSort()` combines them
+- `mobile/src/services/mood-firestore-v2.service.ts` — v2 CRUD: `createMoodLogEntry`, `getMoodLogEntries`, `subscribeMoodLogEntries`
+
+**Implementation steps:**
+1. Create `src/services/mood-v2/` with v2 Firestore functions matching `mood-firestore-v2.service.ts`.
+2. Create `src/services/mood/moodService.ts` that merges legacy + v2 sources (port `mergeAndSort` and `mapV2EntryToMoodData`).
+3. Update existing mood hooks (`useMoodCheckIn`, `useMoodCalendar`, `useAnalytics`) to use the merged service.
+4. Port v2 types to `src/types/mood-v2.types.ts`.
+
+**Files to touch:**
+- `src/services/mood-v2/` (new directory with multiple files)
+- `src/services/mood/moodService.ts` (new or update existing)
+- `src/types/mood-v2.types.ts` (new)
+- `src/hooks/useMoodCheckIn.ts` (update data source)
+- `src/hooks/useMoodCalendar.ts` (update data source)
+- `src/hooks/useAnalytics.ts` (update data source)
+
+---
+
+#### E5. UserDaySettings Context
+
+**Problem:** Mobile has a `UserDaySettingsContext` providing user-specific settings: day reset hour, timezone, reminder preferences, academic context mode, and mood category packs (school/health/social/fun/productivity). These are stored in `userSettings/{userId}` in Firestore. The web has no equivalent — the student settings page is admin-only with platform-level preferences.
+
+**Mobile reference:**
+- `mobile/src/stores/UserDaySettingsContext.tsx` — full context provider
+- `mobile/src/services/mood-firestore-v2.service.ts` — `getUserSettings()`, `updateUserSettings()`, `UserSettingsDoc`
+- `mobile/src/pages/dashboard/SettingsScreen.tsx` — UI with toggles for academic context mode and category packs
+
+**Implementation steps:**
+1. Port `UserSettingsDoc` type to `src/types/user-settings.types.ts`.
+2. Create `src/services/user-settings/` with `getUserSettings()` and `updateUserSettings()`.
+3. Create `src/contexts/UserDaySettingsContext.tsx` (React Context, matching mobile API).
+4. Create `src/pages/student/Settings.tsx` — student-facing settings with day reset, timezone, academic context toggles.
+5. Wire into `src/App.tsx` provider tree and routing.
+
+**Files to touch:**
+- `src/types/user-settings.types.ts` (new)
+- `src/services/user-settings/` (new)
+- `src/contexts/UserDaySettingsContext.tsx` (new)
+- `src/pages/student/Settings.tsx` (new or repurpose `src/pages/Settings.tsx`)
+- `src/App.tsx` (add provider + route)
+
+---
+
+#### E6. Weekly Summary via Firebase Cloud Functions
+
+**Problem:** Mobile's weekly analytics narrative now uses **Firebase Cloud Functions** (`httpsCallable('generateWeeklySummaryAi')`) instead of direct OpenAI API calls. The web's C4 implementation likely still calls OpenAI directly from the client.
+
+**Mobile reference:** `mobile/src/services/weeklySummaryGenerate.service.ts` — uses `httpsCallable` to call a Cloud Function that generates AI summaries server-side, with a deterministic template fallback.
+
+**Implementation steps:**
+1. Check if the web's `src/services/analytics/weeklyNarrative.service.ts` calls OpenAI directly or uses Cloud Functions.
+2. If direct, refactor to use `httpsCallable` from `firebase/functions` — matching mobile pattern.
+3. Import and initialize `getFunctions()` in `src/config/firebase.ts` if not already done.
+4. Port the `buildWeekSummaryInput()` helper and `buildTemplateWeeklySummary()` fallback.
+
+**Files to touch:**
+- `src/services/analytics/weeklyNarrative.service.ts` (update)
+- `src/config/firebase.ts` (add Cloud Functions init if needed)
+
+---
+
+#### E7. Counselor Profile — Edit Modal with Avatar Upload
+
+**Problem:** The mobile counselor profile (`profile.tsx`, ~30KB) has a full **Edit Profile Modal** with avatar upload (via `expo-image-picker` → `firebase-storage`), sex selector, counselor number field, and personal details section. The web's `counselor/Profile.tsx` (~9KB) is simpler and may lack edit functionality or avatar upload.
+
+**Mobile reference:** `mobile/app/(counselor)/profile.tsx` — `EditProfileModal` component with `ImagePicker`, stat cards (student count, completed sessions), personal details, account settings, app preferences.
+
+**Implementation steps:**
+1. Read the web's current `src/pages/counselor/Profile.tsx` to understand what's already there.
+2. Add an `EditProfileModal` or inline edit form with: full name, sex selector, counselor number.
+3. Add avatar upload via `<input type="file">` → Firebase Storage `uploadBytes`.
+4. Add stat cards: student count (from `getUsersByRole('student')`), completed sessions (from `getSessionHistoryForCounselor`).
+5. Ensure Firebase Storage is initialized in `src/config/firebase.ts`.
+
+**Files to touch:**
+- `src/pages/counselor/Profile.tsx` (extend)
+- `src/components/counselor/EditProfileModal.tsx` (new)
+- `src/services/storage/` (new — Firebase Storage upload helper)
+- `src/config/firebase.ts` (add Storage init if needed)
+
+---
+
+### Phase F: Remaining Web Placeholder Pages
+
+#### F1. Admin Students (Real Page)
+
+**Problem:** `src/pages/admin/Students.tsx` is still an `AdminPlaceholder`.
+
+**Mobile reference:** `mobile/app/(admin)/students/index.tsx` — also a placeholder, but has basic structure.
+
+**Implementation steps:**
+1. Replace with a student list using `firestoreService.getUsersByRole('student')`.
+2. Show student name, email, program, year level in a searchable table.
+3. Clicking a student navigates to `/admin/students/:id`.
+
+---
+
+#### F2. Admin Resources (Real Page)
+
+**Problem:** `src/pages/admin/Resources.tsx` is still an `AdminPlaceholder`.
+
+**Mobile reference:** `mobile/app/(admin)/resources/index.tsx` — also a placeholder.
+
+**Implementation steps:**
+1. Build a resource management CRUD interface or mark as "Coming Soon" with proper Aurora dark theme styling.
+
+---
+
+#### F3. Admin Analytics (Real Page)
+
+**Problem:** `src/pages/admin/Analytics.tsx` is still an `AdminPlaceholder`.
+
+**Mobile reference:** `mobile/app/(admin)/(tabs)/analytics.tsx` — also a placeholder.
+
+**Implementation steps:**
+1. Build school-wide analytics dashboard or mark as "Coming Soon" with proper styling.
+
+---
+
+#### F4–F6. Admin Detail Pages
+
+**Problem:** `CounselorDetail.tsx`, `StudentDetail.tsx`, `ResourceDetail.tsx` are all still placeholders.
+
+**Mobile reference:** Mobile equivalents are also placeholders.
+
+**Implementation steps:**
+1. Build detail views or mark as "Coming Soon" matching Aurora theme.
+
+---
+
+## 6. Updated Firestore Collections Reference
+
+| Collection | Used by | Subcollections |
+|---|---|---|
+| `users` | Auth, profiles, student/counselor queries | — |
+| `mood_logs` | Legacy mood check-in, analytics, dashboard | — |
+| `moodLogs` | **V2 mood system (new)** | `{userId}/entries` |
+| `userSettings` | **UserDaySettings (new)** — day reset, timezone, academic context, sharing consent | — |
+| `dailyContext` | **Academic context (new)** — exams, quizzes, deadlines per day | `{userId}/days` |
+| `conversations` | Messaging (student + counselor) | `messages` |
+| `sessions` | Session requests, history, dashboard | — |
+| `announcements` | Student home, admin CRUD | — |
+| `audit_logs` | Admin viewer, action logging | — |
+| `schedules` | Student schedule manager | — |
+| `notifications` | Notification panel | — |
+| `counselor_notes` | Counselor student detail | — |
