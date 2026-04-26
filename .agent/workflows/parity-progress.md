@@ -1,3 +1,7 @@
+---
+description: 
+---
+
 # Mobile Feature Parity — Progress Log
 
 **Last updated:** April 26, 2026
@@ -175,7 +179,7 @@
 |------|-------------|--------|
 | **C3** | Audit logging — write on sensitive actions + admin log viewer | ~~Medium~~ ✅ Done |
 | **C4** | OpenAI weekly analytics narrative | ~~Small~~ ✅ Done |
-| **C5** | Counselor session history screen + route | Medium |
+| **C5** | Counselor session history screen + route | ~~Medium~~ ✅ Done |
 
 ### Phase D: Low Priority (polish)
 

@@ -52,7 +52,7 @@ export default function StudentResources() {
       </div>
 
       {/* Category Tabs */}
-      <div className="flex border-b border-aurora-gray-200">
+      <div className="flex border-b border-aurora-gray-200 mb-6">
         {CATEGORIES.map(cat => (
           <button
             key={cat}
@@ -67,7 +67,7 @@ export default function StudentResources() {
           </button>
         ))}
       </div>
-
+      
       {/* Resource Cards */}
       <div>
         <h3 className="text-lg font-extrabold text-aurora-primary-dark mb-3.5">Curated for You</h3>
