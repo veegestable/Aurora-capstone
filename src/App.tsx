@@ -6,8 +6,8 @@ import PendingCounselor from './pages/PendingCounselor'
 import Settings from './pages/Settings'
 import StudentLayout from './layouts/StudentLayout'
 import StudentDashboard from './pages/StudentDashboard'
-import History from './pages/student/History'
-import Messages from './pages/student/Messages'
+import StudentHistory from './pages/student/History'
+import StudentMessages from './pages/student/Messages'
 import StudentProfile from './pages/student/Profile'
 import StudentResources from './pages/student/Resources'
 import CounselorLayout from './layouts/CounselorLayout'
@@ -17,6 +17,7 @@ import CounselorStudentDetail from './pages/counselor/StudentDetail'
 import CounselorRiskCenter from './pages/counselor/RiskCenter'
 import CounselorMessages from './pages/counselor/Messages'
 import CounselorProfile from './pages/counselor/Profile'
+import CounselorSessionHistory from './pages/counselor/SessionHistory'
 import AdminLayout from './layouts/AdminLayout'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminCounselors from './pages/admin/Counselors'
@@ -75,8 +76,8 @@ function AppContent() {
             <Route path="analytics" element={<Analytics />} />
             <Route path="schedule" element={<ScheduleManager />} />
             <Route path="notifications" element={<NotificationPanel />} />
-            <Route path="student/history" element={<History />} />
-            <Route path="student/messages" element={<Messages />} />
+            <Route path="student/history" element={<StudentHistory />} />
+            <Route path="student/messages" element={<StudentMessages />} />
             <Route path="student/profile" element={<StudentProfile />} />
             <Route path="student/resources" element={<StudentResources />} />
             <Route path="settings" element={<Settings />} />
@@ -109,6 +110,7 @@ function AppContent() {
             <Route path="counselor/students/:id" element={<CounselorStudentDetail />} />
             <Route path="counselor/risk-center" element={<CounselorRiskCenter />} />
             <Route path="counselor/messages" element={<CounselorMessages />} />
+            <Route path="counselor/session-history" element={<CounselorSessionHistory />} />
             <Route path="counselor/profile" element={<CounselorProfile />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />

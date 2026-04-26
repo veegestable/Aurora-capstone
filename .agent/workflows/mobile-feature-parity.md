@@ -385,8 +385,8 @@ Collections used across features (verify rules allow web client access):
 | B4 | Counselor dashboard dynamic stats | Small | ✅ Done |
 | C1 | Online presence (green dot) | Medium | ✅ Done |
 | C2 | Announcements system | Medium | ✅ Done |
-| C3 | Audit logging (write + read) | Medium | Not started |
-| C4 | OpenAI weekly narrative | Small | Not started |
+| C3 | Audit logging (write + read) | Medium | ✅ Done |
+| C4 | OpenAI weekly narrative | Small | ✅ Done |
 | C5 | Counselor session history | Medium | Not started |
 | D1 | Zen ambient audio | Small | Not started |
 | D2 | Admin settings | Small | Not started |
