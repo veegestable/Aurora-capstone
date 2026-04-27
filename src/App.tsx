@@ -10,6 +10,7 @@ import StudentHistory from './pages/student/History'
 import StudentMessages from './pages/student/Messages'
 import StudentProfile from './pages/student/Profile'
 import StudentResources from './pages/student/Resources'
+import StudentDailySelfie from './pages/student/DailySelfie'
 import CounselorLayout from './layouts/CounselorLayout'
 import CounselorDashboard from './pages/CounselorDashboard'
 import CounselorStudents from './pages/counselor/Students'
@@ -78,6 +79,7 @@ function AppContent() {
             <Route path="student/messages" element={<StudentMessages />} />
             <Route path="student/profile" element={<StudentProfile />} />
             <Route path="student/resources" element={<StudentResources />} />
+            <Route path="student/daily-selfie" element={<StudentDailySelfie />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
