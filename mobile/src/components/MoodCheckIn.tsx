@@ -52,6 +52,7 @@ import {
 
 interface MoodCheckInProps {
     onComplete?: () => void;
+    initialMood?: string | null;
 }
 
 interface DetectedEmotion {
@@ -148,7 +149,7 @@ const SimpleSlider = ({
     );
 };
 
-export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
+export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps) {
     const { user } = useAuth();
     const { dayResetHour, timezone, academicContextEnabled, enabledContextCategories } = useUserDaySettings();
 
@@ -240,6 +241,15 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
         };
         loadDaily();
     }, [user?.id, dayKey]);
+
+    useEffect(() => {
+        if (!initialMood) return;
+        const emotion = MANUAL_EMOTIONS.find((item) => item.name === initialMood);
+        if (!emotion) return;
+        setMoodInputMode('manual');
+        setDetectionMethod('manual');
+        setSelectedEmotions([{ emotion: emotion.name, confidence: 0.6, color: emotion.color }]);
+    }, [initialMood]);
 
     const closeModalThenRoute = (path: '/(student)/messages' | '/(student)/resources') => {
         onComplete?.();

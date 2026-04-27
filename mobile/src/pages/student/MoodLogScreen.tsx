@@ -34,14 +34,15 @@ import { aggregateByDay, moodStabilityScore } from '../../utils/moodAggregates';
 import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
 import { getUserSettings, updateUserSettings } from '../../services/mood-firestore-v2.service';
 import { COUNSELOR_CHECKIN_WINDOW_DAYS } from '../../constants/counselor-checkin-policy';
+import { SvgUri } from 'react-native-svg';
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
 const MOOD_EMOTIONS = [
-    { name: 'joy', label: 'Happy', color: AURORA.moodHappy, image: require('../../assets/happy.png') },
-    { name: 'sadness', label: 'Sad', color: AURORA.moodSad, image: require('../../assets/sad.png') },
-    { name: 'neutral', label: 'Neutral', color: AURORA.moodNeutral, image: require('../../assets/neutral.png') },
-    { name: 'surprise', label: 'Surprise', color: AURORA.moodSurprise, image: require('../../assets/surprise.png') },
-    { name: 'anger', label: 'Angry', color: AURORA.moodAngry, image: require('../../assets/angry.png') },
+    { name: 'joy', label: 'Happy', color: AURORA.moodHappy, svg: require('../../assets/moodsSvg/happy.svg') },
+    { name: 'sadness', label: 'Sad', color: AURORA.moodSad, svg: require('../../assets/moodsSvg/sad.svg') },
+    { name: 'neutral', label: 'Neutral', color: AURORA.moodNeutral, svg: require('../../assets/moodsSvg/neutral4.svg') },
+    { name: 'surprise', label: 'Surprise', color: AURORA.moodSurprise, svg: require('../../assets/moodsSvg/surprise.svg') },
+    { name: 'anger', label: 'Angry', color: AURORA.moodAngry, svg: require('../../assets/moodsSvg/angry.svg') },
 ];
 
 // ─── Mood Bubble ─────────────────────────────────────────────────────────────
@@ -50,6 +51,8 @@ function MoodBubble({ mood, selected, onPress }: {
     selected: boolean;
     onPress: () => void;
 }) {
+    const source = mood.svg ? Image.resolveAssetSource(mood.svg) : undefined;
+
     return (
         <TouchableOpacity onPress={() => { triggerHaptic('light'); onPress(); }} activeOpacity={0.8} style={{ alignItems: 'center', gap: 6 }}>
             <View style={{
@@ -64,7 +67,7 @@ function MoodBubble({ mood, selected, onPress }: {
                 shadowRadius: 10,
                 elevation: selected ? 8 : 0,
             }}>
-                <Image source={mood.image} style={{ width: 36, height: 36 }} resizeMode="contain" />
+                {source?.uri ? <SvgUri uri={source.uri} width={36} height={36} /> : null}
             </View>
             <Text style={{ color: selected ? '#FFFFFF' : AURORA.textSec, fontSize: 11, fontWeight: selected ? '700' : '400' }}>
                 {mood.label}
@@ -298,7 +301,7 @@ export default function MoodLogScreen() {
     };
 
     const handleMoodTap = (moodName: string) => {
-        setSelectedMood(moodName === selectedMood ? null : moodName);
+        setSelectedMood(moodName);
         setShowLogModal(true);
     };
 
@@ -602,7 +605,10 @@ export default function MoodLogScreen() {
                                 <X size={22} color={AURORA.textSec} />
                             </TouchableOpacity>
                         </View>
-                        <MoodCheckIn onComplete={() => { setShowLogModal(false); setSelectedMood(null); loadStats(); }} />
+                        <MoodCheckIn
+                            initialMood={selectedMood}
+                            onComplete={() => { setShowLogModal(false); setSelectedMood(null); loadStats(); }}
+                        />
                     </View>
                 </Modal>
             )}
