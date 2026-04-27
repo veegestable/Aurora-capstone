@@ -80,15 +80,16 @@ function ConversationRow({
     item: Conversation;
     onPress: () => void;
 }) {
+    const previewIsSessionMeta = item.preview?.toLowerCase().startsWith('session:');
     return (
         <TouchableOpacity
             onPress={onPress}
             activeOpacity={0.85}
             style={{
                 flexDirection: 'row', alignItems: 'center',
-                backgroundColor: AURORA.card, borderRadius: 16,
+                backgroundColor: item.isUnread ? 'rgba(45,107,255,0.12)' : AURORA.card, borderRadius: 16,
                 marginBottom: 10, overflow: 'hidden',
-                borderWidth: 1, borderColor: AURORA.border,
+                borderWidth: 1, borderColor: item.isUnread ? 'rgba(45,107,255,0.45)' : AURORA.border,
             }}
         >
             {/* Left color border */}
@@ -130,9 +131,9 @@ function ConversationRow({
                 <Text
                     numberOfLines={1}
                     style={{
-                        color: item.isAlerted ? AURORA.orange : AURORA.textSec,
-                        fontSize: 13,
-                        fontWeight: item.isAlerted ? '500' : '400',
+                        color: item.isAlerted ? AURORA.orange : previewIsSessionMeta ? '#AFC0E8' : AURORA.textSec,
+                        fontSize: previewIsSessionMeta ? 12 : 13,
+                        fontWeight: previewIsSessionMeta ? '500' : item.isAlerted ? '500' : '400',
                     }}
                 >
                     {item.preview}
@@ -186,6 +187,12 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
             }
         );
         return unsub;
+    }, [conversationId, user?.id]);
+
+    // Mark conversation as read as soon as counselor opens it.
+    useEffect(() => {
+        if (!conversationId || !user?.id) return;
+        firestoreService.markConversationAsRead(conversationId, user.id).catch(() => {});
     }, [conversationId, user?.id]);
 
     // Always scroll to the latest message when opening a conversation.
@@ -926,10 +933,10 @@ export default function CounselorMessagesScreen() {
                                 borderWidth: 1.5,
                                 borderColor: 'rgba(255,255,255,0.25)',
                                 shadowColor: AURORA.blue,
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.35,
-                                shadowRadius: 8,
-                                elevation: 6,
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.2,
+                                shadowRadius: 5,
+                                elevation: 3,
                             }}
                             onPress={() => router.push('/(counselor)/session-history')}
                             activeOpacity={0.85}
@@ -979,10 +986,10 @@ export default function CounselorMessagesScreen() {
                                     }}
                                 >
                                     <Text style={{
-                                        color: activeTab === tab ? '#FFFFFF' : AURORA.textSec,
+                                        color: activeTab === tab ? '#FFFFFF' : '#A8B8DC',
                                         fontSize: 13, fontWeight: activeTab === tab ? '700' : '500',
                                     }}>
-                                        {tab}
+                                        {tab === 'Unread' ? `Unread (${unreadCount})` : tab}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
