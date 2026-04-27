@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
-    Image, Animated, Switch, Easing,
+    Image, Animated, Switch, Easing, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
@@ -149,6 +149,15 @@ function BreathingExerciseView({
     const hasMountedPhaseRef = useRef(false);
     const phaseProgressAnim = useRef(new Animated.Value(0)).current;
 
+    const showBreathingGuide = () => {
+        triggerHaptic('light');
+        Alert.alert(
+            'How to use Breathing Space',
+            'Follow the phase cue on screen: Inhale, Hold, then Exhale. Keep a relaxed pace and do not force your breath.\n\nUse Pause anytime if you need a break, and Resume when ready. Toggle Ambient sound for a calmer session.',
+            [{ text: 'Got it' }]
+        );
+    };
+
     // Ambient sound: play when on, stop when off or unmount
     useEffect(() => {
         if (ambientOn && resource) {
@@ -262,7 +271,7 @@ function BreathingExerciseView({
                         <Text style={{ color: AURORA.textSec, fontSize: 11, letterSpacing: 1.5 }}>AURORA MINDFULNESS</Text>
                     </View>
                     <TouchableOpacity
-                        onPress={() => triggerHaptic('light')}
+                        onPress={showBreathingGuide}
                         style={{ padding: 6 }}
                         hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                     >
