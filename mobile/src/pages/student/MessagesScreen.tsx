@@ -44,6 +44,15 @@ interface CounselorContact {
     isUnread: boolean;
 }
 
+function formatConversationTimeLabel(raw: string): string {
+    const text = (raw || '').trim();
+    if (!text) return '';
+    if (/^\d+\s*[mh] ago$/i.test(text)) return text.toLowerCase().replace(/\s+/g, '');
+    if (/^\d+\s*min ago$/i.test(text)) return text.toLowerCase();
+    if (/^(just now|now)$/i.test(text)) return 'Just now';
+    return text;
+}
+
 interface TextMessage {
     id: string;
     senderId: 'me' | 'them';
@@ -91,7 +100,9 @@ function ContactRow({
                 flexDirection: 'row',
                 alignItems: 'center',
                 paddingVertical: 14,
-                paddingHorizontal: 0,
+                paddingHorizontal: 10,
+                borderRadius: 14,
+                backgroundColor: item.isUnread ? 'rgba(45,107,255,0.10)' : 'transparent',
                 borderBottomWidth: 1,
                 borderBottomColor: AURORA.border,
             }}
@@ -130,13 +141,23 @@ function ContactRow({
                             letterSpacing: item.isUnread ? 0.5 : 0,
                         }}
                     >
-                        {item.time}
+                        {formatConversationTimeLabel(item.time)}
                     </Text>
                 </View>
-                <Text style={{ color: AURORA.textSec, fontSize: 13 }} numberOfLines={1}>
+                <Text
+                    style={{
+                        color: item.isUnread ? '#D7E4FF' : AURORA.textSec,
+                        fontSize: 13,
+                        fontWeight: item.isUnread ? '600' : '400',
+                    }}
+                    numberOfLines={1}
+                >
                     {item.preview}
                 </Text>
             </View>
+            {item.isUnread ? (
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: AURORA.blue, marginLeft: 10 }} />
+            ) : null}
         </TouchableOpacity>
     );
 }
@@ -735,7 +756,7 @@ export default function MessagesScreen() {
     const { user } = useAuth();
     const router = useRouter();
     const params = useLocalSearchParams<{ counselorId?: string; openSessionRequest?: string }>();
-    const [activeTab, setActiveTab] = useState<TabType>('Counselors');
+    const [activeTab, setActiveTab] = useState<TabType>('All messages');
     const [selectedContact, setSelectedContact] = useState<CounselorContact | null>(null);
     const [contacts, setContacts] = useState<CounselorContact[]>([]);
     const [loading, setLoading] = useState(true);
@@ -936,35 +957,42 @@ export default function MessagesScreen() {
                 {/* Tabs */}
                 <View
                     style={{
-                        flexDirection: 'row',
                         paddingHorizontal: 20,
                         borderBottomWidth: 1,
                         borderBottomColor: AURORA.border,
                         marginTop: 8,
+                        paddingBottom: 10,
                     }}
                 >
-                    {TABS.map((tab) => (
-                        <TouchableOpacity
-                            key={tab}
-                            onPress={() => setActiveTab(tab)}
-                            style={{
-                                paddingVertical: 10,
-                                marginRight: 20,
-                                borderBottomWidth: 2,
-                                borderBottomColor: activeTab === tab ? AURORA.blue : 'transparent',
-                            }}
-                        >
-                            <Text
-                                style={{
-                                    color: activeTab === tab ? AURORA.blue : AURORA.textSec,
-                                    fontSize: 14,
-                                    fontWeight: activeTab === tab ? '700' : '400',
-                                }}
-                            >
-                                {tab}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                        {TABS.map((tab) => {
+                            const active = activeTab === tab;
+                            return (
+                                <TouchableOpacity
+                                    key={tab}
+                                    onPress={() => setActiveTab(tab)}
+                                    style={{
+                                        paddingVertical: 8,
+                                        paddingHorizontal: 14,
+                                        borderRadius: 999,
+                                        borderWidth: 1,
+                                        borderColor: active ? 'rgba(45,107,255,0.45)' : AURORA.border,
+                                        backgroundColor: active ? 'rgba(45,107,255,0.16)' : 'transparent',
+                                    }}
+                                >
+                                    <Text
+                                        style={{
+                                            color: active ? AURORA.blue : AURORA.textSec,
+                                            fontSize: 14,
+                                            fontWeight: active ? '700' : '500',
+                                        }}
+                                    >
+                                        {tab}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
                 </View>
 
                 {/* Contact List */}
@@ -1033,6 +1061,7 @@ export default function MessagesScreen() {
                         shadowRadius: 12,
                         elevation: 8,
                     }}
+                    activeOpacity={0.9}
                 >
                     <PenSquare size={22} color="#FFFFFF" />
                 </TouchableOpacity>
