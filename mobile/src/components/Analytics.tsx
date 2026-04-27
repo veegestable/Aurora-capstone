@@ -69,6 +69,7 @@ const STREAK_MILESTONES = [3, 7, 14, 30];
 const ANALYTICS_VIEW_TOGGLE_PAD = 4;
 const UI_TEXT_SECONDARY = '#C1CEE9';
 const UI_TEXT_MUTED = '#9AA9C8';
+const UI_SECTION_GAP = 12;
 
 /** Staggered fade-in-up for analytics panels (skipped when reduce motion is on). */
 function analyticsPanelEnter(reduceMotion: boolean, delayMs: number) {
@@ -921,7 +922,7 @@ export default function Analytics() {
                 )
             ) : null}
 
-            <View style={{ marginBottom: 12 }}>
+            <View style={{ marginBottom: UI_SECTION_GAP }}>
                 <View
                     style={{
                         alignSelf: 'flex-start',
@@ -1002,10 +1003,10 @@ export default function Analytics() {
             {analyticsView === 'today' ? (
                 <View key={`today-open-${todayPanelAnimKey}`}>
                     <Animatable.View {...analyticsPanelEnter(reduceMotion, 0)}>
-                        <Text style={{ color: AURORA.textPrimary, fontSize: 22, fontWeight: '800', marginBottom: 8 }}>
+                        <Text style={{ color: AURORA.textPrimary, fontSize: 22, fontWeight: '800', marginBottom: 6 }}>
                             Today
                         </Text>
-                        <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 14, lineHeight: 21, marginBottom: 8 }}>
+                        <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 14, lineHeight: 21, marginBottom: UI_SECTION_GAP }}>
                             Focused insights from your current day.
                         </Text>
                     </Animatable.View>
@@ -1029,7 +1030,7 @@ export default function Analytics() {
                                                     {getEmotionLabel(todayMoodAgg.dominantMood)}
                                                 </Text>
                                             </View>
-                                            <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 6 }}>
+                                            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginTop: 6 }}>
                                                 Avg intensity {todayMoodAgg.avgIntensity.toFixed(1)}/10
                                             </Text>
                                         </View>
@@ -1038,12 +1039,12 @@ export default function Analytics() {
                                             <Text style={{ color: AURORA.textPrimary, fontSize: 28, fontWeight: '900', marginTop: 6 }}>
                                                 {todayMoodAgg.entryCount}
                                             </Text>
-                                            <Text style={{ color: AURORA.textSec, fontSize: 12 }}>today</Text>
+                                            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12 }}>today</Text>
                                         </View>
                                     </View>
                                 </Animatable.View>
                                 <Animatable.View {...analyticsPanelEnter(reduceMotion, 130)}>
-                                    <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: 12 }}>
+                                    <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: UI_SECTION_GAP }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                             <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
                                                 TODAY MOOD STABILITY
@@ -1068,7 +1069,7 @@ export default function Analytics() {
                                 </Animatable.View>
                         {todaySchoolAnalysis ? (
                             <Animatable.View {...analyticsPanelEnter(reduceMotion, 200)}>
-                            <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: 12 }}>
+                            <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: UI_SECTION_GAP }}>
                                 <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 8 }}>
                                     ACADEMIC ANALYTICS (TODAY)
                                 </Text>

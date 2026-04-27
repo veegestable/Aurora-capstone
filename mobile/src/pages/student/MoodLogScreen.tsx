@@ -47,6 +47,8 @@ const MOOD_EMOTIONS = [
 
 const UI_TEXT_SECONDARY = '#C1CEE9';
 const UI_TEXT_MUTED = '#9AA9C8';
+const UI_SCREEN_PADDING = 18;
+const UI_SECTION_GAP = 14;
 
 // ─── Mood Bubble ─────────────────────────────────────────────────────────────
 function MoodBubble({ mood, selected, onPress }: {
@@ -325,11 +327,11 @@ export default function MoodLogScreen() {
             <SafeAreaView style={{ flex: 1 }}>
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ padding: 18, paddingBottom: 30 }}
+                    contentContainerStyle={{ padding: UI_SCREEN_PADDING, paddingBottom: 30 }}
                     showsVerticalScrollIndicator={false}
                 >
                     {/* ── Header ─────────────────────────────────────────────── */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: UI_SECTION_GAP + 4 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                             <LetterAvatar
                                 name={user?.full_name ?? user?.preferred_name ?? 'Student'}
@@ -360,7 +362,7 @@ export default function MoodLogScreen() {
                     {/* ── How Are You Feeling Card ────────────────────────────── */}
                     <View style={{
                         backgroundColor: AURORA.card, borderRadius: 24,
-                        padding: 18, marginBottom: 14,
+                        padding: 18, marginBottom: UI_SECTION_GAP,
                         borderWidth: 1, borderColor: AURORA.border,
                     }}>
                         <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginBottom: 4 }}>
@@ -382,7 +384,7 @@ export default function MoodLogScreen() {
                     </View>
 
                     {/* ── Quick Actions ──────────────────────────────────────── */}
-                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: UI_SECTION_GAP }}>
                         <QuickActionTile
                             label="Request a Session"
                             icon={<CalendarPlus size={20} color="#FFFFFF" />}
@@ -411,7 +413,7 @@ export default function MoodLogScreen() {
                     </View>
 
                     {/* ── Stats Row ──────────────────────────────────────────── */}
-                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: UI_SECTION_GAP }}>
                         <StreakCard streak={stats.streak} />
                         <View style={{
                             flex: 1,

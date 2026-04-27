@@ -19,6 +19,9 @@ import {
     type MoodLog,
 } from '../../utils/blendMoods';
 
+const UI_TEXT_SECONDARY = '#C1CEE9';
+const UI_TEXT_MUTED = '#9AA9C8';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MoodEntry {
     id: string;
@@ -1017,10 +1020,10 @@ export default function HistoryScreen() {
                                     borderRadius: 12,
                                 }}
                             >
-                                <BookMarked size={18} color={journalTab === 'calendar' ? '#FFF' : AURORA.textSec} />
+                                <BookMarked size={18} color={journalTab === 'calendar' ? '#FFF' : UI_TEXT_MUTED} />
                                 <Text
                                     style={{
-                                        color: journalTab === 'calendar' ? '#FFF' : AURORA.textSec,
+                                        color: journalTab === 'calendar' ? '#FFF' : UI_TEXT_MUTED,
                                         fontWeight: '700',
                                         fontSize: 13,
                                     }}
@@ -1040,10 +1043,10 @@ export default function HistoryScreen() {
                                     borderRadius: 12,
                                 }}
                             >
-                                <BarChart3 size={18} color={journalTab === 'insights' ? '#FFF' : AURORA.textSec} />
+                                <BarChart3 size={18} color={journalTab === 'insights' ? '#FFF' : UI_TEXT_MUTED} />
                                 <Text
                                     style={{
-                                        color: journalTab === 'insights' ? '#FFF' : AURORA.textSec,
+                                        color: journalTab === 'insights' ? '#FFF' : UI_TEXT_MUTED,
                                         fontWeight: '700',
                                         fontSize: 13,
                                     }}
@@ -1110,7 +1113,7 @@ export default function HistoryScreen() {
                             <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                                 {weekDays.map((d, i) => (
                                     <Text key={i} style={{
-                                        flex: 1, textAlign: 'center', color: AURORA.textMuted,
+                                        flex: 1, textAlign: 'center', color: UI_TEXT_MUTED,
                                         fontSize: 12, fontWeight: '700',
                                     }}>{d}</Text>
                                 ))}
@@ -1176,7 +1179,7 @@ export default function HistoryScreen() {
                             padding: 20, alignItems: 'center',
                             borderWidth: 1, borderColor: AURORA.border,
                         }}>
-                            <Text style={{ color: AURORA.textSec, fontSize: 14, textAlign: 'center' }}>
+                            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 14, textAlign: 'center' }}>
                                 Tap a colored day on the calendar to see your mood entries.
                             </Text>
                         </View>
