@@ -17,6 +17,7 @@ import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../../components/common/LetterAvatar';
 import {
     clearDailyCheckInReminder,
+    hasNotificationPermission,
     scheduleDailyCheckInReminder,
     sendTestDailyCheckInNotification,
 } from '../../services/push-notifications.service';
@@ -496,6 +497,9 @@ export default function ProfileScreen() {
     const [aiCamera, setAiCamera] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
     const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
+    const [sessionPushEnabled, setSessionPushEnabled] = useState(true);
+    const [savingSessionPushPreference, setSavingSessionPushPreference] = useState(false);
+    const [devicePermissionGranted, setDevicePermissionGranted] = useState<boolean | null>(null);
     const [shareCheckInsWithGuidance, setShareCheckInsWithGuidance] = useState(false);
     const [sharePrefsLoading, setSharePrefsLoading] = useState(true);
     const [expandedPrivacyRow, setExpandedPrivacyRow] = useState<'visible' | 'private' | null>('visible');
@@ -562,6 +566,39 @@ export default function ProfileScreen() {
         };
         void run();
     }, [remindersEnabled, reminderHour, settingsLoading]);
+
+    useEffect(() => {
+        if (!user) return;
+        setSessionPushEnabled(user.session_push_notifications_enabled !== false);
+    }, [user]);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const granted = await hasNotificationPermission();
+                if (mounted) setDevicePermissionGranted(granted);
+            } catch {
+                if (mounted) setDevicePermissionGranted(null);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
+
+    const handleToggleSessionPush = async (value: boolean) => {
+        if (savingSessionPushPreference) return;
+        const previous = sessionPushEnabled;
+        setSessionPushEnabled(value);
+        setSavingSessionPushPreference(true);
+        try {
+            await updateUser({ session_push_notifications_enabled: value });
+        } catch {
+            setSessionPushEnabled(previous);
+            Alert.alert('Could not update setting', 'Please try again.');
+        } finally {
+            setSavingSessionPushPreference(false);
+        }
+    };
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
@@ -741,6 +778,14 @@ export default function ProfileScreen() {
                     }}>
                         <ToggleRow
                             icon={<Bell size={18} color={AURORA.textSec} />}
+                            label="Session updates"
+                            statusBadge={sessionPushEnabled ? 'ON' : 'OFF'}
+                            value={sessionPushEnabled}
+                            disabled={savingSessionPushPreference}
+                            onValueChange={handleToggleSessionPush}
+                        />
+                        <ToggleRow
+                            icon={<Bell size={18} color={AURORA.textSec} />}
                             label="Daily Check-in Reminders"
                             value={remindersEnabled}
                             onValueChange={(v) => { void setRemindersEnabled(v); }}
@@ -770,6 +815,14 @@ export default function ProfileScreen() {
                         <Text style={{ color: '#95A8D4', fontSize: 11, lineHeight: 16, marginTop: 8, marginBottom: 4 }}>
                             We will remind you to start your day at this time (default 7:00 AM).
                         </Text>
+                        <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16, marginTop: 2 }}>
+                            Session update notifications are best-effort on this app build.
+                        </Text>
+                        {sessionPushEnabled && devicePermissionGranted === false ? (
+                            <Text style={{ color: '#FECACA', fontSize: 11, lineHeight: 16, marginTop: 4 }}>
+                                Device notifications are blocked in system settings, so session alerts may not appear.
+                            </Text>
+                        ) : null}
                         <TouchableOpacity
                             onPress={async () => {
                                 const ok = await sendTestDailyCheckInNotification();

@@ -44,6 +44,11 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   return !!(requested.granted || requested.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL);
 }
 
+export async function hasNotificationPermission(): Promise<boolean> {
+  const current = await Notifications.getPermissionsAsync();
+  return !!(current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL);
+}
+
 export async function clearDailyCheckInReminder(): Promise<void> {
   const all = await Notifications.getAllScheduledNotificationsAsync();
   const ownIds = all

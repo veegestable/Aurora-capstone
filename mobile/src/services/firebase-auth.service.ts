@@ -43,6 +43,7 @@ export interface UserProfile {
   /** Student profile: male | female. Used for future features. */
   sex?: Sex;
   bio?: string;
+  session_push_notifications_enabled?: boolean;
   created_at: Date;
   updated_at?: Date;
 }
@@ -154,6 +155,9 @@ export const authService = {
       if (data.sex !== undefined) updates.sex = data.sex;
       if (data.bio !== undefined) updates.bio = data.bio;
       if (data.avatar_url !== undefined) updates.avatar_url = data.avatar_url;
+      if (data.session_push_notifications_enabled !== undefined) {
+        updates.session_push_notifications_enabled = data.session_push_notifications_enabled;
+      }
 
       await updateDoc(doc(db, 'users', uid), updates);
       console.log('✅ User profile updated successfully');

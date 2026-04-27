@@ -10,6 +10,7 @@ import {
     TextInput, Image, KeyboardAvoidingView, Platform,
     ActivityIndicator, Alert, Pressable,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Settings2, Info, Plus, Send, PenSquare, Phone } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -451,20 +452,21 @@ function DirectMessageView({
                 </Text>
 
                 {/* Messages */}
-                <ScrollView
-                    ref={scrollViewRef}
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode="on-drag"
-                >
-                    {loadingMessages ? (
-                        <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                            <ActivityIndicator size="small" color={AURORA.blue} />
-                        </View>
-                    ) : (
-                        messages.map((msg) => {
+                <View style={{ flex: 1 }}>
+                    <ScrollView
+                        ref={scrollViewRef}
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
+                    >
+                        {loadingMessages ? (
+                            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                                <ActivityIndicator size="small" color={AURORA.blue} />
+                            </View>
+                        ) : (
+                            messages.map((msg) => {
                             const isMe = msg.senderId === 'me';
                             const isAutoAccepted =
                                 msg.type === 'text' && msg.text.startsWith(AUTO_ACCEPTED_PREFIX);
@@ -653,9 +655,23 @@ function DirectMessageView({
                                     </View>
                                 </View>
                             );
-                        })
-                    )}
-                </ScrollView>
+                            })
+                        )}
+                    </ScrollView>
+                    <LinearGradient
+                        pointerEvents="none"
+                        colors={[AURORA.bgMessages, 'rgba(8,12,48,0)']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 0, y: 1 }}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 18,
+                        }}
+                    />
+                </View>
 
                 {/* Input Bar */}
                     <View

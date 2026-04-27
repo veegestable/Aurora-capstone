@@ -171,6 +171,7 @@ async function createSessionNotification(
       type: 'counselor_message',
       message,
       status: 'pending',
+      delivery_mode: 'local_bridge',
       notification_key: key,
       target_route: targetRoute,
       scheduled_for: Timestamp.now(),

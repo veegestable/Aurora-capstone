@@ -16,12 +16,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     ArrowLeft, MoreVertical, Pencil, User, Lock,
     Bell, Moon, Shield, LogOut, ChevronRight,
-    TrendingUp, Star, ExternalLink, Camera, X,
+    ExternalLink, Camera, X,
 } from 'lucide-react-native';
 import { useAuth } from '../../src/stores/AuthContext';
 import { AURORA } from '../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../src/components/common/LetterAvatar';
-import { firestoreService } from '../../src/services/firebase-firestore.service';
+import { hasNotificationPermission } from '../../src/services/push-notifications.service';
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 function SectionLabel({ text }: { text: string }) {
@@ -84,43 +84,6 @@ function SettingsRow({
                 onPress ? <ChevronRight size={18} color={AURORA.textMuted} /> : null
             )}
         </TouchableOpacity>
-    );
-}
-
-interface StatCardProps {
-    label: string;
-    value: string;
-    sub: string;
-    subColor: string;
-    isTop?: boolean;
-}
-
-function StatCard({ label, value, sub, subColor, isTop }: StatCardProps) {
-    return (
-        <View style={{
-            flex: 1, backgroundColor: AURORA.card, borderRadius: 14, padding: 14,
-            borderWidth: 1, borderColor: AURORA.border, alignItems: 'flex-start',
-        }}>
-            <Text style={{
-                color: AURORA.textMuted, fontSize: 10,
-                fontWeight: '700', letterSpacing: 1.2, marginBottom: 6,
-            }}>
-                {label}
-            </Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginBottom: 4 }}>
-                {value}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                {isTop ? (
-                    <Star size={11} color={subColor} fill={subColor} />
-                ) : (
-                    <TrendingUp size={11} color={subColor} />
-                )}
-                <Text style={{ color: subColor, fontSize: 11, fontWeight: '600' }}>
-                    {sub}
-                </Text>
-            </View>
-        </View>
     );
 }
 
@@ -351,27 +314,41 @@ export default function CounselorProfileScreen() {
     const { user, signOut, updateUser, uploadAvatar } = useAuth();
     const [showEditProfile, setShowEditProfile] = useState(false);
     const [pushNotifications, setPushNotifications] = useState(true);
+    const [savingPushPreference, setSavingPushPreference] = useState(false);
+    const [devicePermissionGranted, setDevicePermissionGranted] = useState<boolean | null>(null);
     const [darkMode, setDarkMode] = useState(false);
-    const [studentCount, setStudentCount] = useState('0');
-    const [completedSessionsCount, setCompletedSessionsCount] = useState(0);
 
     useEffect(() => {
-        firestoreService.getUsersByRole('student')
-            .then(students => {
-                setStudentCount(students.length > 0 ? `${students.length}` : '0');
-            })
-            .catch(() => {});
+        if (!user) return;
+        setPushNotifications(user.session_push_notifications_enabled !== false);
+    }, [user]);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const granted = await hasNotificationPermission();
+                if (mounted) setDevicePermissionGranted(granted);
+            } catch {
+                if (mounted) setDevicePermissionGranted(null);
+            }
+        })();
+        return () => { mounted = false; };
     }, []);
 
-    useEffect(() => {
-        if (!user?.id) return;
-        firestoreService.getSessionHistoryForCounselor(user.id)
-            .then(sessions => {
-                const completed = sessions.filter(s => s.status === 'completed').length;
-                setCompletedSessionsCount(completed);
-            })
-            .catch(() => {});
-    }, [user?.id]);
+    const handleTogglePushNotifications = async (value: boolean) => {
+        const previous = pushNotifications;
+        setPushNotifications(value);
+        setSavingPushPreference(true);
+        try {
+            await updateUser({ session_push_notifications_enabled: value });
+        } catch {
+            setPushNotifications(previous);
+            Alert.alert('Could not update setting', 'Please try again.');
+        } finally {
+            setSavingPushPreference(false);
+        }
+    };
 
     const handleSignOut = () => {
         Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -442,28 +419,6 @@ export default function CounselorProfileScreen() {
                         </Text>
                     </View>
 
-                    {/* ── Stats Row ─────────────────────────────────────── */}
-                    <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 4 }}>
-                        <StatCard
-                            label="STUDENTS"
-                            value={studentCount}
-                            sub=""
-                            subColor={AURORA.green}
-                        />
-                        <StatCard
-                            label="SESSIONS"
-                            value={String(completedSessionsCount)}
-                            sub=""
-                            subColor={AURORA.green}
-                        />
-                        {/* <StatCard
-                            label="RATING"
-                            value="4.9"
-                            sub="Top 1%"
-                            subColor={AURORA.amber}
-                            isTop
-                        /> */}
-                    </View>
                     {/* ── Personal Details ─────────────────────────────────── */}
                     <View style={{ paddingHorizontal: 20 }}>
                         <SectionHeader title="PERSONAL DETAILS" />
@@ -519,7 +474,8 @@ export default function CounselorProfileScreen() {
                             rightElement={
                                 <Switch
                                     value={pushNotifications}
-                                    onValueChange={setPushNotifications}
+                                    onValueChange={handleTogglePushNotifications}
+                                    disabled={savingPushPreference}
                                     trackColor={{ false: AURORA.cardAlt, true: AURORA.blue }}
                                     thumbColor="#FFFFFF"
                                 />
@@ -537,6 +493,16 @@ export default function CounselorProfileScreen() {
                                 />
                             }
                         /> */}
+                    </View>
+                    <View style={{ paddingHorizontal: 22, paddingTop: 8 }}>
+                        <Text style={{ color: AURORA.textMuted, fontSize: 12, lineHeight: 17 }}>
+                            Notifications are best-effort on this app build.
+                        </Text>
+                        {pushNotifications && devicePermissionGranted === false ? (
+                            <Text style={{ color: '#FECACA', fontSize: 12, marginTop: 4, lineHeight: 17 }}>
+                                Device notifications are blocked in system settings, so alerts may not appear.
+                            </Text>
+                        ) : null}
                     </View>
 
                     {/* ── Privacy & Data ─────────────────────────────────── */}

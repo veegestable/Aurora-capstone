@@ -21,6 +21,7 @@ interface User {
   sex?: 'male' | 'female';
   bio?: string;
   avatar_url?: string;
+  session_push_notifications_enabled?: boolean;
 }
 
 interface AuthContextType {
@@ -29,7 +30,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string, role: 'admin' | 'counselor' | 'student') => Promise<{ success: boolean; message: string }>;
   signOut: () => void;
-  updateUser: (data: { full_name?: string; preferred_name?: string; department?: string; program?: string; year_level?: string; student_number?: string; sex?: 'male' | 'female'; bio?: string; avatar_url?: string }) => Promise<void>;
+  updateUser: (data: { full_name?: string; preferred_name?: string; department?: string; program?: string; year_level?: string; student_number?: string; sex?: 'male' | 'female'; bio?: string; avatar_url?: string; session_push_notifications_enabled?: boolean }) => Promise<void>;
   uploadAvatar: (imageUri: string) => Promise<string>;
 }
 
@@ -50,7 +51,8 @@ const convertUserProfile = (userProfile: UserProfile): User => {
     student_number: userProfile.student_number,
     sex: userProfile.sex,
     bio: userProfile.bio,
-    avatar_url: userProfile.avatar_url
+    avatar_url: userProfile.avatar_url,
+    session_push_notifications_enabled: userProfile.session_push_notifications_enabled
   };
 };
 
@@ -160,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateUser = async (data: { full_name?: string; preferred_name?: string; department?: string; program?: string; year_level?: string; student_number?: string; sex?: 'male' | 'female'; bio?: string; avatar_url?: string }) => {
+  const updateUser = async (data: { full_name?: string; preferred_name?: string; department?: string; program?: string; year_level?: string; student_number?: string; sex?: 'male' | 'female'; bio?: string; avatar_url?: string; session_push_notifications_enabled?: boolean }) => {
     if (!user) return;
     try {
       await authService.updateProfile(user.id, data);
