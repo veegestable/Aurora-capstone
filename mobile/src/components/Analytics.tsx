@@ -11,6 +11,7 @@ import {
     ActivityIndicator,
     RefreshControl,
     TouchableOpacity,
+    Alert,
     AppState,
     type AppStateStatus,
     type LayoutChangeEvent,
@@ -24,7 +25,7 @@ import Animated, {
     withSequence,
     withTiming,
 } from 'react-native-reanimated';
-import { Sparkles, TrendingUp } from 'lucide-react-native';
+import { Sparkles, TrendingUp, CircleHelp } from 'lucide-react-native';
 import { useAuth } from '../stores/AuthContext';
 import { useUserDaySettings } from '../stores/UserDaySettingsContext';
 import { moodService } from '../services/mood.service';
@@ -66,6 +67,8 @@ import {
 
 const STREAK_MILESTONES = [3, 7, 14, 30];
 const ANALYTICS_VIEW_TOGGLE_PAD = 4;
+const UI_TEXT_SECONDARY = '#C1CEE9';
+const UI_TEXT_MUTED = '#9AA9C8';
 
 /** Staggered fade-in-up for analytics panels (skipped when reduce motion is on). */
 function analyticsPanelEnter(reduceMotion: boolean, delayMs: number) {
@@ -802,6 +805,13 @@ export default function Analytics() {
         if (key === 'surprise' || key === 'surprised') return AURORA.moodSurprise;
         return weekMoodMeta.color;
     }, [weekWellnessStats.emotionLabel, weekMoodMeta.color]);
+
+    const showStabilityInfo = () => {
+        Alert.alert(
+            'Today mood stability',
+            'This score reflects how steady your mood intensity is across today\'s check-ins. A higher percentage means your mood pattern was more consistent.'
+        );
+    };
     const weekBestWorstInsight = useMemo(() => {
         const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
         const points: Array<{ label: string; avgIntensity: number; avgStress: number; dominantEmotion: 'happy' | 'angry' | 'surprise' | 'neutral' | 'sad' | '' }> = [];
@@ -912,9 +922,6 @@ export default function Analytics() {
             ) : null}
 
             <View style={{ marginBottom: 12 }}>
-                <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>
-                    ANALYTICS VIEW
-                </Text>
                 <View
                     style={{
                         alignSelf: 'flex-start',
@@ -996,10 +1003,10 @@ export default function Analytics() {
                 <View key={`today-open-${todayPanelAnimKey}`}>
                     <Animatable.View {...analyticsPanelEnter(reduceMotion, 0)}>
                         <Text style={{ color: AURORA.textPrimary, fontSize: 22, fontWeight: '800', marginBottom: 8 }}>
-                            Today analytics
+                            Today
                         </Text>
-                        <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21, marginBottom: 8 }}>
-                            A focused view of your current day.
+                        <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 14, lineHeight: 21, marginBottom: 8 }}>
+                            Focused insights from your current day.
                         </Text>
                     </Animatable.View>
 
@@ -1037,14 +1044,23 @@ export default function Analytics() {
                                 </Animatable.View>
                                 <Animatable.View {...analyticsPanelEnter(reduceMotion, 130)}>
                                     <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: 12 }}>
-                                        <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
-                                            TODAY MOOD STABILITY
-                                        </Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                            <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
+                                                TODAY MOOD STABILITY
+                                            </Text>
+                                            <TouchableOpacity
+                                                onPress={showStabilityInfo}
+                                                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                                                style={{ padding: 2 }}
+                                            >
+                                                <CircleHelp size={13} color={UI_TEXT_MUTED} />
+                                            </TouchableOpacity>
+                                        </View>
                                         <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 6 }}>
                                             <Text style={{ color: todayBlended, fontSize: 30, fontWeight: '900' }}>
                                                 {todayStability}%
                                             </Text>
-                                            <Text style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 6 }}>
+                                            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 6 }}>
                                                 based on today&apos;s check-ins
                                             </Text>
                                         </View>
@@ -1053,20 +1069,31 @@ export default function Analytics() {
                         {todaySchoolAnalysis ? (
                             <Animatable.View {...analyticsPanelEnter(reduceMotion, 200)}>
                             <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: 12 }}>
-                                <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
+                                <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 8 }}>
                                     ACADEMIC ANALYTICS (TODAY)
                                 </Text>
-                                <Text style={{ color: AURORA.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 7 }}>
+
+                                <Text style={{ color: UI_TEXT_MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
+                                    INSIGHT
+                                </Text>
+                                <Text style={{ color: AURORA.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 4 }}>
                                     {todaySchoolAnalysis.summary}
                                 </Text>
-                                <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 8, lineHeight: 18 }}>
+
+                                <Text style={{ color: UI_TEXT_MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginTop: 10 }}>
+                                    SIGNALS
+                                </Text>
+                                <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginTop: 4, lineHeight: 18 }}>
                                     School events: {todaySchoolAnalysis.totalSchoolEvents} across {todaySchoolAnalysis.schoolCheckIns} check-in(s)
                                 </Text>
-                                <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}>
+                                <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginTop: 2 }}>
                                     Mood: {sentenceCase(moodCategoryFromFive(todaySchoolAnalysis.avgMood5))} • Stress: {sentenceCase(stressCategoryFromFive(todaySchoolAnalysis.avgStress5))}
                                 </Text>
                                 {todaySchoolAnalysis.topSchoolEvents.length > 0 ? (
                                     <View style={{ marginTop: 8, gap: 6 }}>
+                                        <Text style={{ color: UI_TEXT_MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 2 }}>
+                                            TOP STRESSORS
+                                        </Text>
                                         {todaySchoolAnalysis.topSchoolEvents.map((item) => {
                                             const maxCount = Math.max(1, todaySchoolAnalysis.topSchoolEvents[0]?.count ?? 1);
                                             const widthPct = Math.max(18, Math.round((item.count / maxCount) * 100));
