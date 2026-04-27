@@ -1,7 +1,7 @@
 import { collection, query, where, orderBy, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore'
-import { db } from '../../config/firebase'
-import { formatMessageTime } from './formatMessageTime'
-import type { StudentContact } from '../../types/message.types'
+import { db } from '../../../config/firebase'
+import { formatMessageTime } from '../formatMessageTime'
+import type { StudentContact } from '../../../types/message.types'
 
 const isPlaceholderAvatar = (url: string) => !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url)
 

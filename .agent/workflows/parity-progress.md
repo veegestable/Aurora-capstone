@@ -196,9 +196,9 @@ description:
 | **E1** | Counselor Signals system (replace risk levels with ethics-compliant signal pills) | ~~Large~~ ✅ Done |
 | **E4** | Mood V2 dual-source merging (legacy `mood_logs` + v2 `moodLogs/{uid}/entries`) | ~~Medium~~ ✅ Done |
 | **E2** | StudentProfileModal with check-in summary | Medium |
-| **E3** | Daily Selfie Screen | Small |
-| **E5** | UserDaySettings context | Medium |
-| **E6** | Weekly Summary via Cloud Functions | Small |
+| **E3** | Daily Selfie Screen | ~~Small~~ ✅ Done |
+| **E5** | UserDaySettings context | ~~Medium~~ ✅ Done |
+| **E6** | Weekly Summary via Cloud Functions | ~~Small~~ ✅ Done |
 | **E7** | Counselor Profile — Edit Modal + avatar upload | Medium |
 
 **E1 details:**
@@ -218,6 +218,21 @@ description:
 - Created `src/services/mood-v2/post/createMoodLogEntry.ts` — write to v2 subcollection
 - Created `src/services/mood-v2/index.ts` — barrel as `moodV2Service`
 - Modified `src/services/mood/get/getMoodLogs.ts` — dual-source fetch + merge with `MergedMoodLog` interface and v2→legacy mapping
+
+**E3 details:**
+- Created `src/pages/student/DailySelfie.tsx` as a standalone route wrapping `EmotionDetection`.
+- Added a "Daily Selfie" quick-action card to `StudentDashboard`.
+
+**E5 details:**
+- Created `src/types/user-settings.types.ts` and `src/services/user-settings/index.ts` for Firestore CRUD.
+- Created `src/contexts/UserDaySettingsContext.tsx` to expose preferences globally.
+- Implemented `src/pages/student/Settings.tsx` to handle student toggles.
+- Wired `UserDaySettingsProvider` at root and added Settings link to `StudentLayout`.
+
+**E6 details:**
+- Rewrote `src/services/analytics/helpers.ts` to output `WeekSummaryInput` matching the mobile function exactly.
+- Replaced direct OpenAI call in `fetchWeeklyNarrative.ts` with `httpsCallable(functions, 'generateWeeklySummaryAi')`.
+- Simplified `WeeklyNarrative.tsx` to display the backend's plain-text summary instead of parsing JSON arrays.
 
 ### Phase F: Admin Placeholder Pages
 

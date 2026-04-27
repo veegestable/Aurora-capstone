@@ -1,11 +1,13 @@
-import { getConversationsForStudent } from "./getConversationsForStudent"
-import { getConversationsForCounselor } from "./getConversationsForCounselor"
-import { getMessagesForStudent } from "./getMessagesForStudent"
-import { sendTextMessage } from "./sendTextMessage"
+import { getConversationsForStudent } from "./get/getConversationsForStudent"
+import { getConversationsForCounselor } from "./get/getConversationsForCounselor"
+import { getMessagesForStudent } from "./get/getMessagesForStudent"
+import { sendTextMessage } from "./post/sendTextMessage"
+import { createConversation } from "./post/createConversation"
 
 export const messagesService = {
   getConversationsForStudent,
   getConversationsForCounselor,
   getMessagesForStudent,
-  sendTextMessage
+  sendTextMessage,
+  createConversation
 }
