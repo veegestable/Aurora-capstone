@@ -390,10 +390,10 @@ Collections used across features (verify rules allow web client access):
 | C5 | Counselor session history | Medium | ✅ Done |
 | D1 | Zen ambient audio | Small | ✅ Done |
 | D2 | Admin settings | Small | ✅ Done |
-| **E1** | **Counselor Signals system (replace risk levels)** | **Large** | ❌ Not started |
+| **E1** | **Counselor Signals system (replace risk levels)** | **Large** | ✅ Done |
 | **E2** | **StudentProfileModal with check-in summary** | **Medium** | ❌ Not started |
 | **E3** | **Daily Selfie Screen** | **Small** | ❌ Not started |
-| **E4** | **Mood V2 dual-source merging** | **Medium** | ❌ Not started |
+| **E4** | **Mood V2 dual-source merging** | **Medium** | ✅ Done |
 | **E5** | **UserDaySettings context** | **Medium** | ❌ Not started |
 | **E6** | **Weekly Summary via Cloud Functions** | **Small** | ❌ Not started |
 | **E7** | **Counselor Profile — Edit Modal + avatar upload** | **Medium** | ❌ Not started |
