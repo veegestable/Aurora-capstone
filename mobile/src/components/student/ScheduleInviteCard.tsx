@@ -138,7 +138,7 @@ export default function ScheduleInviteCard({
                             <Check size={18} color="#32CD32" strokeWidth={2.75} />
                         </View>
                         <Text style={styles.confirmBtnText}>
-                            {confirmBusy ? 'Confirming…' : 'Confirm selection'}
+                            {confirmBusy ? 'Confirming…' : 'Confirm slot'}
                         </Text>
                     </View>
                 </Pressable>
@@ -263,18 +263,18 @@ const styles = StyleSheet.create({
         marginTop: 6,
         borderRadius: 12,
         overflow: 'hidden',
-        backgroundColor: '#2563eb',
+        backgroundColor: 'rgba(45,107,255,0.16)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.22)',
+        borderColor: 'rgba(45,107,255,0.45)',
         ...Platform.select({
             ios: {
                 shadowColor: '#1e40af',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.4,
-                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.16,
+                shadowRadius: 4,
             },
             android: {
-                elevation: 5,
+                elevation: 2,
             },
         }),
     },
@@ -286,24 +286,24 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 50,
-        paddingVertical: 14,
-        paddingHorizontal: 18,
-        gap: 10,
+        minHeight: 44,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        gap: 8,
     },
     confirmBtnIconCircle: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'rgba(45,107,255,0.22)',
         alignItems: 'center',
         justifyContent: 'center',
     },
     confirmBtnText: {
-        color: '#FFFFFF',
-        fontSize: 15,
+        color: '#CFE0FF',
+        fontSize: 14,
         fontWeight: '700',
-        letterSpacing: 0.3,
+        letterSpacing: 0.2,
     },
     confirmBtnDisabled: {
         opacity: 0.55,

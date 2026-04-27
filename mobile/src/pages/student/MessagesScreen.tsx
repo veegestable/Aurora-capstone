@@ -454,7 +454,7 @@ function DirectMessageView({
                 <ScrollView
                     ref={scrollViewRef}
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
+                    contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="on-drag"
@@ -559,7 +559,7 @@ function DirectMessageView({
                                                             style={{
                                                                 color: 'rgba(255,255,255,0.6)',
                                                                 fontSize: 11,
-                                                                marginTop: 6,
+                                                                marginTop: 4,
                                                                 textAlign: isMe ? 'right' : 'left',
                                                             }}
                                                         >
@@ -608,7 +608,7 @@ function DirectMessageView({
                                                             style={{
                                                                 color: 'rgba(255,255,255,0.6)',
                                                                 fontSize: 11,
-                                                                marginTop: 6,
+                                                                marginTop: 4,
                                                                 textAlign: isMe ? 'right' : 'left',
                                                             }}
                                                         >
@@ -618,7 +618,7 @@ function DirectMessageView({
                                                 </Pressable>
                                             );
                             return (
-                                <View key={msg.id} style={{ marginBottom: 16 }}>
+                                <View key={msg.id} style={{ marginBottom: 14 }}>
                                     <View
                                         style={{
                                             flexDirection: 'row',
@@ -628,14 +628,16 @@ function DirectMessageView({
                                         }}
                                     >
                                         {!isMe && (
-                                            <LetterAvatar name={contact.name} size={34} avatarUrl={contact.avatar || undefined} />
+                                            <View style={{ marginBottom: 14 }}>
+                                                <LetterAvatar name={contact.name} size={34} avatarUrl={contact.avatar || undefined} />
+                                            </View>
                                         )}
                                         <View style={{ maxWidth: '78%' }}>
                                             <Text
                                                 style={{
                                                     color: AURORA.textSec,
                                                     fontSize: 11,
-                                                    marginBottom: 4,
+                                                    marginBottom: 3,
                                                     textAlign: isMe ? 'right' : 'left',
                                                 }}
                                             >
@@ -644,7 +646,9 @@ function DirectMessageView({
                                             {messageContent}
                                         </View>
                                         {isMe && (
-                                            <LetterAvatar name={user?.full_name ?? 'You'} size={34} avatarUrl={user?.avatar_url} />
+                                            <View style={{ marginBottom: 14 }}>
+                                                <LetterAvatar name={user?.full_name ?? 'You'} size={34} avatarUrl={user?.avatar_url} />
+                                            </View>
                                         )}
                                     </View>
                                 </View>
@@ -696,7 +700,7 @@ function DirectMessageView({
                                 borderColor: AURORA.border,
                             }}
                             placeholder="Type a message..."
-                            placeholderTextColor={AURORA.textMuted}
+                            placeholderTextColor="#9FB0D4"
                             value={message}
                             onChangeText={setMessage}
                         />
@@ -720,7 +724,7 @@ function DirectMessageView({
                             color: AURORA.textMuted,
                             fontSize: 11,
                             textAlign: 'center',
-                            marginBottom: 8,
+                            marginBottom: 14,
                             paddingHorizontal: 16,
                         }}
                     >
