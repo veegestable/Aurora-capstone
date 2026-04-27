@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
-    Image, Animated, Switch,
+    Image, Animated, Switch, Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Circle } from 'react-native-svg';
 import { ArrowLeft, Search, Info, Wind, RotateCcw } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { triggerHaptic } from '../../utils/haptics';
@@ -54,32 +55,48 @@ const AMBIENT_EMOJI: Record<string, string> = {
     Focus: '🌲',
     Sleep: '🌙',
 };
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // ─── Resource Card ────────────────────────────────────────────────────────────
 function ResourceCard({ item, onStart }: {
     item: typeof MOCK_RESOURCES[0];
     onStart: () => void;
 }) {
+    const level = item.duration.startsWith('5') || item.duration.startsWith('10') ? 'Beginner' : 'Intermediate';
     return (
         <View style={{
             backgroundColor: AURORA.card, borderRadius: 20,
-            marginBottom: 16, overflow: 'hidden',
+            marginBottom: 18, overflow: 'hidden',
             borderWidth: 1, borderColor: AURORA.border,
         }}>
-            <Image
-                source={{ uri: item.image }}
-                style={{ width: '100%', height: 160 }}
-                resizeMode="cover"
-            />
+            <View style={{ position: 'relative' }}>
+                <Image
+                    source={{ uri: item.image }}
+                    style={{ width: '100%', height: 162 }}
+                    resizeMode="cover"
+                />
+                <View
+                    pointerEvents="none"
+                    style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: 52,
+                        backgroundColor: 'rgba(7,11,42,0.32)',
+                    }}
+                />
+            </View>
             <View style={{
                 flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                padding: 14, backgroundColor: 'rgba(14,18,56,0.95)',
+                paddingHorizontal: 14, paddingVertical: 13, backgroundColor: 'rgba(14,18,56,0.95)',
+                gap: 12,
             }}>
-                <View>
-                    <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginBottom: 4 }}>
+                <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginBottom: 5 }} numberOfLines={2}>
                         {item.title}
                     </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                         <View style={{
                             backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8,
                             paddingHorizontal: 8, paddingVertical: 3,
@@ -88,15 +105,25 @@ function ResourceCard({ item, onStart }: {
                                 {item.duration}
                             </Text>
                         </View>
-                        <Text style={{ color: AURORA.textSec, fontSize: 12 }}>{item.category}</Text>
+                        <Text style={{ color: '#AFC0E8', fontSize: 12 }}>{item.category}</Text>
+                        <View style={{
+                            backgroundColor: 'rgba(139,92,246,0.22)',
+                            borderRadius: 999,
+                            paddingHorizontal: 8,
+                            paddingVertical: 3,
+                        }}>
+                            <Text style={{ color: '#DCC8FF', fontSize: 11, fontWeight: '600' }}>{level}</Text>
+                        </View>
                     </View>
                 </View>
                 <TouchableOpacity
                     onPress={() => { triggerHaptic('light'); onStart(); }}
                     activeOpacity={0.8}
                     style={{
-                        backgroundColor: AURORA.purple, borderRadius: 24,
-                        paddingHorizontal: 22, paddingVertical: 10,
+                        backgroundColor: AURORA.purple, borderRadius: 22,
+                        minHeight: 42,
+                        paddingHorizontal: 21, paddingVertical: 10,
+                        justifyContent: 'center',
                     }}
                 >
                     <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>Start</Text>
@@ -119,6 +146,8 @@ function BreathingExerciseView({
     const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
     const [ambientOn, setAmbientOn] = useState(true);
     const resourceType = (resource?.type ?? 'Meditation') as ResourceType;
+    const hasMountedPhaseRef = useRef(false);
+    const phaseProgressAnim = useRef(new Animated.Value(0)).current;
 
     // Ambient sound: play when on, stop when off or unmount
     useEffect(() => {
@@ -133,6 +162,13 @@ function BreathingExerciseView({
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const currentPhase = BREATHING_PHASES[phaseIdx];
+    const phaseProgress = currentPhase.duration > 0 ? Math.min(phaseTime / currentPhase.duration, 1) : 0;
+    const progressRadius = 86;
+    const progressCircumference = 2 * Math.PI * progressRadius;
+    const progressOffset = phaseProgressAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [progressCircumference, 0],
+    });
 
     // Pulse animation
     useEffect(() => {
@@ -165,6 +201,34 @@ function BreathingExerciseView({
         return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
     }, [isPlaying, phaseIdx]);
 
+    // Gentle haptic cue when phase changes.
+    useEffect(() => {
+        if (!hasMountedPhaseRef.current) {
+            hasMountedPhaseRef.current = true;
+            return;
+        }
+        triggerHaptic('light');
+    }, [phaseIdx]);
+
+    // Smoothly animate ring progress through each phase.
+    useEffect(() => {
+        const duration = currentPhase.duration || 1;
+        const clampedProgress = Math.min(Math.max(phaseProgress, 0), 1);
+        const remainingMs = Math.max(0, (1 - clampedProgress) * duration * 1000);
+
+        phaseProgressAnim.stopAnimation();
+        phaseProgressAnim.setValue(clampedProgress);
+
+        if (!isPlaying || remainingMs <= 0) return;
+
+        Animated.timing(phaseProgressAnim, {
+            toValue: 1,
+            duration: remainingMs,
+            easing: Easing.linear,
+            useNativeDriver: false,
+        }).start();
+    }, [phaseIdx, isPlaying]);
+
     const reset = () => {
         setIsPlaying(false);
         setPhaseIdx(0); setPhaseTime(0); setTotalTime(TOTAL_DURATION);
@@ -186,21 +250,32 @@ function BreathingExerciseView({
                     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
                     paddingHorizontal: 16, paddingVertical: 12,
                 }}>
-                    <TouchableOpacity onPress={() => { triggerHaptic('light'); onBack(); }} style={{ padding: 4 }}>
+                    <TouchableOpacity
+                        onPress={() => { triggerHaptic('light'); onBack(); }}
+                        style={{ padding: 6 }}
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    >
                         <ArrowLeft size={22} color="#FFFFFF" />
                     </TouchableOpacity>
                     <View style={{ alignItems: 'center' }}>
                         <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '700' }}>Breathing Space</Text>
                         <Text style={{ color: AURORA.textSec, fontSize: 11, letterSpacing: 1.5 }}>AURORA MINDFULNESS</Text>
                     </View>
-                    <TouchableOpacity onPress={() => triggerHaptic('light')} style={{ padding: 4 }}>
+                    <TouchableOpacity
+                        onPress={() => triggerHaptic('light')}
+                        style={{ padding: 6 }}
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    >
                         <Info size={22} color={AURORA.textSec} />
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}>
+                <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}>
                     {/* Timer */}
-                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 32 }}>
+                    <Text style={{ color: AURORA.textMuted, fontSize: 12, fontWeight: '600', marginTop: 8, marginBottom: 8 }}>
+                        Session remaining
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 12, marginBottom: 30 }}>
                         {[{ label: 'MINUTES', val: minutes }, { label: 'SECONDS', val: seconds }].map(t => (
                             <View key={t.label} style={{
                                 flex: 1, backgroundColor: 'rgba(45,107,255,0.15)',
@@ -232,6 +307,33 @@ function BreathingExerciseView({
                                 alignItems: 'center', justifyContent: 'center',
                                 borderWidth: 1, borderColor: 'rgba(45,107,255,0.2)',
                             }}>
+                                <Svg
+                                    width={188}
+                                    height={188}
+                                    style={{ position: 'absolute' }}
+                                >
+                                    <Circle
+                                        cx={94}
+                                        cy={94}
+                                        r={progressRadius}
+                                        stroke="rgba(45,107,255,0.22)"
+                                        strokeWidth={4}
+                                        fill="none"
+                                    />
+                                    <AnimatedCircle
+                                        cx={94}
+                                        cy={94}
+                                        r={progressRadius}
+                                        stroke="#6FA1FF"
+                                        strokeWidth={4}
+                                        fill="none"
+                                        strokeLinecap="round"
+                                        strokeDasharray={`${progressCircumference} ${progressCircumference}`}
+                                        strokeDashoffset={progressOffset}
+                                        rotation={-90}
+                                        origin="94, 94"
+                                    />
+                                </Svg>
                                 <Animated.View style={{
                                     width: 140, height: 140, borderRadius: 70,
                                     backgroundColor: '#3D7BFF',
@@ -255,7 +357,7 @@ function BreathingExerciseView({
                         <Text style={{ color: '#FFFFFF', fontSize: 36, fontWeight: '800', marginBottom: 8 }}>
                             {currentPhase.name}
                         </Text>
-                        <Text style={{ color: AURORA.textSec, fontSize: 14 }}>{currentPhase.instruction}</Text>
+                        <Text style={{ color: '#AFC0E8', fontSize: 14 }}>{currentPhase.instruction}</Text>
                     </View>
 
                     {/* Phase Tabs */}
@@ -285,7 +387,13 @@ function BreathingExerciseView({
                     </View>
 
                     {/* Ambient Sound Card */}
-                    <View style={{
+                    <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => {
+                            triggerHaptic('light');
+                            setAmbientOn(v => !v);
+                        }}
+                        style={{
                         backgroundColor: AURORA.card, borderRadius: 18,
                         padding: 14, flexDirection: 'row', alignItems: 'center',
                         marginBottom: 20, borderWidth: 1, borderColor: AURORA.border,
@@ -311,23 +419,25 @@ function BreathingExerciseView({
                             trackColor={{ false: AURORA.cardAlt, true: AURORA.blue }}
                             thumbColor="#FFFFFF"
                         />
-                    </View>
+                    </TouchableOpacity>
+                </ScrollView>
 
-                    {/* Controls */}
+                {/* Persistent controls */}
+                <View style={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 10 }}>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
                         <TouchableOpacity
                             onPress={() => {
-                            triggerHaptic('light');
-                            setIsPlaying(p => {
-                                if (ambientOn) {
-                                    if (p) pauseAmbientSound(); else resumeAmbientSound();
-                                }
-                                return !p;
-                            });
-                        }}
+                                triggerHaptic('light');
+                                setIsPlaying(p => {
+                                    if (ambientOn) {
+                                        if (p) pauseAmbientSound(); else resumeAmbientSound();
+                                    }
+                                    return !p;
+                                });
+                            }}
                             style={{
                                 flex: 1, backgroundColor: AURORA.blue,
-                                borderRadius: 20, paddingVertical: 18,
+                                borderRadius: 20, paddingVertical: 16,
                                 alignItems: 'center',
                             }}
                         >
@@ -346,7 +456,7 @@ function BreathingExerciseView({
                             <RotateCcw size={22} color={AURORA.textSec} />
                         </TouchableOpacity>
                     </View>
-                </ScrollView>
+                </View>
             </SafeAreaView>
         </View>
     );
@@ -375,13 +485,13 @@ export default function ResourcesScreen() {
                 }}>
                     <View>
                         <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800' }}>Aurora Library</Text>
-                        <Text style={{ color: AURORA.purple, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                        <Text style={{ color: '#9C85D9', fontSize: 11, fontWeight: '700', letterSpacing: 0.45 }}>
                             MSU-IIT CCS
                         </Text>
                     </View>
-                    {/* <TouchableOpacity onPress={() => triggerHaptic('light')} style={{ padding: 4 }}>
+                    <TouchableOpacity onPress={() => triggerHaptic('light')} style={{ padding: 7 }}>
                         <Search size={22} color={AURORA.textSec} />
-                    </TouchableOpacity> */}
+                    </TouchableOpacity>
                 </View>
 
                 {/* ── Category Tabs ─────────────────────────────────────────── */}
@@ -394,14 +504,17 @@ export default function ResourcesScreen() {
                         <TouchableOpacity
                             key={cat}
                             onPress={() => { triggerHaptic('light'); setActiveCategory(cat); }}
+                            hitSlop={{ top: 8, left: 6, right: 6, bottom: 8 }}
                             style={{
-                                paddingVertical: 10, marginRight: 18,
+                                minHeight: 42,
+                                justifyContent: 'center',
+                                paddingVertical: 8, paddingHorizontal: 4, marginRight: 16,
                                 borderBottomWidth: 2,
                                 borderBottomColor: activeCategory === cat ? AURORA.blue : 'transparent',
                             }}
                         >
                             <Text style={{
-                                color: activeCategory === cat ? AURORA.blue : AURORA.textSec,
+                                color: activeCategory === cat ? AURORA.blue : '#9FB0D4',
                                 fontSize: 14, fontWeight: activeCategory === cat ? '700' : '400',
                             }}>
                                 {cat}
@@ -413,10 +526,10 @@ export default function ResourcesScreen() {
                 {/* ── Resource Cards ─────────────────────────────────────────── */}
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 110 }}
                     showsVerticalScrollIndicator={false}
                 >
-                    <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800', marginBottom: 14 }}>
+                    <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800', marginBottom: 16 }}>
                         Curated for You
                     </Text>
                     {filteredResources.map(item => (
