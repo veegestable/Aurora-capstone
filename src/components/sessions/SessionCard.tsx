@@ -1,4 +1,4 @@
-import { Calendar, Clock, FileText } from 'lucide-react'
+import { Calendar, Clock, FileText, AlertCircle } from 'lucide-react'
 import type { Session } from '../../types/session.types'
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
@@ -28,7 +28,7 @@ export function SessionCard({ session, peerName, onAction, actionLabel }: Sessio
     <div className="card-aurora border border-aurora-border p-4">
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 rounded-full bg-aurora-blue/20 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-full bg-aurora-blue/20 flex items-center justify-center shrink-0">
           <Calendar className="w-4 h-4 text-aurora-blue" />
         </div>
         <div className="flex-1 min-w-0">
@@ -39,7 +39,7 @@ export function SessionCard({ session, peerName, onAction, actionLabel }: Sessio
             <p className="text-xs text-aurora-text-sec truncate">{peerName}</p>
           )}
         </div>
-        <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md ${config.bg} ${config.text}`}>
+        <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md shrink-0 ${config.bg} ${config.text}`}>
           {config.label}
         </span>
       </div>
@@ -47,7 +47,7 @@ export function SessionCard({ session, peerName, onAction, actionLabel }: Sessio
       {/* Time */}
       {slot && (
         <div className="flex items-center gap-2 mb-2">
-          <Clock className="w-3.5 h-3.5 text-aurora-text-muted" />
+          <Clock className="w-3.5 h-3.5 text-aurora-text-muted shrink-0" />
           <span className="text-xs text-aurora-text-sec">
             {slot.date}{slot.time ? ` at ${slot.time}` : ''}
           </span>
@@ -57,21 +57,47 @@ export function SessionCard({ session, peerName, onAction, actionLabel }: Sessio
       {/* Note */}
       {session.studentRequestNote && (
         <div className="flex items-start gap-2 mb-3">
-          <FileText className="w-3.5 h-3.5 text-aurora-text-muted mt-0.5" />
+          <FileText className="w-3.5 h-3.5 text-aurora-text-muted mt-0.5 shrink-0" />
           <p className="text-xs text-aurora-text-sec leading-relaxed line-clamp-2">
             {session.studentRequestNote}
           </p>
         </div>
       )}
 
+      {/* Attendance & Cancel Reason */}
+      {(session.attendanceNote || session.cancelReason) && (
+        <div className="mt-3 pt-3 border-t border-aurora-border space-y-2">
+          {session.attendanceNote && (
+            <div className="flex items-start gap-2">
+              <FileText className="w-3.5 h-3.5 text-aurora-text-muted mt-0.5 shrink-0" />
+              <p className="text-xs text-aurora-text-sec leading-relaxed">
+                <span className="font-semibold text-white">Attendance: </span>
+                {session.attendanceNote}
+              </p>
+            </div>
+          )}
+          {session.cancelReason && (
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-3.5 h-3.5 text-aurora-text-muted mt-0.5 shrink-0" />
+              <p className="text-xs text-aurora-text-sec leading-relaxed">
+                <span className="font-semibold text-white">Reason: </span>
+                {session.cancelReason}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Action */}
       {onAction && actionLabel && (
-        <button
-          onClick={onAction}
-          className="w-full btn-aurora py-2.5 text-sm"
-        >
-          {actionLabel}
-        </button>
+        <div className="mt-3">
+          <button
+            onClick={onAction}
+            className="w-full btn-aurora py-2.5 text-sm"
+          >
+            {actionLabel}
+          </button>
+        </div>
       )}
     </div>
   )

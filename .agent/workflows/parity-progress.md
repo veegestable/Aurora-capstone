@@ -1,6 +1,10 @@
+---
+description: 
+---
+
 # Mobile Feature Parity — Progress Log
 
-**Last updated:** April 17, 2026
+**Last updated:** April 26, 2026
 **Parent workflow:** `.agent/workflows/mobile-feature-parity.md`
 **Mode:** Ask Mode (read-only, copy-paste snippets)
 
@@ -9,7 +13,7 @@
 ## How to Resume
 
 1. Open `.agent/workflows/mobile-feature-parity.md` for full context on rules, branding tokens, architecture, and remaining feature specs.
-2. The next item to implement is **C3 (Audit Logging — Write + Read)**.
+2. The next item to implement is **C5 (Counselor Session History Screen)**.
 3. Follow the same pattern used for A1–C2: read the mobile reference files, read the web files, provide complete copy-paste-ready snippets with exact file paths.
 4. Note on branding: student-facing surfaces use the Aurora dark theme tokens listed in the workflow doc. Admin pages use a lighter palette (`bg-white` cards with `text-aurora-primary-dark`, `bg-aurora-secondary-blue`, `border-aurora-gray-200`). Match the surrounding page when in doubt — see `src/pages/admin/Counselors.tsx` for the admin pattern and `src/pages/StudentDashboard.tsx` for the student pattern.
 
@@ -173,16 +177,16 @@
 
 | Item | Description | Effort |
 |------|-------------|--------|
-| **C3** | Audit logging — write on sensitive actions + admin log viewer | Medium |
-| **C4** | OpenAI weekly analytics narrative | Small |
-| **C5** | Counselor session history screen + route | Medium |
+| **C3** | Audit logging — write on sensitive actions + admin log viewer | ~~Medium~~ ✅ Done |
+| **C4** | OpenAI weekly analytics narrative | ~~Small~~ ✅ Done |
+| **C5** | Counselor session history screen + route | ~~Medium~~ ✅ Done |
 
 ### Phase D: Low Priority (polish)
 
 | Item | Description | Effort |
 |------|-------------|--------|
-| **D1** | Zen ambient audio playback (HTML5 Audio API) | Small |
-| **D2** | Admin settings page (replace placeholder) | Small |
+| **D1** | Zen ambient audio playback (HTML5 Audio API) | ~~Small~~ ✅ Done |
+| **D2** | Admin settings page (replace placeholder) | ~~Small~~ ✅ Done |
 
 ---
 

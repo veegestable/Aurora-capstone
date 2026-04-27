@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Info, Wind, RotateCcw } from 'lucide-react'
+import { zenSoundsService, ZEN_TRACKS, TITLE_OVERRIDES } from '../../services/zen-sounds'
 
 const BREATHING_PHASES = [
   { name: 'Inhale', instruction: 'Deeply through your nose', duration: 4 },
@@ -43,6 +44,28 @@ export function BreathingExercise({ resource, onBack }: BreathingExerciseProps) 
 
   const currentPhase = BREATHING_PHASES[phaseIdx]
   const resourceType = resource.type ?? 'Meditation'
+
+  // Ambient Audio Logic
+  useEffect(() => {
+    if (ambientOn) {
+      if (isPlaying) {
+        // Check for a specific title override first (just like mobile)
+        const track = TITLE_OVERRIDES[resource.title] || 
+                      ZEN_TRACKS.find(t => t.category.toLowerCase() === resourceType.toLowerCase()) || 
+                      ZEN_TRACKS[0]
+        zenSoundsService.play(track)
+      } else {
+        zenSoundsService.pause()
+      }
+    } else {
+      zenSoundsService.stop()
+    }
+  }, [ambientOn, isPlaying, resourceType, resource.title])
+
+  // Cleanup audio when user leaves the breathing exercise
+  useEffect(() => {
+    return () => zenSoundsService.stop()
+  }, [])
 
   useEffect(() => {
     if (!isPlaying) return
