@@ -105,7 +105,7 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const key = getDayKey(d, resetHour, timezone);
-      const label = d.getDate() === 1 || i === 29 ? `${d.getMonth() + 1}/${d.getDate()}` : String(d.getDate());
+      const label = String(d.getDate());
       rows.push({ label, key, date: d, agg: aggregateByDay(entries, key) });
     }
     return rows;
@@ -261,7 +261,7 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
         }}
       >
         <Text style={{ fontSize: 42, fontWeight: '900', color: stability.blended }}>{stability.score}%</Text>
-        <Text style={{ color: AURORA.textPrimary, fontSize: 16, fontWeight: '700', marginTop: 4 }}>Mood Stability</Text>
+        <Text style={{ color: AURORA.textPrimary, fontSize: 16, fontWeight: '700', marginTop: 4 }}>Stability score</Text>
         <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 19, marginTop: 8 }}>
           {stabilityCopy(stability.score)}
         </Text>
@@ -412,34 +412,28 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
                   borderColor: 'rgba(91, 117, 255, 0.28)',
                 }}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
-                    <Text style={{ color: AURORA.textPrimary, fontSize: 12, fontWeight: '700', flexShrink: 1 }}>
-                      {tip.label}
+                <Text style={{ color: AURORA.textPrimary, fontSize: 13, fontWeight: '700' }}>
+                  {tip.label}
+                </Text>
+                {tip.emotion ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                    <Text style={{ color: UI_TEXT_MUTED, fontSize: 11, fontWeight: '700' }}>Dominant mood</Text>
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        backgroundColor: tip.color || AURORA.purple,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.45)',
+                      }}
+                    />
+                    <Text style={{ color: AURORA.textPrimary, fontSize: 12, fontWeight: '700' }}>
+                      {getEmotionLabel(tip.emotion)}
                     </Text>
-                    {tip.emotion ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                        
-                        <Text style={{ fontSize: 11, fontWeight: '800' }}>
-                          <Text style={{ color: AURORA.textMuted }}>Dominant Mood: </Text>
-                          <View
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 999,
-                            backgroundColor: tip.color || AURORA.purple,
-                            borderWidth: 1,
-                            borderColor: 'rgba(255,255,255,0.45)',
-                            marginRight: 4,
-                          }}
-                        />
-                          <Text style={{ color: AURORA.textPrimary }}>{getEmotionLabel(tip.emotion)}</Text>
-                        </Text>
-                      </View>
-                    ) : null}
                   </View>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                ) : null}
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
                   {tip.text.split('·').map((part) => (
                     <View
                       key={`${tip.label}-${part.trim()}`}
@@ -485,7 +479,7 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
                       position: 'absolute',
                       left: m.index * (14 + gap),
                       top: 28,
-                      color: 'rgba(148,163,184,0.18)',
+                      color: 'rgba(148,163,184,0.26)',
                       fontSize: 18,
                       fontWeight: '900',
                       letterSpacing: 1.2,
@@ -618,34 +612,28 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
                   borderColor: 'rgba(91, 117, 255, 0.28)',
                 }}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
-                    <Text style={{ color: AURORA.textPrimary, fontSize: 12, fontWeight: '700', flexShrink: 1 }}>
-                      {tip.label}
+                <Text style={{ color: AURORA.textPrimary, fontSize: 13, fontWeight: '700' }}>
+                  {tip.label}
+                </Text>
+                {tip.emotion ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                    <Text style={{ color: UI_TEXT_MUTED, fontSize: 11, fontWeight: '700' }}>Dominant mood</Text>
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        backgroundColor: tip.color || AURORA.purple,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.45)',
+                      }}
+                    />
+                    <Text style={{ color: AURORA.textPrimary, fontSize: 12, fontWeight: '700' }}>
+                      {getEmotionLabel(tip.emotion)}
                     </Text>
-                    {tip.emotion ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                        
-                        <Text style={{ fontSize: 11, fontWeight: '800' }}>
-                          <Text style={{ color: AURORA.textMuted }}>Dominant Mood: </Text>
-                          <View
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 999,
-                            backgroundColor: tip.color || AURORA.purple,
-                            borderWidth: 1,
-                            borderColor: 'rgba(255,255,255,0.45)',
-                            marginRight: 4,
-                          }}
-                        />
-                          <Text style={{ color: AURORA.textPrimary }}>{getEmotionLabel(tip.emotion)}</Text>
-                        </Text>
-                      </View>
-                    ) : null}
                   </View>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                ) : null}
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
                   {tip.text.split('·').map((part) => (
                     <View
                       key={`${tip.label}-${part.trim()}`}

@@ -912,7 +912,7 @@ export default function Analytics() {
     return (
         <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 48 }}
+            contentContainerStyle={{ paddingBottom: 72 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={AURORA.blue} />}
         >
             {totalCheckIns === 0 ? (
