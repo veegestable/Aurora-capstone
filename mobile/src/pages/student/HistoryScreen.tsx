@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Settings2, BarChart3, BookMarked } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Settings2, BarChart3, BookMarked, CircleHelp } from 'lucide-react-native';
 import * as Animatable from 'react-native-animatable';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SvgUri } from 'react-native-svg';
@@ -283,9 +283,25 @@ function CalendarDayCell({
 }
 
 function CalendarLegend() {
+    const showLegendInfo = () => {
+        Alert.alert(
+            'Mixed days',
+            'Mixed days show a blended color based on how strongly each mood was felt.'
+        );
+    };
+
     return (
         <View style={styles.legendWrapper}>
-            <Text style={styles.legendTitle}>Mood colors</Text>
+            <View style={styles.legendTitleRow}>
+                <Text style={styles.legendTitle}>Mood colors</Text>
+                <TouchableOpacity
+                    onPress={showLegendInfo}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    style={{ padding: 2 }}
+                >
+                    <CircleHelp size={14} color="#64748b" />
+                </TouchableOpacity>
+            </View>
             <View style={styles.legendRow}>
                 {Object.entries(MOOD_COLORS).map(([mood, color]) => (
                     <View key={mood} style={styles.legendItem}>
@@ -294,9 +310,6 @@ function CalendarLegend() {
                     </View>
                 ))}
             </View>
-            <Text style={styles.legendNote}>
-                Mixed days show a blended color based on how strongly each mood was felt.
-            </Text>
         </View>
     );
 }
@@ -542,9 +555,14 @@ const styles = StyleSheet.create({
         color: '#94a3b8',
         fontSize: 12,
         fontWeight: '600',
-        marginBottom: 8,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
+    },
+    legendTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 8,
     },
     legendRow: {
         flexDirection: 'row',
@@ -565,12 +583,6 @@ const styles = StyleSheet.create({
     legendLabel: {
         color: '#cbd5e1',
         fontSize: 12,
-    },
-    legendNote: {
-        color: '#475569',
-        fontSize: 11,
-        fontStyle: 'italic',
-        marginTop: 4,
     },
 
     // Day details card
@@ -769,6 +781,43 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 4,
     },
+    todayPill: {
+        marginTop: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: 'rgba(45,107,255,0.45)',
+        backgroundColor: 'rgba(45,107,255,0.16)',
+    },
+    todayPillText: {
+        color: AURORA.blue,
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 0.3,
+    },
+    selectedDayBadge: {
+        marginBottom: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(59,130,246,0.28)',
+        backgroundColor: 'rgba(59,130,246,0.10)',
+    },
+    selectedDayBadgeLabel: {
+        color: '#93c5fd',
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
+        marginBottom: 2,
+    },
+    selectedDayBadgeDate: {
+        color: '#dbeafe',
+        fontSize: 13,
+        fontWeight: '700',
+    },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -893,6 +942,11 @@ export default function HistoryScreen() {
         });
     };
 
+    const jumpToToday = () => {
+        setCalendarMonthEnter(null);
+        setCurrentDate(new Date());
+    };
+
     const calendarDays = useMemo(() => generateCalendarDays(), [moodData, currentDate, dayResetHour, timezone]);
     const dayDetailsEntries = useMemo(() => {
         if (!selectedDay) return [] as MoodEntry[];
@@ -906,6 +960,9 @@ export default function HistoryScreen() {
     const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const calendarMonthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
+    const now = new Date();
+    const isCurrentMonthView =
+        currentDate.getFullYear() === now.getFullYear() && currentDate.getMonth() === now.getMonth();
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bg }}>
@@ -1009,7 +1066,11 @@ export default function HistoryScreen() {
                     }}>
                         {/* Month nav */}
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                            <TouchableOpacity onPress={() => navigateMonth('prev')} style={{ padding: 4 }}>
+                            <TouchableOpacity
+                                onPress={() => navigateMonth('prev')}
+                                style={{ padding: 8 }}
+                                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                            >
                                 <ChevronLeft size={20} color={AURORA.textSec} />
                             </TouchableOpacity>
                             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }}>
@@ -1021,8 +1082,21 @@ export default function HistoryScreen() {
                                 >
                                     <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{monthLabel}</Text>
                                 </Animatable.View>
+                                {!isCurrentMonthView ? (
+                                    <TouchableOpacity
+                                        onPress={jumpToToday}
+                                        style={styles.todayPill}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Text style={styles.todayPillText}>Today</Text>
+                                    </TouchableOpacity>
+                                ) : null}
                             </View>
-                            <TouchableOpacity onPress={() => navigateMonth('next')} style={{ padding: 4 }}>
+                            <TouchableOpacity
+                                onPress={() => navigateMonth('next')}
+                                style={{ padding: 8 }}
+                                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                            >
                                 <ChevronRight size={20} color={AURORA.textSec} />
                             </TouchableOpacity>
                         </View>
@@ -1074,14 +1148,26 @@ export default function HistoryScreen() {
 
                     {/* ── Day Details ───────────────────────────────────────── */}
                     {selectedDay && (
-                        <DayDetailsCard
-                            date={selectedDay.date.toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                            })}
-                            entries={dayDetailsEntries}
-                        />
+                        <>
+                            <View style={styles.selectedDayBadge}>
+                                <Text style={styles.selectedDayBadgeLabel}>Selected day</Text>
+                                <Text style={styles.selectedDayBadgeDate}>
+                                    {selectedDay.date.toLocaleDateString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric',
+                                    })}
+                                </Text>
+                            </View>
+                            <DayDetailsCard
+                                date={selectedDay.date.toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                })}
+                                entries={dayDetailsEntries}
+                            />
+                        </>
                     )}
 
                     {!selectedDay && (

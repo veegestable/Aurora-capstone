@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, Image,
-    Modal, Platform,
+    Modal, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, TrendingUp, Lightbulb, Camera, MessageSquare, BookOpen, X, CalendarPlus, ScanFace } from 'lucide-react-native';
+import { Bell, TrendingUp, Lightbulb, Camera, MessageSquare, BookOpen, X, CalendarPlus, ScanFace, CircleHelp } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { router } from 'expo-router';
 import { moodService } from '../../services/mood.service';
@@ -45,6 +45,9 @@ const MOOD_EMOTIONS = [
     { name: 'anger', label: 'Angry', color: AURORA.moodAngry, svg: require('../../assets/moodsSvg/angry.svg') },
 ];
 
+const UI_TEXT_SECONDARY = '#C1CEE9';
+const UI_TEXT_MUTED = '#9AA9C8';
+
 // ─── Mood Bubble ─────────────────────────────────────────────────────────────
 function MoodBubble({ mood, selected, onPress }: {
     mood: typeof MOOD_EMOTIONS[0];
@@ -54,7 +57,12 @@ function MoodBubble({ mood, selected, onPress }: {
     const source = mood.svg ? Image.resolveAssetSource(mood.svg) : undefined;
 
     return (
-        <TouchableOpacity onPress={() => { triggerHaptic('light'); onPress(); }} activeOpacity={0.8} style={{ alignItems: 'center', gap: 6 }}>
+        <TouchableOpacity
+            onPress={() => { triggerHaptic('light'); onPress(); }}
+            activeOpacity={0.8}
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            style={{ alignItems: 'center', gap: 8, minWidth: 62 }}
+        >
             <View style={{
                 width: 58, height: 58, borderRadius: 29,
                 backgroundColor: mood.color,
@@ -69,7 +77,7 @@ function MoodBubble({ mood, selected, onPress }: {
             }}>
                 {source?.uri ? <SvgUri uri={source.uri} width={36} height={36} /> : null}
             </View>
-            <Text style={{ color: selected ? '#FFFFFF' : AURORA.textSec, fontSize: 11, fontWeight: selected ? '700' : '400' }}>
+            <Text style={{ color: selected ? '#FFFFFF' : UI_TEXT_SECONDARY, fontSize: 12, fontWeight: selected ? '700' : '500' }}>
                 {mood.label}
             </Text>
         </TouchableOpacity>
@@ -90,10 +98,10 @@ function QuickActionTile({
                 flex: wide ? 2 : 1,
                 backgroundColor: AURORA.card,
                 borderRadius: 18,
-                padding: 12,
+                padding: 11,
                 alignItems: 'center',
                 justifyContent: 'center',
-                minHeight: 84,
+                minHeight: 78,
                 borderWidth: 1,
                 borderColor: AURORA.border,
                 position: 'relative',
@@ -105,7 +113,7 @@ function QuickActionTile({
             {badge && (
                 <View style={{ position: 'absolute', top: 10, right: 10 }}>{badge}</View>
             )}
-            <Text style={{ color: AURORA.textSec, fontSize: 10, fontWeight: '600', letterSpacing: 0.5, textAlign: 'center' }}>
+            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 11, fontWeight: '600', letterSpacing: 0.4, textAlign: 'center' }}>
                 {label}
             </Text>
         </TouchableOpacity>
@@ -151,7 +159,7 @@ function StreakCard({ streak }: { streak: number }) {
                 {streak}
             </Text>
             <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700', marginTop: 1 }}>Days</Text>
-            <Text style={{ color: AURORA.textSec, fontSize: 10, marginTop: 4, lineHeight: 14 }}>
+            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 10, marginTop: 4, lineHeight: 14 }}>
                 Keep checking in daily to grow this streak.
             </Text>
         </View>
@@ -175,7 +183,7 @@ function AIInsightCard({ insight }: { insight: string }) {
             </View>
             <View style={{ flex: 1 }}>
                 <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginBottom: 4 }}>Daily note</Text>
-                <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 19 }}>{insight}</Text>
+                <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 13, lineHeight: 19 }}>{insight}</Text>
             </View>
         </View>
     );
@@ -305,16 +313,23 @@ export default function MoodLogScreen() {
         setShowLogModal(true);
     };
 
+    const showStabilityInfo = () => {
+        Alert.alert(
+            'Today Stability',
+            'This score summarizes how steady your mood intensity is across today\'s check-ins. Higher % means more consistent patterns.'
+        );
+    };
+
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bg }}>
             <SafeAreaView style={{ flex: 1 }}>
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
+                    contentContainerStyle={{ padding: 18, paddingBottom: 30 }}
                     showsVerticalScrollIndicator={false}
                 >
                     {/* ── Header ─────────────────────────────────────────────── */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                             <LetterAvatar
                                 name={user?.full_name ?? user?.preferred_name ?? 'Student'}
@@ -322,7 +337,7 @@ export default function MoodLogScreen() {
                                 avatarUrl={user?.avatar_url}
                             />
                             <View>
-                                <Text style={{ color: AURORA.textSec, fontSize: 12, letterSpacing: 1 }}>WELCOME BACK</Text>
+                                <Text style={{ color: UI_TEXT_MUTED, fontSize: 12, letterSpacing: 1 }}>WELCOME BACK</Text>
                                 <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{user?.preferred_name || user?.full_name || 'Student'}</Text>
                             </View>
                         </View>
@@ -345,16 +360,16 @@ export default function MoodLogScreen() {
                     {/* ── How Are You Feeling Card ────────────────────────────── */}
                     <View style={{
                         backgroundColor: AURORA.card, borderRadius: 24,
-                        padding: 20, marginBottom: 16,
+                        padding: 18, marginBottom: 14,
                         borderWidth: 1, borderColor: AURORA.border,
                     }}>
                         <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginBottom: 4 }}>
                             How are you feeling?
                         </Text>
-                        <Text style={{ color: AURORA.textSec, fontSize: 13, marginBottom: 20 }}>
+                        <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 13, marginBottom: 16 }}>
                             Tap a mood to check in.
                         </Text>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 }}>
                             {MOOD_EMOTIONS.map(mood => (
                                 <MoodBubble
                                     key={mood.name}
@@ -367,7 +382,7 @@ export default function MoodLogScreen() {
                     </View>
 
                     {/* ── Quick Actions ──────────────────────────────────────── */}
-                    <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
                         <QuickActionTile
                             label="Request a Session"
                             icon={<CalendarPlus size={20} color="#FFFFFF" />}
@@ -396,7 +411,7 @@ export default function MoodLogScreen() {
                     </View>
 
                     {/* ── Stats Row ──────────────────────────────────────────── */}
-                    <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
                         <StreakCard streak={stats.streak} />
                         <View style={{
                             flex: 1,
@@ -415,6 +430,13 @@ export default function MoodLogScreen() {
                                 <Text style={{ color: AURORA.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.8 }}>
                                     TODAY STABILITY
                                 </Text>
+                                <TouchableOpacity
+                                    onPress={showStabilityInfo}
+                                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                                    style={{ padding: 2 }}
+                                >
+                                    <CircleHelp size={14} color={UI_TEXT_MUTED} />
+                                </TouchableOpacity>
                                 {/* <View style={{ backgroundColor: 'rgba(45,107,255,0.16)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
                                     <Text style={{ color: AURORA.blue, fontSize: 9, fontWeight: '700' }}>Live</Text>
                                 </View> */}
@@ -434,7 +456,7 @@ export default function MoodLogScreen() {
                                 {Math.round(Math.max(0, Math.min(100, stats.todayStability)))}%
                             </Text>
                             <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700', marginTop: 1 }}>Mood Stability</Text>
-                            <Text style={{ color: AURORA.textSec, fontSize: 10, marginTop: 4, lineHeight: 14 }}>
+                            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 10, marginTop: 4, lineHeight: 14 }}>
                                 {stats.todayCount <= 0
                                     ? 'No check-in yet today'
                                     : stats.todayCount === 1
