@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import type { CounselorSignalPill } from '../constants/counselor/counselor-checkin-signals'
 import { COUNSELOR_SIGNAL_LABEL, COUNSELOR_SIGNAL_SORT, counselorSignalFromLogs } from '../constants/counselor/counselor-checkin-signals'
-import { formatTimeAgo } from '../utils/riskHelpers'
+import { formatTimeAgo } from '../utils/formatters'
 import { LetterAvatar } from '../components/LetterAvatar'
 
 interface FlagItem {

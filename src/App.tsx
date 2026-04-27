@@ -13,7 +13,6 @@ import StudentResources from './pages/student/Resources'
 import CounselorLayout from './layouts/CounselorLayout'
 import CounselorDashboard from './pages/CounselorDashboard'
 import CounselorStudents from './pages/counselor/Students'
-import CounselorStudentDetail from './pages/counselor/StudentDetail'
 import CounselorMessages from './pages/counselor/Messages'
 import CounselorProfile from './pages/counselor/Profile'
 import CounselorSessionHistory from './pages/counselor/SessionHistory'
@@ -106,7 +105,6 @@ function AppContent() {
           <Route element={<CounselorLayout />}>
             <Route index element={<CounselorDashboard />} />
             <Route path="counselor/students" element={<CounselorStudents />} />
-            <Route path="counselor/students/:id" element={<CounselorStudentDetail />} />
             <Route path="counselor/messages" element={<CounselorMessages />} />
             <Route path="counselor/session-history" element={<CounselorSessionHistory />} />
             <Route path="counselor/profile" element={<CounselorProfile />} />

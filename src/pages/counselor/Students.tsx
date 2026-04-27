@@ -8,7 +8,8 @@ import {
   COUNSELOR_SIGNAL_SORT,
   counselorSignalFromLogs,
 } from '../../constants/counselor/counselor-checkin-signals'
-import { formatTimeAgo } from '../../utils/riskHelpers'
+import { formatTimeAgo } from '../../utils/formatters'
+import { StudentProfileModal, type CheckInStats } from '../../components/counselor/StudentProfileModal'
 import { LetterAvatar } from '../../components/LetterAvatar'
 
 interface StudentEntry {
@@ -17,6 +18,7 @@ interface StudentEntry {
   email?: string
   signal: CounselorSignalPill
   lastLog: string
+  stats?: CheckInStats
 }
 
 type SignalFilter = 'All Students' | CounselorSignalPill
@@ -45,11 +47,12 @@ function getSignalStyle(signal: CounselorSignalPill) {
   }
 }
 
-function StudentRow({ student }: { student: StudentEntry }) {
+function StudentRow({ student, onClick }: { student: StudentEntry, onClick: () => void }) {
   const style = getSignalStyle(student.signal)
 
   return (
     <div
+      onClick={onClick}
       className={`flex items-center card-aurora border-l-4 ${style.border} p-0 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer`}
       aria-label={`View details for ${student.full_name}`}
     >
@@ -78,6 +81,7 @@ export default function Students() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<SignalFilter>('All Students')
+  const [selectedStudent, setSelectedStudent] = useState<StudentEntry | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -92,6 +96,40 @@ export default function Students() {
             try {
               const { sharingEnabled, logs } = await counselorCheckInContextService.fetchStudentCheckInContext(s.id)
               const latestLog = logs[0]
+
+              let stats: CheckInStats | undefined
+
+              if (sharingEnabled && logs.length > 0) {
+                const count = logs.length
+                const validStressLogs = logs.filter(l => l.stress_level !== undefined)
+                const validEnergyLogs = logs.filter(l => l.energy_level !== undefined)
+
+                const avgStress = validStressLogs.length 
+                  ? validStressLogs.reduce((acc, l) => acc + (l.stress_level || 0), 0) / validStressLogs.length 
+                  : 0
+
+                const avgEnergy = validEnergyLogs.length
+                  ? validEnergyLogs.reduce((acc, l) => acc + (l.energy_level || 0), 0) / validEnergyLogs.length
+                  : 0
+
+                const dominantMood = avgStress > 6 ? 'Stressed' 
+                  : avgEnergy > 6 ? 'Energetic'
+                  : avgStress < 6 && avgEnergy < 6 ? 'Relaxed'
+                  : 'Neutral'
+
+                let stressVar = 0
+                if (validStressLogs.length > 1) stressVar = validStressLogs.reduce((acc, l) => acc + Math.pow((l.stress_level || 0) - avgStress, 2), 0) / validStressLogs.length
+                const stabilityScore = Math.max(0, Math.round(100 - (stressVar * 5)))
+
+                stats = {
+                  count,
+                  avgStress,
+                  avgEnergy,
+                  dominantMood,
+                  stabilityScore
+                }
+              }
+
               return {
                 id: s.id,
                 full_name: s.full_name || 'Student',
@@ -100,6 +138,7 @@ export default function Students() {
                 lastLog: !sharingEnabled
                   ? 'Sharing off'
                   : (latestLog?.log_date ? formatTimeAgo(new Date(latestLog.log_date)) : 'No check-ins'),
+                stats
               }
             } catch {
               return {
@@ -197,10 +236,16 @@ export default function Students() {
       ) : (
         <div className="space-y-2.5">
           {filtered.map((student) => (
-            <StudentRow key={student.id} student={student} />
+            <StudentRow key={student.id} student={student} onClick={() => setSelectedStudent(student)} />
           ))}
         </div>
       )}
+
+      <StudentProfileModal
+        isOpen={!!selectedStudent}
+        onClose={() => setSelectedStudent(null)}
+        student={selectedStudent}
+      />
     </div>
   )
 }
