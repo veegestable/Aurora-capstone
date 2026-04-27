@@ -174,6 +174,7 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [dayKey, setDayKey] = useState('');
     const [isScrollEnabled, setIsScrollEnabled] = useState(true);
+    const [expandedTagGroups, setExpandedTagGroups] = useState<Record<string, boolean>>({});
 
     const selectedEmotion = selectedEmotions[0];
     const selectedManualEmotion =
@@ -485,9 +486,17 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
         );
     };
 
+    const showAcademicSignalGuide = () => {
+        Alert.alert(
+            'School pressure today',
+            'This is an estimate based on the school-related tags you selected in this check-in. It helps summarize how much school may have influenced your mood today.'
+        );
+    };
+
     const schoolTagCount = selectedTags.filter((tag) => SCHOOL_TAGS.includes(tag)).length;
     const workloadBand =
-        schoolTagCount === 0 ? 'Light day' : schoolTagCount <= 2 ? 'Balanced load' : schoolTagCount <= 4 ? 'Busy day' : 'Heavy load';
+        schoolTagCount === 0 ? 'Light day' : schoolTagCount <= 2 ? 'Moderate day' : 'Heavy day';
+    const schoolTagCaption = `Based on ${schoolTagCount} school tag${schoolTagCount === 1 ? '' : 's'} selected`;
 
     if (isSubmitted) {
         const moodScale = Math.min(5, Math.max(1, energyLevel));
@@ -714,20 +723,37 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
                     <Text style={{ color: AURORA.textSec, textAlign: 'center', fontSize: 15 }}>
                         {isMoodStep && 'Choose how you feel right now, then set intensity.'}
                         {isVitalityStep && 'Sleep quality is required for each check-in.'}
-                        {isContextStep && 'Optional tags for modern trend and correlation analysis.'}
+                        {isContextStep && 'Select tags that influenced how you felt today.'}
                     </Text>
                 </Animatable.View>
 
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 26 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
                     {['Mood', 'Vitals', 'Context'].map((label, idx) => {
                         const step = idx + 1;
-                        const active = currentStep >= step;
+                        const isCurrent = currentStep === step;
+                        const isCompleted = currentStep > step;
                         return (
                             <View key={label} style={{ alignItems: 'center', flex: 1 }}>
-                                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: active ? AURORA.blue : AURORA.cardAlt, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-                                    <Text style={{ color: active ? AURORA.textPrimary : AURORA.textMuted, fontWeight: '700' }}>{step}</Text>
+                                <View
+                                    style={{
+                                        width: 34,
+                                        height: 34,
+                                        borderRadius: 17,
+                                        backgroundColor: isCurrent ? AURORA.blue : isCompleted ? 'rgba(45,107,255,0.2)' : AURORA.cardAlt,
+                                        borderWidth: isCurrent ? 1.5 : 1,
+                                        borderColor: isCurrent ? 'rgba(140,177,255,0.7)' : 'transparent',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        marginBottom: 6,
+                                    }}
+                                >
+                                    <Text style={{ color: isCurrent ? AURORA.textPrimary : isCompleted ? '#BCD0FF' : AURORA.textMuted, fontWeight: '700' }}>
+                                        {step}
+                                    </Text>
                                 </View>
-                                <Text style={{ fontSize: 12, color: active ? AURORA.blue : '#9CB0DE' }}>{`${step} ${label}`}</Text>
+                                <Text style={{ fontSize: 12, color: isCurrent ? AURORA.blue : isCompleted ? '#AFC4F5' : '#8DA0CC' }}>
+                                    {`${step} ${label}`}
+                                </Text>
                             </View>
                         );
                     })}
@@ -1007,9 +1033,22 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
 
                 {isContextStep && (
                     <View style={{ gap: 12 }}>
-                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Text style={{ color: AURORA.textSec }}>Academic signal</Text>
-                            <Text style={{ color: AURORA.blue, fontWeight: '700' }}>{workloadBand}</Text>
+                        <View style={{ backgroundColor: AURORA.cardAlt, borderWidth: 1, borderColor: AURORA.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={{ color: '#9CB0DE', fontSize: 12, fontWeight: '600' }}>School pressure today</Text>
+                                    <TouchableOpacity
+                                        onPress={showAcademicSignalGuide}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    >
+                                        <CircleHelp size={14} color={AURORA.textMuted} />
+                                    </TouchableOpacity>
+                                </View>
+                                <Text style={{ color: AURORA.blue, fontWeight: '700' }}>{workloadBand}</Text>
+                            </View>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 11, marginTop: 5 }}>
+                                {schoolTagCaption}
+                            </Text>
                         </View>
                         {categoryConfigs.length === 0 ? (
                             <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 14 }}>
@@ -1026,7 +1065,7 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
                                         </View>
                                     </View>
                                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                                        {category.tags.map((tag) => {
+                                        {(expandedTagGroups[category.key] ? category.tags : category.tags.slice(0, 5)).map((tag) => {
                                             const selected = selectedTags.includes(tag);
                                             return (
                                                 <TouchableOpacity
@@ -1037,15 +1076,30 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
                                                         paddingVertical: 7,
                                                         borderRadius: 999,
                                                         borderWidth: 1,
-                                                        borderColor: selected ? AURORA.blue : AURORA.border,
-                                                        backgroundColor: selected ? 'rgba(45, 107, 255, 0.2)' : AURORA.cardAlt,
+                                                        borderColor: selected ? 'rgba(88,138,255,0.6)' : 'rgba(120,139,198,0.25)',
+                                                        backgroundColor: selected ? 'rgba(45, 107, 255, 0.22)' : 'rgba(28,36,86,0.55)',
                                                     }}
                                                 >
-                                                    <Text style={{ color: selected ? AURORA.blue : AURORA.textSec, fontSize: 12, fontWeight: '700' }}>{tag}</Text>
+                                                    <Text style={{ color: selected ? '#C8D8FF' : '#AFC0E8', fontSize: 12, fontWeight: '700' }}>{tag}</Text>
                                                 </TouchableOpacity>
                                             );
                                         })}
                                     </View>
+                                    {category.tags.length > 5 ? (
+                                        <TouchableOpacity
+                                            onPress={() =>
+                                                setExpandedTagGroups((prev) => ({
+                                                    ...prev,
+                                                    [category.key]: !prev[category.key],
+                                                }))
+                                            }
+                                            style={{ alignSelf: 'flex-start', marginTop: 10 }}
+                                        >
+                                            <Text style={{ color: AURORA.blue, fontSize: 12, fontWeight: '700' }}>
+                                                {expandedTagGroups[category.key] ? 'Show less' : `Show ${category.tags.length - 5} more`}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ) : null}
                                 </Animatable.View>
                             ))
                         )}
