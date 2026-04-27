@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Image, PanResponder, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, PanResponder, ScrollView, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Animatable from 'react-native-animatable';
@@ -164,6 +164,9 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
     const [dailyContext, setDailyContextState] = useState<DailyContextDoc | null>(null);
     const [sleepCapturedToday, setSleepCapturedToday] = useState(false);
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
+    const [journalText, setJournalText] = useState('');
+    const [journalEdited, setJournalEdited] = useState(false);
+    const [showJournalEditor, setShowJournalEditor] = useState(false);
 
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -261,6 +264,119 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
         setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag]));
     };
 
+    const describeEnergy = (value: number) => {
+        if (value <= 1) return 'very low';
+        if (value === 2) return 'low';
+        if (value === 3) return 'moderate';
+        if (value === 4) return 'high';
+        return 'very high';
+    };
+
+    const describeStress = (value: number) => {
+        if (value <= 1) return 'very calm';
+        if (value === 2) return 'slightly tense';
+        if (value === 3) return 'moderately stressed';
+        if (value === 4) return 'highly stressed';
+        return 'overwhelmed';
+    };
+
+    const tagPhrase = (tags: string[], maxVisible = 5) => {
+        const clean = tags.filter(Boolean);
+        if (clean.length === 0) return '';
+        if (clean.length === 1) return clean[0];
+        if (clean.length === 2) return `${clean[0]} and ${clean[1]}`;
+
+        const visible = clean.slice(0, maxVisible);
+        const extraCount = clean.length - visible.length;
+        const base =
+            visible.length === 3
+                ? `${visible[0]}, ${visible[1]}, and ${visible[2]}`
+                : `${visible.slice(0, -1).join(', ')}, and ${visible[visible.length - 1]}`;
+
+        return extraCount > 0 ? `${base} (+${extraCount} more)` : base;
+    };
+
+    const buildJournalDraft = () => {
+        const selectedLabel =
+            MANUAL_EMOTIONS.find((emotion) => emotion.name === selectedEmotion?.emotion)?.label?.toLowerCase() ?? 'neutral';
+        const stressTone =
+            stressLevel >= 4 ? 'I felt emotionally heavy because of it.' : stressLevel <= 2 ? 'It felt manageable overall.' : 'It sat in the middle of my day.';
+        const selectedCategoryKeys = categoryConfigs
+            .filter((category) => category.tags.some((tag) => selectedTags.includes(tag)))
+            .map((category) => category.key);
+        const categoryLines: string[] = [];
+
+        if (selectedCategoryKeys.includes('school')) {
+            const schoolTags = selectedTags.filter((tag) => SCHOOL_TAGS.includes(tag));
+            categoryLines.push(
+                schoolTags.length > 0
+                    ? `In school, I dealt with ${tagPhrase(schoolTags)}, and it affected my focus.`
+                    : 'School tasks affected my mood today.'
+            );
+        }
+
+        if (selectedCategoryKeys.includes('fun')) {
+            const funTags = (categoryConfigs.find((category) => category.key === 'fun')?.tags ?? [])
+                .filter((tag) => selectedTags.includes(tag))
+                ;
+            categoryLines.push(
+                funTags.length > 0
+                    ? `For fun, I spent time on ${tagPhrase(funTags)}, and it changed how my day felt.`
+                    : 'Leisure time played a part in my mood today.'
+            );
+        }
+
+        if (selectedCategoryKeys.includes('social')) {
+            const socialTags = (categoryConfigs.find((category) => category.key === 'social')?.tags ?? [])
+                .filter((tag) => selectedTags.includes(tag))
+                ;
+            categoryLines.push(
+                socialTags.length > 0
+                    ? `Socially, ${tagPhrase(socialTags)} stood out and shaped my emotions.`
+                    : 'Social interactions influenced how I felt.'
+            );
+        }
+
+        if (selectedCategoryKeys.includes('health')) {
+            const healthTags = (categoryConfigs.find((category) => category.key === 'health')?.tags ?? [])
+                .filter((tag) => selectedTags.includes(tag))
+                ;
+            categoryLines.push(
+                healthTags.length > 0
+                    ? `Health-wise, I noticed ${tagPhrase(healthTags)}, and it really shaped how I felt inside. ${stressTone}`
+                    : `My physical condition influenced my emotions today. ${stressTone}`
+            );
+        }
+
+        if (selectedCategoryKeys.includes('productivity')) {
+            const productivityTags = (categoryConfigs.find((category) => category.key === 'productivity')?.tags ?? [])
+                .filter((tag) => selectedTags.includes(tag))
+                ;
+            categoryLines.push(
+                productivityTags.length > 0
+                    ? `For productivity, juggling ${tagPhrase(productivityTags)} made me feel ${stressLevel >= 4 ? 'pressured and stretched' : 'busy but trying to stay steady'}.`
+                    : `My tasks and responsibilities affected my mood, and I could feel that pressure build at times.`
+            );
+        }
+
+        const summaryLine = `Today I felt ${selectedLabel}, with ${describeEnergy(energyLevel)} energy and ${describeStress(stressLevel)} stress.`;
+        const body = categoryLines.join(' ');
+        return body ? `${summaryLine} ${body}` : summaryLine;
+    };
+
+    useEffect(() => {
+        if (selectedTags.length === 0) {
+            if (!journalEdited) {
+                setJournalText('');
+                setShowJournalEditor(false);
+            }
+            return;
+        }
+        if (!journalEdited) {
+            setJournalText(buildJournalDraft());
+        }
+    }, [selectedTags, energyLevel, stressLevel, selectedEmotion?.emotion, journalEdited]);
+
     const handleNext = () => {
         if (currentStep === 1 && selectedEmotions.length === 0) {
             Alert.alert('Please select a mood', 'Pick your current emotion before continuing.');
@@ -303,6 +419,8 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
                 dayKey: dk,
                 event_categories: categoryConfigs.filter((c) => c.tags.some((t) => selectedTags.includes(t))).map((c) => c.key),
                 event_tags: selectedTags,
+                notes: journalText.trim(),
+                journal_source: journalEdited ? 'manual' : 'auto',
                 detection_method: detectionMethod,
             });
 
@@ -560,7 +678,18 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
     const isContextStep = currentStep === 3;
 
     return (
-        <ScrollView style={{ flex: 1, backgroundColor: AURORA.bg }} contentContainerStyle={{ paddingBottom: 120 }} scrollEnabled={isScrollEnabled} showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView
+            style={{ flex: 1, backgroundColor: AURORA.bg }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        >
+        <ScrollView
+            style={{ flex: 1, backgroundColor: AURORA.bg }}
+            contentContainerStyle={{ paddingBottom: 120 }}
+            scrollEnabled={isScrollEnabled}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+        >
             <View style={{ padding: 20, paddingTop: 24 }}>
                 <Animatable.View animation="fadeInDown" duration={400} useNativeDriver style={{ marginBottom: 22 }}>
                     <Text style={{ fontSize: 24, fontWeight: '800', color: AURORA.textPrimary, textAlign: 'center', marginBottom: 8 }}>
@@ -876,6 +1005,102 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
                                 </Animatable.View>
                             ))
                         )}
+                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 12 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>Journal (optional)</Text>
+                                <Text style={{ color: AURORA.textMuted, fontSize: 11 }}>
+                                    {journalEdited ? 'Edited' : 'Auto-draft'}
+                                </Text>
+                            </View>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 12, marginBottom: 10 }}>
+                                {selectedTags.length > 0
+                                    ? 'A short reflection is generated from your selected context tags. You can edit before saving.'
+                                    : 'Select at least one context tag above to generate a quick journal draft.'}
+                            </Text>
+                            {selectedTags.length > 0 ? (
+                                <>
+                                    {!showJournalEditor ? (
+                                        <>
+                                            <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 10, borderWidth: 1, borderColor: AURORA.border, padding: 10, marginBottom: 8 }}>
+                                                <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 18 }}>
+                                                    {journalText || buildJournalDraft()}
+                                                </Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                onPress={() => setShowJournalEditor(true)}
+                                                style={{
+                                                    alignSelf: 'flex-start',
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 7,
+                                                    borderRadius: 999,
+                                                    borderWidth: 1,
+                                                    borderColor: AURORA.blue,
+                                                    backgroundColor: 'rgba(45, 107, 255, 0.18)',
+                                                }}
+                                            >
+                                                <Text style={{ color: AURORA.blue, fontWeight: '700', fontSize: 12 }}>Edit draft</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <TextInput
+                                                value={journalText}
+                                                onChangeText={(text) => {
+                                                    setJournalText(text);
+                                                    setJournalEdited(true);
+                                                }}
+                                                multiline
+                                                placeholder="Write your reflection..."
+                                                placeholderTextColor={AURORA.textMuted}
+                                                style={{
+                                                    minHeight: 94,
+                                                    borderRadius: 10,
+                                                    borderWidth: 1,
+                                                    borderColor: AURORA.border,
+                                                    backgroundColor: AURORA.cardAlt,
+                                                    color: AURORA.textPrimary,
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 10,
+                                                    textAlignVertical: 'top',
+                                                    marginBottom: 8,
+                                                }}
+                                            />
+                                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        setJournalEdited(false);
+                                                        setJournalText(buildJournalDraft());
+                                                    }}
+                                                    style={{
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 7,
+                                                        borderRadius: 999,
+                                                        borderWidth: 1,
+                                                        borderColor: AURORA.border,
+                                                        backgroundColor: AURORA.cardAlt,
+                                                    }}
+                                                >
+                                                    <Text style={{ color: AURORA.textSec, fontSize: 12, fontWeight: '700' }}>Use auto draft</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => setShowJournalEditor(false)}
+                                                    style={{
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 7,
+                                                        borderRadius: 999,
+                                                        borderWidth: 1,
+                                                        borderColor: AURORA.blue,
+                                                        backgroundColor: 'rgba(45, 107, 255, 0.18)',
+                                                    }}
+                                                >
+                                                    <Text style={{ color: AURORA.blue, fontSize: 12, fontWeight: '700' }}>Done editing</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </>
+                                    )}
+                                </>
+                            ) : null}
+                        </View>
                     </View>
                 )}
             </View>
@@ -905,5 +1130,6 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
                 </View>
             </View>
         </ScrollView>
+        </KeyboardAvoidingView>
     );
 }

@@ -149,6 +149,15 @@ const EVENT_CATEGORY_STYLE: Record<'school' | 'health' | 'social' | 'fun' | 'pro
 
 const SCHOOL_TAGS = new Set(['classes', 'study', 'quiz', 'exam', 'homework', 'deadline', 'group-project', 'presentation']);
 
+function formatTagLabel(tag: string): string {
+    return tag.replace(/-/g, ' ');
+}
+
+function formatCategoryLabel(category: string): string {
+    if (category === 'fun') return 'Fun / Leisure';
+    return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
 function ruleBasedSchoolInsight(entry: MoodEntry): string | null {
     const tags = (Array.isArray(entry.event_tags) ? entry.event_tags : []).filter((t) => SCHOOL_TAGS.has(t));
     if (!tags.length) return null;
@@ -314,6 +323,13 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
             Night: [] as MoodEntry[],
         }
     );
+    const bucketsByLatestFirst = (['Morning', 'Afternoon', 'Evening', 'Night'] as const)
+        .filter((bucket) => groupedEntries[bucket].length > 0)
+        .sort((a, b) => {
+            const latestA = Math.max(...groupedEntries[a].map((entry) => toDateSafe(entry.created_at || entry.log_date).getTime()));
+            const latestB = Math.max(...groupedEntries[b].map((entry) => toDateSafe(entry.created_at || entry.log_date).getTime()));
+            return latestB - latestA;
+        });
 
     return (
         <Animatable.View animation="fadeInUp" duration={400} style={styles.card}>
@@ -339,7 +355,7 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
 
             {hasLog ? (
                 <>
-                    {(['Morning', 'Afternoon', 'Evening', 'Night'] as const).map((bucket) => {
+                    {bucketsByLatestFirst.map((bucket) => {
                         const bucketEntries = groupedEntries[bucket];
                         if (bucketEntries.length === 0) return null;
                         return (
@@ -350,7 +366,11 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
                                     const noteText = typeof entry.notes === 'string' ? entry.notes.trim() : '';
                                     const groupKey = entry.id || `${bucket}-entry-${idx}`;
                                     const tags = Array.isArray(entry.event_tags) ? entry.event_tags : [];
-                                    const categories = Array.isArray(entry.event_categories) ? entry.event_categories : [];
+                                    const categoriesFromEntry = Array.isArray(entry.event_categories) ? entry.event_categories : [];
+                                    const categories =
+                                        categoriesFromEntry.length > 0
+                                            ? categoriesFromEntry
+                                            : Array.from(new Set(tags.map((tag) => EVENT_CATEGORY_BY_TAG[tag]).filter(Boolean)));
                                     const schoolInsight = ruleBasedSchoolInsight(entry);
                                     const expanded = expandedEntryId === groupKey;
 
@@ -414,7 +434,42 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
                                                                             },
                                                                         ]}
                                                                     >
-                                                                        <Text style={[styles.eventPillText, { color: colorStyle.text }]}>{tag}</Text>
+                                                                        <Text style={[styles.eventPillText, { color: colorStyle.text }]}>{formatTagLabel(tag)}</Text>
+                                                                    </View>
+                                                                );
+                                                            })}
+                                                        </View>
+                                                    ) : null}
+                                                    <Text style={[styles.detailsLine, { marginTop: 10, marginBottom: categories.length > 0 ? 6 : 0 }]}>
+                                                        Categories:
+                                                        {categories.length === 0 ? <Text style={styles.inlineNone}> None</Text> : null}
+                                                    </Text>
+                                                    {categories.length > 0 ? (
+                                                        <View style={styles.eventPillRow}>
+                                                            {categories.map((category) => {
+                                                                const normalized =
+                                                                    category === 'school' ||
+                                                                    category === 'health' ||
+                                                                    category === 'social' ||
+                                                                    category === 'fun' ||
+                                                                    category === 'productivity'
+                                                                        ? category
+                                                                        : 'social';
+                                                                const colorStyle = EVENT_CATEGORY_STYLE[normalized];
+                                                                return (
+                                                                    <View
+                                                                        key={`${groupKey}-category-${category}`}
+                                                                        style={[
+                                                                            styles.eventPill,
+                                                                            {
+                                                                                backgroundColor: colorStyle.bg,
+                                                                                borderColor: colorStyle.border,
+                                                                            },
+                                                                        ]}
+                                                                    >
+                                                                        <Text style={[styles.eventPillText, { color: colorStyle.text }]}>
+                                                                            {formatCategoryLabel(category)}
+                                                                        </Text>
                                                                     </View>
                                                                 );
                                                             })}
