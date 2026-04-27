@@ -92,10 +92,7 @@ function ConversationRow({
             }}
         >
             {/* Left color border */}
-            {item.borderColor && (
-                <View style={{ width: 3, backgroundColor: item.borderColor, alignSelf: 'stretch' }} />
-            )}
-            {!item.borderColor && <View style={{ width: 3 }} />}
+            <View style={{ width: 3, backgroundColor: AURORA.blue, alignSelf: 'stretch' }} />
 
             {/* Avatar */}
             <View style={{ position: 'relative', margin: 12 }}>
@@ -887,7 +884,7 @@ export default function CounselorMessagesScreen() {
         );
     }
 
-    const TABS: FilterTab[] = ['All Messages', 'Unread', 'Priority'];
+    const TABS: FilterTab[] = ['All Messages', 'Unread'];
 
     const filtered = activeTab === 'All Messages'
         ? contactsWithPresence
