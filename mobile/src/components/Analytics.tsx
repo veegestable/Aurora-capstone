@@ -1373,10 +1373,6 @@ export default function Analytics() {
                 ) : null}
             </View>
 
-            <View style={{ marginBottom: 14 }}>
-                <EthicsLine />
-            </View>
-
             {celebrateMilestone ? (
                 <Animatable.View
                     animation="fadeInDown"
@@ -1422,6 +1418,9 @@ export default function Analytics() {
                     <Text style={{ color: AURORA.textPrimary, fontSize: 18, fontWeight: '800', flex: 1 }}>
                         Written summary for the last 7 days
                     </Text>
+                </View>
+                <View style={{ marginBottom: 10 }}>
+                    <EthicsLine />
                 </View>
 
                 {weekSummaryGenerating ? (

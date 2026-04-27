@@ -22,6 +22,9 @@ import {
   stressCategoryLabelFromFive,
 } from '../../utils/analytics/metricCategories';
 
+const UI_TEXT_SECONDARY = '#C1CEE9';
+const UI_TEXT_MUTED = '#9AA9C8';
+
 function stabilityCopy(score: number): string {
   if (score >= 80) return 'Very stable — your mood has been consistent';
   if (score >= 60) return 'Mostly stable — a few noticeable shifts';
@@ -89,6 +92,10 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
       agg: aggregateByDay(entries, key),
     }));
   }, [entries, weekSlots]);
+  const weekWithDataCount = useMemo(
+    () => weekBarData.filter((b) => b.agg.entryCount > 0).length,
+    [weekBarData]
+  );
 
   const last30BarData = useMemo(() => {
     const today = new Date();
@@ -264,17 +271,20 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
       <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 6 }}>
         METRIC
       </Text>
-      <View style={{ flexDirection: 'row', marginBottom: 10, gap: 14 }}>
+      <View style={{ flexDirection: 'row', marginBottom: 10, gap: 10 }}>
         <TouchableOpacity
           onPress={() => setMetric('stress')}
           activeOpacity={0.9}
           style={{
-            paddingBottom: 6,
-            borderBottomWidth: 2,
-            borderBottomColor: metric === 'stress' ? AURORA.purple : 'transparent',
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 999,
+            backgroundColor: metric === 'stress' ? 'rgba(124,58,237,0.18)' : 'transparent',
+            borderWidth: metric === 'stress' ? 1 : 0,
+            borderColor: metric === 'stress' ? 'rgba(124,58,237,0.45)' : 'transparent',
           }}
         >
-          <Text style={{ color: metric === 'stress' ? AURORA.textPrimary : AURORA.textMuted, fontSize: 13, fontWeight: '800' }}>
+          <Text style={{ color: metric === 'stress' ? AURORA.textPrimary : UI_TEXT_MUTED, fontSize: 13, fontWeight: '800' }}>
             😵 Stress
           </Text>
         </TouchableOpacity>
@@ -282,12 +292,15 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
           onPress={() => setMetric('energy')}
           activeOpacity={0.9}
           style={{
-            paddingBottom: 6,
-            borderBottomWidth: 2,
-            borderBottomColor: metric === 'energy' ? AURORA.purple : 'transparent',
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 999,
+            backgroundColor: metric === 'energy' ? 'rgba(124,58,237,0.18)' : 'transparent',
+            borderWidth: metric === 'energy' ? 1 : 0,
+            borderColor: metric === 'energy' ? 'rgba(124,58,237,0.45)' : 'transparent',
           }}
         >
-          <Text style={{ color: metric === 'energy' ? AURORA.textPrimary : AURORA.textMuted, fontSize: 13, fontWeight: '800' }}>
+          <Text style={{ color: metric === 'energy' ? AURORA.textPrimary : UI_TEXT_MUTED, fontSize: 13, fontWeight: '800' }}>
             ⚡ Energy
           </Text>
         </TouchableOpacity>
@@ -303,13 +316,30 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
           backgroundColor: AURORA.card,
           borderRadius: 16,
           padding: 12,
-          borderWidth: 1,
-          borderColor: AURORA.border,
           marginBottom: 20,
         }}
         onLayout={onChartLayout}
       >
         {period === 'week' ? (
+          weekWithDataCount < 2 ? (
+            <View
+              style={{
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 12,
+                backgroundColor: 'rgba(148,163,184,0.10)',
+                borderWidth: 1,
+                borderColor: 'rgba(148,163,184,0.24)',
+              }}
+            >
+              <Text style={{ color: AURORA.textPrimary, fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
+                Not enough data yet for a trend line
+              </Text>
+              <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, lineHeight: 18 }}>
+                You currently have {weekWithDataCount} day{weekWithDataCount === 1 ? '' : 's'} with data in this range. Add at least one more check-in day to compare trend changes.
+              </Text>
+            </View>
+          ) : (
           <>
             <ScrollView horizontal={false} showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: chartH, gap }}>
@@ -359,8 +389,8 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
                 <Text
                   key={`lbl-${i}`}
                   style={{
-                    color: AURORA.textMuted,
-                    fontSize: 9,
+                    color: UI_TEXT_MUTED,
+                    fontSize: 10,
                     width: barW,
                     textAlign: 'center',
                   }}
@@ -431,6 +461,7 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
               </View>
             ) : null}
           </>
+          )
         ) : (
           <>
             <ScrollView
