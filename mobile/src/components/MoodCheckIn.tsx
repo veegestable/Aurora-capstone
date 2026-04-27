@@ -351,6 +351,13 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
         );
     };
 
+    const showSleepGuide = () => {
+        Alert.alert(
+            'Sleep quality (once per day)',
+            'Log this once per day based on your main/night sleep, not short naps.\n\nUse:\n- Poor: you woke up tired or unrested\n- Fair: okay sleep, but not fully refreshed\n- Good: restful sleep and you feel recovered'
+        );
+    };
+
     const schoolTagCount = selectedTags.filter((tag) => SCHOOL_TAGS.includes(tag)).length;
     const workloadBand =
         schoolTagCount === 0 ? 'Light day' : schoolTagCount <= 2 ? 'Balanced load' : schoolTagCount <= 4 ? 'Busy day' : 'Heavy load';
@@ -779,11 +786,18 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
                             <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>
                                 Sleep quality {sleepCapturedToday ? '(already set today)' : '(set once daily)'}
                             </Text>
+                            <TouchableOpacity
+                                onPress={showSleepGuide}
+                                style={{ padding: 4, marginLeft: 'auto' }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <CircleHelp size={16} color={AURORA.textMuted} />
+                            </TouchableOpacity>
                         </View>
                         <Text style={{ color: AURORA.textMuted, fontSize: 12, marginBottom: 10 }}>
                             {sleepCapturedToday
                                 ? 'You already logged sleep quality today. You can continue without changing it.'
-                                : 'Set this once on your first mood log today.'}
+                                : 'Set this once daily based on your main/night sleep (not naps).'}
                         </Text>
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                             {(['poor', 'fair', 'good'] as SleepQuality[]).map((quality) => {
