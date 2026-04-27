@@ -69,6 +69,23 @@ function getSignalStyle(signal: CounselorSignalPill) {
     }
 }
 
+function formatSignalChip(signal: CounselorSignalPill): string {
+    switch (signal) {
+        case 'higher_self_report':
+            return 'High stress';
+        case 'moderate_self_report':
+            return 'Monitor';
+        case 'typical_self_report':
+            return 'Typical';
+        case 'no_checkins':
+            return 'No recent check-in';
+        case 'sharing_off':
+            return 'Sharing off';
+        default:
+            return COUNSELOR_SIGNAL_LABEL[signal];
+    }
+}
+
 // ─── Sub-components ────────────────────────────────────────────────────────────
 interface StatCardProps {
     icon: React.ReactNode;
@@ -134,8 +151,9 @@ function FlagRow({ item }: { item: FlagItem }) {
                     numberOfLines={2}
                     ellipsizeMode="tail"
                 >
-                    {item.program} · {item.time}
+                    {item.program}
                 </Text>
+                <Text style={{ color: '#9FB0D4', fontSize: 11, marginTop: 2 }}>{item.time}</Text>
             </View>
             <View style={{
                 flexShrink: 0,
@@ -147,7 +165,7 @@ function FlagRow({ item }: { item: FlagItem }) {
                     color: style.text, fontSize: 10,
                     fontWeight: '800', letterSpacing: 0.35,
                 }} numberOfLines={2}>
-                    {COUNSELOR_SIGNAL_LABEL[item.signal]}
+                    {formatSignalChip(item.signal)}
                 </Text>
             </View>
             <View style={{ flexShrink: 0 }}>
@@ -163,6 +181,8 @@ export default function CounselorHomeScreen() {
     const [studentCount, setStudentCount] = useState<number>(0);
     const [recentFlags, setRecentFlags] = useState<FlagItem[]>([]);
     const [upcomingAcceptedSessions, setUpcomingAcceptedSessions] = useState<number>(0);
+    const [needsFollowUpCount, setNeedsFollowUpCount] = useState<number>(0);
+    const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
     const [loading, setLoading] = useState(true);
     const firstName = user?.full_name?.split(' ')[0] || 'Counselor';
 
@@ -220,6 +240,9 @@ export default function CounselorHomeScreen() {
                 .sort((a, b) => COUNSELOR_SIGNAL_SORT[a.signal] - COUNSELOR_SIGNAL_SORT[b.signal]);
 
             setRecentFlags(flags);
+            setNeedsFollowUpCount(
+                flags.filter((f) => ['higher_self_report', 'moderate_self_report', 'no_checkins'].includes(f.signal)).length
+            );
 
             if (user?.id) {
                 const sessions = await firestoreService.getSessionsForCounselor(user.id);
@@ -241,10 +264,12 @@ export default function CounselorHomeScreen() {
             } else {
                 setUpcomingAcceptedSessions(0);
             }
+            setLastUpdatedAt(new Date());
         } catch {
             if (!isCancelled?.()) {
                 setRecentFlags([]);
                 setUpcomingAcceptedSessions(0);
+                setNeedsFollowUpCount(0);
             }
         } finally {
             if (!isCancelled?.()) setLoading(false);
@@ -352,6 +377,31 @@ export default function CounselorHomeScreen() {
                             cardBg="rgba(5,67,52,0.5)"
                         />
                     </View>
+                    <View style={{ marginBottom: 10 }}>
+                        <View
+                            style={{
+                                backgroundColor: 'rgba(139, 92, 246, 0.14)',
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: 'rgba(139, 92, 246, 0.35)',
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#A78BFA' }} />
+                                <Text style={{ color: '#D8CCFF', fontSize: 12, fontWeight: '700' }}>
+                                    Needs follow-up today
+                                </Text>
+                            </View>
+                            <Text style={{ color: '#F3EEFF', fontSize: 16, fontWeight: '800' }}>
+                                {needsFollowUpCount}
+                            </Text>
+                        </View>
+                    </View>
 
 
 
@@ -376,6 +426,9 @@ export default function CounselorHomeScreen() {
                             <ChevronRight size={14} color={AURORA.blue} />
                         </TouchableOpacity>
                     </View>
+                    <Text style={{ color: AURORA.textMuted, fontSize: 11, marginTop: -8, marginBottom: 10 }}>
+                        Sorted by priority • Updated {lastUpdatedAt ? formatTimeAgo(lastUpdatedAt) : 'just now'}
+                    </Text>
 
                     {loading ? (
                         <View style={{ paddingVertical: 24, alignItems: 'center' }}>
