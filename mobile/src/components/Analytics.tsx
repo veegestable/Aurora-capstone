@@ -318,7 +318,7 @@ function analyzeSchoolLogs(
 
 function EthicsLine() {
     return (
-        <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16, fontStyle: 'italic' }}>
+        <Text style={{ color: UI_TEXT_MUTED, fontSize: 11, lineHeight: 16, fontStyle: 'italic' }}>
             {ETHICS_ANALYTICS_FOOTER}
         </Text>
     );
@@ -899,6 +899,12 @@ export default function Analytics() {
         const withBestWorst = weekBestWorstInsight ? `${base} ${weekBestWorstInsight}` : base;
         return `${withBestWorst} ${weekAcademicSummaryLine}`;
     }, [weekWellnessStats, weekBestWorstInsight, weekAcademicSummaryLine]);
+    const stressLabelFriendly = useMemo(() => {
+        const raw = (weekWellnessStats.stressLabel || '').toLowerCase().trim();
+        if (raw === 'very stressed') return 'high';
+        if (raw === 'stressed') return 'elevated';
+        return raw || 'not enough data';
+    }, [weekWellnessStats.stressLabel]);
 
     if (loading && !refreshing) {
         return (
@@ -1445,9 +1451,23 @@ export default function Analytics() {
                     <AISummarySkeleton reduceMotion={reduceMotion} />
                 ) : weeklyAi ? (
                     <>
-                        <Text style={{ color: AURORA.textPrimary, fontSize: 15, lineHeight: 22, marginBottom: 14 }}>
-                            {weeklySummaryBody}
-                        </Text>
+                        <View style={{ marginBottom: 14, gap: 6 }}>
+                            <Text style={{ color: AURORA.textPrimary, fontSize: 14, lineHeight: 20 }}>
+                                Stress: <Text style={{ color: UI_TEXT_SECONDARY }}>{sentenceCase(stressLabelFriendly)}</Text>
+                            </Text>
+                            <Text style={{ color: AURORA.textPrimary, fontSize: 14, lineHeight: 20 }}>
+                                Energy: <Text style={{ color: UI_TEXT_SECONDARY }}>{sentenceCase(weekWellnessStats.energyLabel)}</Text>
+                            </Text>
+                            <Text style={{ color: AURORA.textPrimary, fontSize: 14, lineHeight: 20 }}>
+                                Sleep: <Text style={{ color: UI_TEXT_SECONDARY }}>{sentenceCase(weekWellnessStats.sleepLabel)}</Text>
+                            </Text>
+                            <Text style={{ color: AURORA.textPrimary, fontSize: 14, lineHeight: 20 }}>
+                                Mood stability: <Text style={{ color: UI_TEXT_SECONDARY }}>{weekWellnessStats.stability != null ? `${weekWellnessStats.stability}%` : 'not enough data'}</Text>
+                            </Text>
+                            <Text style={{ color: AURORA.textPrimary, fontSize: 14, lineHeight: 22, marginTop: 6 }}>
+                                Academic pattern: <Text style={{ color: UI_TEXT_SECONDARY }}>{weekSchoolAnalysis?.summary ?? 'No school-tagged check-ins in the last 7 days.'}</Text>
+                            </Text>
+                        </View>
                         {weekSchoolAnalysis?.topSchoolEvents?.length ? (
                             <View
                                 style={{
@@ -1462,7 +1482,10 @@ export default function Analytics() {
                                 }}
                             >
                                 <Text style={{ color: AURORA.textPrimary, fontSize: 10, fontWeight: '700' }}>
-                                    ACADEMIC EVENT MIX (LAST 7 DAYS)
+                                    TOP ACADEMIC STRESSORS
+                                </Text>
+                                <Text style={{ color: UI_TEXT_MUTED, fontSize: 10, lineHeight: 14, marginTop: -1, marginBottom: 2 }}>
+                                    Counts from tagged check-ins this week.
                                 </Text>
                                 {weekSchoolAnalysis.topSchoolEvents.map((item) => {
                                     const maxCount = Math.max(1, weekSchoolAnalysis.topSchoolEvents[0]?.count ?? 1);
