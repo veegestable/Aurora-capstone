@@ -104,3 +104,31 @@ export async function sendTestDailyCheckInNotification(): Promise<boolean> {
 
   return true;
 }
+
+export async function sendSessionDeviceNotification(payload: {
+  title: string;
+  body: string;
+  targetRoute: '/(student)/messages' | '/(counselor)/messages';
+  notificationId: string;
+}): Promise<boolean> {
+  configureNotificationHandler();
+  await ensureAndroidChannel();
+  const permission = await ensureNotificationPermission();
+  if (!permission) return false;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: payload.title,
+      body: payload.body,
+      sound: true,
+      data: {
+        type: 'session_update',
+        notificationId: payload.notificationId,
+        target_route: payload.targetRoute,
+      },
+    },
+    trigger: null,
+  });
+
+  return true;
+}

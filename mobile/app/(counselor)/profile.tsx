@@ -447,13 +447,13 @@ export default function CounselorProfileScreen() {
                         <StatCard
                             label="STUDENTS"
                             value={studentCount}
-                            sub="+5%"
+                            sub=""
                             subColor={AURORA.green}
                         />
                         <StatCard
                             label="SESSIONS"
                             value={String(completedSessionsCount)}
-                            sub="Completed"
+                            sub=""
                             subColor={AURORA.green}
                         />
                         {/* <StatCard
@@ -492,11 +492,11 @@ export default function CounselorProfileScreen() {
                         borderRadius: 16, borderWidth: 1, borderColor: AURORA.border,
                         overflow: 'hidden',
                     }}>
-                        <SettingsRow
+                        {/* <SettingsRow
                             icon={<Lock size={18} color={AURORA.textSec} />}
                             label="Security & Password"
                             onPress={() => { }}
-                        />
+                        /> */}
                         <SettingsRow
                             icon={<User size={18} color={AURORA.textSec} />}
                             label="Edit Profile"
@@ -525,7 +525,7 @@ export default function CounselorProfileScreen() {
                                 />
                             }
                         />
-                        <SettingsRow
+                        {/* <SettingsRow
                             icon={<Moon size={18} color={AURORA.textSec} />}
                             label="Dark Mode"
                             rightElement={
@@ -536,7 +536,7 @@ export default function CounselorProfileScreen() {
                                     thumbColor="#FFFFFF"
                                 />
                             }
-                        />
+                        /> */}
                     </View>
 
                     {/* ── Privacy & Data ─────────────────────────────────── */}

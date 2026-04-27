@@ -648,12 +648,12 @@ export default function ProfileScreen() {
                             value={remindersEnabled}
                             onValueChange={(v) => { void setRemindersEnabled(v); }}
                         />
-                        <ToggleRow
+                        {/* <ToggleRow
                             icon={<Video size={18} color={AURORA.textSec} />}
                             label="Camera (Daily Selfie)"
                             value={aiCamera}
                             onValueChange={setAiCamera}
-                        />
+                        /> */}
                         <TouchableOpacity
                             onPress={() => setShowReminderTimePicker(true)}
                             style={{

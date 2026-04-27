@@ -32,6 +32,7 @@ import {
 import { moodService } from '../services/mood.service';
 import { AURORA } from '../constants/aurora-colors';
 import { useAuth } from '../stores/AuthContext';
+import { EmotionDetection } from './EmotionDetection';
 import { useUserDaySettings } from '../stores/UserDaySettingsContext';
 import {
     calculateStressLevel,
@@ -152,6 +153,8 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
     const { dayResetHour, timezone, academicContextEnabled, enabledContextCategories } = useUserDaySettings();
 
     const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>([]);
+    const [moodInputMode, setMoodInputMode] = useState<'manual' | 'selfie'>('manual');
+    const [detectionMethod, setDetectionMethod] = useState<'manual' | 'selfie_ai'>('manual');
     const [intensityTen, setIntensityTen] = useState(6);
     const [energyLevel, setEnergyLevel] = useState(3);
     const [stressLevel, setStressLevel] = useState(3);
@@ -259,6 +262,14 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
         if (currentStep < totalSteps) setCurrentStep((c) => c + 1);
     };
 
+    const applyAnalyzedMood = (emotion: DetectedEmotion) => {
+        setSelectedEmotions([emotion]);
+        setDetectionMethod('selfie_ai');
+        if (currentStep < totalSteps) {
+            setCurrentStep((c) => c + 1);
+        }
+    };
+
     const handleSubmit = async () => {
         if (!user) {
             Alert.alert('Error', 'Please log in to save mood');
@@ -281,7 +292,7 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                 dayKey: dk,
                 event_categories: categoryConfigs.filter((c) => c.tags.some((t) => selectedTags.includes(t))).map((c) => c.key),
                 event_tags: selectedTags,
-                detection_method: 'manual',
+                detection_method: detectionMethod,
             });
 
             const shouldUpdateDailyContext = !sleepCapturedToday && !!sleepQuality;
@@ -549,35 +560,94 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
 
                 {isMoodStep && (
                     <View style={{ gap: 16 }}>
-                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
-                            <Text style={{ color: AURORA.textPrimary, textAlign: 'center', fontWeight: '700', marginBottom: 12 }}>Select emotion</Text>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
-                                {MANUAL_EMOTIONS.map((emotion) => {
-                                    const selected = selectedEmotions.some((x) => x.emotion === emotion.name);
-                                    return (
-                                        <TouchableOpacity
-                                            key={emotion.name}
-                                            onPress={() => setSelectedEmotions([{ emotion: emotion.name, confidence: intensityTen / 10, color: emotion.color }])}
-                                            style={{
-                                                width: 68,
-                                                height: 84,
-                                                borderRadius: 16,
-                                                borderWidth: selected ? 2 : 1,
-                                                borderColor: selected ? emotion.color : AURORA.border,
-                                                backgroundColor: selected ? `${emotion.color}24` : AURORA.cardAlt,
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                            }}
-                                        >
-                                            {renderMoodVisual(emotion, 34)}
-                                            <Text style={{ marginTop: 6, fontSize: 12, color: selected ? emotion.color : AURORA.textSec, fontWeight: '700' }}>{emotion.label}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
+                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 6 }}>
+                            <View style={{ flexDirection: 'row', backgroundColor: AURORA.cardAlt, borderRadius: 12, padding: 4 }}>
+                                <TouchableOpacity
+                                    onPress={() => setMoodInputMode('manual')}
+                                    style={{
+                                        flex: 1,
+                                        paddingVertical: 10,
+                                        borderRadius: 10,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: moodInputMode === 'manual' ? AURORA.blue : 'transparent',
+                                    }}
+                                >
+                                    <Text style={{ color: moodInputMode === 'manual' ? AURORA.textPrimary : AURORA.textSec, fontWeight: '700' }}>
+                                        Manual check-in
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => setMoodInputMode('selfie')}
+                                    style={{
+                                        flex: 1,
+                                        paddingVertical: 10,
+                                        borderRadius: 10,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: moodInputMode === 'selfie' ? AURORA.blue : 'transparent',
+                                    }}
+                                >
+                                    <Text style={{ color: moodInputMode === 'selfie' ? AURORA.textPrimary : AURORA.textSec, fontWeight: '700' }}>
+                                        Daily selfie
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 6, paddingBottom: 6 }}>
+                                <Sparkles size={14} color={AURORA.amber} />
+                                <Text style={{ color: AURORA.textMuted, fontSize: 12, flex: 1 }}>
+                                    Daily selfie suggests mood from facial expression. You can use AI mood or retake before continuing.
+                                </Text>
                             </View>
                         </View>
-                        {selectedEmotions.length > 0 && (
-                            <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
+                        {moodInputMode === 'selfie' ? (
+                            <EmotionDetection
+                                title="Daily Selfie (Expression-Based)"
+                                helperText="Aurora estimates your mood from visible facial expression only. You can choose the analyzed mood and continue, or retake another selfie."
+                                onEmotionDetected={(emotions) => {
+                                    if (emotions.length > 0) {
+                                        setSelectedEmotions([emotions[0]]);
+                                    }
+                                }}
+                                onUseAnalyzedMood={applyAnalyzedMood}
+                                saveActionLabel="Use this mood"
+                                showSaveSuccessAlert={false}
+                            />
+                        ) : null}
+                        {moodInputMode === 'manual' ? (
+                            <>
+                                <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
+                                    <Text style={{ color: AURORA.textPrimary, textAlign: 'center', fontWeight: '700', marginBottom: 12 }}>Select emotion</Text>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
+                                        {MANUAL_EMOTIONS.map((emotion) => {
+                                            const selected = selectedEmotions.some((x) => x.emotion === emotion.name);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={emotion.name}
+                                                    onPress={() => {
+                                                        setSelectedEmotions([{ emotion: emotion.name, confidence: intensityTen / 10, color: emotion.color }]);
+                                                        setDetectionMethod('manual');
+                                                    }}
+                                                    style={{
+                                                        width: 68,
+                                                        height: 84,
+                                                        borderRadius: 16,
+                                                        borderWidth: selected ? 2 : 1,
+                                                        borderColor: selected ? emotion.color : AURORA.border,
+                                                        backgroundColor: selected ? `${emotion.color}24` : AURORA.cardAlt,
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                    }}
+                                                >
+                                                    {renderMoodVisual(emotion, 34)}
+                                                    <Text style={{ marginTop: 6, fontSize: 12, color: selected ? emotion.color : AURORA.textSec, fontWeight: '700' }}>{emotion.label}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                                {selectedEmotions.length > 0 && (
+                                    <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
                                 <View
                                     style={{
                                         alignItems: 'center',
@@ -622,8 +692,10 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                                     onSlidingStart={() => setIsScrollEnabled(false)}
                                     onSlidingComplete={() => setIsScrollEnabled(true)}
                                 />
-                            </View>
-                        )}
+                                    </View>
+                                )}
+                            </>
+                        ) : null}
                     </View>
                 )}
 

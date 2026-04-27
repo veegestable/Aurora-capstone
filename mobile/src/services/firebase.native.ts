@@ -1,7 +1,7 @@
 // Firebase configuration for Aurora Mental Health App (native)
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, Auth, initializeAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getDatabase, type Database } from 'firebase/database';
 
@@ -26,17 +26,22 @@ const firebaseConfig = {
 
 let app;
 let auth: Auth;
+let dbInstance;
 
 if (getApps().length === 0) {
     app = initializeApp(firebaseConfig);
     auth = initializeAuth(app);
+    dbInstance = initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true,
+    });
 } else {
     app = getApp();
     auth = getAuth(app);
+    dbInstance = getFirestore(app);
 }
 
 export { auth };
-export const db = getFirestore(app);
+export const db = dbInstance;
 export const storage = getStorage(app);
 
 /** Realtime Database — null if no databaseURL (presence disabled). */

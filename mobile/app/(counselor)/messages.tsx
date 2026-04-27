@@ -268,6 +268,10 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
 
     const handleAcceptSessionRequest = async (sessionId: string | null, preferredTime: string) => {
         if (!sessionId || !preferredTime || sending || !conversationId || !user?.id) return;
+        if (isSessionTimeExpired(preferredTime)) {
+            Alert.alert('Request expired', 'This session request can no longer be accepted because the requested time has already passed.');
+            return;
+        }
         setSending(true);
         try {
             const slot = parsePreferredTimeToSlot(preferredTime);
@@ -393,7 +397,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                     paddingHorizontal: 16, paddingVertical: 12,
                     borderBottomWidth: 1, borderBottomColor: AURORA.border,
                 }}>
-                    <TouchableOpacity onPress={onBack} style={{ padding: 4 }}>
+                    <TouchableOpacity onPress={onBack} style={{ width: 30, alignItems: 'flex-start', padding: 4 }}>
                         <ArrowLeft size={22} color="#FFFFFF" />
                     </TouchableOpacity>
                     <View style={{ flex: 1, alignItems: 'center' }}>
@@ -413,9 +417,10 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                             </Text>
                         </View>
                     </View>
-                    <TouchableOpacity style={{ padding: 4 }}>
+                    <View style={{ width: 30 }} />
+                    {/* <TouchableOpacity style={{ padding: 4 }}>
                         <Info size={22} color={AURORA.textSec} />
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                 </View>
 
                 {/* Privacy Banner */}
@@ -545,7 +550,9 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                                 : false,
                                         }}
                                         onAccept={
-                                            msg.sessionRequest.sessionId && msg.sessionRequest.preferredTime
+                                            msg.sessionRequest.sessionId &&
+                                            msg.sessionRequest.preferredTime &&
+                                            !isSessionTimeExpired(msg.sessionRequest.preferredTime)
                                                 ? () =>
                                                       handleAcceptSessionRequest(
                                                           msg.sessionRequest.sessionId!,

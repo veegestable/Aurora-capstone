@@ -113,101 +113,44 @@ function QuickActionTile({
 function StreakCard({ streak }: { streak: number }) {
     return (
         <View style={{
-            flex: 1, backgroundColor: AURORA.card, borderRadius: 12,
-            padding: 10, borderWidth: 1, borderColor: AURORA.border,
+            flex: 1,
+            backgroundColor: AURORA.card,
+            borderRadius: 16,
+            padding: 12,
+            borderWidth: 1,
+            borderColor: AURORA.border,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.16,
+            shadowRadius: 10,
+            elevation: 3,
         }}>
-            <Text style={{ color: AURORA.textMuted, fontSize: 8, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>
-                STREAK
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <Text style={{ color: AURORA.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.8 }}>
+                    STREAK
+                </Text>
+                {/* <View style={{ backgroundColor: 'rgba(249,115,22,0.18)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={{ color: '#FDBA74', fontSize: 9, fontWeight: '700' }}>Active</Text>
+                </View> */}
+            </View>
             <View style={{
-                width: 28, height: 28, borderRadius: 8,
-                backgroundColor: 'rgba(249,115,22,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                backgroundColor: 'rgba(249,115,22,0.2)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 8,
             }}>
                 <Text style={{ fontSize: 16 }}>🔥</Text>
             </View>
-            <Text style={{ color: '#FFFFFF', fontSize: 19, fontWeight: '800', lineHeight: 21 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '900', lineHeight: 26 }}>
                 {streak}
             </Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '600' }}>Days</Text>
-            <Text style={{ color: AURORA.textSec, fontSize: 9, marginTop: 2 }}>Daily check-in goal met!</Text>
-        </View>
-    );
-}
-
-function moodKeyForConsistency(raw: string): 'happy' | 'neutral' | 'sad' | 'angry' | 'surprise' | 'other' {
-    const key = (raw || '').toLowerCase().trim();
-    if (key === 'joy' || key === 'happiness' || key === 'happy') return 'happy';
-    if (key === 'neutral') return 'neutral';
-    if (key === 'sad' || key === 'sadness') return 'sad';
-    if (key === 'angry' || key === 'anger') return 'angry';
-    if (key === 'surprise' || key === 'surprised') return 'surprise';
-    return 'other';
-}
-
-function trendLabelFromStability(score: number): string {
-    if (score >= 80) return 'Very steady';
-    if (score >= 60) return 'Mostly steady';
-    if (score >= 40) return 'Mixed pattern';
-    return 'Shifting pattern';
-}
-
-function consistencyMessage(score: number): string {
-    if (score >= 80) return 'Positive pattern is strong';
-    if (score >= 60) return 'Positive pattern is building';
-    if (score >= 40) return 'Positive pattern is mixed';
-    return 'Positive pattern is low';
-}
-
-// ─── Trend Card ──────────────────────────────────────────────────────────────
-function TrendCard({
-    trendLabel,
-    dominantEmotion,
-    consistencyScore,
-    consistencyText,
-}: {
-    trendLabel: string;
-    dominantEmotion: string;
-    consistencyScore: number;
-    consistencyText: string;
-}) {
-    return (
-        <View style={{
-            flex: 1, backgroundColor: AURORA.card, borderRadius: 12,
-            padding: 10, borderWidth: 1, borderColor: AURORA.border,
-        }}>
-            <Text style={{ color: AURORA.textMuted, fontSize: 8, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>
-                TREND
+            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700', marginTop: 1 }}>Days</Text>
+            <Text style={{ color: AURORA.textSec, fontSize: 10, marginTop: 4, lineHeight: 14 }}>
+                Keep checking in daily to grow this streak.
             </Text>
-            <View style={{
-                width: 28, height: 28, borderRadius: 8,
-                backgroundColor: 'rgba(45,107,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
-            }}>
-                <TrendingUp size={16} color={AURORA.blue} />
-            </View>
-            <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800', lineHeight: 16 }}>
-                {trendLabel.toUpperCase()}
-            </Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800', lineHeight: 16 }}>
-                {dominantEmotion.toUpperCase() || 'HAPPY'}
-            </Text>
-            <View style={{ marginTop: 7 }}>
-                <View style={{ height: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)' }}>
-                    <View
-                        style={{
-                            width: `${Math.max(0, Math.min(100, consistencyScore))}%`,
-                            height: 6,
-                            borderRadius: 999,
-                            backgroundColor: consistencyScore >= 60 ? AURORA.amber : AURORA.blue,
-                        }}
-                    />
-                </View>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 3, flexWrap: 'wrap' }}>
-                <Text style={{ color: AURORA.amber, fontSize: 9 }}>✦</Text>
-                <Text style={{ color: AURORA.amber, fontSize: 10, fontWeight: '600' }}>
-                    {consistencyText} ({Math.round(consistencyScore)}%)
-                </Text>
-            </View>
         </View>
     );
 }
@@ -245,10 +188,8 @@ export default function MoodLogScreen() {
     const [showCheckInSharingBriefing, setShowCheckInSharingBriefing] = useState(false);
     const [stats, setStats] = useState({
         streak: 0,
-        topEmotion: 'happy',
-        trendLabel: 'Stable mood',
-        consistencyScore: 50,
-        consistencyText: 'Mixed consistency',
+        todayStability: 0,
+        todayCount: 0,
     });
     const [insight, setInsight] = useState(
         'Complete a check-in for a short note based on your mood and tasks (no AI on this screen).'
@@ -287,30 +228,14 @@ export default function MoodLogScreen() {
             if (!logs || logs.length === 0) {
                 setStats({
                     streak: 0,
-                    topEmotion: 'happy',
-                    trendLabel: 'Stable mood',
-                    consistencyScore: 50,
-                    consistencyText: 'Mixed consistency',
+                    todayStability: 0,
+                    todayCount: 0,
                 });
                 setInsight(
                     'Complete a check-in for a short note based on your mood and tasks (no AI on this screen).'
                 );
                 return;
             }
-            const emotionCounts: Record<string, number> = {};
-            logs.forEach((log: any) => {
-                log.emotions?.forEach((e: any) => {
-                    emotionCounts[e.emotion] = (emotionCounts[e.emotion] || 0) + 1;
-                });
-            });
-            let topEmotion = 'happy';
-            let max = 0;
-            Object.entries(emotionCounts).forEach(([e, c]) => {
-                if (c > max) {
-                    max = c;
-                    topEmotion = e;
-                }
-            });
             const keys = new Set(
                 moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone)
                     .map((e) => e.dayKey)
@@ -319,38 +244,12 @@ export default function MoodLogScreen() {
             const streak = calculateCheckInStreakByDayKey(keys, new Date(), dayResetHour, timezone);
             const dk = getDayKey(new Date(), dayResetHour, timezone);
             const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
-            const now = new Date();
-            now.setHours(12, 0, 0, 0);
-            const last7Keys = new Set<string>();
-            for (let i = 0; i < 7; i++) {
-                const d = new Date(now);
-                d.setDate(d.getDate() - i);
-                last7Keys.add(getDayKey(d, dayResetHour, timezone));
-            }
-            const last7Entries = entries.filter((e) => !!e.dayKey && last7Keys.has(e.dayKey));
-            const positiveCount = last7Entries.reduce((count, e) => {
-                const moodKey = moodKeyForConsistency(e.mood);
-                return moodKey === 'happy' || moodKey === 'neutral' ? count + 1 : count;
-            }, 0);
-            const positiveRatio = last7Entries.length > 0 ? positiveCount / last7Entries.length : 0.5;
-            const avgStress = last7Entries.length > 0
-                ? last7Entries.reduce((sum, e) => sum + e.stress, 0) / last7Entries.length
-                : 3;
-            const avgEnergy = last7Entries.length > 0
-                ? last7Entries.reduce((sum, e) => sum + e.energy, 0) / last7Entries.length
-                : 3;
-            const stability = moodStabilityScore(last7Entries.map((e) => e.intensity));
-            const stressFactor = 1 - ((avgStress - 1) / 4);
-            const energyFactor = (avgEnergy - 1) / 4;
-            let consistencyScore = (positiveRatio * 0.6 + stressFactor * 0.25 + energyFactor * 0.15) * 100;
-            if (positiveRatio < 0.4 && avgStress >= 3.5) consistencyScore -= 10;
-            consistencyScore = Math.max(0, Math.min(100, consistencyScore));
+            const todayEntries = entries.filter((e) => e.dayKey === dk);
+            const todayStability = moodStabilityScore(todayEntries.map((e) => e.intensity));
             setStats({
                 streak,
-                topEmotion,
-                trendLabel: trendLabelFromStability(stability),
-                consistencyScore,
-                consistencyText: consistencyMessage(consistencyScore),
+                todayStability,
+                todayCount: todayEntries.length,
             });
             const todayAgg = aggregateByDay(entries, dk);
             const sorted = [...logs].sort((a: any, b: any) => {
@@ -392,10 +291,8 @@ export default function MoodLogScreen() {
         } catch {
             setStats({
                 streak: 0,
-                topEmotion: 'happy',
-                trendLabel: 'Stable mood',
-                consistencyScore: 50,
-                consistencyText: 'Mixed consistency',
+                todayStability: 0,
+                todayCount: 0,
             });
         }
     };
@@ -426,7 +323,7 @@ export default function MoodLogScreen() {
                                 <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{user?.preferred_name || user?.full_name || 'Student'}</Text>
                             </View>
                         </View>
-                        <TouchableOpacity
+                        {/* <TouchableOpacity
                             onPress={() => triggerHaptic('light')}
                             style={{
                             width: 44, height: 44, borderRadius: 22,
@@ -439,7 +336,7 @@ export default function MoodLogScreen() {
                                 width: 8, height: 8, borderRadius: 4,
                                 backgroundColor: AURORA.red, borderWidth: 1.5, borderColor: AURORA.bg,
                             }} />
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                     </View>
 
                     {/* ── How Are You Feeling Card ────────────────────────────── */}
@@ -498,18 +395,56 @@ export default function MoodLogScreen() {
                     {/* ── Stats Row ──────────────────────────────────────────── */}
                     <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
                         <StreakCard streak={stats.streak} />
-                        <TrendCard
-                            trendLabel={stats.trendLabel}
-                            dominantEmotion={getEmotionLabel(stats.topEmotion)}
-                            consistencyScore={stats.consistencyScore}
-                            consistencyText={stats.consistencyText}
-                        />
+                        <View style={{
+                            flex: 1,
+                            backgroundColor: AURORA.card,
+                            borderRadius: 16,
+                            padding: 12,
+                            borderWidth: 1,
+                            borderColor: AURORA.border,
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 6 },
+                            shadowOpacity: 0.16,
+                            shadowRadius: 10,
+                            elevation: 3,
+                        }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                <Text style={{ color: AURORA.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.8 }}>
+                                    TODAY STABILITY
+                                </Text>
+                                {/* <View style={{ backgroundColor: 'rgba(45,107,255,0.16)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+                                    <Text style={{ color: AURORA.blue, fontSize: 9, fontWeight: '700' }}>Live</Text>
+                                </View> */}
+                            </View>
+                            <View style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: 10,
+                                backgroundColor: 'rgba(45,107,255,0.2)',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginBottom: 8,
+                            }}>
+                                <TrendingUp size={16} color={AURORA.blue} />
+                            </View>
+                            <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '900', lineHeight: 26 }}>
+                                {Math.round(Math.max(0, Math.min(100, stats.todayStability)))}%
+                            </Text>
+                            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700', marginTop: 1 }}>Mood Stability</Text>
+                            <Text style={{ color: AURORA.textSec, fontSize: 10, marginTop: 4, lineHeight: 14 }}>
+                                {stats.todayCount <= 0
+                                    ? 'No check-in yet today'
+                                    : stats.todayCount === 1
+                                        ? 'Add one more check-in'
+                                        : 'Ups and downs today (e.g., higher stress or lower energy in some check-ins)'}
+                            </Text>
+                        </View>
                     </View>
 
                     {/* ── AI Insight ─────────────────────────────────────────── */}
                     <AIInsightCard insight={insight} />
 
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                         onPress={() => {
                             triggerHaptic('light');
                             router.push('/(student)/daily-selfie');
@@ -554,7 +489,7 @@ export default function MoodLogScreen() {
                                 </Text>
                             </View>
                         </View>
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
 
                     {/* ── Announcements (dynamic, from admin/counselor) ───────── */}
                     <AnnouncementSection role="student" />

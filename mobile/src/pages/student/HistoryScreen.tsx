@@ -719,6 +719,10 @@ const styles = StyleSheet.create({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 type JournalTab = 'calendar' | 'insights';
 
+function localCalendarKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 const JOURNAL_TOGGLE_PAD = 4;
 
 /** Calendar body entrance when changing month (arrow prev / next). */
@@ -809,11 +813,11 @@ export default function HistoryScreen() {
         for (let i = 0; i < 42; i++) {
             const date = new Date(startDay);
             date.setDate(startDay.getDate() + i);
-            const ds = getDayKey(date, dayResetHour, timezone);
+            const ds = localCalendarKey(date);
             const dayMoods = moodData.filter(m => {
                 if (!m?.log_date) return false;
                 const logDate = m.log_date instanceof Date ? m.log_date : new Date(m.log_date);
-                return getDayKey(logDate, dayResetHour, timezone) === ds;
+                return localCalendarKey(logDate) === ds;
             });
             days.push({
                     date,
@@ -837,13 +841,13 @@ export default function HistoryScreen() {
     const calendarDays = useMemo(() => generateCalendarDays(), [moodData, currentDate, dayResetHour, timezone]);
     const dayDetailsEntries = useMemo(() => {
         if (!selectedDay) return [] as MoodEntry[];
-        const selectedKey = getDayKey(selectedDay.date, dayResetHour, timezone);
+        const selectedKey = localCalendarKey(selectedDay.date);
         return moodData.filter((m) => {
             if (!m?.log_date) return false;
             const d = m.log_date instanceof Date ? m.log_date : new Date(m.log_date);
-            return getDayKey(d, dayResetHour, timezone) === selectedKey;
+            return localCalendarKey(d) === selectedKey;
         });
-    }, [moodData, selectedDay, dayResetHour, timezone]);
+    }, [moodData, selectedDay]);
     const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const calendarMonthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;

@@ -1,11 +1,14 @@
 import "../global.css";
 import { Stack, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import * as Notifications from 'expo-notifications';
 import { AuthProvider } from "../src/stores/AuthContext";
 import { UserDaySettingsProvider } from "../src/stores/UserDaySettingsContext";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { configureNotificationHandler } from "../src/services/push-notifications.service";
+import { configureNotificationHandler, sendSessionDeviceNotification } from "../src/services/push-notifications.service";
+import { useAuth } from "../src/stores/AuthContext";
+import { collection, onSnapshot, query, where, orderBy, doc, updateDoc, Timestamp } from "firebase/firestore";
+import { db } from "../src/services/firebase";
 
 function NotificationRouterBridge() {
     const router = useRouter();
@@ -37,12 +40,74 @@ function NotificationRouterBridge() {
     return null;
 }
 
+function SessionNotificationBridge() {
+    const { user } = useAuth();
+    const processingIdsRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const q = query(
+            collection(db, 'notifications'),
+            where('user_id', '==', user.id),
+            where('status', '==', 'pending'),
+            where('type', '==', 'counselor_message'),
+            orderBy('created_at', 'desc')
+        );
+
+        const unsub = onSnapshot(q, async (snap) => {
+            const additions = snap.docChanges().filter((change) => change.type === 'added');
+            for (const change of additions) {
+                const notifId = change.doc.id;
+                if (processingIdsRef.current.has(notifId)) continue;
+                processingIdsRef.current.add(notifId);
+
+                try {
+                    const data = change.doc.data() as Record<string, unknown>;
+                    const body = typeof data.message === 'string' ? data.message : 'You have a session update.';
+                    const targetRoute =
+                        data.target_route === '/(counselor)/messages'
+                            ? '/(counselor)/messages'
+                            : '/(student)/messages';
+
+                    const ok = await sendSessionDeviceNotification({
+                        title: 'Session update',
+                        body,
+                        targetRoute,
+                        notificationId: notifId,
+                    });
+
+                    if (ok) {
+                        await updateDoc(doc(db, 'notifications', notifId), {
+                            status: 'sent',
+                            sent_at: Timestamp.now(),
+                            updated_at: Timestamp.now(),
+                        });
+                    }
+                } catch {
+                    // Keep notification pending; bridge will retry on next launch/snapshot.
+                } finally {
+                    processingIdsRef.current.delete(notifId);
+                }
+            }
+        });
+
+        return () => {
+            unsub();
+            processingIdsRef.current.clear();
+        };
+    }, [user?.id]);
+
+    return null;
+}
+
 export default function RootLayout() {
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
             <AuthProvider>
                 <UserDaySettingsProvider>
                     <NotificationRouterBridge />
+                    <SessionNotificationBridge />
                     <Stack>
                         <Stack.Screen name="index" options={{ headerShown: false }} />
                         <Stack.Screen name="pending-counselor" options={{ headerShown: false }} />

@@ -16,6 +16,14 @@ interface EmotionDetectionProps {
     onEmotionDetected: (emotions: DetectedEmotion[]) => void;
     /** Card heading (default: Daily Selfie). */
     title?: string;
+    /** Helper copy under heading to explain how mood is inferred. */
+    helperText?: string;
+    /** Called when user confirms the analyzed mood. */
+    onUseAnalyzedMood?: (emotion: DetectedEmotion) => void;
+    /** Confirm button label after analysis. */
+    saveActionLabel?: string;
+    /** Enable success alert for standalone usage. */
+    showSaveSuccessAlert?: boolean;
 }
 
 const EMOTION_COLORS: Record<string, string> = {
@@ -40,14 +48,32 @@ const getEmotionColor = (emotionName: string): string => {
     return EMOTION_COLORS[normalized] || AURORA.moodNeutral;
 };
 
-export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: EmotionDetectionProps) {
+export function EmotionDetection({
+    onEmotionDetected,
+    title = 'Daily Selfie',
+    helperText,
+    onUseAnalyzedMood,
+    saveActionLabel,
+    showSaveSuccessAlert = true,
+}: EmotionDetectionProps) {
     const [isCameraVisible, setIsCameraVisible] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
+    const [capturedWithFrontCamera, setCapturedWithFrontCamera] = useState(false);
     const [detectedEmotions, setDetectedEmotions] = useState<DetectedEmotion[]>([]);
     const [permission, requestPermission] = useCameraPermissions();
     const [facing, setFacing] = useState<CameraType>('front');
     const cameraRef = useRef<CameraView>(null);
+    const [selectedDetectedEmotion, setSelectedDetectedEmotion] = useState<string | null>(null);
+
+    const normalizeEmotionName = (emotion: string): string => {
+        const key = emotion.toLowerCase().trim();
+        if (key === 'happy' || key === 'happiness') return 'joy';
+        if (key === 'sad') return 'sadness';
+        if (key === 'angry') return 'anger';
+        if (key === 'surprised') return 'surprise';
+        return key;
+    };
 
     const startCamera = async () => {
         try {
@@ -87,6 +113,7 @@ export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: 
         });
 
         if (!result.canceled && result.assets[0].uri) {
+            setCapturedWithFrontCamera(false);
             setCapturedImage(result.assets[0].uri);
             analyzeEmotion(result.assets[0].uri);
         }
@@ -98,6 +125,7 @@ export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: 
                 quality: 0.8,
             });
             if (photo?.uri) {
+                setCapturedWithFrontCamera(facing === 'front');
                 setCapturedImage(photo.uri);
                 closeCamera();
                 analyzeEmotion(photo.uri);
@@ -173,8 +201,13 @@ export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: 
             // if it is a data URI, we might need to assume it won't work with this new API approach easily
             // unless we convert it. But capture/upload now provide URIs.
             const emotions = await getEmotionAnalysis(imageUri);
-            setDetectedEmotions(emotions);
-            onEmotionDetected(emotions);
+            const normalized = emotions.map((emotion) => ({
+                ...emotion,
+                emotion: normalizeEmotionName(emotion.emotion),
+            }));
+            setDetectedEmotions(normalized);
+            setSelectedDetectedEmotion(normalized[0]?.emotion ?? null);
+            onEmotionDetected(normalized);
         } catch (error: any) {
             console.error('Emotion analysis failed:', error);
             Alert.alert('Analysis Failed', error.message || 'Could not detect emotions. Please try again.');
@@ -186,6 +219,11 @@ export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: 
     return (
         <View style={{ backgroundColor: AURORA.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: AURORA.border }}>
             <Text style={{ fontSize: 20, fontWeight: '600', color: AURORA.textPrimary, marginBottom: 16 }}>{title}</Text>
+            {helperText ? (
+                <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: -8, marginBottom: 14, lineHeight: 18 }}>
+                    {helperText}
+                </Text>
+            ) : null}
 
             {!capturedImage ? (
                 <View style={{ flexDirection: 'row', gap: 16 }}>
@@ -210,7 +248,11 @@ export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: 
                     <View style={{ position: 'relative', width: '100%', aspectRatio: 3/4, backgroundColor: AURORA.cardAlt, borderRadius: 16, overflow: 'hidden', marginBottom: 16 }}>
                         <Image
                             source={{ uri: capturedImage }}
-                            style={{ width: '100%', height: '100%' }}
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                transform: capturedWithFrontCamera ? [{ scaleX: -1 }] : undefined,
+                            }}
                             resizeMode="cover"
                         />
                         {isAnalyzing && (
@@ -222,11 +264,27 @@ export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: 
 
                     {detectedEmotions.length > 0 && (
                         <View style={{ width: '100%', marginBottom: 16 }}>
-                            <Text style={{ fontWeight: '600', marginBottom: 12, color: AURORA.textPrimary }}>Detected Emotions:</Text>
+                            <Text style={{ fontWeight: '600', marginBottom: 12, color: AURORA.textPrimary }}>Detected Expressions:</Text>
                             {detectedEmotions.map((emotion, index) => {
                                 const emotionColor = emotion.color || getEmotionColor(emotion.emotion);
+                                const isSelected = selectedDetectedEmotion === emotion.emotion;
                                 return (
-                                    <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                                    <TouchableOpacity
+                                        key={index}
+                                        onPress={() => setSelectedDetectedEmotion(emotion.emotion)}
+                                        activeOpacity={0.8}
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            marginBottom: 12,
+                                            borderRadius: 10,
+                                            borderWidth: isSelected ? 1 : 0,
+                                            borderColor: `${emotionColor}88`,
+                                            backgroundColor: isSelected ? `${emotionColor}22` : 'transparent',
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 6,
+                                        }}
+                                    >
                                         <View style={{ backgroundColor: emotionColor, width: 16, height: 16, borderRadius: 8, marginRight: 10 }} />
                                         <Text style={{ flex: 1, color: emotionColor, fontWeight: '600' }}>{getEmotionLabel(emotion.emotion)}</Text>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1.2 }}>
@@ -237,7 +295,7 @@ export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: 
                                                 <Text style={{ fontSize: 12, color: emotionColor, fontWeight: '600' }}>{Math.round(emotion.confidence * 100)}%</Text>
                                             </View>
                                         </View>
-                                    </View>
+                                    </TouchableOpacity>
                                 );
                             })}
                         </View>
@@ -248,6 +306,8 @@ export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: 
                             onPress={() => {
                                 setCapturedImage(null);
                                 setDetectedEmotions([]);
+                                setSelectedDetectedEmotion(null);
+                                setCapturedWithFrontCamera(false);
                             }}
                             style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: AURORA.border, backgroundColor: AURORA.cardAlt }}
                         >
@@ -256,13 +316,20 @@ export function EmotionDetection({ onEmotionDetected, title = 'Daily Selfie' }: 
                         {detectedEmotions.length > 0 && (
                             <TouchableOpacity
                                 onPress={() => {
-                                    Alert.alert('Success', 'Emotions captured!');
+                                    const selected =
+                                        detectedEmotions.find((emotion) => emotion.emotion === selectedDetectedEmotion) ||
+                                        detectedEmotions[0];
+                                    onUseAnalyzedMood?.(selected);
+                                    if (showSaveSuccessAlert !== false) {
+                                        Alert.alert('Success', 'Emotions captured!');
+                                    }
                                     setCapturedImage(null);
                                     setDetectedEmotions([]);
+                                    setSelectedDetectedEmotion(null);
                                 }}
                                 style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: AURORA.green }}
                             >
-                                <Text style={{ color: AURORA.textPrimary, fontWeight: '600' }}>Save</Text>
+                                <Text style={{ color: AURORA.textPrimary, fontWeight: '600' }}>{saveActionLabel || 'Save'}</Text>
                             </TouchableOpacity>
                         )}
                     </View>

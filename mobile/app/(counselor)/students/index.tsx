@@ -304,7 +304,7 @@ export default function CounselorStudentsScreen() {
                                 Open a student to see optional check-ins or invite them to a session
                             </Text>
                         </View>
-                        <TouchableOpacity style={{
+                        {/* <TouchableOpacity style={{
                             width: 42, height: 42, borderRadius: 21,
                             backgroundColor: AURORA.card,
                             alignItems: 'center', justifyContent: 'center',
@@ -318,7 +318,7 @@ export default function CounselorStudentsScreen() {
                                 backgroundColor: AURORA.blue,
                                 borderWidth: 1.5, borderColor: AURORA.card,
                             }} />
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                     </View>
 
                     <View style={{ paddingHorizontal: 20, marginBottom: 14 }}>

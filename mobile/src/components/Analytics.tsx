@@ -102,7 +102,7 @@ function weekMoodTone(avgMood: number | null): { label: string; color: string } 
     if (avgMood == null) return { label: 'Not enough check-ins', color: AURORA.blue };
     if (avgMood >= 4.2) return { label: 'Mostly good', color: AURORA.moodHappy };
     if (avgMood >= 3.4) return { label: 'Mostly okay', color: AURORA.moodNeutral };
-    if (avgMood >= 2.6) return { label: 'Mixed with lower moments', color: AURORA.moodSurprise };
+    if (avgMood >= 2.6) return { label: 'Ups and downs today', color: AURORA.moodSurprise };
     return { label: 'Mostly low', color: AURORA.moodSad };
 }
 
@@ -793,6 +793,15 @@ export default function Analytics() {
             emotionLabel,
         };
     }, [last7Logs, logs, dayResetHour, timezone, last7DayKeySet]);
+    const weekAverageMoodColor = useMemo(() => {
+        const key = (weekWellnessStats.emotionLabel || '').toLowerCase().trim();
+        if (key === 'happy' || key === 'joy' || key === 'happiness') return AURORA.moodHappy;
+        if (key === 'sad' || key === 'sadness') return AURORA.moodSad;
+        if (key === 'angry' || key === 'anger') return AURORA.moodAngry;
+        if (key === 'neutral') return AURORA.moodNeutral;
+        if (key === 'surprise' || key === 'surprised') return AURORA.moodSurprise;
+        return weekMoodMeta.color;
+    }, [weekWellnessStats.emotionLabel, weekMoodMeta.color]);
     const weekBestWorstInsight = useMemo(() => {
         const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
         const points: Array<{ label: string; avgIntensity: number; avgStress: number; dominantEmotion: 'happy' | 'angry' | 'surprise' | 'neutral' | 'sad' | '' }> = [];
@@ -1273,41 +1282,44 @@ export default function Analytics() {
                     useNativeDriver
                     style={{
                         width: '100%',
-                        backgroundColor: hexToRgba(weekMoodMeta.color, 0.14),
+                        backgroundColor: hexToRgba(weekAverageMoodColor, 0.14),
                         padding: 20,
                         borderRadius: 22,
                         marginBottom: 20,
                         borderWidth: 1.5,
-                        borderColor: hexToRgba(weekMoodMeta.color, 0.75),
-                        shadowColor: weekMoodMeta.color,
+                        borderColor: hexToRgba(weekAverageMoodColor, 0.75),
+                        shadowColor: weekAverageMoodColor,
                         shadowOpacity: 0.26,
                         shadowRadius: 16,
                         shadowOffset: { width: 0, height: 10 },
                         elevation: 7,
                     }}
                 >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                        <TrendingUp size={22} color={AURORA.amber} />
-                        <View
-                            style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: 11,
-                                backgroundColor: weekMoodMeta.color,
-                                borderWidth: 1,
-                                borderColor: AURORA.border,
-                            }}
-                        />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <TrendingUp size={22} color={weekAverageMoodColor} />
+                            <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 0.6 }}>
+                                AVERAGE MOOD (7 DAYS)
+                            </Text>
+                        </View>
+                        <View style={{ backgroundColor: hexToRgba(weekAverageMoodColor, 0.22), borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                            <Text style={{ color: weekAverageMoodColor, fontSize: 11, fontWeight: '800' }}>
+                                {weekWellnessStats.emotionLabel}
+                            </Text>
+                        </View>
                     </View>
-                    <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '800', marginTop: 12, letterSpacing: 0.6 }}>
-                        WEEK MOOD
+                    <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginTop: 14 }}>
+                        Weekly summary
                     </Text>
-                    <Text style={{ color: AURORA.textPrimary, fontSize: 34, fontWeight: '900', marginTop: 6 }}>
-                        {weekMoodMeta.label}
+                    <Text style={{ color: AURORA.textPrimary, fontSize: 32, fontWeight: '900', marginTop: 4 }}>
+                        {`Mood: ${weekMoodMeta.label}`}
                     </Text>
-                    <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 10, lineHeight: 19 }}>
+                    <Text style={{ color: weekAverageMoodColor, fontSize: 15, fontWeight: '800', marginTop: 8 }}>
+                        {`Average mood: ${weekWellnessStats.emotionLabel}`}
+                    </Text>
+                    {/* <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 10, lineHeight: 19 }}>
                         {averageMoodPlainLine(displayWeekAvgMood)}
-                    </Text>
+                    </Text> */}
                 </Animatable.View>
 
                 {totalCheckIns > 0 ? (
@@ -1385,11 +1397,11 @@ export default function Analytics() {
                         Generating your summary…
                     </Text>
                 ) : null}
-                {!weekSummaryGenerating && weekSummaryTemplate ? (
+                {/* {!weekSummaryGenerating && weekSummaryTemplate ? (
                     <Text style={{ color: AURORA.textMuted, fontSize: 11, marginBottom: 10 }}>
                         Weekly summary source: {weekSummarySource === 'ai' ? 'AI' : 'fallback template'}
                     </Text>
-                ) : null}
+                ) : null} */}
                 {aiLoading ? (
                     <AISummarySkeleton reduceMotion={reduceMotion} />
                 ) : weeklyAi ? (
