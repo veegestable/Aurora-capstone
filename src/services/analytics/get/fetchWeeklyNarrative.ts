@@ -1,41 +1,37 @@
-import { WEEKLY_ANALYTICS_SYSTEM_PROMPT } from '../../../constants/weeklyAnalyticsPrompt'
+import { httpsCallable } from 'firebase/functions'
+import { functions } from '../../../config/firebase'
 import {
-  buildWeekPayload,
-  parseAiResponse,
-  deterministicFallback,
+  buildWeekSummaryInput,
+  buildTemplateWeeklySummary,
   type MoodLogEntry,
-  type WeeklyAiResult,
+  type WeeklySummaryResult,
+  type WeekSummaryInput
 } from '../helpers'
 
-const CACHE_PREFIX = 'aurora_weekly_narrative_'
+const CACHE_PREFIX = 'aurora_weekly_narrative_v2_'
 
-/** Build a cache key scoped to user + calendar day. */
 function cacheKey(userId: string): string {
   const today = new Date().toISOString().split('T')[0]
   return `${CACHE_PREFIX}${userId}_${today}`
 }
 
-/** Read cached result from localStorage. Returns null if missing or expired. */
-function readCache(userId: string): WeeklyAiResult | null {
+function readCache(userId: string): WeeklySummaryResult | null {
   try {
     const raw = localStorage.getItem(cacheKey(userId))
     if (!raw) return null
-    const parsed = JSON.parse(raw) as WeeklyAiResult
-    // Basic shape check — if it has trend + summary, it's valid
-    if (parsed.trend && parsed.summary) return parsed
+    const parsed = JSON.parse(raw) as WeeklySummaryResult
+    if (parsed.summary) return parsed
     return null
   } catch {
     return null
   }
 }
 
-/** Write result to localStorage. Also cleans up old day keys. */
-function writeCache(userId: string, result: WeeklyAiResult): void {
+function writeCache(userId: string, result: WeeklySummaryResult): void {
   try {
     const key = cacheKey(userId)
     localStorage.setItem(key, JSON.stringify(result))
 
-    // Prune stale entries (older days) to avoid localStorage bloat
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i)
       if (k && k.startsWith(CACHE_PREFIX) && k !== key) {
@@ -43,79 +39,42 @@ function writeCache(userId: string, result: WeeklyAiResult): void {
       }
     }
   } catch {
-    // localStorage full or unavailable — silently skip
+    // silent
   }
 }
 
-/** Call OpenAI (or fallback) and return the narrative. */
-async function callApi(moodLogs: MoodLogEntry[]): Promise<WeeklyAiResult> {
-  const payload = buildWeekPayload(moodLogs)
-  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined
-
-  if (!apiKey?.trim()) return deterministicFallback(payload)
-
-  try {
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey.trim()}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'Aurora Capstone',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: WEEKLY_ANALYTICS_SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: JSON.stringify({
-              ...payload,
-              note: 'daily_mood uses -1 when there was no check-in; daily_stress uses None in that case.',
-            }),
-          },
-        ],
-        response_format: { type: 'json_object' },
-      }),
-    })
-
-    if (!res.ok) {
-      console.warn('[weeklyNarrative] OpenAI HTTP', res.status)
-      return deterministicFallback(payload)
-    }
-
-    const body = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string | null } }>
-    }
-    const raw = body.choices?.[0]?.message?.content
-    if (!raw || typeof raw !== 'string') return deterministicFallback(payload)
-
-    return parseAiResponse(raw) ?? deterministicFallback(payload)
-  } catch (err) {
-    console.warn('[weeklyNarrative] request failed', err)
-    return deterministicFallback(payload)
-  }
-}
-
-/**
- * Fetch a weekly AI narrative for the given mood logs.
- * Results are cached per user per calendar day in localStorage.
- *
- * @param userId  - Used as the cache key scope.
- * @param moodLogs - Last ~21 days of mood logs.
- * @param forceRefresh - Skip cache and call the API fresh (e.g. manual refresh button).
- */
 export async function fetchWeeklyNarrative(
   userId: string,
   moodLogs: MoodLogEntry[],
   forceRefresh = false,
-): Promise<WeeklyAiResult> {
+): Promise<WeeklySummaryResult> {
   if (!forceRefresh) {
     const cached = readCache(userId)
     if (cached) return cached
   }
 
-  const result = await callApi(moodLogs)
+  const payload = buildWeekSummaryInput(moodLogs)
+  const fallback = buildTemplateWeeklySummary(payload)
+
+  let result: WeeklySummaryResult
+  try {
+    const callable = httpsCallable<WeekSummaryInput, { summary?: string; fromAi?: boolean }>(
+      functions,
+      'generateWeeklySummaryAi'
+    )
+    const resp = await callable(payload)
+    const text = resp.data?.summary?.trim()
+    
+    if (!text) {
+      result = { summary: fallback, source: 'fallback' }
+    } else {
+      result = { summary: text, source: resp.data?.fromAi ? 'ai' : 'fallback' }
+    }
+  } catch (err) {
+    console.warn('[weeklyNarrative] cloud function failed', err)
+    result = { summary: fallback, source: 'fallback' }
+  }
+
   writeCache(userId, result)
   return result
 }

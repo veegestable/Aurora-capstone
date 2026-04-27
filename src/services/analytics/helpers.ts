@@ -1,162 +1,135 @@
-export type WeeklyTrend = 'Improving' | 'Declining' | 'Stable'
-
-export interface WeeklyAiResult {
-  trend: WeeklyTrend
-  summary: string
-  observations: string[]
-  recommendations: string[]
-  support_note: string
-  /** True when OpenAI returned valid JSON; false when fallback was used. */
-  fromAi: boolean
-}
+import { getEmotionLabel } from '../../utils/moodColors'
 
 export interface MoodLogEntry {
   log_date: Date
   energy_level: number
   stress_level: number
+  dominant_emotion?: string
 }
 
-type StressBand = 'Low' | 'Moderate' | 'High' | 'None'
-
-export interface WeekPayload {
-  dates: string[]
-  daily_mood: number[]
-  daily_stress: StressBand[]
+export interface WeekSummaryInput {
+  weekLabel: string;
+  dominantMood: string;
+  averageIntensity: number;
+  mostFrequentMood: string;
+  bestDay: string;
+  hardestDay: string;
+  totalEntries: number;
+  dailyBreakdown: {
+    day: string;
+    dominantMood: string;
+    avgIntensity: number;
+    entryCount: number;
+  }[];
 }
 
-/** Map numeric stress_level (1-10) to a band label. */
-function classifyStress(level: number): StressBand {
-  if (level <= 3) return 'Low'
-  if (level <= 6) return 'Moderate'
-  return 'High'
-}
+export type WeeklySummaryResult = {
+  summary: string;
+  source: 'ai' | 'fallback';
+};
 
-/** Map energy_level (1-10) to a 1-5 mood scale. */
-function energyToMoodScale(energy: number): number {
-  if (energy <= 2) return 1
-  if (energy <= 4) return 2
-  if (energy <= 6) return 3
-  if (energy <= 8) return 4
-  return 5
-}
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-/** Produce a date string like "2026-04-19" from a Date. */
-function dayKey(d: Date): string {
+function getDayKey(d: Date): string {
   return d.toISOString().split('T')[0]
 }
 
-function isWeeklyTrend(s: string): s is WeeklyTrend {
-  return s === 'Improving' || s === 'Declining' || s === 'Stable'
+export function buildTemplateWeeklySummary(data: WeekSummaryInput): string {
+  if (data.totalEntries === 0) {
+    return 'No check-ins were recorded in this window.'
+  }
+  const parts: string[] = []
+  parts.push(`You logged ${data.totalEntries} check-in${data.totalEntries === 1 ? '' : 's'} ${data.weekLabel}.`)
+  parts.push(`Average intensity was about ${data.averageIntensity.toFixed(1)} (1–10), and the mood that appeared most often was ${data.mostFrequentMood}.`)
+  if (data.bestDay !== '—' && data.hardestDay !== '—' && data.bestDay !== data.hardestDay) {
+    parts.push(`You tended to rate highest on ${data.bestDay} and most strained on ${data.hardestDay}.`)
+  }
+  return parts.join(' ')
 }
 
-/** Build aligned 7-day series from mood logs. */
-export function buildWeekPayload(logs: MoodLogEntry[]): WeekPayload {
+export function buildWeekSummaryInput(logs: MoodLogEntry[]): WeekSummaryInput {
   const today = new Date()
-  const dates: string[] = []
-  const daily_mood: number[] = []
-  const daily_stress: StressBand[] = []
-
+  const dayKeys: string[] = []
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today)
     d.setHours(12, 0, 0, 0)
     d.setDate(d.getDate() - i)
-    const key = dayKey(d)
-    dates.push(key)
-
-    const dayLogs = logs.filter((l) => dayKey(l.log_date) === key)
-    if (dayLogs.length === 0) {
-      daily_mood.push(-1)
-      daily_stress.push('None')
-      continue
-    }
-
-    const latest = dayLogs.reduce((a, b) =>
-      b.log_date.getTime() >= a.log_date.getTime() ? b : a
-    )
-    daily_mood.push(energyToMoodScale(latest.energy_level))
-    daily_stress.push(classifyStress(latest.stress_level))
+    dayKeys.push(getDayKey(d))
   }
 
-  return { dates, daily_mood, daily_stress }
-}
+  const entries = logs.map(l => ({
+    ...l,
+    dayKey: getDayKey(new Date(l.log_date)),
+    mood: l.dominant_emotion ? getEmotionLabel(l.dominant_emotion) : 'Unknown',
+    intensity: l.energy_level
+  })).filter(e => dayKeys.includes(e.dayKey))
 
-/** Parse OpenAI JSON response into a WeeklyAiResult. */
-export function parseAiResponse(raw: string): WeeklyAiResult | null {
-  try {
-    const o = JSON.parse(raw) as Record<string, unknown>
-    const trend = typeof o.trend === 'string' && isWeeklyTrend(o.trend) ? o.trend : null
-    const summary = typeof o.summary === 'string' ? o.summary : null
+  const moods = entries.map(e => e.mood.toLowerCase())
+  const counts: Record<string, number> = {}
+  for (const m of moods) counts[m] = (counts[m] ?? 0) + 1
+  let mostFrequentMood = '—'
+  let mc = 0
+  for (const [k, v] of Object.entries(counts)) {
+    if (v > mc) {
+      mc = v
+      mostFrequentMood = k
+    }
+  }
 
-    if (!trend || !summary) return null
+  const averageIntensity = entries.length > 0 
+    ? entries.reduce((s, e) => s + e.intensity, 0) / entries.length 
+    : 0
+
+  const dailyBreakdown = dayKeys.map(dk => {
+    const dayEntries = entries.filter(e => e.dayKey === dk)
+    const [y, m, d] = dk.split('-').map(Number)
+    const wd = DOW[new Date(y, m - 1, d).getDay()]
+    
+    let domMood = '—'
+    if (dayEntries.length > 0) {
+      const dCounts: Record<string, number> = {}
+      dayEntries.forEach(e => { dCounts[e.mood] = (dCounts[e.mood] ?? 0) + 1 })
+      domMood = Object.entries(dCounts).sort((a,b) => b[1] - a[1])[0][0]
+    }
 
     return {
-      trend,
-      summary,
-      observations: Array.isArray(o.observations)
-        ? o.observations.filter((x): x is string => typeof x === 'string')
-        : [],
-      recommendations: Array.isArray(o.recommendations)
-        ? o.recommendations.filter((x): x is string => typeof x === 'string')
-        : [],
-      support_note: typeof o.support_note === 'string' ? o.support_note : '',
-      fromAi: true,
+      day: wd,
+      dominantMood: domMood,
+      avgIntensity: dayEntries.length ? dayEntries.reduce((s,e) => s + e.intensity, 0) / dayEntries.length : 0,
+      entryCount: dayEntries.length,
     }
-  } catch {
-    return null
-  }
-}
+  })
 
-/** Deterministic fallback when OpenAI is unavailable. */
-export function deterministicFallback(payload: WeekPayload): WeeklyAiResult {
-  const moods = payload.daily_mood.filter((m) => m >= 1 && m <= 5)
-  let trend: WeeklyTrend = 'Stable'
+  let bestDay = '—'
+  let bestI = -1
+  let hardestDay = '—'
+  let hardestRank = Infinity
 
-  if (moods.length >= 4) {
-    const mid = Math.floor(moods.length / 2)
-    const firstHalf = moods.slice(0, mid)
-    const secondHalf = moods.slice(mid)
-    const avg1 = firstHalf.reduce((s, x) => s + x, 0) / firstHalf.length
-    const avg2 = secondHalf.reduce((s, x) => s + x, 0) / secondHalf.length
-    if (avg2 - avg1 >= 0.35) trend = 'Improving'
-    else if (avg1 - avg2 >= 0.35) trend = 'Declining'
-  }
-
-  const daysLogged = moods.length
-  const avgMood = daysLogged > 0
-    ? (moods.reduce((s, x) => s + x, 0) / daysLogged).toFixed(1)
-    : null
-
-  const stressBands = payload.daily_stress.filter((s) => s !== 'None')
-  const counts: Record<string, number> = {}
-  for (const b of stressBands) counts[b] = (counts[b] ?? 0) + 1
-  const dominantStress = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—'
-
-  const summaryParts: string[] = []
-  if (daysLogged === 0) {
-    summaryParts.push('No check-ins were recorded this week.')
-  } else {
-    if (avgMood) summaryParts.push(`Average mood was about ${avgMood} on a 1–5 scale.`)
-    if (dominantStress !== '—') summaryParts.push(`Stress levels were mostly ${dominantStress}.`)
-    summaryParts.push(`${daysLogged} day(s) had a check-in.`)
-  }
-
-  const lowMoodDays = payload.daily_mood.filter((m) => m >= 1 && m <= 2).length
-  const highStressDays = payload.daily_stress.filter((s) => s === 'High').length
+  dayKeys.forEach((dk, i) => {
+    const dayEntries = entries.filter(e => e.dayKey === dk)
+    if (dayEntries.length === 0) return
+    const avgI = dayEntries.reduce((s,e) => s + e.intensity, 0) / dayEntries.length
+    const avgS = dayEntries.reduce((s,e) => s + e.stress_level, 0) / dayEntries.length
+    
+    if (avgI > bestI) {
+      bestI = avgI
+      bestDay = dailyBreakdown[i].day
+    }
+    const rank = (avgI * -1) + avgS
+    if (rank < hardestRank) {
+      hardestRank = rank
+      hardestDay = dailyBreakdown[i].day
+    }
+  })
 
   return {
-    trend,
-    summary: summaryParts.join(' ') || 'Keep logging to see patterns.',
-    observations: daysLogged > 0
-      ? ['Keep up your daily check-in habit - consistency helps you notice patterns.']
-      : ['No check-ins this week - your summary will fill in as you log.'],
-    recommendations: [
-      'Consider short breaks between study blocks.',
-      'Try to spread tasks across the week when possible.',
-    ],
-    support_note:
-      lowMoodDays >= 2 || highStressDays >= 2
-        ? 'If you would like support, you can reach out to a guidance counselor through the app.'
-        : '',
-    fromAi: false,
+    weekLabel: 'this week',
+    dominantMood: mostFrequentMood,
+    averageIntensity,
+    mostFrequentMood,
+    bestDay,
+    hardestDay,
+    totalEntries: entries.length,
+    dailyBreakdown,
   }
 }
