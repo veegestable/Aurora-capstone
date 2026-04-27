@@ -106,7 +106,7 @@ function weekMoodTone(avgMood: number | null): { label: string; color: string } 
     if (avgMood == null) return { label: 'Not enough check-ins', color: AURORA.blue };
     if (avgMood >= 4.2) return { label: 'Mostly good', color: AURORA.moodHappy };
     if (avgMood >= 3.4) return { label: 'Mostly okay', color: AURORA.moodNeutral };
-    if (avgMood >= 2.6) return { label: 'Ups and downs today', color: AURORA.moodSurprise };
+    if (avgMood >= 2.6) return { label: 'Ups and downs this week', color: AURORA.moodSurprise };
     return { label: 'Mostly low', color: AURORA.moodSad };
 }
 
@@ -433,6 +433,7 @@ export default function Analytics() {
     const [weekSummaryTemplate, setWeekSummaryTemplate] = useState('');
     const [activeWeekPill, setActiveWeekPill] = useState<'days' | 'checkins' | 'streak' | null>(null);
     const [logs, setLogs] = useState<(MoodData & { log_date: Date; id?: string })[]>([]);
+    const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
     const [weeklyAi, setWeeklyAi] = useState<WeeklyAiResult | null>(null);
     const [celebrateMilestone, setCelebrateMilestone] = useState(false);
     const prevStreakRef = useRef<number | null>(null);
@@ -509,6 +510,7 @@ export default function Analytics() {
                 const moodLogs = await moodService.getMoodLogs(user.id, startDate.toISOString(), endDate.toISOString());
                 const list = (moodLogs || []) as (MoodData & { log_date: Date })[];
                 setLogs(list);
+                setLastUpdatedAt(new Date());
                 return list;
             } catch (e) {
                 console.error('Analytics logs refresh failed', e);
@@ -870,6 +872,10 @@ export default function Analytics() {
         }
         return `You felt best on ${best.label} and most stressed on ${hardest.label}.`;
     }, [logs, dayResetHour, timezone, last7Logs]);
+    const lastUpdatedLabel = useMemo(() => {
+        if (!lastUpdatedAt) return 'Updated just now';
+        return `Updated ${lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    }, [lastUpdatedAt]);
 
     const trendPlainSentence = useMemo(() => {
         if (!weeklyAi) return '';
@@ -998,6 +1004,9 @@ export default function Analytics() {
                         </TouchableOpacity>
                     </View>
                 </View>
+                <Text style={{ color: UI_TEXT_MUTED, fontSize: 11, marginTop: 6 }}>
+                    {lastUpdatedLabel}
+                </Text>
             </View>
 
             {analyticsView === 'today' ? (
@@ -1273,7 +1282,7 @@ export default function Analytics() {
                                     elevation: activeWeekPill === pill.key ? 5 : 3,
                                 }}
                             >
-                                <Text style={{ color: AURORA.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 0.7 }}>
+                                <Text style={{ color: UI_TEXT_MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 0.7 }}>
                                     {pill.label.toUpperCase()}
                                 </Text>
                                 <Text style={{ color: AURORA.textPrimary, fontSize: 24, fontWeight: '900', marginTop: 8 }}>
@@ -1283,6 +1292,9 @@ export default function Analytics() {
                         ))}
                     </View>
                 </ScrollView>
+                <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 11, marginBottom: 10 }}>
+                    Based on your last 7 days of check-ins.
+                </Text>
                 {explainer ? (
                     <View
                         style={{
@@ -1337,13 +1349,13 @@ export default function Analytics() {
                         </View>
                     </View>
                     <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginTop: 14 }}>
-                        Weekly summary
+                        Weekly trend
                     </Text>
                     <Text style={{ color: AURORA.textPrimary, fontSize: 32, fontWeight: '900', marginTop: 4 }}>
-                        {`Mood: ${weekMoodMeta.label}`}
+                        {`Mood trend: ${weekMoodMeta.label}`}
                     </Text>
-                    <Text style={{ color: weekAverageMoodColor, fontSize: 15, fontWeight: '800', marginTop: 8 }}>
-                        {`Average mood: ${weekWellnessStats.emotionLabel}`}
+                    <Text style={{ color: weekAverageMoodColor, fontSize: 15, fontWeight: '800', marginTop: 8, lineHeight: 20 }}>
+                        {`Most common mood: ${weekWellnessStats.emotionLabel}`}
                     </Text>
                     {/* <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 10, lineHeight: 19 }}>
                         {averageMoodPlainLine(displayWeekAvgMood)}
