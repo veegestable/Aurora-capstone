@@ -3,18 +3,19 @@
  * Did the student show up? Showed Up / Did Not Show Up / Needs Rescheduling
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Modal,
     View,
     Text,
     TouchableOpacity,
-    Image,
     StyleSheet,
 } from 'react-native';
+import { doc, getDoc } from 'firebase/firestore';
 import { Check, X, RotateCcw, ChevronRight } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
+import { db } from '../../services/firebase';
 
 export type AttendanceStatus = 'showed_up' | 'did_not_show' | 'needs_rescheduling';
 
@@ -46,6 +47,32 @@ export default function SessionAttendanceModal({
     onMarkLater,
     onMarkStatus,
 }: SessionAttendanceModalProps) {
+    const [resolvedAvatarUrl, setResolvedAvatarUrl] = useState(student.avatar ?? '');
+
+    useEffect(() => {
+        let cancelled = false;
+        setResolvedAvatarUrl(student.avatar ?? '');
+
+        const loadAvatar = async () => {
+            if (!visible || !student.id) return;
+            try {
+                const snap = await getDoc(doc(db, 'users', student.id));
+                if (cancelled || !snap.exists()) return;
+                const avatar = snap.data()?.avatar_url;
+                if (typeof avatar === 'string' && avatar.trim()) {
+                    setResolvedAvatarUrl(avatar);
+                }
+            } catch {
+                // Keep provided avatar fallback.
+            }
+        };
+
+        void loadAvatar();
+        return () => {
+            cancelled = true;
+        };
+    }, [visible, student.id, student.avatar]);
+
     if (!visible) return null;
 
     const options: { status: AttendanceStatus; label: string; icon: typeof Check; isPrimary?: boolean }[] = [
@@ -73,7 +100,7 @@ export default function SessionAttendanceModal({
                     {/* Student Card */}
                     <View style={styles.studentCard}>
                         <View style={styles.avatarWrap}>
-                            <LetterAvatar name={student.name} size={64} />
+                            <LetterAvatar name={student.name} size={64} avatarUrl={resolvedAvatarUrl || undefined} />
                             <View style={styles.onlineDot} />
                         </View>
                         <Text style={styles.studentName}>{student.name}</Text>

@@ -358,9 +358,7 @@ export default function SessionHistoryScreen() {
                     <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '700' }}>
                         Session History
                     </Text>
-                    <TouchableOpacity style={{ padding: 4 }}>
-                        <MoreVertical size={22} color={AURORA.textSec} />
-                    </TouchableOpacity>
+                    <View style={{ width: 32 }} />
                 </View>
 
                 {/* Search */}
