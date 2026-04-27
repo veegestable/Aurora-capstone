@@ -57,15 +57,19 @@ export default function SessionRequestCard({
 
                 <View style={styles.row}>
                     <Clock size={14} color={AURORA.textSec} style={styles.rowIcon} />
-                    <Text style={styles.rowLabel}>Preferred time</Text>
-                    <Text style={styles.rowValue} numberOfLines={1}>{data.preferredTime}</Text>
+                    <View style={styles.rowContent}>
+                        <Text style={styles.rowLabel}>Preferred time</Text>
+                        <Text style={styles.rowValue} numberOfLines={2}>
+                            {data.preferredTime}
+                        </Text>
+                    </View>
                 </View>
 
                 <View style={styles.noteBlock}>
                     <FileText size={14} color={AURORA.textSec} style={styles.rowIcon} />
                     <View style={styles.noteContent}>
                         <Text style={styles.rowLabel}>Your note</Text>
-                        <Text style={styles.noteText} numberOfLines={3}>
+                        <Text style={styles.noteText} numberOfLines={2}>
                             {data.note || 'No note added'}
                         </Text>
                     </View>
@@ -184,21 +188,25 @@ const styles = StyleSheet.create({
     },
     row: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         marginBottom: 10,
     },
     rowIcon: {
         marginRight: 8,
+        marginTop: 2,
+    },
+    rowContent: {
+        flex: 1,
     },
     rowLabel: {
         color: AURORA.textMuted,
         fontSize: 12,
-        width: 90,
     },
     rowValue: {
-        flex: 1,
-        color: '#FFFFFF',
-        fontSize: 14,
+        color: '#E8EEFF',
+        fontSize: 13,
+        marginTop: 2,
+        lineHeight: 19,
     },
     noteBlock: {
         flexDirection: 'row',
@@ -211,7 +219,7 @@ const styles = StyleSheet.create({
     noteText: {
         color: AURORA.textSec,
         fontSize: 13,
-        lineHeight: 20,
+        lineHeight: 19,
         marginTop: 2,
     },
     actions: {
@@ -225,7 +233,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         backgroundColor: AURORA.blue,
         borderRadius: 10,
-        paddingVertical: 12,
+        paddingVertical: 11,
         gap: 6,
     },
     primaryBtnText: {
@@ -238,7 +246,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        paddingVertical: 12,
+        paddingVertical: 11,
         paddingHorizontal: 16,
         borderRadius: 10,
         borderWidth: 1,
