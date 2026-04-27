@@ -28,6 +28,7 @@ import {
     Users,
     Zap,
     MessageSquare,
+    CircleHelp,
 } from 'lucide-react-native';
 import { moodService } from '../services/mood.service';
 import { AURORA } from '../constants/aurora-colors';
@@ -334,6 +335,20 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
             setIsSubmitting(false);
             Alert.alert('Error', error?.message || 'Failed to check in');
         }
+    };
+
+    const showScaleGuide = (type: 'energy' | 'stress') => {
+        if (type === 'energy') {
+            Alert.alert(
+                'Energy scale (1-5)',
+                'Rate how energized you feel right now.\n\n1 - Exhausted\n2 - Low energy\n3 - Okay / average\n4 - Active\n5 - Very energized'
+            );
+            return;
+        }
+        Alert.alert(
+            'Stress scale (1-5)',
+            'Rate how pressured or tense you feel right now.\n\n1 - Very calm\n2 - Slightly tense\n3 - Moderate stress\n4 - High stress\n5 - Overwhelmed'
+        );
     };
 
     const schoolTagCount = selectedTags.filter((tag) => SCHOOL_TAGS.includes(tag)).length;
@@ -717,6 +732,13 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
                                 <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>Energy</Text>
                                 <Text style={{ color: AURORA.textMuted, fontWeight: '500' }}>(1-5)</Text>
                             </View>
+                            <TouchableOpacity
+                                onPress={() => showScaleGuide('energy')}
+                                style={{ padding: 4, marginLeft: 'auto' }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <CircleHelp size={16} color={AURORA.textMuted} />
+                            </TouchableOpacity>
                         </View>
                         <SimpleSlider
                             value={(energyLevel - 1) / 4}
@@ -734,6 +756,13 @@ export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps
                                 <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>Stress</Text>
                                 <Text style={{ color: AURORA.textMuted, fontWeight: '500' }}>(1-5)</Text>
                             </View>
+                            <TouchableOpacity
+                                onPress={() => showScaleGuide('stress')}
+                                style={{ padding: 4, marginLeft: 'auto' }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <CircleHelp size={16} color={AURORA.textMuted} />
+                            </TouchableOpacity>
                         </View>
                         <SimpleSlider
                             value={(stressLevel - 1) / 4}
