@@ -823,7 +823,7 @@ export default function ProfileScreen() {
                                 Device notifications are blocked in system settings, so session alerts may not appear.
                             </Text>
                         ) : null}
-                        <TouchableOpacity
+                        {/* <TouchableOpacity
                             onPress={async () => {
                                 const ok = await sendTestDailyCheckInNotification();
                                 if (!ok) {
@@ -847,7 +847,7 @@ export default function ProfileScreen() {
                             }}
                         >
                             <Text style={{ color: '#9EB5EA', fontSize: 12, fontWeight: '600' }}>Send test notification now</Text>
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                     </View>
                     <Modal visible={showReminderTimePicker} transparent animationType="slide">
                         <TouchableOpacity

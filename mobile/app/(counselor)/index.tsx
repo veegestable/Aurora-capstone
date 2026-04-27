@@ -377,7 +377,7 @@ export default function CounselorHomeScreen() {
                             cardBg="rgba(5,67,52,0.5)"
                         />
                     </View>
-                    <View style={{ marginBottom: 10 }}>
+                    {/* <View style={{ marginBottom: 10 }}>
                         <View
                             style={{
                                 backgroundColor: 'rgba(139, 92, 246, 0.14)',
@@ -401,7 +401,7 @@ export default function CounselorHomeScreen() {
                                 {needsFollowUpCount}
                             </Text>
                         </View>
-                    </View>
+                    </View> */}
 
 
 
