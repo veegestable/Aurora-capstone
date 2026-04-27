@@ -1,14 +1,14 @@
 import type { QueryDocumentSnapshot } from 'firebase/firestore'
 import type { Announcement } from '../../types/announcement.types'
 
-export const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000
+const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000
 
 export const MOCK_ANNOUNCEMENTS: Announcement[] = [
   {
     id: 'mock-1',
     title: 'Welcome to Aurora',
     content:
-        'Your mental wellness companion. Track your mood, connect with counselors, and explore resources tailored for you.',
+      'Your mental wellness companion. Track your mood, connect with counselors, and explore resources tailored for you.',
     imageUrl: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400',
     targetRole: 'all',
     createdBy: 'system',

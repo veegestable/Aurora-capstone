@@ -4,7 +4,7 @@
  */
 
 /** How many calendar days of mood_logs counselors may review when a student opts in. */
-export const COUNSELOR_CHECKIN_WINDOW_DAYS = 3
+const COUNSELOR_CHECKIN_WINDOW_DAYS = 3
 
 export function counselorCheckInWindowStart(): Date {
   const d = new Date()
@@ -12,6 +12,3 @@ export function counselorCheckInWindowStart(): Date {
   d.setHours(0, 0, 0, 0)
   return d
 }
-
-export const COUNSELOR_VISIBLE_CHECKIN_SUMMARY =
-  'Only your self-reported stress and energy from recent check-ins, the time of each check-in, and a simple mood label if you logged one. Your private notes stay on your device and are not shown to guidance in Aurora.'
