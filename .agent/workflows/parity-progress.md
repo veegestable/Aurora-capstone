@@ -195,11 +195,11 @@ description:
 |------|-------------|--------|
 | **E1** | Counselor Signals system (replace risk levels with ethics-compliant signal pills) | ~~Large~~ ✅ Done |
 | **E4** | Mood V2 dual-source merging (legacy `mood_logs` + v2 `moodLogs/{uid}/entries`) | ~~Medium~~ ✅ Done |
-| **E2** | StudentProfileModal with check-in summary | Medium |
+| **E2** | StudentProfileModal with check-in summary | ~~Medium~~ ✅ Done |
 | **E3** | Daily Selfie Screen | ~~Small~~ ✅ Done |
 | **E5** | UserDaySettings context | ~~Medium~~ ✅ Done |
 | **E6** | Weekly Summary via Cloud Functions | ~~Small~~ ✅ Done |
-| **E7** | Counselor Profile — Edit Modal + avatar upload | Medium |
+| **E7** | Counselor Profile — Edit Modal + avatar upload | ~~Medium~~ ✅ Done |
 
 **E1 details:**
 - Created `src/constants/counselor-checkin-signals.ts` — `CounselorSignalPill` type, label/sort maps, `counselorSignalFromLogs()` derivation
@@ -235,15 +235,14 @@ description:
 - Simplified `WeeklyNarrative.tsx` to display the backend's plain-text summary instead of parsing JSON arrays.
 
 ### Phase F: Admin Placeholder Pages
-
 | Item | Description | Effort |
 |------|-------------|--------|
-| **F1** | Admin Students (real page) | Medium |
-| **F2** | Admin Resources (real page) | Medium |
-| **F3** | Admin Analytics (real page) | Small |
-| **F4** | Admin CounselorDetail | Small |
-| **F5** | Admin StudentDetail | Small |
-| **F6** | Admin ResourceDetail | Small |
+| **F1** | Admin Students (real page) | ~~Medium~~ ✅ Done |
+| **F2** | Admin Resources (real page) | ~~Medium~~ ✅ Done |
+| **F3** | Admin Analytics (real page) | ~~Small~~ ✅ Done |
+| **F4** | Admin CounselorDetail | ~~Small~~ ✅ Done |
+| **F5** | Admin StudentDetail | ~~Small~~ ✅ Done |
+| **F6** | Admin ResourceDetail | ~~Small~~ ✅ Done |
 
 ---
 
