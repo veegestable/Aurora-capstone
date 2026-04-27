@@ -75,6 +75,23 @@ function getSignalStyle(signal: CounselorSignalPill) {
     }
 }
 
+function signalChipLabel(signal: CounselorSignalPill): string {
+    switch (signal) {
+        case 'higher_self_report':
+            return 'High self-report';
+        case 'moderate_self_report':
+            return 'Monitor';
+        case 'typical_self_report':
+            return 'Typical self-report';
+        case 'no_checkins':
+            return 'No check-ins';
+        case 'sharing_off':
+            return 'Sharing off';
+        default:
+            return COUNSELOR_SIGNAL_LABEL[signal];
+    }
+}
+
 // ─── Student Card ──────────────────────────────────────────────────────────────
 function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () => void }) {
     const style = getSignalStyle(student.signal);
@@ -110,10 +127,10 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
                 </Text>
                 <Text
                     style={{
-                        color: AURORA.textSec, fontSize: 11,
+                        color: '#A8B8DC', fontSize: 11,
                         fontWeight: '700', letterSpacing: 0.5, marginBottom: 8,
                     }}
-                    numberOfLines={3}
+                    numberOfLines={1}
                     ellipsizeMode="tail"
                 >
                     {programText}
@@ -126,7 +143,7 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
                         borderWidth: 1, borderColor: `${style.text}44`,
                     }}>
                         <Text style={{ color: style.text, fontSize: 10, fontWeight: '800', letterSpacing: 0.35 }} numberOfLines={2}>
-                            {COUNSELOR_SIGNAL_LABEL[student.signal]}
+                            {signalChipLabel(student.signal)}
                         </Text>
                     </View>
                     <Text
@@ -134,7 +151,9 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
                         numberOfLines={2}
                         ellipsizeMode="tail"
                     >
-                        Last log: {student.lastLog}
+                        {student.signal === 'sharing_off'
+                            ? 'Check-in sharing: Off'
+                            : `Last check-in: ${student.lastLog}`}
                     </Text>
                 </View>
             </View>
@@ -304,7 +323,7 @@ export default function CounselorStudentsScreen() {
                                 Open a student to see optional check-ins or invite them to a session
                             </Text>
                         </View>
-                        <TouchableOpacity style={{
+                        {/* <TouchableOpacity style={{
                             width: 42, height: 42, borderRadius: 21,
                             backgroundColor: AURORA.card,
                             alignItems: 'center', justifyContent: 'center',
@@ -318,7 +337,7 @@ export default function CounselorStudentsScreen() {
                                 backgroundColor: AURORA.blue,
                                 borderWidth: 1.5, borderColor: AURORA.card,
                             }} />
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                     </View>
 
                     <View style={{ paddingHorizontal: 20, marginBottom: 14 }}>

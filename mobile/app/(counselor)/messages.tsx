@@ -12,6 +12,7 @@ import {
     TextInput, KeyboardAvoidingView, Platform, ActivityIndicator,
     Alert, Pressable,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     Search, ArrowLeft, AlertTriangle,
@@ -80,22 +81,20 @@ function ConversationRow({
     item: Conversation;
     onPress: () => void;
 }) {
+    const previewIsSessionMeta = item.preview?.toLowerCase().startsWith('session:');
     return (
         <TouchableOpacity
             onPress={onPress}
             activeOpacity={0.85}
             style={{
                 flexDirection: 'row', alignItems: 'center',
-                backgroundColor: AURORA.card, borderRadius: 16,
+                backgroundColor: item.isUnread ? 'rgba(45,107,255,0.12)' : AURORA.card, borderRadius: 16,
                 marginBottom: 10, overflow: 'hidden',
-                borderWidth: 1, borderColor: AURORA.border,
+                borderWidth: 1, borderColor: item.isUnread ? 'rgba(45,107,255,0.45)' : AURORA.border,
             }}
         >
             {/* Left color border */}
-            {item.borderColor && (
-                <View style={{ width: 3, backgroundColor: item.borderColor, alignSelf: 'stretch' }} />
-            )}
-            {!item.borderColor && <View style={{ width: 3 }} />}
+            <View style={{ width: 3, backgroundColor: AURORA.blue, alignSelf: 'stretch' }} />
 
             {/* Avatar */}
             <View style={{ position: 'relative', margin: 12 }}>
@@ -133,9 +132,9 @@ function ConversationRow({
                 <Text
                     numberOfLines={1}
                     style={{
-                        color: item.isAlerted ? AURORA.orange : AURORA.textSec,
-                        fontSize: 13,
-                        fontWeight: item.isAlerted ? '500' : '400',
+                        color: item.isAlerted ? AURORA.orange : previewIsSessionMeta ? '#AFC0E8' : AURORA.textSec,
+                        fontSize: previewIsSessionMeta ? 12 : 13,
+                        fontWeight: previewIsSessionMeta ? '500' : item.isAlerted ? '500' : '400',
                     }}
                 >
                     {item.preview}
@@ -168,6 +167,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
     const [showInviteModalForSessionRequest, setShowInviteModalForSessionRequest] = useState<string | null>(null);
     const [showAttendanceModal, setShowAttendanceModal] = useState(false);
     const [selectedSessionForAttendance, setSelectedSessionForAttendance] = useState<SessionCardData | null>(null);
+    const [expandedSessionRequestNotes, setExpandedSessionRequestNotes] = useState<Record<string, boolean>>({});
     const scrollViewRef = useRef<ScrollView>(null);
 
     useEffect(() => {
@@ -189,6 +189,12 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
             }
         );
         return unsub;
+    }, [conversationId, user?.id]);
+
+    // Mark conversation as read as soon as counselor opens it.
+    useEffect(() => {
+        if (!conversationId || !user?.id) return;
+        firestoreService.markConversationAsRead(conversationId, user.id).catch(() => {});
     }, [conversationId, user?.id]);
 
     // Always scroll to the latest message when opening a conversation.
@@ -268,6 +274,10 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
 
     const handleAcceptSessionRequest = async (sessionId: string | null, preferredTime: string) => {
         if (!sessionId || !preferredTime || sending || !conversationId || !user?.id) return;
+        if (isSessionTimeExpired(preferredTime)) {
+            Alert.alert('Request expired', 'This session request can no longer be accepted because the requested time has already passed.');
+            return;
+        }
         setSending(true);
         try {
             const slot = parsePreferredTimeToSlot(preferredTime);
@@ -379,6 +389,13 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
         ]);
     };
 
+    const isLikelyDateLabel = (value: string) =>
+        /^[A-Za-z]{3,9}\s+\d{1,2}(,\s*\d{4})?$/.test(value.trim()) ||
+        /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(value.trim());
+
+    const shortenNote = (text: string, max = 90) =>
+        text.length > max ? `${text.slice(0, max).trimEnd()}...` : text;
+
     return (
         <>
         <KeyboardAvoidingView
@@ -393,7 +410,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                     paddingHorizontal: 16, paddingVertical: 12,
                     borderBottomWidth: 1, borderBottomColor: AURORA.border,
                 }}>
-                    <TouchableOpacity onPress={onBack} style={{ padding: 4 }}>
+                    <TouchableOpacity onPress={onBack} style={{ width: 30, alignItems: 'flex-start', padding: 4 }}>
                         <ArrowLeft size={22} color="#FFFFFF" />
                     </TouchableOpacity>
                     <View style={{ flex: 1, alignItems: 'center' }}>
@@ -413,9 +430,10 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                             </Text>
                         </View>
                     </View>
-                    <TouchableOpacity style={{ padding: 4 }}>
+                    <View style={{ width: 30 }} />
+                    {/* <TouchableOpacity style={{ padding: 4 }}>
                         <Info size={22} color={AURORA.textSec} />
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                 </View>
 
                 {/* Privacy Banner */}
@@ -423,31 +441,32 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                     backgroundColor: 'rgba(124,58,237,0.12)',
                     borderWidth: 1, borderColor: 'rgba(124,58,237,0.25)',
                     borderRadius: 12, marginHorizontal: 16, marginTop: 12,
-                    paddingVertical: 10, paddingHorizontal: 14,
+                    paddingVertical: 7, paddingHorizontal: 12,
                 }}>
                     <Text style={{
-                        color: AURORA.purple, fontSize: 11, fontWeight: '700',
-                        textAlign: 'center', letterSpacing: 0.8,
+                        color: AURORA.purple, fontSize: 10, fontWeight: '700',
+                        textAlign: 'center', letterSpacing: 0.45,
                     }}>
                         COUNSELOR — STUDENT PRIVATE CONVERSATION
                     </Text>
                 </View>
 
                 {/* Messages */}
-                <ScrollView
-                    ref={scrollViewRef}
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 16 }}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode="on-drag"
-                >
-                    {loadingMessages ? (
-                        <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                            <ActivityIndicator size="small" color={AURORA.blue} />
-                        </View>
-                    ) : (
-                    messages.map(msg => {
+                <View style={{ flex: 1 }}>
+                    <ScrollView
+                        ref={scrollViewRef}
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 16 }}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
+                    >
+                        {loadingMessages ? (
+                            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                                <ActivityIndicator size="small" color={AURORA.blue} />
+                            </View>
+                        ) : (
+                        messages.map((msg, idx) => {
                         const isMe = msg.senderId === 'me';
                         // Counselor should always show student session requests on the left (student perspective).
                         const isSessionRequest = msg.type === 'session_request';
@@ -464,6 +483,9 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
 
                         const canDeleteText = isMe;
                         const canCopyText = msg.type === 'text' ? !msg.text.startsWith('[Deleted') : true;
+                        const isDateStamp = isLikelyDateLabel(msg.time);
+                        const prevTime = idx > 0 ? messages[idx - 1].time : null;
+                        const showDateSeparator = isDateStamp && prevTime !== msg.time;
 
                         const messageContent =
                             msg.type === 'text' ? (
@@ -532,20 +554,28 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                 </Pressable>
                             ) : msg.type === 'session_request' ? (
                                 <View>
+                                    {(() => {
+                                        const note = msg.sessionRequest.note || '';
+                                        const expanded = !!expandedSessionRequestNotes[msg.id];
+                                        const noteForCard = expanded ? note : shortenNote(note);
+                                        return (
+                                            <>
                                     <SessionRequestReceivedCard
                                         isFromMe={false}
                                         data={{
                                             sessionId: msg.sessionRequest.sessionId ?? '',
                                             title: 'Session Request',
                                             preferredTime: msg.sessionRequest.preferredTime || undefined,
-                                            note: msg.sessionRequest.note,
+                                            note: noteForCard,
                                             status: msg.sessionRequest.status,
                                             isExpired: msg.sessionRequest.preferredTime
                                                 ? isSessionTimeExpired(msg.sessionRequest.preferredTime)
                                                 : false,
                                         }}
                                         onAccept={
-                                            msg.sessionRequest.sessionId && msg.sessionRequest.preferredTime
+                                            msg.sessionRequest.sessionId &&
+                                            msg.sessionRequest.preferredTime &&
+                                            !isSessionTimeExpired(msg.sessionRequest.preferredTime)
                                                 ? () =>
                                                       handleAcceptSessionRequest(
                                                           msg.sessionRequest.sessionId!,
@@ -559,6 +589,24 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                                 : undefined
                                         }
                                     />
+                                    {note.length > 90 ? (
+                                        <TouchableOpacity
+                                            onPress={() =>
+                                                setExpandedSessionRequestNotes((prev) => ({
+                                                    ...prev,
+                                                    [msg.id]: !prev[msg.id],
+                                                }))
+                                            }
+                                            style={{ alignSelf: 'flex-start', marginTop: 6 }}
+                                        >
+                                            <Text style={{ color: AURORA.blue, fontSize: 11, fontWeight: '700' }}>
+                                                {expanded ? 'Hide note' : 'Show note'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ) : null}
+                                            </>
+                                        );
+                                    })()}
                                     <Text
                                         style={{
                                             color: 'rgba(255,255,255,0.6)',
@@ -567,7 +615,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                             textAlign: 'left',
                                         }}
                                     >
-                                        {msg.time}
+                                        {!isDateStamp ? msg.time : ''}
                                     </Text>
                                 </View>
                             ) : msg.type === 'session' ? (
@@ -604,7 +652,7 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                                                 textAlign: isMeForLayout ? 'right' : 'left',
                                             }}
                                         >
-                                            {msg.time}
+                                            {!isDateStamp ? msg.time : ''}
                                         </Text>
                                     </View>
                                 </Pressable>
@@ -630,7 +678,20 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                             );
 
                         return (
-                            <View key={msg.id} style={{ marginBottom: 16 }}>
+                            <View key={msg.id} style={{ marginBottom: 18 }}>
+                                {showDateSeparator ? (
+                                    <Text
+                                        style={{
+                                            color: AURORA.textMuted,
+                                            fontSize: 12,
+                                            fontWeight: '600',
+                                            textAlign: 'center',
+                                            marginBottom: 8,
+                                        }}
+                                    >
+                                        {msg.time}
+                                    </Text>
+                                ) : null}
                                 <View
                                     style={{
                                         flexDirection: 'row',
@@ -672,8 +733,22 @@ function ChatView({ contact, onBack }: { contact: Conversation; onBack: () => vo
                             </View>
                         );
                     })
-                    )}
-                </ScrollView>
+                        )}
+                    </ScrollView>
+                    <LinearGradient
+                        pointerEvents="none"
+                        colors={[AURORA.bgMessages, 'rgba(8,12,48,0)']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 0, y: 1 }}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 18,
+                        }}
+                    />
+                </View>
 
                 {/* Input Bar */}
                     <View style={{
@@ -880,7 +955,7 @@ export default function CounselorMessagesScreen() {
         );
     }
 
-    const TABS: FilterTab[] = ['All Messages', 'Unread', 'Priority'];
+    const TABS: FilterTab[] = ['All Messages', 'Unread'];
 
     const filtered = activeTab === 'All Messages'
         ? contactsWithPresence
@@ -922,10 +997,10 @@ export default function CounselorMessagesScreen() {
                                 borderWidth: 1.5,
                                 borderColor: 'rgba(255,255,255,0.25)',
                                 shadowColor: AURORA.blue,
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.35,
-                                shadowRadius: 8,
-                                elevation: 6,
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.2,
+                                shadowRadius: 5,
+                                elevation: 3,
                             }}
                             onPress={() => router.push('/(counselor)/session-history')}
                             activeOpacity={0.85}
@@ -975,10 +1050,10 @@ export default function CounselorMessagesScreen() {
                                     }}
                                 >
                                     <Text style={{
-                                        color: activeTab === tab ? '#FFFFFF' : AURORA.textSec,
+                                        color: activeTab === tab ? '#FFFFFF' : '#A8B8DC',
                                         fontSize: 13, fontWeight: activeTab === tab ? '700' : '500',
                                     }}>
-                                        {tab}
+                                        {tab === 'Unread' ? `Unread (${unreadCount})` : tab}
                                     </Text>
                                 </TouchableOpacity>
                             ))}

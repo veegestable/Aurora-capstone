@@ -53,6 +53,8 @@ export interface MoodLogEntryDoc {
   dayKey: string;
   eventCategories?: ContextCategoryKey[];
   eventTags?: string[];
+  notes?: string;
+  journalSource?: 'auto' | 'manual';
 }
 
 /** Client-side row after reading Firestore (Date instead of Timestamp). */
@@ -123,6 +125,8 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
     dayKey: entry.dayKey,
     eventCategories: entry.eventCategories ?? [],
     eventTags: entry.eventTags ?? [],
+    notes: entry.notes ?? '',
+    journalSource: entry.journalSource ?? 'auto',
     timestamp: Timestamp.fromDate(entry.timestamp),
   };
   const docRef = await addDoc(col, payload);
@@ -137,6 +141,8 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
     dayKey: entry.dayKey,
     eventCategories: entry.eventCategories ?? [],
     eventTags: entry.eventTags ?? [],
+    notes: entry.notes ?? '',
+    journalSource: entry.journalSource ?? 'auto',
     timestamp: entry.timestamp,
   };
 }

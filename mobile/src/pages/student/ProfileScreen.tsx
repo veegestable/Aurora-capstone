@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
     X, Camera, Eye, Lock,
-    Bell, Video, LogOut, User, ChevronDown,
+    Bell, Video, LogOut, User, ChevronDown, ChevronRight,
 } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
@@ -17,6 +17,7 @@ import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../../components/common/LetterAvatar';
 import {
     clearDailyCheckInReminder,
+    hasNotificationPermission,
     scheduleDailyCheckInReminder,
     sendTestDailyCheckInNotification,
 } from '../../services/push-notifications.service';
@@ -47,35 +48,61 @@ function SectionHeader({ icon, title }: { icon?: React.ReactNode; title: string 
 function InfoRow({ label, value }: { label: string; value: string }) {
     return (
         <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: AURORA.border }}>
-            <Text style={{ color: AURORA.textSec, fontSize: 11, marginBottom: 4 }}>{label}</Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '500' }}>{value}</Text>
+            <Text style={{ color: '#95A8D4', fontSize: 11, marginBottom: 4, fontWeight: '600' }}>{label}</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '500', lineHeight: 21 }}>{value}</Text>
         </View>
     );
 }
 
 // ─── Privacy Row ─────────────────────────────────────────────────────────────
-function PrivacyRow({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+function PrivacyRow({
+    icon,
+    title,
+    description,
+    preview,
+    expanded,
+    onToggle,
+}: {
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+    preview: string;
+    expanded: boolean;
+    onToggle: () => void;
+}) {
     return (
-        <View style={{
-            flexDirection: 'row', alignItems: 'flex-start',
-            paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: AURORA.border,
-            gap: 12,
-        }}>
+        <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={onToggle}
+            style={{
+                flexDirection: 'row', alignItems: 'flex-start',
+                paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: AURORA.border,
+                gap: 12,
+            }}
+        >
             <View style={{ marginTop: 2 }}>{icon}</View>
             <View style={{ flex: 1 }}>
                 <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 3 }}>{title}</Text>
-                <Text style={{ color: AURORA.textSec, fontSize: 12, lineHeight: 17 }}>{description}</Text>
+                <Text style={{ color: AURORA.textSec, fontSize: 12, lineHeight: 17 }}>
+                    {expanded ? description : preview}
+                </Text>
             </View>
-        </View>
+            {expanded ? (
+                <ChevronDown size={16} color={AURORA.textMuted} style={{ marginTop: 2 }} />
+            ) : (
+                <ChevronRight size={16} color={AURORA.textMuted} style={{ marginTop: 2 }} />
+            )}
+        </TouchableOpacity>
     );
 }
 
 // ─── Toggle Row ───────────────────────────────────────────────────────────────
 function ToggleRow({
-    icon, label, value, onValueChange, disabled,
+    icon, label, value, onValueChange, disabled, statusBadge,
 }: {
     icon: React.ReactNode; label: string; value: boolean; onValueChange: (v: boolean) => void;
     disabled?: boolean;
+    statusBadge?: string;
 }) {
     return (
         <View style={{
@@ -85,6 +112,30 @@ function ToggleRow({
         }}>
             <View style={{ marginRight: 12 }}>{icon}</View>
             <Text style={{ flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '500' }}>{label}</Text>
+            {statusBadge ? (
+                <View
+                    style={{
+                        marginRight: 10,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: value ? 'rgba(34,197,94,0.45)' : 'rgba(148,163,184,0.45)',
+                        backgroundColor: value ? 'rgba(34,197,94,0.14)' : 'rgba(148,163,184,0.14)',
+                    }}
+                >
+                    <Text
+                        style={{
+                            color: value ? '#86EFAC' : '#B6C2DA',
+                            fontSize: 10,
+                            fontWeight: '700',
+                            letterSpacing: 0.3,
+                        }}
+                    >
+                        {statusBadge}
+                    </Text>
+                </View>
+            ) : null}
             <Switch
                 value={value}
                 onValueChange={onValueChange}
@@ -446,8 +497,22 @@ export default function ProfileScreen() {
     const [aiCamera, setAiCamera] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
     const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
+    const [sessionPushEnabled, setSessionPushEnabled] = useState(true);
+    const [savingSessionPushPreference, setSavingSessionPushPreference] = useState(false);
+    const [devicePermissionGranted, setDevicePermissionGranted] = useState<boolean | null>(null);
     const [shareCheckInsWithGuidance, setShareCheckInsWithGuidance] = useState(false);
     const [sharePrefsLoading, setSharePrefsLoading] = useState(true);
+    const [expandedPrivacyRow, setExpandedPrivacyRow] = useState<'visible' | 'private' | null>('visible');
+    const profileCompletion = useMemo(() => {
+        let score = 0;
+        if (user?.preferred_name || user?.full_name) score += 20;
+        if (user?.sex) score += 15;
+        if (user?.program) score += 20;
+        if (user?.year_level) score += 20;
+        if (user?.student_number) score += 20;
+        if (user?.avatar_url) score += 5;
+        return Math.min(score, 100);
+    }, [user?.preferred_name, user?.full_name, user?.sex, user?.program, user?.year_level, user?.student_number, user?.avatar_url]);
 
     const pickerValue = useMemo(() => {
         const d = new Date();
@@ -502,6 +567,39 @@ export default function ProfileScreen() {
         void run();
     }, [remindersEnabled, reminderHour, settingsLoading]);
 
+    useEffect(() => {
+        if (!user) return;
+        setSessionPushEnabled(user.session_push_notifications_enabled !== false);
+    }, [user]);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const granted = await hasNotificationPermission();
+                if (mounted) setDevicePermissionGranted(granted);
+            } catch {
+                if (mounted) setDevicePermissionGranted(null);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
+
+    const handleToggleSessionPush = async (value: boolean) => {
+        if (savingSessionPushPreference) return;
+        const previous = sessionPushEnabled;
+        setSessionPushEnabled(value);
+        setSavingSessionPushPreference(true);
+        try {
+            await updateUser({ session_push_notifications_enabled: value });
+        } catch {
+            setSessionPushEnabled(previous);
+            Alert.alert('Could not update setting', 'Please try again.');
+        } finally {
+            setSavingSessionPushPreference(false);
+        }
+    };
+
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
             <SafeAreaView style={{ flex: 1 }}>
@@ -514,12 +612,12 @@ export default function ProfileScreen() {
                 </View>
 
                 <ScrollView
-                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 62 }}
                     showsVerticalScrollIndicator={false}
                 >
                     {/* ── Avatar + Name ─────────────────────────────────────── */}
                     <View style={{ alignItems: 'center', marginBottom: 8, marginTop: 4 }}>
-                        <View style={{ position: 'relative', marginBottom: 12 }}>
+                        <View style={{ position: 'relative', marginBottom: 10 }}>
                             <View style={{ borderWidth: 3, borderColor: AURORA.blue, borderRadius: 43 }}>
                                 <LetterAvatar
                                     name={user?.preferred_name || user?.full_name || 'Student'}
@@ -531,25 +629,44 @@ export default function ProfileScreen() {
                                 onPress={() => setShowEditProfile(true)}
                                 style={{
                                     position: 'absolute', bottom: 0, right: 0,
-                                    width: 28, height: 28, borderRadius: 14,
+                                    width: 32, height: 32, borderRadius: 16,
                                     backgroundColor: AURORA.blue,
                                     alignItems: 'center', justifyContent: 'center',
                                     borderWidth: 2, borderColor: AURORA.bgDeep,
                                 }}
                             >
-                                <Camera size={13} color="#FFFFFF" />
+                                <Camera size={15} color="#FFFFFF" />
                             </TouchableOpacity>
                         </View>
                         <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800' }}>
                             {user?.preferred_name || user?.full_name || 'Student'}
                         </Text>
-                        <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 2, textAlign: 'center' }}>
+                        <Text style={{ color: '#A8B8DC', fontSize: 13, marginTop: 3, textAlign: 'center' }}>
                             {formatCounselorStudentSubtitle({
                                 department: user?.department,
                                 program: user?.program,
                                 year_level: user?.year_level,
                             }) || 'MSU-IIT CCS Student'}
                         </Text>
+                        <Text style={{ color: AURORA.textMuted, fontSize: 12, marginTop: 5 }}>
+                            Profile {profileCompletion}% complete
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => setShowEditProfile(true)}
+                            style={{
+                                marginTop: 10,
+                                minHeight: 42,
+                                paddingHorizontal: 16,
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: 'rgba(45,107,255,0.45)',
+                                backgroundColor: 'rgba(45,107,255,0.14)',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <Text style={{ color: '#B9CCFF', fontSize: 13, fontWeight: '700' }}>Edit profile</Text>
+                        </TouchableOpacity>
                     </View>
 
                     {/* ── Personal Details ─────────────────────────────────── */}
@@ -576,6 +693,9 @@ export default function ProfileScreen() {
                             value={user?.year_level ? formatYearLevelForDisplay(user.year_level) : 'Not set'}
                         />
                         <InfoRow label="Student Number" value={user?.student_number || 'Not set'} />
+                        <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16, paddingTop: 8, paddingBottom: 10 }}>
+                            Student number is used for school identity verification.
+                        </Text>
                     </View>
 
                     {/* ── Privacy Transparency ─────────────────────────────── */}
@@ -583,6 +703,9 @@ export default function ProfileScreen() {
                         icon={<Lock size={14} color={AURORA.blue} />}
                         title="PRIVACY TRANSPARENCY"
                     />
+                    <Text style={{ color: AURORA.textMuted, fontSize: 12, lineHeight: 18, marginBottom: 8 }}>
+                        Control what counselors can view from your recent check-ins.
+                    </Text>
                     <View style={{
                         backgroundColor: AURORA.card, borderRadius: 16,
                         paddingHorizontal: 16,
@@ -591,6 +714,13 @@ export default function ProfileScreen() {
                         <PrivacyRow
                             icon={<Eye size={18} color={AURORA.green} />}
                             title="What counselors can see"
+                            preview={
+                                shareCheckInsWithGuidance
+                                    ? `Last ${COUNSELOR_CHECKIN_WINDOW_DAYS} days summary only.`
+                                    : 'Directory info only (name and program).'
+                            }
+                            expanded={expandedPrivacyRow === 'visible'}
+                            onToggle={() => setExpandedPrivacyRow((prev) => (prev === 'visible' ? null : 'visible'))}
                             description={
                                 shareCheckInsWithGuidance
                                     ? `Summaries from your last ${COUNSELOR_CHECKIN_WINDOW_DAYS} days of check-ins only. ${COUNSELOR_VISIBLE_CHECKIN_SUMMARY} This is self-report data, not a diagnosis.`
@@ -600,6 +730,9 @@ export default function ProfileScreen() {
                         <PrivacyRow
                             icon={<Lock size={18} color={AURORA.blue} />}
                             title="What stays private by default"
+                            preview="Journal notes and non-shared app activity remain private."
+                            expanded={expandedPrivacyRow === 'private'}
+                            onToggle={() => setExpandedPrivacyRow((prev) => (prev === 'private' ? null : 'private'))}
                             description="Check-in notes you write in your journal flow, messages until you chat with guidance, and other app areas not listed when sharing is on."
                         />
                     </View>
@@ -614,12 +747,13 @@ export default function ProfileScreen() {
                         paddingHorizontal: 16,
                         borderWidth: 1, borderColor: AURORA.border,
                     }}>
-                        <Text style={{ color: AURORA.textSec, fontSize: 12, lineHeight: 18, paddingTop: 12, paddingBottom: 4 }}>
+                        <Text style={{ color: '#9AAEDB', fontSize: 12, lineHeight: 18, paddingTop: 12, paddingBottom: 4 }}>
                             Opt in so counselors can see a short summary of recent self-reported stress and energy to support outreach. Turn off anytime.
                         </Text>
                         <ToggleRow
                             icon={<Shield size={18} color={AURORA.textSec} />}
                             label="Share recent check-ins with guidance"
+                            statusBadge={shareCheckInsWithGuidance ? 'ON' : 'OFF'}
                             value={shareCheckInsWithGuidance}
                             disabled={sharePrefsLoading}
                             onValueChange={async (v) => {
@@ -644,16 +778,24 @@ export default function ProfileScreen() {
                     }}>
                         <ToggleRow
                             icon={<Bell size={18} color={AURORA.textSec} />}
+                            label="Session updates"
+                            statusBadge={sessionPushEnabled ? 'ON' : 'OFF'}
+                            value={sessionPushEnabled}
+                            disabled={savingSessionPushPreference}
+                            onValueChange={handleToggleSessionPush}
+                        />
+                        <ToggleRow
+                            icon={<Bell size={18} color={AURORA.textSec} />}
                             label="Daily Check-in Reminders"
                             value={remindersEnabled}
                             onValueChange={(v) => { void setRemindersEnabled(v); }}
                         />
-                        <ToggleRow
+                        {/* <ToggleRow
                             icon={<Video size={18} color={AURORA.textSec} />}
                             label="Camera (Daily Selfie)"
                             value={aiCamera}
                             onValueChange={setAiCamera}
-                        />
+                        /> */}
                         <TouchableOpacity
                             onPress={() => setShowReminderTimePicker(true)}
                             style={{
@@ -668,11 +810,20 @@ export default function ProfileScreen() {
                             <Text style={{ color: AURORA.blue, fontSize: 14, fontWeight: '700' }}>
                                 {formatResetHourLabel(reminderHour)}
                             </Text>
+                            <ChevronRight size={16} color={AURORA.textMuted} style={{ marginLeft: 8 }} />
                         </TouchableOpacity>
-                        <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16, marginTop: 8, marginBottom: 4 }}>
+                        <Text style={{ color: '#95A8D4', fontSize: 11, lineHeight: 16, marginTop: 8, marginBottom: 4 }}>
                             We will remind you to start your day at this time (default 7:00 AM).
                         </Text>
-                        <TouchableOpacity
+                        <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16, marginTop: 2 }}>
+                            Session update notifications are best-effort on this app build.
+                        </Text>
+                        {sessionPushEnabled && devicePermissionGranted === false ? (
+                            <Text style={{ color: '#FECACA', fontSize: 11, lineHeight: 16, marginTop: 4 }}>
+                                Device notifications are blocked in system settings, so session alerts may not appear.
+                            </Text>
+                        ) : null}
+                        {/* <TouchableOpacity
                             onPress={async () => {
                                 const ok = await sendTestDailyCheckInNotification();
                                 if (!ok) {
@@ -690,13 +841,13 @@ export default function ProfileScreen() {
                                 paddingVertical: 10,
                                 borderRadius: 10,
                                 borderWidth: 1,
-                                borderColor: 'rgba(45,107,255,0.35)',
-                                backgroundColor: 'rgba(45,107,255,0.12)',
+                                borderColor: 'rgba(45,107,255,0.24)',
+                                backgroundColor: 'rgba(45,107,255,0.08)',
                                 alignItems: 'center',
                             }}
                         >
-                            <Text style={{ color: AURORA.blue, fontSize: 12, fontWeight: '700' }}>Send test notification now</Text>
-                        </TouchableOpacity>
+                            <Text style={{ color: '#9EB5EA', fontSize: 12, fontWeight: '600' }}>Send test notification now</Text>
+                        </TouchableOpacity> */}
                     </View>
                     <Modal visible={showReminderTimePicker} transparent animationType="slide">
                         <TouchableOpacity
@@ -747,12 +898,12 @@ export default function ProfileScreen() {
                     <TouchableOpacity
                         onPress={() => setShowEditProfile(true)}
                         style={{
-                            backgroundColor: 'rgba(45,107,255,0.1)', borderRadius: 16,
+                            backgroundColor: 'rgba(45,107,255,0.16)', borderRadius: 16,
                             padding: 16, alignItems: 'center', marginTop: 16,
-                            borderWidth: 1, borderColor: 'rgba(45,107,255,0.3)',
+                            borderWidth: 1, borderColor: 'rgba(45,107,255,0.45)',
                         }}
                     >
-                        <Text style={{ color: AURORA.blue, fontSize: 15, fontWeight: '700' }}>Edit Profile</Text>
+                        <Text style={{ color: '#C3D4FF', fontSize: 15, fontWeight: '700' }}>Edit Profile</Text>
                     </TouchableOpacity>
 
                     {/* ── Logout ───────────────────────────────────────────── */}
@@ -768,6 +919,9 @@ export default function ProfileScreen() {
                         <LogOut size={18} color={AURORA.red} />
                         <Text style={{ color: AURORA.red, fontSize: 15, fontWeight: '700' }}>Logout Account</Text>
                     </TouchableOpacity>
+                    <Text style={{ color: AURORA.textMuted, fontSize: 11, textAlign: 'center', marginTop: 8, marginBottom: 22 }}>
+                        You can sign back in anytime.
+                    </Text>
                 </ScrollView>
 
                 <EditProfileModal

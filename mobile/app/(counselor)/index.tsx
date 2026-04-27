@@ -6,7 +6,7 @@
  * Data fetched from Firestore students + mood logs.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, Image,
 } from 'react-native';
@@ -15,7 +15,7 @@ import {
     Bell, ChevronRight, Users, AlertTriangle,
     MessageSquare, Calendar,
 } from 'lucide-react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../src/stores/AuthContext';
 import { AURORA } from '../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../src/components/common/LetterAvatar';
@@ -66,6 +66,23 @@ function getSignalStyle(signal: CounselorSignalPill) {
             return { border: AURORA.amber, badgeBg: 'rgba(254,189,3,0.1)', text: AURORA.amber };
         case 'sharing_off':
             return { border: AURORA.textMuted, badgeBg: 'rgba(148,163,184,0.12)', text: AURORA.textMuted };
+    }
+}
+
+function formatSignalChip(signal: CounselorSignalPill): string {
+    switch (signal) {
+        case 'higher_self_report':
+            return 'High stress';
+        case 'moderate_self_report':
+            return 'Monitor';
+        case 'typical_self_report':
+            return 'Typical';
+        case 'no_checkins':
+            return 'No recent check-in';
+        case 'sharing_off':
+            return 'Sharing off';
+        default:
+            return COUNSELOR_SIGNAL_LABEL[signal];
     }
 }
 
@@ -134,8 +151,9 @@ function FlagRow({ item }: { item: FlagItem }) {
                     numberOfLines={2}
                     ellipsizeMode="tail"
                 >
-                    {item.program} · {item.time}
+                    {item.program}
                 </Text>
+                <Text style={{ color: '#9FB0D4', fontSize: 11, marginTop: 2 }}>{item.time}</Text>
             </View>
             <View style={{
                 flexShrink: 0,
@@ -147,7 +165,7 @@ function FlagRow({ item }: { item: FlagItem }) {
                     color: style.text, fontSize: 10,
                     fontWeight: '800', letterSpacing: 0.35,
                 }} numberOfLines={2}>
-                    {COUNSELOR_SIGNAL_LABEL[item.signal]}
+                    {formatSignalChip(item.signal)}
                 </Text>
             </View>
             <View style={{ flexShrink: 0 }}>
@@ -163,97 +181,115 @@ export default function CounselorHomeScreen() {
     const [studentCount, setStudentCount] = useState<number>(0);
     const [recentFlags, setRecentFlags] = useState<FlagItem[]>([]);
     const [upcomingAcceptedSessions, setUpcomingAcceptedSessions] = useState<number>(0);
+    const [needsFollowUpCount, setNeedsFollowUpCount] = useState<number>(0);
+    const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
     const [loading, setLoading] = useState(true);
     const firstName = user?.full_name?.split(' ')[0] || 'Counselor';
 
+    const fetchData = useCallback(async (isCancelled?: () => boolean) => {
+        try {
+            const students = await firestoreService.getUsersByRole('student');
+            if (isCancelled?.()) return;
+
+            setStudentCount(students.length);
+
+            // Fetch recent mood logs for students (limit to first 15 for performance)
+            const limit = Math.min(15, students.length);
+            const studentsWithMood = await Promise.all(
+                students.slice(0, limit).map(async (s) => {
+                    try {
+                        const { sharingEnabled, logs } = await fetchStudentCheckInContextForCounselor(s.id);
+                        const latest = logs[0] as { log_date?: Date; stress_level?: number; energy_level?: number } | undefined;
+                        return {
+                            student: s,
+                            sharingEnabled,
+                            logs,
+                            lastLogDate: latest?.log_date,
+                        };
+                    } catch {
+                        return {
+                            student: s,
+                            sharingEnabled: false,
+                            logs: [] as { stress_level?: number; energy_level?: number }[],
+                            lastLogDate: undefined as Date | undefined,
+                        };
+                    }
+                })
+            );
+
+            if (isCancelled?.()) return;
+
+            const flags: FlagItem[] = studentsWithMood
+                .map(({ student, sharingEnabled, logs, lastLogDate }) => {
+                    const signal = counselorSignalFromLogs(sharingEnabled, logs);
+                    return {
+                        id: student.id,
+                        name: student.full_name || 'Student',
+                        program: formatCounselorStudentSubtitle({
+                            department: student.department,
+                            program: student.program,
+                            year_level: student.year_level,
+                        }) || 'CCS',
+                        time: !sharingEnabled
+                            ? 'Sharing off'
+                            : (lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No check-ins yet'),
+                        signal,
+                        avatar: (student as any).avatar_url ?? '',
+                    };
+                })
+                .sort((a, b) => COUNSELOR_SIGNAL_SORT[a.signal] - COUNSELOR_SIGNAL_SORT[b.signal]);
+
+            setRecentFlags(flags);
+            setNeedsFollowUpCount(
+                flags.filter((f) => ['higher_self_report', 'moderate_self_report', 'no_checkins'].includes(f.signal)).length
+            );
+
+            if (user?.id) {
+                const sessions = await firestoreService.getSessionsForCounselor(user.id);
+                const now = Date.now();
+                const upcoming = (sessions as Array<Record<string, any>>).filter((s) => {
+                    // "Accepted" sessions can appear as confirmed or rescheduled in the canonical sessions doc.
+                    const status = String(s?.status ?? '').toLowerCase();
+                    if (!['confirmed', 'rescheduled'].includes(status)) return false;
+                    if (String(s?.counselorId ?? '') !== user.id) return false;
+                    const dt = getSessionScheduledDate({
+                        finalSlot: (s.finalSlot as any) ?? null,
+                        confirmedSlot: (s.confirmedSlot as any) ?? null,
+                        proposedSlots: Array.isArray(s.proposedSlots) ? (s.proposedSlots as any) : [],
+                        preferredTimeFromStudent: typeof s.preferredTimeFromStudent === 'string' ? s.preferredTimeFromStudent : undefined,
+                    });
+                    return !!dt && dt.getTime() >= now;
+                }).length;
+                setUpcomingAcceptedSessions(upcoming);
+            } else {
+                setUpcomingAcceptedSessions(0);
+            }
+            setLastUpdatedAt(new Date());
+        } catch {
+            if (!isCancelled?.()) {
+                setRecentFlags([]);
+                setUpcomingAcceptedSessions(0);
+                setNeedsFollowUpCount(0);
+            }
+        } finally {
+            if (!isCancelled?.()) setLoading(false);
+        }
+    }, [user?.id]);
+
     useEffect(() => {
         let cancelled = false;
-
-        async function fetchData() {
-            try {
-                const students = await firestoreService.getUsersByRole('student');
-                if (cancelled) return;
-
-                setStudentCount(students.length);
-
-                // Fetch recent mood logs for students (limit to first 15 for performance)
-                const limit = Math.min(15, students.length);
-                const studentsWithMood = await Promise.all(
-                    students.slice(0, limit).map(async (s) => {
-                        try {
-                            const { sharingEnabled, logs } = await fetchStudentCheckInContextForCounselor(s.id);
-                            const latest = logs[0] as { log_date?: Date; stress_level?: number; energy_level?: number } | undefined;
-                            return {
-                                student: s,
-                                sharingEnabled,
-                                logs,
-                                lastLogDate: latest?.log_date,
-                            };
-                        } catch {
-                            return {
-                                student: s,
-                                sharingEnabled: false,
-                                logs: [] as { stress_level?: number; energy_level?: number }[],
-                                lastLogDate: undefined as Date | undefined,
-                            };
-                        }
-                    })
-                );
-
-                if (cancelled) return;
-
-                const flags: FlagItem[] = studentsWithMood
-                    .map(({ student, sharingEnabled, logs, lastLogDate }) => {
-                        const signal = counselorSignalFromLogs(sharingEnabled, logs);
-                        return {
-                            id: student.id,
-                            name: student.full_name || 'Student',
-                            program: formatCounselorStudentSubtitle({
-                                department: student.department,
-                                program: student.program,
-                                year_level: student.year_level,
-                            }) || 'CCS',
-                            time: !sharingEnabled
-                                ? 'Sharing off'
-                                : (lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No check-ins yet'),
-                            signal,
-                            avatar: (student as any).avatar_url ?? '',
-                        };
-                    })
-                    .sort((a, b) => COUNSELOR_SIGNAL_SORT[a.signal] - COUNSELOR_SIGNAL_SORT[b.signal]);
-
-                setRecentFlags(flags);
-
-                if (user?.id) {
-                    const sessions = await firestoreService.getSessionsForCounselor(user.id);
-                    const now = Date.now();
-                    const upcoming = (sessions as Array<Record<string, any>>).filter((s) => {
-                        if (s?.status !== 'confirmed') return false;
-                        const dt = getSessionScheduledDate({
-                            finalSlot: (s.finalSlot as any) ?? null,
-                            confirmedSlot: (s.confirmedSlot as any) ?? null,
-                            proposedSlots: Array.isArray(s.proposedSlots) ? (s.proposedSlots as any) : [],
-                            preferredTimeFromStudent: typeof s.preferredTimeFromStudent === 'string' ? s.preferredTimeFromStudent : undefined,
-                        });
-                        return !!dt && dt.getTime() >= now;
-                    }).length;
-                    setUpcomingAcceptedSessions(upcoming);
-                } else {
-                    setUpcomingAcceptedSessions(0);
-                }
-            } catch {
-                if (!cancelled) {
-                    setRecentFlags([]);
-                    setUpcomingAcceptedSessions(0);
-                }
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        }
-
-        fetchData();
+        setLoading(true);
+        void fetchData(() => cancelled);
         return () => { cancelled = true; };
-    }, [user?.id]);
+    }, [fetchData]);
+
+    useFocusEffect(
+        useCallback(() => {
+            let cancelled = false;
+            void fetchData(() => cancelled);
+            return () => { cancelled = true; };
+        }, [fetchData])
+    );
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
@@ -277,7 +313,7 @@ export default function CounselorHomeScreen() {
                             Hello, {firstName}
                         </Text>
                     </View>
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                         onPress={() => triggerHaptic('light')}
                         style={{
                         width: 42, height: 42, borderRadius: 21,
@@ -292,7 +328,7 @@ export default function CounselorHomeScreen() {
                             backgroundColor: AURORA.red,
                             borderWidth: 1.5, borderColor: AURORA.card,
                         }} />
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                 </View>
 
                 {/* ── Scrollable Content ───────────────────────────────── */}
@@ -341,6 +377,31 @@ export default function CounselorHomeScreen() {
                             cardBg="rgba(5,67,52,0.5)"
                         />
                     </View>
+                    {/* <View style={{ marginBottom: 10 }}>
+                        <View
+                            style={{
+                                backgroundColor: 'rgba(139, 92, 246, 0.14)',
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: 'rgba(139, 92, 246, 0.35)',
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#A78BFA' }} />
+                                <Text style={{ color: '#D8CCFF', fontSize: 12, fontWeight: '700' }}>
+                                    Needs follow-up today
+                                </Text>
+                            </View>
+                            <Text style={{ color: '#F3EEFF', fontSize: 16, fontWeight: '800' }}>
+                                {needsFollowUpCount}
+                            </Text>
+                        </View>
+                    </View> */}
 
 
 
@@ -365,6 +426,9 @@ export default function CounselorHomeScreen() {
                             <ChevronRight size={14} color={AURORA.blue} />
                         </TouchableOpacity>
                     </View>
+                    <Text style={{ color: AURORA.textMuted, fontSize: 11, marginTop: -8, marginBottom: 10 }}>
+                        Sorted by priority • Updated {lastUpdatedAt ? formatTimeAgo(lastUpdatedAt) : 'just now'}
+                    </Text>
 
                     {loading ? (
                         <View style={{ paddingVertical: 24, alignItems: 'center' }}>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Settings2, BarChart3, BookMarked } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Settings2, BarChart3, BookMarked, CircleHelp } from 'lucide-react-native';
 import * as Animatable from 'react-native-animatable';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SvgUri } from 'react-native-svg';
@@ -18,6 +18,9 @@ import {
     generateExplanation,
     type MoodLog,
 } from '../../utils/blendMoods';
+
+const UI_TEXT_SECONDARY = '#C1CEE9';
+const UI_TEXT_MUTED = '#9AA9C8';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MoodEntry {
@@ -149,6 +152,15 @@ const EVENT_CATEGORY_STYLE: Record<'school' | 'health' | 'social' | 'fun' | 'pro
 
 const SCHOOL_TAGS = new Set(['classes', 'study', 'quiz', 'exam', 'homework', 'deadline', 'group-project', 'presentation']);
 
+function formatTagLabel(tag: string): string {
+    return tag.replace(/-/g, ' ');
+}
+
+function formatCategoryLabel(category: string): string {
+    if (category === 'fun') return 'Fun / Leisure';
+    return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
 function ruleBasedSchoolInsight(entry: MoodEntry): string | null {
     const tags = (Array.isArray(entry.event_tags) ? entry.event_tags : []).filter((t) => SCHOOL_TAGS.has(t));
     if (!tags.length) return null;
@@ -274,9 +286,25 @@ function CalendarDayCell({
 }
 
 function CalendarLegend() {
+    const showLegendInfo = () => {
+        Alert.alert(
+            'Mixed days',
+            'Mixed days show a blended color based on how strongly each mood was felt.'
+        );
+    };
+
     return (
         <View style={styles.legendWrapper}>
-            <Text style={styles.legendTitle}>Mood colors</Text>
+            <View style={styles.legendTitleRow}>
+                <Text style={styles.legendTitle}>Mood colors</Text>
+                <TouchableOpacity
+                    onPress={showLegendInfo}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    style={{ padding: 2 }}
+                >
+                    <CircleHelp size={14} color="#64748b" />
+                </TouchableOpacity>
+            </View>
             <View style={styles.legendRow}>
                 {Object.entries(MOOD_COLORS).map(([mood, color]) => (
                     <View key={mood} style={styles.legendItem}>
@@ -285,9 +313,6 @@ function CalendarLegend() {
                     </View>
                 ))}
             </View>
-            <Text style={styles.legendNote}>
-                Mixed days show a blended color based on how strongly each mood was felt.
-            </Text>
         </View>
     );
 }
@@ -314,6 +339,13 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
             Night: [] as MoodEntry[],
         }
     );
+    const bucketsByLatestFirst = (['Morning', 'Afternoon', 'Evening', 'Night'] as const)
+        .filter((bucket) => groupedEntries[bucket].length > 0)
+        .sort((a, b) => {
+            const latestA = Math.max(...groupedEntries[a].map((entry) => toDateSafe(entry.created_at || entry.log_date).getTime()));
+            const latestB = Math.max(...groupedEntries[b].map((entry) => toDateSafe(entry.created_at || entry.log_date).getTime()));
+            return latestB - latestA;
+        });
 
     return (
         <Animatable.View animation="fadeInUp" duration={400} style={styles.card}>
@@ -339,7 +371,7 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
 
             {hasLog ? (
                 <>
-                    {(['Morning', 'Afternoon', 'Evening', 'Night'] as const).map((bucket) => {
+                    {bucketsByLatestFirst.map((bucket) => {
                         const bucketEntries = groupedEntries[bucket];
                         if (bucketEntries.length === 0) return null;
                         return (
@@ -350,7 +382,11 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
                                     const noteText = typeof entry.notes === 'string' ? entry.notes.trim() : '';
                                     const groupKey = entry.id || `${bucket}-entry-${idx}`;
                                     const tags = Array.isArray(entry.event_tags) ? entry.event_tags : [];
-                                    const categories = Array.isArray(entry.event_categories) ? entry.event_categories : [];
+                                    const categoriesFromEntry = Array.isArray(entry.event_categories) ? entry.event_categories : [];
+                                    const categories =
+                                        categoriesFromEntry.length > 0
+                                            ? categoriesFromEntry
+                                            : Array.from(new Set(tags.map((tag) => EVENT_CATEGORY_BY_TAG[tag]).filter(Boolean)));
                                     const schoolInsight = ruleBasedSchoolInsight(entry);
                                     const expanded = expandedEntryId === groupKey;
 
@@ -414,7 +450,42 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
                                                                             },
                                                                         ]}
                                                                     >
-                                                                        <Text style={[styles.eventPillText, { color: colorStyle.text }]}>{tag}</Text>
+                                                                        <Text style={[styles.eventPillText, { color: colorStyle.text }]}>{formatTagLabel(tag)}</Text>
+                                                                    </View>
+                                                                );
+                                                            })}
+                                                        </View>
+                                                    ) : null}
+                                                    <Text style={[styles.detailsLine, { marginTop: 10, marginBottom: categories.length > 0 ? 6 : 0 }]}>
+                                                        Categories:
+                                                        {categories.length === 0 ? <Text style={styles.inlineNone}> None</Text> : null}
+                                                    </Text>
+                                                    {categories.length > 0 ? (
+                                                        <View style={styles.eventPillRow}>
+                                                            {categories.map((category) => {
+                                                                const normalized =
+                                                                    category === 'school' ||
+                                                                    category === 'health' ||
+                                                                    category === 'social' ||
+                                                                    category === 'fun' ||
+                                                                    category === 'productivity'
+                                                                        ? category
+                                                                        : 'social';
+                                                                const colorStyle = EVENT_CATEGORY_STYLE[normalized];
+                                                                return (
+                                                                    <View
+                                                                        key={`${groupKey}-category-${category}`}
+                                                                        style={[
+                                                                            styles.eventPill,
+                                                                            {
+                                                                                backgroundColor: colorStyle.bg,
+                                                                                borderColor: colorStyle.border,
+                                                                            },
+                                                                        ]}
+                                                                    >
+                                                                        <Text style={[styles.eventPillText, { color: colorStyle.text }]}>
+                                                                            {formatCategoryLabel(category)}
+                                                                        </Text>
                                                                     </View>
                                                                 );
                                                             })}
@@ -487,9 +558,14 @@ const styles = StyleSheet.create({
         color: '#94a3b8',
         fontSize: 12,
         fontWeight: '600',
-        marginBottom: 8,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
+    },
+    legendTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 8,
     },
     legendRow: {
         flexDirection: 'row',
@@ -510,12 +586,6 @@ const styles = StyleSheet.create({
     legendLabel: {
         color: '#cbd5e1',
         fontSize: 12,
-    },
-    legendNote: {
-        color: '#475569',
-        fontSize: 11,
-        fontStyle: 'italic',
-        marginTop: 4,
     },
 
     // Day details card
@@ -714,10 +784,51 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 4,
     },
+    todayPill: {
+        marginTop: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: 'rgba(45,107,255,0.45)',
+        backgroundColor: 'rgba(45,107,255,0.16)',
+    },
+    todayPillText: {
+        color: AURORA.blue,
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 0.3,
+    },
+    selectedDayBadge: {
+        marginBottom: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(59,130,246,0.28)',
+        backgroundColor: 'rgba(59,130,246,0.10)',
+    },
+    selectedDayBadgeLabel: {
+        color: '#93c5fd',
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
+        marginBottom: 2,
+    },
+    selectedDayBadgeDate: {
+        color: '#dbeafe',
+        fontSize: 13,
+        fontWeight: '700',
+    },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 type JournalTab = 'calendar' | 'insights';
+
+function localCalendarKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
 
 const JOURNAL_TOGGLE_PAD = 4;
 
@@ -809,11 +920,11 @@ export default function HistoryScreen() {
         for (let i = 0; i < 42; i++) {
             const date = new Date(startDay);
             date.setDate(startDay.getDate() + i);
-            const ds = getDayKey(date, dayResetHour, timezone);
+            const ds = localCalendarKey(date);
             const dayMoods = moodData.filter(m => {
                 if (!m?.log_date) return false;
                 const logDate = m.log_date instanceof Date ? m.log_date : new Date(m.log_date);
-                return getDayKey(logDate, dayResetHour, timezone) === ds;
+                return localCalendarKey(logDate) === ds;
             });
             days.push({
                     date,
@@ -834,19 +945,27 @@ export default function HistoryScreen() {
         });
     };
 
+    const jumpToToday = () => {
+        setCalendarMonthEnter(null);
+        setCurrentDate(new Date());
+    };
+
     const calendarDays = useMemo(() => generateCalendarDays(), [moodData, currentDate, dayResetHour, timezone]);
     const dayDetailsEntries = useMemo(() => {
         if (!selectedDay) return [] as MoodEntry[];
-        const selectedKey = getDayKey(selectedDay.date, dayResetHour, timezone);
+        const selectedKey = localCalendarKey(selectedDay.date);
         return moodData.filter((m) => {
             if (!m?.log_date) return false;
             const d = m.log_date instanceof Date ? m.log_date : new Date(m.log_date);
-            return getDayKey(d, dayResetHour, timezone) === selectedKey;
+            return localCalendarKey(d) === selectedKey;
         });
-    }, [moodData, selectedDay, dayResetHour, timezone]);
+    }, [moodData, selectedDay]);
     const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const calendarMonthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
+    const now = new Date();
+    const isCurrentMonthView =
+        currentDate.getFullYear() === now.getFullYear() && currentDate.getMonth() === now.getMonth();
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bg }}>
@@ -901,10 +1020,10 @@ export default function HistoryScreen() {
                                     borderRadius: 12,
                                 }}
                             >
-                                <BookMarked size={18} color={journalTab === 'calendar' ? '#FFF' : AURORA.textSec} />
+                                <BookMarked size={18} color={journalTab === 'calendar' ? '#FFF' : UI_TEXT_MUTED} />
                                 <Text
                                     style={{
-                                        color: journalTab === 'calendar' ? '#FFF' : AURORA.textSec,
+                                        color: journalTab === 'calendar' ? '#FFF' : UI_TEXT_MUTED,
                                         fontWeight: '700',
                                         fontSize: 13,
                                     }}
@@ -924,10 +1043,10 @@ export default function HistoryScreen() {
                                     borderRadius: 12,
                                 }}
                             >
-                                <BarChart3 size={18} color={journalTab === 'insights' ? '#FFF' : AURORA.textSec} />
+                                <BarChart3 size={18} color={journalTab === 'insights' ? '#FFF' : UI_TEXT_MUTED} />
                                 <Text
                                     style={{
-                                        color: journalTab === 'insights' ? '#FFF' : AURORA.textSec,
+                                        color: journalTab === 'insights' ? '#FFF' : UI_TEXT_MUTED,
                                         fontWeight: '700',
                                         fontSize: 13,
                                     }}
@@ -950,7 +1069,11 @@ export default function HistoryScreen() {
                     }}>
                         {/* Month nav */}
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                            <TouchableOpacity onPress={() => navigateMonth('prev')} style={{ padding: 4 }}>
+                            <TouchableOpacity
+                                onPress={() => navigateMonth('prev')}
+                                style={{ padding: 8 }}
+                                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                            >
                                 <ChevronLeft size={20} color={AURORA.textSec} />
                             </TouchableOpacity>
                             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }}>
@@ -962,8 +1085,21 @@ export default function HistoryScreen() {
                                 >
                                     <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{monthLabel}</Text>
                                 </Animatable.View>
+                                {!isCurrentMonthView ? (
+                                    <TouchableOpacity
+                                        onPress={jumpToToday}
+                                        style={styles.todayPill}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Text style={styles.todayPillText}>Today</Text>
+                                    </TouchableOpacity>
+                                ) : null}
                             </View>
-                            <TouchableOpacity onPress={() => navigateMonth('next')} style={{ padding: 4 }}>
+                            <TouchableOpacity
+                                onPress={() => navigateMonth('next')}
+                                style={{ padding: 8 }}
+                                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                            >
                                 <ChevronRight size={20} color={AURORA.textSec} />
                             </TouchableOpacity>
                         </View>
@@ -977,7 +1113,7 @@ export default function HistoryScreen() {
                             <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                                 {weekDays.map((d, i) => (
                                     <Text key={i} style={{
-                                        flex: 1, textAlign: 'center', color: AURORA.textMuted,
+                                        flex: 1, textAlign: 'center', color: UI_TEXT_MUTED,
                                         fontSize: 12, fontWeight: '700',
                                     }}>{d}</Text>
                                 ))}
@@ -1015,14 +1151,26 @@ export default function HistoryScreen() {
 
                     {/* ── Day Details ───────────────────────────────────────── */}
                     {selectedDay && (
-                        <DayDetailsCard
-                            date={selectedDay.date.toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                            })}
-                            entries={dayDetailsEntries}
-                        />
+                        <>
+                            <View style={styles.selectedDayBadge}>
+                                <Text style={styles.selectedDayBadgeLabel}>Selected day</Text>
+                                <Text style={styles.selectedDayBadgeDate}>
+                                    {selectedDay.date.toLocaleDateString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric',
+                                    })}
+                                </Text>
+                            </View>
+                            <DayDetailsCard
+                                date={selectedDay.date.toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                })}
+                                entries={dayDetailsEntries}
+                            />
+                        </>
                     )}
 
                     {!selectedDay && (
@@ -1031,7 +1179,7 @@ export default function HistoryScreen() {
                             padding: 20, alignItems: 'center',
                             borderWidth: 1, borderColor: AURORA.border,
                         }}>
-                            <Text style={{ color: AURORA.textSec, fontSize: 14, textAlign: 'center' }}>
+                            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 14, textAlign: 'center' }}>
                                 Tap a colored day on the calendar to see your mood entries.
                             </Text>
                         </View>

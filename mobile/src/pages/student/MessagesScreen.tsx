@@ -10,6 +10,7 @@ import {
     TextInput, Image, KeyboardAvoidingView, Platform,
     ActivityIndicator, Alert, Pressable,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Settings2, Info, Plus, Send, PenSquare, Phone } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -42,6 +43,15 @@ interface CounselorContact {
     avatar: string;
     isOnline: boolean;
     isUnread: boolean;
+}
+
+function formatConversationTimeLabel(raw: string): string {
+    const text = (raw || '').trim();
+    if (!text) return '';
+    if (/^\d+\s*[mh] ago$/i.test(text)) return text.toLowerCase().replace(/\s+/g, '');
+    if (/^\d+\s*min ago$/i.test(text)) return text.toLowerCase();
+    if (/^(just now|now)$/i.test(text)) return 'Just now';
+    return text;
 }
 
 interface TextMessage {
@@ -91,7 +101,9 @@ function ContactRow({
                 flexDirection: 'row',
                 alignItems: 'center',
                 paddingVertical: 14,
-                paddingHorizontal: 0,
+                paddingHorizontal: 10,
+                borderRadius: 14,
+                backgroundColor: item.isUnread ? 'rgba(45,107,255,0.10)' : 'transparent',
                 borderBottomWidth: 1,
                 borderBottomColor: AURORA.border,
             }}
@@ -130,13 +142,23 @@ function ContactRow({
                             letterSpacing: item.isUnread ? 0.5 : 0,
                         }}
                     >
-                        {item.time}
+                        {formatConversationTimeLabel(item.time)}
                     </Text>
                 </View>
-                <Text style={{ color: AURORA.textSec, fontSize: 13 }} numberOfLines={1}>
+                <Text
+                    style={{
+                        color: item.isUnread ? '#D7E4FF' : AURORA.textSec,
+                        fontSize: 13,
+                        fontWeight: item.isUnread ? '600' : '400',
+                    }}
+                    numberOfLines={1}
+                >
                     {item.preview}
                 </Text>
             </View>
+            {item.isUnread ? (
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: AURORA.blue, marginLeft: 10 }} />
+            ) : null}
         </TouchableOpacity>
     );
 }
@@ -430,20 +452,21 @@ function DirectMessageView({
                 </Text>
 
                 {/* Messages */}
-                <ScrollView
-                    ref={scrollViewRef}
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode="on-drag"
-                >
-                    {loadingMessages ? (
-                        <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                            <ActivityIndicator size="small" color={AURORA.blue} />
-                        </View>
-                    ) : (
-                        messages.map((msg) => {
+                <View style={{ flex: 1 }}>
+                    <ScrollView
+                        ref={scrollViewRef}
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
+                    >
+                        {loadingMessages ? (
+                            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                                <ActivityIndicator size="small" color={AURORA.blue} />
+                            </View>
+                        ) : (
+                            messages.map((msg) => {
                             const isMe = msg.senderId === 'me';
                             const isAutoAccepted =
                                 msg.type === 'text' && msg.text.startsWith(AUTO_ACCEPTED_PREFIX);
@@ -538,7 +561,7 @@ function DirectMessageView({
                                                             style={{
                                                                 color: 'rgba(255,255,255,0.6)',
                                                                 fontSize: 11,
-                                                                marginTop: 6,
+                                                                marginTop: 4,
                                                                 textAlign: isMe ? 'right' : 'left',
                                                             }}
                                                         >
@@ -587,7 +610,7 @@ function DirectMessageView({
                                                             style={{
                                                                 color: 'rgba(255,255,255,0.6)',
                                                                 fontSize: 11,
-                                                                marginTop: 6,
+                                                                marginTop: 4,
                                                                 textAlign: isMe ? 'right' : 'left',
                                                             }}
                                                         >
@@ -597,7 +620,7 @@ function DirectMessageView({
                                                 </Pressable>
                                             );
                             return (
-                                <View key={msg.id} style={{ marginBottom: 16 }}>
+                                <View key={msg.id} style={{ marginBottom: 14 }}>
                                     <View
                                         style={{
                                             flexDirection: 'row',
@@ -607,14 +630,16 @@ function DirectMessageView({
                                         }}
                                     >
                                         {!isMe && (
-                                            <LetterAvatar name={contact.name} size={34} avatarUrl={contact.avatar || undefined} />
+                                            <View style={{ marginBottom: 14 }}>
+                                                <LetterAvatar name={contact.name} size={34} avatarUrl={contact.avatar || undefined} />
+                                            </View>
                                         )}
                                         <View style={{ maxWidth: '78%' }}>
                                             <Text
                                                 style={{
                                                     color: AURORA.textSec,
                                                     fontSize: 11,
-                                                    marginBottom: 4,
+                                                    marginBottom: 3,
                                                     textAlign: isMe ? 'right' : 'left',
                                                 }}
                                             >
@@ -623,14 +648,30 @@ function DirectMessageView({
                                             {messageContent}
                                         </View>
                                         {isMe && (
-                                            <LetterAvatar name={user?.full_name ?? 'You'} size={34} avatarUrl={user?.avatar_url} />
+                                            <View style={{ marginBottom: 14 }}>
+                                                <LetterAvatar name={user?.full_name ?? 'You'} size={34} avatarUrl={user?.avatar_url} />
+                                            </View>
                                         )}
                                     </View>
                                 </View>
                             );
-                        })
-                    )}
-                </ScrollView>
+                            })
+                        )}
+                    </ScrollView>
+                    <LinearGradient
+                        pointerEvents="none"
+                        colors={[AURORA.bgMessages, 'rgba(8,12,48,0)']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 0, y: 1 }}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 18,
+                        }}
+                    />
+                </View>
 
                 {/* Input Bar */}
                     <View
@@ -675,7 +716,7 @@ function DirectMessageView({
                                 borderColor: AURORA.border,
                             }}
                             placeholder="Type a message..."
-                            placeholderTextColor={AURORA.textMuted}
+                            placeholderTextColor="#9FB0D4"
                             value={message}
                             onChangeText={setMessage}
                         />
@@ -699,7 +740,7 @@ function DirectMessageView({
                             color: AURORA.textMuted,
                             fontSize: 11,
                             textAlign: 'center',
-                            marginBottom: 8,
+                            marginBottom: 14,
                             paddingHorizontal: 16,
                         }}
                     >
@@ -735,7 +776,7 @@ export default function MessagesScreen() {
     const { user } = useAuth();
     const router = useRouter();
     const params = useLocalSearchParams<{ counselorId?: string; openSessionRequest?: string }>();
-    const [activeTab, setActiveTab] = useState<TabType>('Counselors');
+    const [activeTab, setActiveTab] = useState<TabType>('All messages');
     const [selectedContact, setSelectedContact] = useState<CounselorContact | null>(null);
     const [contacts, setContacts] = useState<CounselorContact[]>([]);
     const [loading, setLoading] = useState(true);
@@ -936,35 +977,42 @@ export default function MessagesScreen() {
                 {/* Tabs */}
                 <View
                     style={{
-                        flexDirection: 'row',
                         paddingHorizontal: 20,
                         borderBottomWidth: 1,
                         borderBottomColor: AURORA.border,
                         marginTop: 8,
+                        paddingBottom: 10,
                     }}
                 >
-                    {TABS.map((tab) => (
-                        <TouchableOpacity
-                            key={tab}
-                            onPress={() => setActiveTab(tab)}
-                            style={{
-                                paddingVertical: 10,
-                                marginRight: 20,
-                                borderBottomWidth: 2,
-                                borderBottomColor: activeTab === tab ? AURORA.blue : 'transparent',
-                            }}
-                        >
-                            <Text
-                                style={{
-                                    color: activeTab === tab ? AURORA.blue : AURORA.textSec,
-                                    fontSize: 14,
-                                    fontWeight: activeTab === tab ? '700' : '400',
-                                }}
-                            >
-                                {tab}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                        {TABS.map((tab) => {
+                            const active = activeTab === tab;
+                            return (
+                                <TouchableOpacity
+                                    key={tab}
+                                    onPress={() => setActiveTab(tab)}
+                                    style={{
+                                        paddingVertical: 8,
+                                        paddingHorizontal: 14,
+                                        borderRadius: 999,
+                                        borderWidth: 1,
+                                        borderColor: active ? 'rgba(45,107,255,0.45)' : AURORA.border,
+                                        backgroundColor: active ? 'rgba(45,107,255,0.16)' : 'transparent',
+                                    }}
+                                >
+                                    <Text
+                                        style={{
+                                            color: active ? AURORA.blue : AURORA.textSec,
+                                            fontSize: 14,
+                                            fontWeight: active ? '700' : '500',
+                                        }}
+                                    >
+                                        {tab}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
                 </View>
 
                 {/* Contact List */}
@@ -1033,6 +1081,7 @@ export default function MessagesScreen() {
                         shadowRadius: 12,
                         elevation: 8,
                     }}
+                    activeOpacity={0.9}
                 >
                     <PenSquare size={22} color="#FFFFFF" />
                 </TouchableOpacity>

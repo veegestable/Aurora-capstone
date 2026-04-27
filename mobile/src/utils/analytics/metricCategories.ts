@@ -41,7 +41,7 @@ export function moodCategoryFromFive(avg: number | null): string {
     if (avg == null) return 'not enough mood data';
     if (avg >= 4.2) return 'mostly good';
     if (avg >= 3.4) return 'mostly okay';
-    if (avg >= 2.6) return 'mixed with lower moments';
+    if (avg >= 2.6) return 'ups and downs today';
     return 'mostly low';
 }
 

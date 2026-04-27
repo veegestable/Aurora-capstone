@@ -32,6 +32,16 @@ import {
   resolveSessionsDocIdForSessionCard,
 } from '../utils/sessionInviteIds';
 
+const AUTO_ACCEPTED_PREFIX = '__AUTO_ACCEPTED__';
+
+function sanitizeConversationPreview(raw: unknown): string {
+  const text = typeof raw === 'string' ? raw : '';
+  const stripped = text.startsWith(AUTO_ACCEPTED_PREFIX)
+    ? text.slice(AUTO_ACCEPTED_PREFIX.length).trim()
+    : text;
+  return stripped || 'No messages yet';
+}
+
 export interface MoodData {
   user_id: string;
   emotions: Array<{
@@ -161,6 +171,7 @@ async function createSessionNotification(
       type: 'counselor_message',
       message,
       status: 'pending',
+      delivery_mode: 'local_bridge',
       notification_key: key,
       target_route: targetRoute,
       scheduled_for: Timestamp.now(),
@@ -547,7 +558,7 @@ export const firestoreService = {
           id: data.studentId,
           conversationId: d.id,
           name: data.student_name,
-          preview: data.lastMessage ?? 'No messages yet',
+          preview: sanitizeConversationPreview(data.lastMessage),
           time: data.lastMessageAt?.toDate ? formatMessageTime(data.lastMessageAt.toDate()) : 'Just now',
           avatar,
           isOnline: false,

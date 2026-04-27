@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Image, PanResponder, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, PanResponder, ScrollView, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Animatable from 'react-native-animatable';
@@ -28,10 +28,13 @@ import {
     Users,
     Zap,
     MessageSquare,
+    CircleHelp,
 } from 'lucide-react-native';
 import { moodService } from '../services/mood.service';
 import { AURORA } from '../constants/aurora-colors';
 import { useAuth } from '../stores/AuthContext';
+import { triggerHaptic } from '../utils/haptics';
+import { EmotionDetection } from './EmotionDetection';
 import { useUserDaySettings } from '../stores/UserDaySettingsContext';
 import {
     calculateStressLevel,
@@ -51,6 +54,7 @@ import {
 
 interface MoodCheckInProps {
     onComplete?: () => void;
+    initialMood?: string | null;
 }
 
 interface DetectedEmotion {
@@ -147,11 +151,13 @@ const SimpleSlider = ({
     );
 };
 
-export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
+export function MoodCheckIn({ onComplete, initialMood = null }: MoodCheckInProps) {
     const { user } = useAuth();
     const { dayResetHour, timezone, academicContextEnabled, enabledContextCategories } = useUserDaySettings();
 
     const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>([]);
+    const [moodInputMode, setMoodInputMode] = useState<'manual' | 'selfie'>('manual');
+    const [detectionMethod, setDetectionMethod] = useState<'manual' | 'selfie_ai'>('manual');
     const [intensityTen, setIntensityTen] = useState(6);
     const [energyLevel, setEnergyLevel] = useState(3);
     const [stressLevel, setStressLevel] = useState(3);
@@ -159,12 +165,16 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
     const [dailyContext, setDailyContextState] = useState<DailyContextDoc | null>(null);
     const [sleepCapturedToday, setSleepCapturedToday] = useState(false);
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
+    const [journalText, setJournalText] = useState('');
+    const [journalEdited, setJournalEdited] = useState(false);
+    const [showJournalEditor, setShowJournalEditor] = useState(false);
 
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [dayKey, setDayKey] = useState('');
     const [isScrollEnabled, setIsScrollEnabled] = useState(true);
+    const [expandedTagGroups, setExpandedTagGroups] = useState<Record<string, boolean>>({});
 
     const selectedEmotion = selectedEmotions[0];
     const selectedManualEmotion =
@@ -238,6 +248,15 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
         loadDaily();
     }, [user?.id, dayKey]);
 
+    useEffect(() => {
+        if (!initialMood) return;
+        const emotion = MANUAL_EMOTIONS.find((item) => item.name === initialMood);
+        if (!emotion) return;
+        setMoodInputMode('manual');
+        setDetectionMethod('manual');
+        setSelectedEmotions([{ emotion: emotion.name, confidence: 0.6, color: emotion.color }]);
+    }, [initialMood]);
+
     const closeModalThenRoute = (path: '/(student)/messages' | '/(student)/resources') => {
         onComplete?.();
         setTimeout(() => router.push(path), 0);
@@ -246,6 +265,119 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
     const toggleTag = (tag: string) => {
         setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag]));
     };
+
+    const describeEnergy = (value: number) => {
+        if (value <= 1) return 'very low';
+        if (value === 2) return 'low';
+        if (value === 3) return 'moderate';
+        if (value === 4) return 'high';
+        return 'very high';
+    };
+
+    const describeStress = (value: number) => {
+        if (value <= 1) return 'very calm';
+        if (value === 2) return 'slightly tense';
+        if (value === 3) return 'moderately stressed';
+        if (value === 4) return 'highly stressed';
+        return 'overwhelmed';
+    };
+
+    const tagPhrase = (tags: string[], maxVisible = 5) => {
+        const clean = tags.filter(Boolean);
+        if (clean.length === 0) return '';
+        if (clean.length === 1) return clean[0];
+        if (clean.length === 2) return `${clean[0]} and ${clean[1]}`;
+
+        const visible = clean.slice(0, maxVisible);
+        const extraCount = clean.length - visible.length;
+        const base =
+            visible.length === 3
+                ? `${visible[0]}, ${visible[1]}, and ${visible[2]}`
+                : `${visible.slice(0, -1).join(', ')}, and ${visible[visible.length - 1]}`;
+
+        return extraCount > 0 ? `${base} (+${extraCount} more)` : base;
+    };
+
+    const buildJournalDraft = () => {
+        const selectedLabel =
+            MANUAL_EMOTIONS.find((emotion) => emotion.name === selectedEmotion?.emotion)?.label?.toLowerCase() ?? 'neutral';
+        const stressTone =
+            stressLevel >= 4 ? 'I felt emotionally heavy because of it.' : stressLevel <= 2 ? 'It felt manageable overall.' : 'It sat in the middle of my day.';
+        const selectedCategoryKeys = categoryConfigs
+            .filter((category) => category.tags.some((tag) => selectedTags.includes(tag)))
+            .map((category) => category.key);
+        const categoryLines: string[] = [];
+
+        if (selectedCategoryKeys.includes('school')) {
+            const schoolTags = selectedTags.filter((tag) => SCHOOL_TAGS.includes(tag));
+            categoryLines.push(
+                schoolTags.length > 0
+                    ? `In school, I dealt with ${tagPhrase(schoolTags)}, and it affected my focus.`
+                    : 'School tasks affected my mood today.'
+            );
+        }
+
+        if (selectedCategoryKeys.includes('fun')) {
+            const funTags = (categoryConfigs.find((category) => category.key === 'fun')?.tags ?? [])
+                .filter((tag) => selectedTags.includes(tag))
+                ;
+            categoryLines.push(
+                funTags.length > 0
+                    ? `For fun, I spent time on ${tagPhrase(funTags)}, and it changed how my day felt.`
+                    : 'Leisure time played a part in my mood today.'
+            );
+        }
+
+        if (selectedCategoryKeys.includes('social')) {
+            const socialTags = (categoryConfigs.find((category) => category.key === 'social')?.tags ?? [])
+                .filter((tag) => selectedTags.includes(tag))
+                ;
+            categoryLines.push(
+                socialTags.length > 0
+                    ? `Socially, ${tagPhrase(socialTags)} stood out and shaped my emotions.`
+                    : 'Social interactions influenced how I felt.'
+            );
+        }
+
+        if (selectedCategoryKeys.includes('health')) {
+            const healthTags = (categoryConfigs.find((category) => category.key === 'health')?.tags ?? [])
+                .filter((tag) => selectedTags.includes(tag))
+                ;
+            categoryLines.push(
+                healthTags.length > 0
+                    ? `Health-wise, I noticed ${tagPhrase(healthTags)}, and it really shaped how I felt inside. ${stressTone}`
+                    : `My physical condition influenced my emotions today. ${stressTone}`
+            );
+        }
+
+        if (selectedCategoryKeys.includes('productivity')) {
+            const productivityTags = (categoryConfigs.find((category) => category.key === 'productivity')?.tags ?? [])
+                .filter((tag) => selectedTags.includes(tag))
+                ;
+            categoryLines.push(
+                productivityTags.length > 0
+                    ? `For productivity, juggling ${tagPhrase(productivityTags)} made me feel ${stressLevel >= 4 ? 'pressured and stretched' : 'busy but trying to stay steady'}.`
+                    : `My tasks and responsibilities affected my mood, and I could feel that pressure build at times.`
+            );
+        }
+
+        const summaryLine = `Today I felt ${selectedLabel}, with ${describeEnergy(energyLevel)} energy and ${describeStress(stressLevel)} stress.`;
+        const body = categoryLines.join(' ');
+        return body ? `${summaryLine} ${body}` : summaryLine;
+    };
+
+    useEffect(() => {
+        if (selectedTags.length === 0) {
+            if (!journalEdited) {
+                setJournalText('');
+                setShowJournalEditor(false);
+            }
+            return;
+        }
+        if (!journalEdited) {
+            setJournalText(buildJournalDraft());
+        }
+    }, [selectedTags, energyLevel, stressLevel, selectedEmotion?.emotion, journalEdited]);
 
     const handleNext = () => {
         if (currentStep === 1 && selectedEmotions.length === 0) {
@@ -257,6 +389,14 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
             return;
         }
         if (currentStep < totalSteps) setCurrentStep((c) => c + 1);
+    };
+
+    const applyAnalyzedMood = (emotion: DetectedEmotion) => {
+        setSelectedEmotions([emotion]);
+        setDetectionMethod('selfie_ai');
+        if (currentStep < totalSteps) {
+            setCurrentStep((c) => c + 1);
+        }
     };
 
     const handleSubmit = async () => {
@@ -281,7 +421,9 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                 dayKey: dk,
                 event_categories: categoryConfigs.filter((c) => c.tags.some((t) => selectedTags.includes(t))).map((c) => c.key),
                 event_tags: selectedTags,
-                detection_method: 'manual',
+                notes: journalText.trim(),
+                journal_source: journalEdited ? 'manual' : 'auto',
+                detection_method: detectionMethod,
             });
 
             const shouldUpdateDailyContext = !sleepCapturedToday && !!sleepQuality;
@@ -315,9 +457,46 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
         }
     };
 
+    const showSelfiePrivacyGuide = () => {
+        Alert.alert(
+            'Daily selfie privacy',
+            'Aurora analyzes visible facial expression to suggest a mood. You can retake, switch to manual check-in, or choose whether to use the analyzed mood before continuing.',
+            [{ text: 'Got it' }]
+        );
+    };
+
+    const showScaleGuide = (type: 'energy' | 'stress') => {
+        if (type === 'energy') {
+            Alert.alert(
+                'Energy scale (1-5)',
+                'Rate how energized you feel right now.\n\n1 - Exhausted\n2 - Low energy\n3 - Okay / average\n4 - Active\n5 - Very energized'
+            );
+            return;
+        }
+        Alert.alert(
+            'Stress scale (1-5)',
+            'Rate how pressured or tense you feel right now.\n\n1 - Very calm\n2 - Slightly tense\n3 - Moderate stress\n4 - High stress\n5 - Overwhelmed'
+        );
+    };
+
+    const showSleepGuide = () => {
+        Alert.alert(
+            'Sleep quality (once per day)',
+            'Log this once per day based on your main/night sleep, not short naps.\n\nUse:\n- Poor: you woke up tired or unrested\n- Fair: okay sleep, but not fully refreshed\n- Good: restful sleep and you feel recovered'
+        );
+    };
+
+    const showAcademicSignalGuide = () => {
+        Alert.alert(
+            'School pressure today',
+            'This is an estimate based on the school-related tags you selected in this check-in. It helps summarize how much school may have influenced your mood today.'
+        );
+    };
+
     const schoolTagCount = selectedTags.filter((tag) => SCHOOL_TAGS.includes(tag)).length;
     const workloadBand =
-        schoolTagCount === 0 ? 'Light day' : schoolTagCount <= 2 ? 'Balanced load' : schoolTagCount <= 4 ? 'Busy day' : 'Heavy load';
+        schoolTagCount === 0 ? 'Light day' : schoolTagCount <= 2 ? 'Moderate day' : 'Heavy day';
+    const schoolTagCaption = `Based on ${schoolTagCount} school tag${schoolTagCount === 1 ? '' : 's'} selected`;
 
     if (isSubmitted) {
         const moodScale = Math.min(5, Math.max(1, energyLevel));
@@ -515,9 +694,25 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
     const isMoodStep = currentStep === 1;
     const isVitalityStep = currentStep === 2;
     const isContextStep = currentStep === 3;
+    const canContinueCurrentStep =
+        (isMoodStep && selectedEmotions.length > 0) ||
+        (isVitalityStep && (sleepCapturedToday || !!sleepQuality)) ||
+        isContextStep;
+    const isPrimaryActionDisabled = isSubmitting || !canContinueCurrentStep;
 
     return (
-        <ScrollView style={{ flex: 1, backgroundColor: AURORA.bg }} contentContainerStyle={{ paddingBottom: 120 }} scrollEnabled={isScrollEnabled} showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView
+            style={{ flex: 1, backgroundColor: AURORA.bg }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        >
+        <ScrollView
+            style={{ flex: 1, backgroundColor: AURORA.bg }}
+            contentContainerStyle={{ paddingBottom: 120 }}
+            scrollEnabled={isScrollEnabled}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+        >
             <View style={{ padding: 20, paddingTop: 24 }}>
                 <Animatable.View animation="fadeInDown" duration={400} useNativeDriver style={{ marginBottom: 22 }}>
                     <Text style={{ fontSize: 24, fontWeight: '800', color: AURORA.textPrimary, textAlign: 'center', marginBottom: 8 }}>
@@ -526,58 +721,164 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                         {isContextStep && 'What affected your mood?'}
                     </Text>
                     <Text style={{ color: AURORA.textSec, textAlign: 'center', fontSize: 15 }}>
-                        {isMoodStep && 'Pick your mood and intensity first.'}
+                        {isMoodStep && 'Choose how you feel right now, then set intensity.'}
                         {isVitalityStep && 'Sleep quality is required for each check-in.'}
-                        {isContextStep && 'Optional tags for modern trend and correlation analysis.'}
+                        {isContextStep && 'Select tags that influenced how you felt today.'}
                     </Text>
                 </Animatable.View>
 
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 26 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
                     {['Mood', 'Vitals', 'Context'].map((label, idx) => {
                         const step = idx + 1;
-                        const active = currentStep >= step;
+                        const isCurrent = currentStep === step;
+                        const isCompleted = currentStep > step;
                         return (
                             <View key={label} style={{ alignItems: 'center', flex: 1 }}>
-                                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: active ? AURORA.blue : AURORA.cardAlt, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-                                    <Text style={{ color: active ? AURORA.textPrimary : AURORA.textMuted, fontWeight: '700' }}>{step}</Text>
+                                <View
+                                    style={{
+                                        width: 34,
+                                        height: 34,
+                                        borderRadius: 17,
+                                        backgroundColor: isCurrent ? AURORA.blue : isCompleted ? 'rgba(45,107,255,0.2)' : AURORA.cardAlt,
+                                        borderWidth: isCurrent ? 1.5 : 1,
+                                        borderColor: isCurrent ? 'rgba(140,177,255,0.7)' : 'transparent',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        marginBottom: 6,
+                                    }}
+                                >
+                                    <Text style={{ color: isCurrent ? AURORA.textPrimary : isCompleted ? '#BCD0FF' : AURORA.textMuted, fontWeight: '700' }}>
+                                        {step}
+                                    </Text>
                                 </View>
-                                <Text style={{ fontSize: 12, color: active ? AURORA.blue : AURORA.textMuted }}>{label}</Text>
+                                <Text style={{ fontSize: 12, color: isCurrent ? AURORA.blue : isCompleted ? '#AFC4F5' : '#8DA0CC' }}>
+                                    {`${step} ${label}`}
+                                </Text>
                             </View>
                         );
                     })}
                 </View>
+                <View
+                    style={{
+                        height: 4,
+                        borderRadius: 999,
+                        backgroundColor: AURORA.cardAlt,
+                        overflow: 'hidden',
+                        marginBottom: 18,
+                    }}
+                >
+                    <View
+                        style={{
+                            width: `${(currentStep / totalSteps) * 100}%`,
+                            height: '100%',
+                            backgroundColor: AURORA.blue,
+                        }}
+                    />
+                </View>
 
                 {isMoodStep && (
                     <View style={{ gap: 16 }}>
-                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
-                            <Text style={{ color: AURORA.textPrimary, textAlign: 'center', fontWeight: '700', marginBottom: 12 }}>Select emotion</Text>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
-                                {MANUAL_EMOTIONS.map((emotion) => {
-                                    const selected = selectedEmotions.some((x) => x.emotion === emotion.name);
-                                    return (
-                                        <TouchableOpacity
-                                            key={emotion.name}
-                                            onPress={() => setSelectedEmotions([{ emotion: emotion.name, confidence: intensityTen / 10, color: emotion.color }])}
-                                            style={{
-                                                width: 68,
-                                                height: 84,
-                                                borderRadius: 16,
-                                                borderWidth: selected ? 2 : 1,
-                                                borderColor: selected ? emotion.color : AURORA.border,
-                                                backgroundColor: selected ? `${emotion.color}24` : AURORA.cardAlt,
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                            }}
-                                        >
-                                            {renderMoodVisual(emotion, 34)}
-                                            <Text style={{ marginTop: 6, fontSize: 12, color: selected ? emotion.color : AURORA.textSec, fontWeight: '700' }}>{emotion.label}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
+                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 6 }}>
+                            <View style={{ flexDirection: 'row', backgroundColor: AURORA.cardAlt, borderRadius: 12, padding: 4 }}>
+                                <TouchableOpacity
+                                    onPress={() => setMoodInputMode('manual')}
+                                    style={{
+                                        flex: 1,
+                                        paddingVertical: 10,
+                                        borderRadius: 10,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: moodInputMode === 'manual' ? AURORA.blue : 'transparent',
+                                    }}
+                                >
+                                    <Text style={{ color: moodInputMode === 'manual' ? AURORA.textPrimary : AURORA.textSec, fontWeight: '700' }}>
+                                        Manual check-in
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => setMoodInputMode('selfie')}
+                                    style={{
+                                        flex: 1,
+                                        paddingVertical: 10,
+                                        borderRadius: 10,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: moodInputMode === 'selfie' ? AURORA.blue : 'transparent',
+                                    }}
+                                >
+                                    <Text style={{ color: moodInputMode === 'selfie' ? AURORA.textPrimary : AURORA.textSec, fontWeight: '700' }}>
+                                        Daily selfie
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 6, paddingBottom: 6 }}>
+                                <Sparkles size={14} color={AURORA.amber} />
+                                <Text style={{ color: AURORA.textMuted, fontSize: 12, flex: 1 }}>
+                                    {moodInputMode === 'selfie'
+                                        ? 'Daily selfie suggests mood from facial expression. You can use AI mood or retake before continuing.'
+                                        : 'Manual mode gives full control when selecting your mood and intensity.'}
+                                </Text>
+                                {moodInputMode === 'selfie' ? (
+                                    <TouchableOpacity
+                                        onPress={showSelfiePrivacyGuide}
+                                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                                    >
+                                        <CircleHelp size={14} color={AURORA.textMuted} />
+                                    </TouchableOpacity>
+                                ) : null}
                             </View>
                         </View>
-                        {selectedEmotions.length > 0 && (
-                            <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
+                        {moodInputMode === 'selfie' ? (
+                            <EmotionDetection
+                                title="Daily Selfie (Expression-Based)"
+                                helperText="Aurora estimates your mood from visible facial expression only. You can choose the analyzed mood and continue, or retake another selfie."
+                                onEmotionDetected={(emotions) => {
+                                    if (emotions.length > 0) {
+                                        setSelectedEmotions([emotions[0]]);
+                                    }
+                                }}
+                                onUseAnalyzedMood={applyAnalyzedMood}
+                                saveActionLabel="Use this mood"
+                                showSaveSuccessAlert={false}
+                            />
+                        ) : null}
+                        {moodInputMode === 'manual' ? (
+                            <>
+                                <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
+                                    <Text style={{ color: AURORA.textPrimary, textAlign: 'center', fontWeight: '700', marginBottom: 14 }}>Select emotion</Text>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
+                                        {MANUAL_EMOTIONS.map((emotion) => {
+                                            const selected = selectedEmotions.some((x) => x.emotion === emotion.name);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={emotion.name}
+                                                    onPress={() => {
+                                                        triggerHaptic('light');
+                                                        setSelectedEmotions([{ emotion: emotion.name, confidence: intensityTen / 10, color: emotion.color }]);
+                                                        setDetectionMethod('manual');
+                                                    }}
+                                                    activeOpacity={0.85}
+                                                    style={{
+                                                        width: 72,
+                                                        minHeight: 88,
+                                                        borderRadius: 16,
+                                                        borderWidth: selected ? 1.5 : 1,
+                                                        borderColor: selected ? emotion.color : AURORA.border,
+                                                        backgroundColor: selected ? `${emotion.color}24` : AURORA.cardAlt,
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        transform: [{ scale: selected ? 1.02 : 1 }],
+                                                    }}
+                                                >
+                                                    {renderMoodVisual(emotion, 34)}
+                                                    <Text style={{ marginTop: 5, fontSize: 12, color: selected ? emotion.color : AURORA.textSec, fontWeight: '700' }}>{emotion.label}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                                {selectedEmotions.length > 0 && (
+                                    <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 18, padding: 16 }}>
                                 <View
                                     style={{
                                         alignItems: 'center',
@@ -622,8 +923,10 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                                     onSlidingStart={() => setIsScrollEnabled(false)}
                                     onSlidingComplete={() => setIsScrollEnabled(true)}
                                 />
-                            </View>
-                        )}
+                                    </View>
+                                )}
+                            </>
+                        ) : null}
                     </View>
                 )}
 
@@ -635,6 +938,13 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                                 <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>Energy</Text>
                                 <Text style={{ color: AURORA.textMuted, fontWeight: '500' }}>(1-5)</Text>
                             </View>
+                            <TouchableOpacity
+                                onPress={() => showScaleGuide('energy')}
+                                style={{ padding: 4, marginLeft: 'auto' }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <CircleHelp size={16} color={AURORA.textMuted} />
+                            </TouchableOpacity>
                         </View>
                         <SimpleSlider
                             value={(energyLevel - 1) / 4}
@@ -652,6 +962,13 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                                 <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>Stress</Text>
                                 <Text style={{ color: AURORA.textMuted, fontWeight: '500' }}>(1-5)</Text>
                             </View>
+                            <TouchableOpacity
+                                onPress={() => showScaleGuide('stress')}
+                                style={{ padding: 4, marginLeft: 'auto' }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <CircleHelp size={16} color={AURORA.textMuted} />
+                            </TouchableOpacity>
                         </View>
                         <SimpleSlider
                             value={(stressLevel - 1) / 4}
@@ -668,11 +985,18 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                             <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>
                                 Sleep quality {sleepCapturedToday ? '(already set today)' : '(set once daily)'}
                             </Text>
+                            <TouchableOpacity
+                                onPress={showSleepGuide}
+                                style={{ padding: 4, marginLeft: 'auto' }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <CircleHelp size={16} color={AURORA.textMuted} />
+                            </TouchableOpacity>
                         </View>
                         <Text style={{ color: AURORA.textMuted, fontSize: 12, marginBottom: 10 }}>
                             {sleepCapturedToday
                                 ? 'You already logged sleep quality today. You can continue without changing it.'
-                                : 'Set this once on your first mood log today.'}
+                                : 'Set this once daily based on your main/night sleep (not naps).'}
                         </Text>
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                             {(['poor', 'fair', 'good'] as SleepQuality[]).map((quality) => {
@@ -709,9 +1033,22 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
 
                 {isContextStep && (
                     <View style={{ gap: 12 }}>
-                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Text style={{ color: AURORA.textSec }}>Academic signal</Text>
-                            <Text style={{ color: AURORA.blue, fontWeight: '700' }}>{workloadBand}</Text>
+                        <View style={{ backgroundColor: AURORA.cardAlt, borderWidth: 1, borderColor: AURORA.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={{ color: '#9CB0DE', fontSize: 12, fontWeight: '600' }}>School pressure today</Text>
+                                    <TouchableOpacity
+                                        onPress={showAcademicSignalGuide}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    >
+                                        <CircleHelp size={14} color={AURORA.textMuted} />
+                                    </TouchableOpacity>
+                                </View>
+                                <Text style={{ color: AURORA.blue, fontWeight: '700' }}>{workloadBand}</Text>
+                            </View>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 11, marginTop: 5 }}>
+                                {schoolTagCaption}
+                            </Text>
                         </View>
                         {categoryConfigs.length === 0 ? (
                             <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 14 }}>
@@ -728,7 +1065,7 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                                         </View>
                                     </View>
                                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                                        {category.tags.map((tag) => {
+                                        {(expandedTagGroups[category.key] ? category.tags : category.tags.slice(0, 5)).map((tag) => {
                                             const selected = selectedTags.includes(tag);
                                             return (
                                                 <TouchableOpacity
@@ -739,18 +1076,129 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                                                         paddingVertical: 7,
                                                         borderRadius: 999,
                                                         borderWidth: 1,
-                                                        borderColor: selected ? AURORA.blue : AURORA.border,
-                                                        backgroundColor: selected ? 'rgba(45, 107, 255, 0.2)' : AURORA.cardAlt,
+                                                        borderColor: selected ? 'rgba(88,138,255,0.6)' : 'rgba(120,139,198,0.25)',
+                                                        backgroundColor: selected ? 'rgba(45, 107, 255, 0.22)' : 'rgba(28,36,86,0.55)',
                                                     }}
                                                 >
-                                                    <Text style={{ color: selected ? AURORA.blue : AURORA.textSec, fontSize: 12, fontWeight: '700' }}>{tag}</Text>
+                                                    <Text style={{ color: selected ? '#C8D8FF' : '#AFC0E8', fontSize: 12, fontWeight: '700' }}>{tag}</Text>
                                                 </TouchableOpacity>
                                             );
                                         })}
                                     </View>
+                                    {category.tags.length > 5 ? (
+                                        <TouchableOpacity
+                                            onPress={() =>
+                                                setExpandedTagGroups((prev) => ({
+                                                    ...prev,
+                                                    [category.key]: !prev[category.key],
+                                                }))
+                                            }
+                                            style={{ alignSelf: 'flex-start', marginTop: 10 }}
+                                        >
+                                            <Text style={{ color: AURORA.blue, fontSize: 12, fontWeight: '700' }}>
+                                                {expandedTagGroups[category.key] ? 'Show less' : `Show ${category.tags.length - 5} more`}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ) : null}
                                 </Animatable.View>
                             ))
                         )}
+                        <View style={{ backgroundColor: AURORA.card, borderWidth: 1, borderColor: AURORA.border, borderRadius: 14, padding: 12 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>Journal (optional)</Text>
+                                <Text style={{ color: AURORA.textMuted, fontSize: 11 }}>
+                                    {journalEdited ? 'Edited' : 'Auto-draft'}
+                                </Text>
+                            </View>
+                            <Text style={{ color: AURORA.textMuted, fontSize: 12, marginBottom: 10 }}>
+                                {selectedTags.length > 0
+                                    ? 'A short reflection is generated from your selected context tags. You can edit before saving.'
+                                    : 'Select at least one context tag above to generate a quick journal draft.'}
+                            </Text>
+                            {selectedTags.length > 0 ? (
+                                <>
+                                    {!showJournalEditor ? (
+                                        <>
+                                            <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 10, borderWidth: 1, borderColor: AURORA.border, padding: 10, marginBottom: 8 }}>
+                                                <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 18 }}>
+                                                    {journalText || buildJournalDraft()}
+                                                </Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                onPress={() => setShowJournalEditor(true)}
+                                                style={{
+                                                    alignSelf: 'flex-start',
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 7,
+                                                    borderRadius: 999,
+                                                    borderWidth: 1,
+                                                    borderColor: AURORA.blue,
+                                                    backgroundColor: 'rgba(45, 107, 255, 0.18)',
+                                                }}
+                                            >
+                                                <Text style={{ color: AURORA.blue, fontWeight: '700', fontSize: 12 }}>Edit draft</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <TextInput
+                                                value={journalText}
+                                                onChangeText={(text) => {
+                                                    setJournalText(text);
+                                                    setJournalEdited(true);
+                                                }}
+                                                multiline
+                                                placeholder="Write your reflection..."
+                                                placeholderTextColor={AURORA.textMuted}
+                                                style={{
+                                                    minHeight: 94,
+                                                    borderRadius: 10,
+                                                    borderWidth: 1,
+                                                    borderColor: AURORA.border,
+                                                    backgroundColor: AURORA.cardAlt,
+                                                    color: AURORA.textPrimary,
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 10,
+                                                    textAlignVertical: 'top',
+                                                    marginBottom: 8,
+                                                }}
+                                            />
+                                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        setJournalEdited(false);
+                                                        setJournalText(buildJournalDraft());
+                                                    }}
+                                                    style={{
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 7,
+                                                        borderRadius: 999,
+                                                        borderWidth: 1,
+                                                        borderColor: AURORA.border,
+                                                        backgroundColor: AURORA.cardAlt,
+                                                    }}
+                                                >
+                                                    <Text style={{ color: AURORA.textSec, fontSize: 12, fontWeight: '700' }}>Use auto draft</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => setShowJournalEditor(false)}
+                                                    style={{
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 7,
+                                                        borderRadius: 999,
+                                                        borderWidth: 1,
+                                                        borderColor: AURORA.blue,
+                                                        backgroundColor: 'rgba(45, 107, 255, 0.18)',
+                                                    }}
+                                                >
+                                                    <Text style={{ color: AURORA.blue, fontSize: 12, fontWeight: '700' }}>Done editing</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </>
+                                    )}
+                                </>
+                            ) : null}
+                        </View>
                     </View>
                 )}
             </View>
@@ -768,17 +1216,28 @@ export function MoodCheckIn({ onComplete }: MoodCheckInProps) {
                     )}
                     <TouchableOpacity
                         onPress={currentStep === totalSteps ? handleSubmit : handleNext}
-                        disabled={isSubmitting}
-                        style={{ flex: 1, backgroundColor: isSubmitting ? AURORA.textMuted : AURORA.blue, borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 }}
+                        disabled={isPrimaryActionDisabled}
+                        style={{
+                            flex: 1,
+                            backgroundColor: isPrimaryActionDisabled ? AURORA.textMuted : AURORA.blue,
+                            borderRadius: 12,
+                            paddingVertical: 14,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            gap: 6,
+                            opacity: isPrimaryActionDisabled ? 0.7 : 1,
+                        }}
                     >
-                        <Text style={{ color: AURORA.textPrimary, fontWeight: '700' }}>
+                        <Text style={{ color: AURORA.textPrimary, fontWeight: '700', opacity: isPrimaryActionDisabled ? 0.88 : 1 }}>
                             {isSubmitting ? 'Saving...' : currentStep === totalSteps ? 'Save check-in' : 'Continue'}
                         </Text>
-                        {!isSubmitting && currentStep < totalSteps && <ArrowRight size={16} color={AURORA.textPrimary} />}
-                        {!isSubmitting && currentStep === totalSteps && <Check size={16} color={AURORA.textPrimary} />}
+                        {!isPrimaryActionDisabled && currentStep < totalSteps && <ArrowRight size={16} color={AURORA.textPrimary} />}
+                        {!isPrimaryActionDisabled && currentStep === totalSteps && <Check size={16} color={AURORA.textPrimary} />}
                     </TouchableOpacity>
                 </View>
             </View>
         </ScrollView>
+        </KeyboardAvoidingView>
     );
 }

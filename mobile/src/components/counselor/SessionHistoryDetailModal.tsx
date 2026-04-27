@@ -137,10 +137,10 @@ export default function SessionHistoryDetailModal({
                                 <Text style={[styles.sectionValue, styles.monoValue]} selectable>
                                     {data.id}
                                 </Text>
-                                <Text style={styles.hintText}>
+                                {/* <Text style={styles.hintText}>
                                     Canonical status and schedule live on this document in the{' '}
                                     <Text style={styles.monoHint}>sessions</Text> collection (not on chat messages).
-                                </Text>
+                                </Text> */}
                             </View>
 
                             {data.studentRequestNote ? (

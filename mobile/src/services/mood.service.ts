@@ -19,7 +19,7 @@ function mapV2EntryToMoodData(e: MoodLogEntryRow, userId: string): MergedMoodLog
     entryId: e.id,
     user_id: userId,
     emotions: [{ emotion: e.mood, confidence: Math.min(1, Math.max(0, e.intensity / 10)), color: e.color }],
-    notes: '',
+    notes: e.notes ?? '',
     log_date: logDate,
     energy_level: Math.min(10, Math.max(1, e.energy * 2)),
     stress_level: Math.min(10, Math.max(1, e.stress * 2)),
@@ -67,6 +67,11 @@ export const moodService = {
     const eventTags = Array.isArray(moodData.event_tags)
       ? moodData.event_tags.filter((x: unknown) => typeof x === 'string')
       : [];
+    const notes = typeof moodData.notes === 'string' ? moodData.notes.trim() : '';
+    const journalSource: 'auto' | 'manual' =
+      moodData.journal_source === 'manual' || moodData.journal_source === 'auto'
+        ? moodData.journal_source
+        : 'auto';
     if (!dayKey || typeof dayKey !== 'string') {
       throw new Error('dayKey is required for mood logs');
     }
@@ -81,6 +86,8 @@ export const moodService = {
       dayKey,
       eventCategories,
       eventTags,
+      notes,
+      journalSource,
       timestamp: now,
     });
     const row: MoodLogEntryRow = {

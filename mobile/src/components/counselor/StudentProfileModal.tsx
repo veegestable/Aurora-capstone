@@ -14,7 +14,7 @@ import {
     ScrollView,
     useWindowDimensions,
 } from 'react-native';
-import { X, ChevronDown } from 'lucide-react-native';
+import { X, ChevronDown, Heart, Zap, Smile, Activity, Hash } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
@@ -50,6 +50,94 @@ function stabilityCaption(score: number): string {
     return 'Large swings between check-ins';
 }
 
+function normalizeStressLabel(label: string): string {
+    return label.trim().toLowerCase() === 'normal' ? 'Manageable' : label;
+}
+
+function tileVisuals(
+    tileId: string,
+    value: string,
+    rawStress: number,
+    rawEnergy: number,
+    stabilityPct: number | null
+): { tintBg: string; tintBorder: string; icon: React.ReactNode } {
+    if (tileId === 'stress') {
+        if (rawStress >= 3.8) {
+            return {
+                tintBg: 'rgba(239,68,68,0.16)',
+                tintBorder: 'rgba(239,68,68,0.34)',
+                icon: <Heart size={13} color="#FCA5A5" />,
+            };
+        }
+        if (rawStress >= 2.4) {
+            return {
+                tintBg: 'rgba(245,158,11,0.16)',
+                tintBorder: 'rgba(245,158,11,0.34)',
+                icon: <Heart size={13} color="#FCD34D" />,
+            };
+        }
+        return {
+            tintBg: 'rgba(34,197,94,0.14)',
+            tintBorder: 'rgba(34,197,94,0.32)',
+            icon: <Heart size={13} color="#86EFAC" />,
+        };
+    }
+    if (tileId === 'energy') {
+        if (rawEnergy <= 2.0) {
+            return {
+                tintBg: 'rgba(148,163,184,0.16)',
+                tintBorder: 'rgba(148,163,184,0.3)',
+                icon: <Zap size={13} color="#CBD5E1" />,
+            };
+        }
+        if (rawEnergy >= 3.7) {
+            return {
+                tintBg: 'rgba(20,184,166,0.15)',
+                tintBorder: 'rgba(20,184,166,0.34)',
+                icon: <Zap size={13} color="#5EEAD4" />,
+            };
+        }
+        return {
+            tintBg: 'rgba(45,107,255,0.15)',
+            tintBorder: 'rgba(45,107,255,0.34)',
+            icon: <Zap size={13} color="#93C5FD" />,
+        };
+    }
+    if (tileId === 'stability') {
+        if (stabilityPct != null && stabilityPct >= 70) {
+            return {
+                tintBg: 'rgba(34,197,94,0.14)',
+                tintBorder: 'rgba(34,197,94,0.32)',
+                icon: <Activity size={13} color="#86EFAC" />,
+            };
+        }
+        if (stabilityPct != null && stabilityPct >= 45) {
+            return {
+                tintBg: 'rgba(245,158,11,0.14)',
+                tintBorder: 'rgba(245,158,11,0.32)',
+                icon: <Activity size={13} color="#FCD34D" />,
+            };
+        }
+        return {
+            tintBg: 'rgba(239,68,68,0.14)',
+            tintBorder: 'rgba(239,68,68,0.3)',
+            icon: <Activity size={13} color="#FCA5A5" />,
+        };
+    }
+    if (tileId === 'mood') {
+        return {
+            tintBg: 'rgba(139,92,246,0.14)',
+            tintBorder: 'rgba(139,92,246,0.3)',
+            icon: <Smile size={13} color="#C4B5FD" />,
+        };
+    }
+    return {
+        tintBg: 'rgba(59,130,246,0.12)',
+        tintBorder: 'rgba(59,130,246,0.28)',
+        icon: <Hash size={13} color="#93C5FD" />,
+    };
+}
+
 function StatTile({
     tileId,
     label,
@@ -57,6 +145,9 @@ function StatTile({
     detail,
     expanded,
     onToggle,
+    tintBg,
+    tintBorder,
+    icon,
 }: {
     tileId: string;
     label: string;
@@ -64,23 +155,36 @@ function StatTile({
     detail?: string;
     expanded: boolean;
     onToggle: (id: string) => void;
+    tintBg: string;
+    tintBorder: string;
+    icon: React.ReactNode;
 }) {
     const hasDetail = Boolean(detail?.trim());
     return (
         <TouchableOpacity
             activeOpacity={0.88}
             onPress={() => hasDetail && onToggle(tileId)}
-            style={[styles.statTile, expanded && styles.statTileExpanded, !hasDetail && styles.statTileStatic]}
+            style={[
+                styles.statTile,
+                { backgroundColor: tintBg, borderColor: tintBorder },
+                expanded && styles.statTileExpanded,
+                !hasDetail && styles.statTileStatic,
+            ]}
             disabled={!hasDetail}
         >
             <View style={styles.statTileTop}>
-                <Text style={styles.statLabel}>{label}</Text>
+                <View style={styles.statLabelWrap}>
+                    <View style={styles.statIconChip}>{icon}</View>
+                    <Text style={styles.statLabel}>{label}</Text>
+                </View>
                 {hasDetail ? (
-                    <ChevronDown
-                        size={17}
-                        color={expanded ? AURORA.blue : AURORA.textMuted}
-                        style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}
-                    />
+                    <View style={[styles.tileAffordanceIcon, expanded && styles.tileAffordanceIconExpanded]}>
+                        <ChevronDown
+                            size={14}
+                            color={expanded ? '#BFD2FF' : AURORA.textMuted}
+                            style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}
+                        />
+                    </View>
                 ) : null}
             </View>
             <Text style={styles.statValue} numberOfLines={3}>
@@ -88,8 +192,6 @@ function StatTile({
             </Text>
             {hasDetail && expanded ? (
                 <Text style={styles.statDetail}>{detail}</Text>
-            ) : hasDetail && !expanded ? (
-                <Text style={styles.statTapCue}>Tap for details</Text>
             ) : null}
         </TouchableOpacity>
     );
@@ -125,31 +227,25 @@ function CounselorCheckInSummaryPanel({ logs }: { logs: MergedMoodLog[] }) {
 
     const dominantLabel = getEmotionLabel(agg.dominantMood);
     const avgMoodIntensity = agg.avgIntensity.toFixed(1);
-    const stressLabel = stressCategoryLabelFromFive(agg.avgStress);
+    const stressLabel = normalizeStressLabel(stressCategoryLabelFromFive(agg.avgStress));
     const energyLabel = energyCategoryLabelFromFive(agg.avgEnergy);
+    const summaryLine = `${stressLabel.toLowerCase()} stress, ${energyLabel.toLowerCase()}, ${stabilityPct != null ? `${stabilityPct}% stability` : 'stability needs more check-ins'}.`;
 
     return (
         <View style={styles.summaryPanel}>
             <Text style={styles.summaryFootnote}>
                 Built from the same self-report scales as the student app (1–5 stress & energy). Not a clinical assessment.
             </Text>
+            <Text style={styles.summarySubnote}>
+                Self-reported trends for quick support triage.
+            </Text>
+            <Text style={styles.summaryContextLine}>
+                Summary: {summaryLine}
+            </Text>
+            <Text style={styles.summaryContextLineMuted}>
+                Based on {agg.entryCount} self-reported check-in{agg.entryCount === 1 ? '' : 's'} in the last {COUNSELOR_CHECKIN_WINDOW_DAYS} days.
+            </Text>
             <View style={styles.statGrid}>
-                <StatTile
-                    tileId="checkins"
-                    label="Check-ins"
-                    value={String(agg.entryCount)}
-                    detail={`Total self-reported check-ins in Aurora for the last ${COUNSELOR_CHECKIN_WINDOW_DAYS} days.`}
-                    expanded={expandedTileId === 'checkins'}
-                    onToggle={toggleTile}
-                />
-                <StatTile
-                    tileId="mood"
-                    label="Dominant mood"
-                    value={dominantLabel}
-                    detail={`Strongest emotion tag across check-ins. Average mood intensity ${avgMoodIntensity} / 10.`}
-                    expanded={expandedTileId === 'mood'}
-                    onToggle={toggleTile}
-                />
                 <StatTile
                     tileId="stress"
                     label="Average stress"
@@ -157,6 +253,7 @@ function CounselorCheckInSummaryPanel({ logs }: { logs: MergedMoodLog[] }) {
                     detail={`Average score ${agg.avgStress.toFixed(1)} on a 1–5 scale (same bands as the student app). Lower is calmer; higher is more stressed.`}
                     expanded={expandedTileId === 'stress'}
                     onToggle={toggleTile}
+                    {...tileVisuals('stress', stressLabel, agg.avgStress, agg.avgEnergy, stabilityPct)}
                 />
                 <StatTile
                     tileId="energy"
@@ -165,6 +262,25 @@ function CounselorCheckInSummaryPanel({ logs }: { logs: MergedMoodLog[] }) {
                     detail={`Average score ${agg.avgEnergy.toFixed(1)} on a 1–5 scale (same bands as the student app). Lower is more tired; higher is more energized.`}
                     expanded={expandedTileId === 'energy'}
                     onToggle={toggleTile}
+                    {...tileVisuals('energy', energyLabel, agg.avgStress, agg.avgEnergy, stabilityPct)}
+                />
+                <StatTile
+                    tileId="mood"
+                    label="Dominant mood"
+                    value={dominantLabel}
+                    detail={`Strongest emotion tag across check-ins. Average mood intensity ${avgMoodIntensity} / 10.`}
+                    expanded={expandedTileId === 'mood'}
+                    onToggle={toggleTile}
+                    {...tileVisuals('mood', dominantLabel, agg.avgStress, agg.avgEnergy, stabilityPct)}
+                />
+                <StatTile
+                    tileId="checkins"
+                    label="Check-ins"
+                    value={String(agg.entryCount)}
+                    detail={`Total self-reported check-ins in Aurora for the last ${COUNSELOR_CHECKIN_WINDOW_DAYS} days.`}
+                    expanded={expandedTileId === 'checkins'}
+                    onToggle={toggleTile}
+                    {...tileVisuals('checkins', String(agg.entryCount), agg.avgStress, agg.avgEnergy, stabilityPct)}
                 />
                 <StatTile
                     tileId="stability"
@@ -177,6 +293,7 @@ function CounselorCheckInSummaryPanel({ logs }: { logs: MergedMoodLog[] }) {
                     }
                     expanded={expandedTileId === 'stability'}
                     onToggle={toggleTile}
+                    {...tileVisuals('stability', stabilityPct != null ? `${stabilityPct}%` : '—', agg.avgStress, agg.avgEnergy, stabilityPct)}
                 />
             </View>
         </View>
@@ -370,7 +487,7 @@ export default function StudentProfileModal({
 
                         <Text style={styles.inviteHint}>
                             {sharingEnabled
-                                ? 'Figures above are self-reported summaries only — not a diagnosis. Use messages to coordinate a session respectfully.'
+                                ? 'Figures above are self-reported summaries only — not a diagnosis.\nUse messages to coordinate a session respectfully.'
                                 : 'This student has not shared recent check-ins in Aurora. You can still invite them to a session: sharing only controls summaries here, not whether you may reach out through the app.'}
                         </Text>
                     </ScrollView>
@@ -384,10 +501,11 @@ export default function StudentProfileModal({
                             <ActivityIndicator color="#FFFFFF" />
                         ) : (
                             <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>
-                                Invite to session (open chat)
+                                Invite to Session
                             </Text>
                         )}
                     </TouchableOpacity>
+                    <Text style={styles.inviteSubtext}>Opens chat to coordinate schedule.</Text>
                 </View>
             </View>
         </Modal>
@@ -453,7 +571,12 @@ const styles = StyleSheet.create({
     },
     closeBtn: {
         flexShrink: 0,
-        padding: 4,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.03)',
     },
     chartSection: {
         marginBottom: 8,
@@ -494,7 +617,7 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     inviteButton: {
-        marginTop: 10,
+        marginTop: 14,
         borderRadius: 16,
         paddingVertical: 15,
         alignItems: 'center',
@@ -512,6 +635,24 @@ const styles = StyleSheet.create({
         color: 'rgba(148,163,184,0.9)',
         fontSize: 11,
         lineHeight: 17,
+        marginBottom: 6,
+    },
+    summarySubnote: {
+        color: 'rgba(170,186,224,0.88)',
+        fontSize: 11,
+        lineHeight: 16,
+        marginBottom: 4,
+    },
+    summaryContextLine: {
+        color: '#D2DDF8',
+        fontSize: 12,
+        lineHeight: 18,
+        marginBottom: 2,
+    },
+    summaryContextLineMuted: {
+        color: 'rgba(170,186,224,0.82)',
+        fontSize: 11,
+        lineHeight: 16,
         marginBottom: 10,
     },
     statGrid: {
@@ -523,6 +664,7 @@ const styles = StyleSheet.create({
         width: '47%',
         flexGrow: 1,
         minWidth: 140,
+        minHeight: 126,
         backgroundColor: 'rgba(30,41,59,0.65)',
         borderRadius: 16,
         padding: 14,
@@ -543,6 +685,35 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: 8,
     },
+    statLabelWrap: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        flex: 1,
+        minWidth: 0,
+    },
+    statIconChip: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    tileAffordanceIcon: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(148,163,184,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(148,163,184,0.18)',
+    },
+    tileAffordanceIconExpanded: {
+        backgroundColor: 'rgba(45,107,255,0.18)',
+        borderColor: 'rgba(45,107,255,0.4)',
+    },
     statLabel: {
         color: 'rgba(148,163,184,0.95)',
         fontSize: 10,
@@ -554,16 +725,16 @@ const styles = StyleSheet.create({
     },
     statValue: {
         color: '#F8FAFC',
-        fontSize: 19,
+        fontSize: 18,
         fontWeight: '800',
         letterSpacing: -0.3,
-        lineHeight: 24,
+        lineHeight: 23,
     },
-    statTapCue: {
-        color: 'rgba(148,163,184,0.75)',
+    inviteSubtext: {
+        color: 'rgba(170,186,224,0.85)',
         fontSize: 11,
-        fontWeight: '600',
-        marginTop: 10,
+        textAlign: 'center',
+        marginTop: 7,
     },
     statDetail: {
         color: 'rgba(226,232,240,0.92)',

@@ -44,6 +44,11 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   return !!(requested.granted || requested.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL);
 }
 
+export async function hasNotificationPermission(): Promise<boolean> {
+  const current = await Notifications.getPermissionsAsync();
+  return !!(current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL);
+}
+
 export async function clearDailyCheckInReminder(): Promise<void> {
   const all = await Notifications.getAllScheduledNotificationsAsync();
   const ownIds = all
@@ -97,6 +102,34 @@ export async function sendTestDailyCheckInNotification(): Promise<boolean> {
         type: DAILY_REMINDER_TYPE,
         test: true,
         targetRoute: '/(student)/index',
+      },
+    },
+    trigger: null,
+  });
+
+  return true;
+}
+
+export async function sendSessionDeviceNotification(payload: {
+  title: string;
+  body: string;
+  targetRoute: '/(student)/messages' | '/(counselor)/messages';
+  notificationId: string;
+}): Promise<boolean> {
+  configureNotificationHandler();
+  await ensureAndroidChannel();
+  const permission = await ensureNotificationPermission();
+  if (!permission) return false;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: payload.title,
+      body: payload.body,
+      sound: true,
+      data: {
+        type: 'session_update',
+        notificationId: payload.notificationId,
+        target_route: payload.targetRoute,
       },
     },
     trigger: null,

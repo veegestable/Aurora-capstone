@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, Image,
-    Modal, Platform,
+    Modal, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, TrendingUp, Lightbulb, Camera, MessageSquare, BookOpen, X, CalendarPlus, ScanFace } from 'lucide-react-native';
+import { Bell, TrendingUp, Lightbulb, Camera, MessageSquare, BookOpen, X, CalendarPlus, ScanFace, CircleHelp } from 'lucide-react-native';
 import { useAuth } from '../../stores/AuthContext';
 import { router } from 'expo-router';
 import { moodService } from '../../services/mood.service';
@@ -34,15 +34,21 @@ import { aggregateByDay, moodStabilityScore } from '../../utils/moodAggregates';
 import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
 import { getUserSettings, updateUserSettings } from '../../services/mood-firestore-v2.service';
 import { COUNSELOR_CHECKIN_WINDOW_DAYS } from '../../constants/counselor-checkin-policy';
+import { SvgUri } from 'react-native-svg';
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
 const MOOD_EMOTIONS = [
-    { name: 'joy', label: 'Happy', color: AURORA.moodHappy, image: require('../../assets/happy.png') },
-    { name: 'sadness', label: 'Sad', color: AURORA.moodSad, image: require('../../assets/sad.png') },
-    { name: 'neutral', label: 'Neutral', color: AURORA.moodNeutral, image: require('../../assets/neutral.png') },
-    { name: 'surprise', label: 'Surprise', color: AURORA.moodSurprise, image: require('../../assets/surprise.png') },
-    { name: 'anger', label: 'Angry', color: AURORA.moodAngry, image: require('../../assets/angry.png') },
+    { name: 'joy', label: 'Happy', color: AURORA.moodHappy, svg: require('../../assets/moodsSvg/happy.svg') },
+    { name: 'sadness', label: 'Sad', color: AURORA.moodSad, svg: require('../../assets/moodsSvg/sad.svg') },
+    { name: 'neutral', label: 'Neutral', color: AURORA.moodNeutral, svg: require('../../assets/moodsSvg/neutral4.svg') },
+    { name: 'surprise', label: 'Surprise', color: AURORA.moodSurprise, svg: require('../../assets/moodsSvg/surprise.svg') },
+    { name: 'anger', label: 'Angry', color: AURORA.moodAngry, svg: require('../../assets/moodsSvg/angry.svg') },
 ];
+
+const UI_TEXT_SECONDARY = '#C1CEE9';
+const UI_TEXT_MUTED = '#9AA9C8';
+const UI_SCREEN_PADDING = 18;
+const UI_SECTION_GAP = 14;
 
 // ─── Mood Bubble ─────────────────────────────────────────────────────────────
 function MoodBubble({ mood, selected, onPress }: {
@@ -50,8 +56,15 @@ function MoodBubble({ mood, selected, onPress }: {
     selected: boolean;
     onPress: () => void;
 }) {
+    const source = mood.svg ? Image.resolveAssetSource(mood.svg) : undefined;
+
     return (
-        <TouchableOpacity onPress={() => { triggerHaptic('light'); onPress(); }} activeOpacity={0.8} style={{ alignItems: 'center', gap: 6 }}>
+        <TouchableOpacity
+            onPress={() => { triggerHaptic('light'); onPress(); }}
+            activeOpacity={0.8}
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            style={{ alignItems: 'center', gap: 8, minWidth: 62 }}
+        >
             <View style={{
                 width: 58, height: 58, borderRadius: 29,
                 backgroundColor: mood.color,
@@ -64,9 +77,9 @@ function MoodBubble({ mood, selected, onPress }: {
                 shadowRadius: 10,
                 elevation: selected ? 8 : 0,
             }}>
-                <Image source={mood.image} style={{ width: 36, height: 36 }} resizeMode="contain" />
+                {source?.uri ? <SvgUri uri={source.uri} width={36} height={36} /> : null}
             </View>
-            <Text style={{ color: selected ? '#FFFFFF' : AURORA.textSec, fontSize: 11, fontWeight: selected ? '700' : '400' }}>
+            <Text style={{ color: selected ? '#FFFFFF' : UI_TEXT_SECONDARY, fontSize: 12, fontWeight: selected ? '700' : '500' }}>
                 {mood.label}
             </Text>
         </TouchableOpacity>
@@ -87,10 +100,10 @@ function QuickActionTile({
                 flex: wide ? 2 : 1,
                 backgroundColor: AURORA.card,
                 borderRadius: 18,
-                padding: 12,
+                padding: 11,
                 alignItems: 'center',
                 justifyContent: 'center',
-                minHeight: 84,
+                minHeight: 78,
                 borderWidth: 1,
                 borderColor: AURORA.border,
                 position: 'relative',
@@ -102,7 +115,7 @@ function QuickActionTile({
             {badge && (
                 <View style={{ position: 'absolute', top: 10, right: 10 }}>{badge}</View>
             )}
-            <Text style={{ color: AURORA.textSec, fontSize: 10, fontWeight: '600', letterSpacing: 0.5, textAlign: 'center' }}>
+            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 11, fontWeight: '600', letterSpacing: 0.4, textAlign: 'center' }}>
                 {label}
             </Text>
         </TouchableOpacity>
@@ -113,101 +126,44 @@ function QuickActionTile({
 function StreakCard({ streak }: { streak: number }) {
     return (
         <View style={{
-            flex: 1, backgroundColor: AURORA.card, borderRadius: 12,
-            padding: 10, borderWidth: 1, borderColor: AURORA.border,
+            flex: 1,
+            backgroundColor: AURORA.card,
+            borderRadius: 16,
+            padding: 12,
+            borderWidth: 1,
+            borderColor: AURORA.border,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.16,
+            shadowRadius: 10,
+            elevation: 3,
         }}>
-            <Text style={{ color: AURORA.textMuted, fontSize: 8, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>
-                STREAK
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <Text style={{ color: AURORA.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.8 }}>
+                    STREAK
+                </Text>
+                {/* <View style={{ backgroundColor: 'rgba(249,115,22,0.18)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={{ color: '#FDBA74', fontSize: 9, fontWeight: '700' }}>Active</Text>
+                </View> */}
+            </View>
             <View style={{
-                width: 28, height: 28, borderRadius: 8,
-                backgroundColor: 'rgba(249,115,22,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                backgroundColor: 'rgba(249,115,22,0.2)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 8,
             }}>
                 <Text style={{ fontSize: 16 }}>🔥</Text>
             </View>
-            <Text style={{ color: '#FFFFFF', fontSize: 19, fontWeight: '800', lineHeight: 21 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '900', lineHeight: 26 }}>
                 {streak}
             </Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '600' }}>Days</Text>
-            <Text style={{ color: AURORA.textSec, fontSize: 9, marginTop: 2 }}>Daily check-in goal met!</Text>
-        </View>
-    );
-}
-
-function moodKeyForConsistency(raw: string): 'happy' | 'neutral' | 'sad' | 'angry' | 'surprise' | 'other' {
-    const key = (raw || '').toLowerCase().trim();
-    if (key === 'joy' || key === 'happiness' || key === 'happy') return 'happy';
-    if (key === 'neutral') return 'neutral';
-    if (key === 'sad' || key === 'sadness') return 'sad';
-    if (key === 'angry' || key === 'anger') return 'angry';
-    if (key === 'surprise' || key === 'surprised') return 'surprise';
-    return 'other';
-}
-
-function trendLabelFromStability(score: number): string {
-    if (score >= 80) return 'Very steady';
-    if (score >= 60) return 'Mostly steady';
-    if (score >= 40) return 'Mixed pattern';
-    return 'Shifting pattern';
-}
-
-function consistencyMessage(score: number): string {
-    if (score >= 80) return 'Positive pattern is strong';
-    if (score >= 60) return 'Positive pattern is building';
-    if (score >= 40) return 'Positive pattern is mixed';
-    return 'Positive pattern is low';
-}
-
-// ─── Trend Card ──────────────────────────────────────────────────────────────
-function TrendCard({
-    trendLabel,
-    dominantEmotion,
-    consistencyScore,
-    consistencyText,
-}: {
-    trendLabel: string;
-    dominantEmotion: string;
-    consistencyScore: number;
-    consistencyText: string;
-}) {
-    return (
-        <View style={{
-            flex: 1, backgroundColor: AURORA.card, borderRadius: 12,
-            padding: 10, borderWidth: 1, borderColor: AURORA.border,
-        }}>
-            <Text style={{ color: AURORA.textMuted, fontSize: 8, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>
-                TREND
+            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700', marginTop: 1 }}>Days</Text>
+            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 10, marginTop: 4, lineHeight: 14 }}>
+                Keep checking in daily to grow this streak.
             </Text>
-            <View style={{
-                width: 28, height: 28, borderRadius: 8,
-                backgroundColor: 'rgba(45,107,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
-            }}>
-                <TrendingUp size={16} color={AURORA.blue} />
-            </View>
-            <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800', lineHeight: 16 }}>
-                {trendLabel.toUpperCase()}
-            </Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800', lineHeight: 16 }}>
-                {dominantEmotion.toUpperCase() || 'HAPPY'}
-            </Text>
-            <View style={{ marginTop: 7 }}>
-                <View style={{ height: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)' }}>
-                    <View
-                        style={{
-                            width: `${Math.max(0, Math.min(100, consistencyScore))}%`,
-                            height: 6,
-                            borderRadius: 999,
-                            backgroundColor: consistencyScore >= 60 ? AURORA.amber : AURORA.blue,
-                        }}
-                    />
-                </View>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 3, flexWrap: 'wrap' }}>
-                <Text style={{ color: AURORA.amber, fontSize: 9 }}>✦</Text>
-                <Text style={{ color: AURORA.amber, fontSize: 10, fontWeight: '600' }}>
-                    {consistencyText} ({Math.round(consistencyScore)}%)
-                </Text>
-            </View>
         </View>
     );
 }
@@ -229,7 +185,7 @@ function AIInsightCard({ insight }: { insight: string }) {
             </View>
             <View style={{ flex: 1 }}>
                 <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginBottom: 4 }}>Daily note</Text>
-                <Text style={{ color: AURORA.textSec, fontSize: 13, lineHeight: 19 }}>{insight}</Text>
+                <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 13, lineHeight: 19 }}>{insight}</Text>
             </View>
         </View>
     );
@@ -245,10 +201,8 @@ export default function MoodLogScreen() {
     const [showCheckInSharingBriefing, setShowCheckInSharingBriefing] = useState(false);
     const [stats, setStats] = useState({
         streak: 0,
-        topEmotion: 'happy',
-        trendLabel: 'Stable mood',
-        consistencyScore: 50,
-        consistencyText: 'Mixed consistency',
+        todayStability: 0,
+        todayCount: 0,
     });
     const [insight, setInsight] = useState(
         'Complete a check-in for a short note based on your mood and tasks (no AI on this screen).'
@@ -287,30 +241,14 @@ export default function MoodLogScreen() {
             if (!logs || logs.length === 0) {
                 setStats({
                     streak: 0,
-                    topEmotion: 'happy',
-                    trendLabel: 'Stable mood',
-                    consistencyScore: 50,
-                    consistencyText: 'Mixed consistency',
+                    todayStability: 0,
+                    todayCount: 0,
                 });
                 setInsight(
                     'Complete a check-in for a short note based on your mood and tasks (no AI on this screen).'
                 );
                 return;
             }
-            const emotionCounts: Record<string, number> = {};
-            logs.forEach((log: any) => {
-                log.emotions?.forEach((e: any) => {
-                    emotionCounts[e.emotion] = (emotionCounts[e.emotion] || 0) + 1;
-                });
-            });
-            let topEmotion = 'happy';
-            let max = 0;
-            Object.entries(emotionCounts).forEach(([e, c]) => {
-                if (c > max) {
-                    max = c;
-                    topEmotion = e;
-                }
-            });
             const keys = new Set(
                 moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone)
                     .map((e) => e.dayKey)
@@ -319,38 +257,12 @@ export default function MoodLogScreen() {
             const streak = calculateCheckInStreakByDayKey(keys, new Date(), dayResetHour, timezone);
             const dk = getDayKey(new Date(), dayResetHour, timezone);
             const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
-            const now = new Date();
-            now.setHours(12, 0, 0, 0);
-            const last7Keys = new Set<string>();
-            for (let i = 0; i < 7; i++) {
-                const d = new Date(now);
-                d.setDate(d.getDate() - i);
-                last7Keys.add(getDayKey(d, dayResetHour, timezone));
-            }
-            const last7Entries = entries.filter((e) => !!e.dayKey && last7Keys.has(e.dayKey));
-            const positiveCount = last7Entries.reduce((count, e) => {
-                const moodKey = moodKeyForConsistency(e.mood);
-                return moodKey === 'happy' || moodKey === 'neutral' ? count + 1 : count;
-            }, 0);
-            const positiveRatio = last7Entries.length > 0 ? positiveCount / last7Entries.length : 0.5;
-            const avgStress = last7Entries.length > 0
-                ? last7Entries.reduce((sum, e) => sum + e.stress, 0) / last7Entries.length
-                : 3;
-            const avgEnergy = last7Entries.length > 0
-                ? last7Entries.reduce((sum, e) => sum + e.energy, 0) / last7Entries.length
-                : 3;
-            const stability = moodStabilityScore(last7Entries.map((e) => e.intensity));
-            const stressFactor = 1 - ((avgStress - 1) / 4);
-            const energyFactor = (avgEnergy - 1) / 4;
-            let consistencyScore = (positiveRatio * 0.6 + stressFactor * 0.25 + energyFactor * 0.15) * 100;
-            if (positiveRatio < 0.4 && avgStress >= 3.5) consistencyScore -= 10;
-            consistencyScore = Math.max(0, Math.min(100, consistencyScore));
+            const todayEntries = entries.filter((e) => e.dayKey === dk);
+            const todayStability = moodStabilityScore(todayEntries.map((e) => e.intensity));
             setStats({
                 streak,
-                topEmotion,
-                trendLabel: trendLabelFromStability(stability),
-                consistencyScore,
-                consistencyText: consistencyMessage(consistencyScore),
+                todayStability,
+                todayCount: todayEntries.length,
             });
             const todayAgg = aggregateByDay(entries, dk);
             const sorted = [...logs].sort((a: any, b: any) => {
@@ -392,17 +304,22 @@ export default function MoodLogScreen() {
         } catch {
             setStats({
                 streak: 0,
-                topEmotion: 'happy',
-                trendLabel: 'Stable mood',
-                consistencyScore: 50,
-                consistencyText: 'Mixed consistency',
+                todayStability: 0,
+                todayCount: 0,
             });
         }
     };
 
     const handleMoodTap = (moodName: string) => {
-        setSelectedMood(moodName === selectedMood ? null : moodName);
+        setSelectedMood(moodName);
         setShowLogModal(true);
+    };
+
+    const showStabilityInfo = () => {
+        Alert.alert(
+            'Today Stability',
+            'This score summarizes how steady your mood intensity is across today\'s check-ins. Higher % means more consistent patterns.'
+        );
     };
 
     return (
@@ -410,11 +327,11 @@ export default function MoodLogScreen() {
             <SafeAreaView style={{ flex: 1 }}>
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
+                    contentContainerStyle={{ padding: UI_SCREEN_PADDING, paddingBottom: 30 }}
                     showsVerticalScrollIndicator={false}
                 >
                     {/* ── Header ─────────────────────────────────────────────── */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: UI_SECTION_GAP + 4 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                             <LetterAvatar
                                 name={user?.full_name ?? user?.preferred_name ?? 'Student'}
@@ -422,11 +339,11 @@ export default function MoodLogScreen() {
                                 avatarUrl={user?.avatar_url}
                             />
                             <View>
-                                <Text style={{ color: AURORA.textSec, fontSize: 12, letterSpacing: 1 }}>WELCOME BACK</Text>
+                                <Text style={{ color: UI_TEXT_MUTED, fontSize: 12, letterSpacing: 1 }}>WELCOME BACK</Text>
                                 <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{user?.preferred_name || user?.full_name || 'Student'}</Text>
                             </View>
                         </View>
-                        <TouchableOpacity
+                        {/* <TouchableOpacity
                             onPress={() => triggerHaptic('light')}
                             style={{
                             width: 44, height: 44, borderRadius: 22,
@@ -439,22 +356,22 @@ export default function MoodLogScreen() {
                                 width: 8, height: 8, borderRadius: 4,
                                 backgroundColor: AURORA.red, borderWidth: 1.5, borderColor: AURORA.bg,
                             }} />
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                     </View>
 
                     {/* ── How Are You Feeling Card ────────────────────────────── */}
                     <View style={{
                         backgroundColor: AURORA.card, borderRadius: 24,
-                        padding: 20, marginBottom: 16,
+                        padding: 18, marginBottom: UI_SECTION_GAP,
                         borderWidth: 1, borderColor: AURORA.border,
                     }}>
                         <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginBottom: 4 }}>
                             How are you feeling?
                         </Text>
-                        <Text style={{ color: AURORA.textSec, fontSize: 13, marginBottom: 20 }}>
+                        <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 13, marginBottom: 16 }}>
                             Tap a mood to check in.
                         </Text>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 }}>
                             {MOOD_EMOTIONS.map(mood => (
                                 <MoodBubble
                                     key={mood.name}
@@ -467,7 +384,7 @@ export default function MoodLogScreen() {
                     </View>
 
                     {/* ── Quick Actions ──────────────────────────────────────── */}
-                    <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: UI_SECTION_GAP }}>
                         <QuickActionTile
                             label="Request a Session"
                             icon={<CalendarPlus size={20} color="#FFFFFF" />}
@@ -496,20 +413,65 @@ export default function MoodLogScreen() {
                     </View>
 
                     {/* ── Stats Row ──────────────────────────────────────────── */}
-                    <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: UI_SECTION_GAP }}>
                         <StreakCard streak={stats.streak} />
-                        <TrendCard
-                            trendLabel={stats.trendLabel}
-                            dominantEmotion={getEmotionLabel(stats.topEmotion)}
-                            consistencyScore={stats.consistencyScore}
-                            consistencyText={stats.consistencyText}
-                        />
+                        <View style={{
+                            flex: 1,
+                            backgroundColor: AURORA.card,
+                            borderRadius: 16,
+                            padding: 12,
+                            borderWidth: 1,
+                            borderColor: AURORA.border,
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 6 },
+                            shadowOpacity: 0.16,
+                            shadowRadius: 10,
+                            elevation: 3,
+                        }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                <Text style={{ color: AURORA.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.8 }}>
+                                    TODAY STABILITY
+                                </Text>
+                                <TouchableOpacity
+                                    onPress={showStabilityInfo}
+                                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                                    style={{ padding: 2 }}
+                                >
+                                    <CircleHelp size={14} color={UI_TEXT_MUTED} />
+                                </TouchableOpacity>
+                                {/* <View style={{ backgroundColor: 'rgba(45,107,255,0.16)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+                                    <Text style={{ color: AURORA.blue, fontSize: 9, fontWeight: '700' }}>Live</Text>
+                                </View> */}
+                            </View>
+                            <View style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: 10,
+                                backgroundColor: 'rgba(45,107,255,0.2)',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginBottom: 8,
+                            }}>
+                                <TrendingUp size={16} color={AURORA.blue} />
+                            </View>
+                            <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '900', lineHeight: 26 }}>
+                                {Math.round(Math.max(0, Math.min(100, stats.todayStability)))}%
+                            </Text>
+                            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700', marginTop: 1 }}>Mood Stability</Text>
+                            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 10, marginTop: 4, lineHeight: 14 }}>
+                                {stats.todayCount <= 0
+                                    ? 'No check-in yet today'
+                                    : stats.todayCount === 1
+                                        ? 'Add one more check-in'
+                                        : 'Ups and downs today (e.g., higher stress or lower energy in some check-ins)'}
+                            </Text>
+                        </View>
                     </View>
 
                     {/* ── AI Insight ─────────────────────────────────────────── */}
                     <AIInsightCard insight={insight} />
 
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                         onPress={() => {
                             triggerHaptic('light');
                             router.push('/(student)/daily-selfie');
@@ -554,7 +516,7 @@ export default function MoodLogScreen() {
                                 </Text>
                             </View>
                         </View>
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
 
                     {/* ── Announcements (dynamic, from admin/counselor) ───────── */}
                     <AnnouncementSection role="student" />
@@ -667,7 +629,10 @@ export default function MoodLogScreen() {
                                 <X size={22} color={AURORA.textSec} />
                             </TouchableOpacity>
                         </View>
-                        <MoodCheckIn onComplete={() => { setShowLogModal(false); setSelectedMood(null); loadStats(); }} />
+                        <MoodCheckIn
+                            initialMood={selectedMood}
+                            onComplete={() => { setShowLogModal(false); setSelectedMood(null); loadStats(); }}
+                        />
                     </View>
                 </Modal>
             )}

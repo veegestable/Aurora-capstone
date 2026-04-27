@@ -11,6 +11,7 @@ import {
     ActivityIndicator,
     RefreshControl,
     TouchableOpacity,
+    Alert,
     AppState,
     type AppStateStatus,
     type LayoutChangeEvent,
@@ -24,7 +25,7 @@ import Animated, {
     withSequence,
     withTiming,
 } from 'react-native-reanimated';
-import { Sparkles, TrendingUp } from 'lucide-react-native';
+import { Sparkles, TrendingUp, CircleHelp } from 'lucide-react-native';
 import { useAuth } from '../stores/AuthContext';
 import { useUserDaySettings } from '../stores/UserDaySettingsContext';
 import { moodService } from '../services/mood.service';
@@ -66,6 +67,9 @@ import {
 
 const STREAK_MILESTONES = [3, 7, 14, 30];
 const ANALYTICS_VIEW_TOGGLE_PAD = 4;
+const UI_TEXT_SECONDARY = '#C1CEE9';
+const UI_TEXT_MUTED = '#9AA9C8';
+const UI_SECTION_GAP = 12;
 
 /** Staggered fade-in-up for analytics panels (skipped when reduce motion is on). */
 function analyticsPanelEnter(reduceMotion: boolean, delayMs: number) {
@@ -102,7 +106,7 @@ function weekMoodTone(avgMood: number | null): { label: string; color: string } 
     if (avgMood == null) return { label: 'Not enough check-ins', color: AURORA.blue };
     if (avgMood >= 4.2) return { label: 'Mostly good', color: AURORA.moodHappy };
     if (avgMood >= 3.4) return { label: 'Mostly okay', color: AURORA.moodNeutral };
-    if (avgMood >= 2.6) return { label: 'Mixed with lower moments', color: AURORA.moodSurprise };
+    if (avgMood >= 2.6) return { label: 'Ups and downs this week', color: AURORA.moodSurprise };
     return { label: 'Mostly low', color: AURORA.moodSad };
 }
 
@@ -314,7 +318,7 @@ function analyzeSchoolLogs(
 
 function EthicsLine() {
     return (
-        <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16, fontStyle: 'italic' }}>
+        <Text style={{ color: UI_TEXT_MUTED, fontSize: 11, lineHeight: 16, fontStyle: 'italic' }}>
             {ETHICS_ANALYTICS_FOOTER}
         </Text>
     );
@@ -429,6 +433,7 @@ export default function Analytics() {
     const [weekSummaryTemplate, setWeekSummaryTemplate] = useState('');
     const [activeWeekPill, setActiveWeekPill] = useState<'days' | 'checkins' | 'streak' | null>(null);
     const [logs, setLogs] = useState<(MoodData & { log_date: Date; id?: string })[]>([]);
+    const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
     const [weeklyAi, setWeeklyAi] = useState<WeeklyAiResult | null>(null);
     const [celebrateMilestone, setCelebrateMilestone] = useState(false);
     const prevStreakRef = useRef<number | null>(null);
@@ -505,6 +510,7 @@ export default function Analytics() {
                 const moodLogs = await moodService.getMoodLogs(user.id, startDate.toISOString(), endDate.toISOString());
                 const list = (moodLogs || []) as (MoodData & { log_date: Date })[];
                 setLogs(list);
+                setLastUpdatedAt(new Date());
                 return list;
             } catch (e) {
                 console.error('Analytics logs refresh failed', e);
@@ -793,6 +799,22 @@ export default function Analytics() {
             emotionLabel,
         };
     }, [last7Logs, logs, dayResetHour, timezone, last7DayKeySet]);
+    const weekAverageMoodColor = useMemo(() => {
+        const key = (weekWellnessStats.emotionLabel || '').toLowerCase().trim();
+        if (key === 'happy' || key === 'joy' || key === 'happiness') return AURORA.moodHappy;
+        if (key === 'sad' || key === 'sadness') return AURORA.moodSad;
+        if (key === 'angry' || key === 'anger') return AURORA.moodAngry;
+        if (key === 'neutral') return AURORA.moodNeutral;
+        if (key === 'surprise' || key === 'surprised') return AURORA.moodSurprise;
+        return weekMoodMeta.color;
+    }, [weekWellnessStats.emotionLabel, weekMoodMeta.color]);
+
+    const showStabilityInfo = () => {
+        Alert.alert(
+            'Today mood stability',
+            'This score reflects how steady your mood intensity is across today\'s check-ins. A higher percentage means your mood pattern was more consistent.'
+        );
+    };
     const weekBestWorstInsight = useMemo(() => {
         const entries = moodLogsToMoodEntries(logs as (MoodData & { log_date: Date })[], dayResetHour, timezone);
         const points: Array<{ label: string; avgIntensity: number; avgStress: number; dominantEmotion: 'happy' | 'angry' | 'surprise' | 'neutral' | 'sad' | '' }> = [];
@@ -850,6 +872,10 @@ export default function Analytics() {
         }
         return `You felt best on ${best.label} and most stressed on ${hardest.label}.`;
     }, [logs, dayResetHour, timezone, last7Logs]);
+    const lastUpdatedLabel = useMemo(() => {
+        if (!lastUpdatedAt) return 'Updated just now';
+        return `Updated ${lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    }, [lastUpdatedAt]);
 
     const trendPlainSentence = useMemo(() => {
         if (!weeklyAi) return '';
@@ -873,6 +899,12 @@ export default function Analytics() {
         const withBestWorst = weekBestWorstInsight ? `${base} ${weekBestWorstInsight}` : base;
         return `${withBestWorst} ${weekAcademicSummaryLine}`;
     }, [weekWellnessStats, weekBestWorstInsight, weekAcademicSummaryLine]);
+    const stressLabelFriendly = useMemo(() => {
+        const raw = (weekWellnessStats.stressLabel || '').toLowerCase().trim();
+        if (raw === 'very stressed') return 'high';
+        if (raw === 'stressed') return 'elevated';
+        return raw || 'not enough data';
+    }, [weekWellnessStats.stressLabel]);
 
     if (loading && !refreshing) {
         return (
@@ -886,7 +918,7 @@ export default function Analytics() {
     return (
         <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 48 }}
+            contentContainerStyle={{ paddingBottom: 72 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={AURORA.blue} />}
         >
             {totalCheckIns === 0 ? (
@@ -902,10 +934,7 @@ export default function Analytics() {
                 )
             ) : null}
 
-            <View style={{ marginBottom: 12 }}>
-                <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>
-                    ANALYTICS VIEW
-                </Text>
+            <View style={{ marginBottom: UI_SECTION_GAP }}>
                 <View
                     style={{
                         alignSelf: 'flex-start',
@@ -981,16 +1010,19 @@ export default function Analytics() {
                         </TouchableOpacity>
                     </View>
                 </View>
+                <Text style={{ color: UI_TEXT_MUTED, fontSize: 11, marginTop: 6 }}>
+                    {lastUpdatedLabel}
+                </Text>
             </View>
 
             {analyticsView === 'today' ? (
                 <View key={`today-open-${todayPanelAnimKey}`}>
                     <Animatable.View {...analyticsPanelEnter(reduceMotion, 0)}>
-                        <Text style={{ color: AURORA.textPrimary, fontSize: 22, fontWeight: '800', marginBottom: 8 }}>
-                            Today analytics
+                        <Text style={{ color: AURORA.textPrimary, fontSize: 22, fontWeight: '800', marginBottom: 6 }}>
+                            Today
                         </Text>
-                        <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21, marginBottom: 8 }}>
-                            A focused view of your current day.
+                        <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 14, lineHeight: 21, marginBottom: UI_SECTION_GAP }}>
+                            Focused insights from your current day.
                         </Text>
                     </Animatable.View>
 
@@ -1013,7 +1045,7 @@ export default function Analytics() {
                                                     {getEmotionLabel(todayMoodAgg.dominantMood)}
                                                 </Text>
                                             </View>
-                                            <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 6 }}>
+                                            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginTop: 6 }}>
                                                 Avg intensity {todayMoodAgg.avgIntensity.toFixed(1)}/10
                                             </Text>
                                         </View>
@@ -1022,20 +1054,29 @@ export default function Analytics() {
                                             <Text style={{ color: AURORA.textPrimary, fontSize: 28, fontWeight: '900', marginTop: 6 }}>
                                                 {todayMoodAgg.entryCount}
                                             </Text>
-                                            <Text style={{ color: AURORA.textSec, fontSize: 12 }}>today</Text>
+                                            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12 }}>today</Text>
                                         </View>
                                     </View>
                                 </Animatable.View>
                                 <Animatable.View {...analyticsPanelEnter(reduceMotion, 130)}>
-                                    <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: 12 }}>
-                                        <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
-                                            TODAY MOOD STABILITY
-                                        </Text>
+                                    <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: UI_SECTION_GAP }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                            <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
+                                                TODAY MOOD STABILITY
+                                            </Text>
+                                            <TouchableOpacity
+                                                onPress={showStabilityInfo}
+                                                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                                                style={{ padding: 2 }}
+                                            >
+                                                <CircleHelp size={13} color={UI_TEXT_MUTED} />
+                                            </TouchableOpacity>
+                                        </View>
                                         <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 6 }}>
                                             <Text style={{ color: todayBlended, fontSize: 30, fontWeight: '900' }}>
                                                 {todayStability}%
                                             </Text>
-                                            <Text style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 6 }}>
+                                            <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 6 }}>
                                                 based on today&apos;s check-ins
                                             </Text>
                                         </View>
@@ -1043,21 +1084,32 @@ export default function Analytics() {
                                 </Animatable.View>
                         {todaySchoolAnalysis ? (
                             <Animatable.View {...analyticsPanelEnter(reduceMotion, 200)}>
-                            <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: 12 }}>
-                                <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700' }}>
+                            <View style={{ backgroundColor: AURORA.cardAlt, borderRadius: 14, padding: 12, marginBottom: UI_SECTION_GAP }}>
+                                <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 8 }}>
                                     ACADEMIC ANALYTICS (TODAY)
                                 </Text>
-                                <Text style={{ color: AURORA.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 7 }}>
+
+                                <Text style={{ color: UI_TEXT_MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
+                                    INSIGHT
+                                </Text>
+                                <Text style={{ color: AURORA.textPrimary, fontSize: 14, fontWeight: '700', marginTop: 4 }}>
                                     {todaySchoolAnalysis.summary}
                                 </Text>
-                                <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 8, lineHeight: 18 }}>
+
+                                <Text style={{ color: UI_TEXT_MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginTop: 10 }}>
+                                    SIGNALS
+                                </Text>
+                                <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginTop: 4, lineHeight: 18 }}>
                                     School events: {todaySchoolAnalysis.totalSchoolEvents} across {todaySchoolAnalysis.schoolCheckIns} check-in(s)
                                 </Text>
-                                <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}>
+                                <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginTop: 2 }}>
                                     Mood: {sentenceCase(moodCategoryFromFive(todaySchoolAnalysis.avgMood5))} • Stress: {sentenceCase(stressCategoryFromFive(todaySchoolAnalysis.avgStress5))}
                                 </Text>
                                 {todaySchoolAnalysis.topSchoolEvents.length > 0 ? (
                                     <View style={{ marginTop: 8, gap: 6 }}>
+                                        <Text style={{ color: UI_TEXT_MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 2 }}>
+                                            TOP STRESSORS
+                                        </Text>
                                         {todaySchoolAnalysis.topSchoolEvents.map((item) => {
                                             const maxCount = Math.max(1, todaySchoolAnalysis.topSchoolEvents[0]?.count ?? 1);
                                             const widthPct = Math.max(18, Math.round((item.count / maxCount) * 100));
@@ -1236,7 +1288,7 @@ export default function Analytics() {
                                     elevation: activeWeekPill === pill.key ? 5 : 3,
                                 }}
                             >
-                                <Text style={{ color: AURORA.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 0.7 }}>
+                                <Text style={{ color: UI_TEXT_MUTED, fontSize: 10, fontWeight: '800', letterSpacing: 0.7 }}>
                                     {pill.label.toUpperCase()}
                                 </Text>
                                 <Text style={{ color: AURORA.textPrimary, fontSize: 24, fontWeight: '900', marginTop: 8 }}>
@@ -1246,6 +1298,9 @@ export default function Analytics() {
                         ))}
                     </View>
                 </ScrollView>
+                <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 11, marginBottom: 10 }}>
+                    Based on your last 7 days of check-ins.
+                </Text>
                 {explainer ? (
                     <View
                         style={{
@@ -1273,41 +1328,44 @@ export default function Analytics() {
                     useNativeDriver
                     style={{
                         width: '100%',
-                        backgroundColor: hexToRgba(weekMoodMeta.color, 0.14),
+                        backgroundColor: hexToRgba(weekAverageMoodColor, 0.14),
                         padding: 20,
                         borderRadius: 22,
                         marginBottom: 20,
                         borderWidth: 1.5,
-                        borderColor: hexToRgba(weekMoodMeta.color, 0.75),
-                        shadowColor: weekMoodMeta.color,
+                        borderColor: hexToRgba(weekAverageMoodColor, 0.75),
+                        shadowColor: weekAverageMoodColor,
                         shadowOpacity: 0.26,
                         shadowRadius: 16,
                         shadowOffset: { width: 0, height: 10 },
                         elevation: 7,
                     }}
                 >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                        <TrendingUp size={22} color={AURORA.amber} />
-                        <View
-                            style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: 11,
-                                backgroundColor: weekMoodMeta.color,
-                                borderWidth: 1,
-                                borderColor: AURORA.border,
-                            }}
-                        />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <TrendingUp size={22} color={weekAverageMoodColor} />
+                            <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 0.6 }}>
+                                AVERAGE MOOD (7 DAYS)
+                            </Text>
+                        </View>
+                        <View style={{ backgroundColor: hexToRgba(weekAverageMoodColor, 0.22), borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                            <Text style={{ color: weekAverageMoodColor, fontSize: 11, fontWeight: '800' }}>
+                                {weekWellnessStats.emotionLabel}
+                            </Text>
+                        </View>
                     </View>
-                    <Text style={{ color: AURORA.textMuted, fontSize: 11, fontWeight: '800', marginTop: 12, letterSpacing: 0.6 }}>
-                        WEEK MOOD
+                    <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginTop: 14 }}>
+                        Weekly trend
                     </Text>
-                    <Text style={{ color: AURORA.textPrimary, fontSize: 34, fontWeight: '900', marginTop: 6 }}>
-                        {weekMoodMeta.label}
+                    <Text style={{ color: AURORA.textPrimary, fontSize: 32, fontWeight: '900', marginTop: 4 }}>
+                        {`Mood trend: ${weekMoodMeta.label}`}
                     </Text>
-                    <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 10, lineHeight: 19 }}>
+                    <Text style={{ color: weekAverageMoodColor, fontSize: 15, fontWeight: '800', marginTop: 8, lineHeight: 20 }}>
+                        {`Most common mood: ${weekWellnessStats.emotionLabel}`}
+                    </Text>
+                    {/* <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 10, lineHeight: 19 }}>
                         {averageMoodPlainLine(displayWeekAvgMood)}
-                    </Text>
+                    </Text> */}
                 </Animatable.View>
 
                 {totalCheckIns > 0 ? (
@@ -1319,10 +1377,6 @@ export default function Analytics() {
                         />
                     </ChartSection>
                 ) : null}
-            </View>
-
-            <View style={{ marginBottom: 14 }}>
-                <EthicsLine />
             </View>
 
             {celebrateMilestone ? (
@@ -1371,6 +1425,9 @@ export default function Analytics() {
                         Written summary for the last 7 days
                     </Text>
                 </View>
+                <View style={{ marginBottom: 10 }}>
+                    <EthicsLine />
+                </View>
 
                 {weekSummaryGenerating ? (
                     <Text
@@ -1385,18 +1442,32 @@ export default function Analytics() {
                         Generating your summary…
                     </Text>
                 ) : null}
-                {!weekSummaryGenerating && weekSummaryTemplate ? (
+                {/* {!weekSummaryGenerating && weekSummaryTemplate ? (
                     <Text style={{ color: AURORA.textMuted, fontSize: 11, marginBottom: 10 }}>
                         Weekly summary source: {weekSummarySource === 'ai' ? 'AI' : 'fallback template'}
                     </Text>
-                ) : null}
+                ) : null} */}
                 {aiLoading ? (
                     <AISummarySkeleton reduceMotion={reduceMotion} />
                 ) : weeklyAi ? (
                     <>
-                        <Text style={{ color: AURORA.textPrimary, fontSize: 15, lineHeight: 22, marginBottom: 14 }}>
-                            {weeklySummaryBody}
-                        </Text>
+                        <View style={{ marginBottom: 14, gap: 6 }}>
+                            <Text style={{ color: AURORA.textPrimary, fontSize: 14, lineHeight: 20 }}>
+                                Stress: <Text style={{ color: UI_TEXT_SECONDARY }}>{sentenceCase(stressLabelFriendly)}</Text>
+                            </Text>
+                            <Text style={{ color: AURORA.textPrimary, fontSize: 14, lineHeight: 20 }}>
+                                Energy: <Text style={{ color: UI_TEXT_SECONDARY }}>{sentenceCase(weekWellnessStats.energyLabel)}</Text>
+                            </Text>
+                            <Text style={{ color: AURORA.textPrimary, fontSize: 14, lineHeight: 20 }}>
+                                Sleep: <Text style={{ color: UI_TEXT_SECONDARY }}>{sentenceCase(weekWellnessStats.sleepLabel)}</Text>
+                            </Text>
+                            <Text style={{ color: AURORA.textPrimary, fontSize: 14, lineHeight: 20 }}>
+                                Mood stability: <Text style={{ color: UI_TEXT_SECONDARY }}>{weekWellnessStats.stability != null ? `${weekWellnessStats.stability}%` : 'not enough data'}</Text>
+                            </Text>
+                            <Text style={{ color: AURORA.textPrimary, fontSize: 14, lineHeight: 22, marginTop: 6 }}>
+                                Academic pattern: <Text style={{ color: UI_TEXT_SECONDARY }}>{weekSchoolAnalysis?.summary ?? 'No school-tagged check-ins in the last 7 days.'}</Text>
+                            </Text>
+                        </View>
                         {weekSchoolAnalysis?.topSchoolEvents?.length ? (
                             <View
                                 style={{
@@ -1411,7 +1482,10 @@ export default function Analytics() {
                                 }}
                             >
                                 <Text style={{ color: AURORA.textPrimary, fontSize: 10, fontWeight: '700' }}>
-                                    ACADEMIC EVENT MIX (LAST 7 DAYS)
+                                    TOP ACADEMIC STRESSORS
+                                </Text>
+                                <Text style={{ color: UI_TEXT_MUTED, fontSize: 10, lineHeight: 14, marginTop: -1, marginBottom: 2 }}>
+                                    Counts from tagged check-ins this week.
                                 </Text>
                                 {weekSchoolAnalysis.topSchoolEvents.map((item) => {
                                     const maxCount = Math.max(1, weekSchoolAnalysis.topSchoolEvents[0]?.count ?? 1);
