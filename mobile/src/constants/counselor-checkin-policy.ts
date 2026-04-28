@@ -4,7 +4,7 @@
  */
 
 /** How many calendar days of mood_logs counselors may review when a student opts in. */
-export const COUNSELOR_CHECKIN_WINDOW_DAYS = 3;
+export const COUNSELOR_CHECKIN_WINDOW_DAYS = 7;
 
 export function counselorCheckInWindowStart(): Date {
     const d = new Date();
