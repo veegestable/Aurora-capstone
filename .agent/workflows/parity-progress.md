@@ -4,7 +4,7 @@ description:
 
 # Mobile Feature Parity — Progress Log
 
-**Last updated:** April 26, 2026
+**Last updated:** April 27, 2026
 **Parent workflow:** `.agent/workflows/mobile-feature-parity.md`
 **Mode:** Ask Mode (read-only, copy-paste snippets)
 
@@ -13,9 +13,10 @@ description:
 ## How to Resume
 
 1. Open `.agent/workflows/mobile-feature-parity.md` for full context on rules, branding tokens, architecture, and remaining feature specs.
-2. The next item to implement is **C5 (Counselor Session History Screen)**.
-3. Follow the same pattern used for A1–C2: read the mobile reference files, read the web files, provide complete copy-paste-ready snippets with exact file paths.
+2. The next item to implement is **E2 (StudentProfileModal with check-in summary)**.
+3. Follow the same pattern used for previous phases: read the mobile reference files, read the web files, provide complete copy-paste-ready snippets with exact file paths.
 4. Note on branding: student-facing surfaces use the Aurora dark theme tokens listed in the workflow doc. Admin pages use a lighter palette (`bg-white` cards with `text-aurora-primary-dark`, `bg-aurora-secondary-blue`, `border-aurora-gray-200`). Match the surrounding page when in doubt — see `src/pages/admin/Counselors.tsx` for the admin pattern and `src/pages/StudentDashboard.tsx` for the student pattern.
+5. **Cleanup gate (E2):** After E2 is done, delete `riskHelpers.ts`, `risk.types.ts`, `StudentDetail.tsx`, `StudentOverviewTab.tsx`, `RiskCenter.tsx`. Move `formatTimeAgo` to a general util (e.g., `src/utils/dateHelpers.ts`) first.
 
 ---
 
@@ -187,6 +188,61 @@ description:
 |------|-------------|--------|
 | **D1** | Zen ambient audio playback (HTML5 Audio API) | ~~Small~~ ✅ Done |
 | **D2** | Admin settings page (replace placeholder) | ~~Small~~ ✅ Done |
+
+### Phase E: New Mobile Features (Round 2 audit)
+
+| Item | Description | Effort |
+|------|-------------|--------|
+| **E1** | Counselor Signals system (replace risk levels with ethics-compliant signal pills) | ~~Large~~ ✅ Done |
+| **E4** | Mood V2 dual-source merging (legacy `mood_logs` + v2 `moodLogs/{uid}/entries`) | ~~Medium~~ ✅ Done |
+| **E2** | StudentProfileModal with check-in summary | ~~Medium~~ ✅ Done |
+| **E3** | Daily Selfie Screen | ~~Small~~ ✅ Done |
+| **E5** | UserDaySettings context | ~~Medium~~ ✅ Done |
+| **E6** | Weekly Summary via Cloud Functions | ~~Small~~ ✅ Done |
+| **E7** | Counselor Profile — Edit Modal + avatar upload | ~~Medium~~ ✅ Done |
+
+**E1 details:**
+- Created `src/constants/counselor-checkin-signals.ts` — `CounselorSignalPill` type, label/sort maps, `counselorSignalFromLogs()` derivation
+- Created `src/constants/counselor/counselor-checkin-policy.ts` — 3-day window, visible summary text
+- Created `src/services/counselor-checkin-context/get/fetchStudentCheckInContext.ts` — checks `userSettings.shareCheckInsWithGuidance`, fetches mood logs within policy window from both legacy + v2
+- Created `src/services/counselor-checkin-context/index.ts` — barrel as `counselorCheckInContextService`
+- Modified `src/pages/CounselorDashboard.tsx` — risk → signal throughout, removed Critical Risks stat card, heading "Recent check-ins"
+- Modified `src/pages/counselor/Students.tsx` — risk → signal throughout, inline `StudentRow`/`getSignalStyle`, signal-based filters
+- Deleted `src/pages/counselor/RiskCenter.tsx` (route removed from App.tsx)
+- Deleted `src/components/counselor/RiskCaseCard.tsx`, `StudentCard.tsx`, `FilterChip.tsx`
+
+**E4 details:**
+- Created `src/types/mood-v2.types.ts` — `MoodLogEntryDoc`, `MoodLogEntryRow`, `SleepQuality`, `ContextCategoryKey`
+- Created `src/services/mood-v2/get/getMoodLogEntries.ts` — one-shot + real-time subscription for v2 entries
+- Created `src/services/mood-v2/get/hasMoodEntryForDayKey.ts` — day-key existence check
+- Created `src/services/mood-v2/post/createMoodLogEntry.ts` — write to v2 subcollection
+- Created `src/services/mood-v2/index.ts` — barrel as `moodV2Service`
+- Modified `src/services/mood/get/getMoodLogs.ts` — dual-source fetch + merge with `MergedMoodLog` interface and v2→legacy mapping
+
+**E3 details:**
+- Created `src/pages/student/DailySelfie.tsx` as a standalone route wrapping `EmotionDetection`.
+- Added a "Daily Selfie" quick-action card to `StudentDashboard`.
+
+**E5 details:**
+- Created `src/types/user-settings.types.ts` and `src/services/user-settings/index.ts` for Firestore CRUD.
+- Created `src/contexts/UserDaySettingsContext.tsx` to expose preferences globally.
+- Implemented `src/pages/student/Settings.tsx` to handle student toggles.
+- Wired `UserDaySettingsProvider` at root and added Settings link to `StudentLayout`.
+
+**E6 details:**
+- Rewrote `src/services/analytics/helpers.ts` to output `WeekSummaryInput` matching the mobile function exactly.
+- Replaced direct OpenAI call in `fetchWeeklyNarrative.ts` with `httpsCallable(functions, 'generateWeeklySummaryAi')`.
+- Simplified `WeeklyNarrative.tsx` to display the backend's plain-text summary instead of parsing JSON arrays.
+
+### Phase F: Admin Placeholder Pages
+| Item | Description | Effort |
+|------|-------------|--------|
+| **F1** | Admin Students (real page) | ~~Medium~~ ✅ Done |
+| **F2** | Admin Resources (real page) | ~~Medium~~ ✅ Done |
+| **F3** | Admin Analytics (real page) | ~~Small~~ ✅ Done |
+| **F4** | Admin CounselorDetail | ~~Small~~ ✅ Done |
+| **F5** | Admin StudentDetail | ~~Small~~ ✅ Done |
+| **F6** | Admin ResourceDetail | ~~Small~~ ✅ Done |
 
 ---
 

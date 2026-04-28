@@ -255,7 +255,46 @@ Work through pages in this priority order to get the most value first:
 
 ## 8. Services & Types to Port
 
-When translating a page, check these mobile directories for services/types that don't yet exist on web:
+When translating a page, check these mobile directories for services/types that don't yet exist on web.
+
+> **⚠️ MANDATORY: Web Services Folder Structure**
+>
+> Every web service **MUST** follow the established folder convention. Do NOT create flat service files or barrel exports that re-export from external paths.
+>
+> **Structure:** `services/{feature}/{http_method}/individual_file.ts`
+>
+> ```
+> src/services/{feature}/
+>   ├── get/
+>   │   ├── getSomething.ts       ← one function per file
+>   │   └── listSomethings.ts
+>   ├── post/
+>   │   └── createSomething.ts
+>   ├── put/
+>   │   └── updateSomething.ts
+>   ├── delete/
+>   │   └── deleteSomething.ts
+>   └── index.ts                  ← barrel: imports all, exports ONE service object
+>   └── types.ts
+> ```
+>
+> **Barrel `index.ts` pattern** (import → single named export):
+> ```typescript
+> import { getSomething } from './get/getSomething'
+> import { createSomething } from './post/createSomething'
+>
+> export const somethingService = {
+>   getSomething,
+>   createSomething,
+> }
+> ```
+>
+> **Rules:**
+> 1. Each file exports exactly **one function**.
+> 2. The barrel `index.ts` imports from local `./get/`, `./post/`, etc. — never from external paths.
+> 3. The barrel exports a **single const service object** (e.g., `export const moodService = { ... }`).
+> 4. Consumers import the service object: `import { moodService } from '../services/mood'`.
+> 5. For operations that don't map to HTTP methods (e.g., real-time listeners), use `get/` as the directory.
 
 ### Services (mobile `src/services/` → web `src/services/`)
 - `messages.service.ts` → `src/services/messages/`

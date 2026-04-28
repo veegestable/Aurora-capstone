@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import {
   Home, CalendarDays, MessageSquare, BookOpen,
   User, Heart, BarChart3, Calendar,
-  Bell, LogOut,
+  Bell, LogOut, Settings as SettingsIcon
 } from 'lucide-react'
 import logoLight from '../assets/logos/logo light.png'
 
@@ -20,6 +20,7 @@ const SECONDARY_NAV = [
   { path: '/analytics', label: 'Analytics', icon: BarChart3 },
   { path: '/schedule', label: 'Schedule', icon: Calendar },
   { path: '/notifications', label: 'Notifications', icon: Bell },
+  { path: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
 function NavItem({ path, label, icon: Icon, end }: { path: string; label: string; icon: React.ElementType; end?: boolean }) {

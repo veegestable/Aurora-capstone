@@ -1,18 +1,19 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  Home, Users, AlertTriangle, MessageSquare,
+  Home, Users, MessageSquare,
   Calendar, User, LogOut,
+  Settings as SettingsIcon
 } from 'lucide-react'
 import logoLight from '../assets/logos/logo light.png'
 
 const PRIMARY_NAV = [
   { path: '/', label: 'Home', icon: Home },
   { path: '/counselor/students', label: 'Students', icon: Users },
-  { path: '/counselor/risk-center', label: 'Risks', icon: AlertTriangle },
   { path: '/counselor/messages', label: 'Messages', icon: MessageSquare },
   { path: '/counselor/session-history', label: 'History', icon: Calendar },
   { path: '/counselor/profile', label: 'Profile', icon: User },
+  { path: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
 export default function CounselorLayout() {

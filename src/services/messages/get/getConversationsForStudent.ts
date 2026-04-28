@@ -1,7 +1,7 @@
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore'
-import { db } from '../../config/firebase'
-import { formatMessageTime } from './formatMessageTime'
-import type { CounselorContact } from '../../types/message.types'
+import { db } from '../../../config/firebase'
+import { formatMessageTime } from '../formatMessageTime'
+import type { CounselorContact } from '../../../types/message.types'
 
 export async function getConversationsForStudent(
   studentId: string

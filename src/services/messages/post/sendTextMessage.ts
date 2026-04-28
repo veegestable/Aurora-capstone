@@ -1,5 +1,5 @@
 import { collection, addDoc, doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore'
-import { db } from '../../config/firebase'
+import { db } from '../../../config/firebase'
 
 export async function sendTextMessage(
   conversationId: string,

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { counselorService } from '../services/counselor'
-import { firestoreService } from '../services/firebase-firestore'
+import { counselorCheckInContextService } from '../services/counselor-checkin-context'
 import { sessionsService } from '../services/sessions'
 import { messagesService } from '../services/messages'
 import { SessionCard } from '../components/sessions/SessionCard'
@@ -11,8 +11,9 @@ import {
   Users, AlertTriangle, MessageSquare,
   Calendar, ChevronRight,
 } from 'lucide-react'
-import type { RiskLevel } from '../types/risk.types'
-import { formatTimeAgo, deriveRiskLevel, getDashboardRiskStyle } from '../utils/riskHelpers'
+import type { CounselorSignalPill } from '../constants/counselor/counselor-checkin-signals'
+import { COUNSELOR_SIGNAL_LABEL, COUNSELOR_SIGNAL_SORT, counselorSignalFromLogs } from '../constants/counselor/counselor-checkin-signals'
+import { formatTimeAgo } from '../utils/formatters'
 import { LetterAvatar } from '../components/LetterAvatar'
 
 interface FlagItem {
@@ -20,7 +21,7 @@ interface FlagItem {
   name: string
   program: string
   time: string
-  risk: RiskLevel
+  signal: CounselorSignalPill
 }
 
 interface StatCardProps {
@@ -42,14 +43,28 @@ function StatCard({ icon, count, label, accent }: StatCardProps) {
   )
 }
 
-function FlagRow({ item }: { item: FlagItem }) {
-  const style = getDashboardRiskStyle(item.risk)
+function getSignalStyle(signal: CounselorSignalPill) {
+  switch (signal) {
+    case 'higher_self_report':
+      return { border: 'border-l-red-500', badgeBg: 'bg-red-500/10', badgeBorder: 'border-red-500/25', text: 'text-red-500' }
+    case 'moderate_self_report':
+      return { border: 'border-l-orange-500', badgeBg: 'bg-orange-500/10', badgeBorder: 'border-orange-500/25', text: 'text-orange-500' }
+    case 'typical_self_report':
+      return { border: 'border-l-blue-500', badgeBg: 'bg-blue-500/10', badgeBorder: 'border-blue-500/25', text: 'text-blue-500' }
+    case 'no_checkins':
+      return { border: 'border-l-amber-400', badgeBg: 'bg-amber-400/10', badgeBorder: 'border-amber-400/25', text: 'text-amber-400' }
+    case 'sharing_off':
+      return { border: 'border-l-gray-400', badgeBg: 'bg-gray-400/10', badgeBorder: 'border-gray-400/25', text: 'text-gray-400' }
+  }
+}
 
+function FlagRow({ item }: { item: FlagItem }) {
+  const style = getSignalStyle(item.signal)
   return (
     <Link
-      to="/counselor/risk-center"
+      to="/counselor/students"
       className={`flex items-center card-aurora border-l-4 ${style.border} p-0 overflow-hidden hover:shadow-lg transition-shadow`}
-      aria-label={`View risk details for ${item.name}`}
+      aria-label={`View check-in details for ${item.name}`}
     >
       <div className="p-3 pl-4">
         <LetterAvatar name={item.name} size={44} />
@@ -64,7 +79,7 @@ function FlagRow({ item }: { item: FlagItem }) {
         <span
           className={`inline-block text-[10px] font-extrabold tracking-wide px-2.5 py-1 rounded-full border ${style.badgeBg} ${style.badgeBorder} ${style.text}`}
         >
-          {item.risk}
+          {COUNSELOR_SIGNAL_LABEL[item.signal]}
         </span>
       </div>
       <ChevronRight className="w-4 h-4 text-aurora-primary-dark/30 mr-3 shrink-0" />
@@ -76,7 +91,6 @@ export default function CounselorDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [studentCount, setStudentCount] = useState(0)
-  const [criticalRisks, setCriticalRisks] = useState(0)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [recentFlags, setRecentFlags] = useState<FlagItem[]>([])
   const [pendingSessions, setPendingSessions] = useState<Session[]>([])
@@ -93,41 +107,32 @@ export default function CounselorDashboard() {
         if (cancelled) return
         setStudentCount(students.length)
 
-        const limit = Math.min(15, students.length)
-        const studentsWithMood = await Promise.all(
-          students.slice(0, limit).map(async (s) => {
+        const fetchLimit = Math.min(15, students.length)
+        const studentsWithContext = await Promise.all(
+          students.slice(0, fetchLimit).map(async (s) => {
             try {
-              const logs = await firestoreService.getMoodLogs(s.id)
-              const latest = logs[0]
-              return {
-                student: s,
-                stressLevel: latest?.stress_level,
-                energyLevel: latest?.energy_level,
-                lastLogDate: latest?.log_date,
-              }
+              const { sharingEnabled, logs } = await counselorCheckInContextService.fetchStudentCheckInContext(s.id)
+              const latestLog = logs[0]
+              return { student: s, sharingEnabled, logs, lastLogDate: latestLog?.log_date }
             } catch {
-              return { student: s, stressLevel: undefined, energyLevel: undefined, lastLogDate: undefined }
+              return { student: s, sharingEnabled: false, logs: [] as Array<{ stress_level?: number; energy_level?: number }>, lastLogDate: undefined as Date | undefined }
             }
           })
         )
 
         if (cancelled) return
 
-        const flags: FlagItem[] = studentsWithMood
-          .map(({ student, stressLevel, energyLevel, lastLogDate }) => ({
+        const flags: FlagItem[] = studentsWithContext
+          .map(({ student, sharingEnabled, logs, lastLogDate }) => ({
             id: student.id,
             name: student.full_name || 'Student',
             program: student.email,
-            time: lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No logs',
-            risk: deriveRiskLevel(stressLevel, energyLevel),
+            time: !sharingEnabled ? 'Sharing off' : (lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No check-ins yet'),
+            signal: counselorSignalFromLogs(sharingEnabled, logs),
           }))
-          .sort((a, b) => {
-            const order = { 'HIGH RISK': 0, 'MEDIUM RISK': 1, 'LOW RISK': 2 }
-            return (order[a.risk] ?? 2) - (order[b.risk] ?? 2)
-          })
+          .sort((a, b) => COUNSELOR_SIGNAL_SORT[a.signal] - COUNSELOR_SIGNAL_SORT[b.signal])
 
         setRecentFlags(flags)
-        setCriticalRisks(flags.filter((f) => f.risk === 'HIGH RISK').length)
 
         if (user?.id) {
           const [sessions, convos] = await Promise.all([
@@ -143,7 +148,6 @@ export default function CounselorDashboard() {
         console.error('Error fetching counselor dashboard data:', error)
         if (!cancelled) {
           setRecentFlags([])
-          setCriticalRisks(0)
         }
       } finally {
         if (!cancelled) setIsLoading(false)
@@ -183,16 +187,6 @@ export default function CounselorDashboard() {
           />
           <StatCard
             icon={
-              <div className="w-9 h-9 rounded-full bg-red-500/15 flex items-center justify-center">
-                <AlertTriangle className="w-[18px] h-[18px] text-red-500" />
-              </div>
-            }
-            count={criticalRisks}
-            label="Critical Risks"
-            accent="ring-1 ring-red-500/20"
-          />
-          <StatCard
-            icon={
               <div className="relative w-9 h-9 rounded-full bg-aurora-secondary-blue/10 flex items-center justify-center">
                 <MessageSquare className="w-[18px] h-[18px] text-aurora-secondary-blue" />
                 {unreadMessages > 0 && (
@@ -219,10 +213,10 @@ export default function CounselorDashboard() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-extrabold text-aurora-primary-dark font-heading">
-            Recent Flags
+            Recent check-ins
           </h3>
           <Link
-            to="/counselor/risk-center"
+            to="/counselor/students"
             className="flex items-center gap-1 text-aurora-secondary-blue text-xs font-bold hover:underline"
           >
             VIEW ALL

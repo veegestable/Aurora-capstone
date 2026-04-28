@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getDatabase, type Database } from 'firebase/database'
+import { getFunctions } from 'firebase/functions'
 
 const inferredDatabaseUrl = import.meta.env.VITE_FIREBASE_PROJECT_ID 
   ? `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID}-default-rtdb.asia-southeast1.firebasedatabase.app` 
@@ -28,6 +29,7 @@ const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
+export const functions = getFunctions(app)
 
 // Realtime Database (RTDB) - null if no databaseURL (presence disabled)
 let rtdb: Database | null = null

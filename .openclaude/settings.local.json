@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find 'C:/Josh Files/College/Capstone/app/frontend/src/services' -type f -name *.ts -o -name *.tsx)",
+      "Bash(grep -r from.*services/admin 'C:/Josh Files/College/Capstone/app/frontend/src' --include=*.ts --include=*.tsx)",
+      "Bash(grep -r from.*services/announcements 'C:/Josh Files/College/Capstone/app/frontend/src' --include=*.ts --include=*.tsx)",
+      "Bash(grep -r from.*services/ 'C:/Josh Files/College/Capstone/app/frontend/src' --include=*.ts --include=*.tsx)",
+      "Bash(grep -r mobile 'C:/Josh Files/College/Capstone/app/frontend/src' --include=*.ts --include=*.tsx)",
+      "Bash(grep -rn from.*[''']\\\\.\\\\. 'C:/Josh Files/College/Capstone/app/frontend/src ' --include=*.ts --include=*.tsx)",
+      "Bash(find src/hooks -type f -name *.ts)",
+      "Bash(grep -r \"useAnalytics\\\\|useMoodCalendar\\\\|useMoodCheckIn\\\\|usePeerPresence\\\\|usePresence\" src/ --include=*.tsx --include=*.ts -l)",
+      "Bash(grep -r usePresence src/ --include=*.tsx --include=*.ts -l)",
+      "Bash(grep -rn \"risk\\\\|RiskCenter\\\\|RiskCase\\\\|StudentCard\\\\|FilterChip\" src/ --include=*.tsx --include=*.ts -l)",
+      "Bash(find src/utils -type f -name *.ts)",
+      "Bash(ls -la src/utils/*.ts)",
+      "Bash(find src/components -type f -name *.tsx -o -name *.ts)",
+      "Bash(grep -rn \"AdminPlaceholder\\\\|AssetExamples\\\\|BreathingExercise\\\\|ResourceCard\" src/ --include=*.tsx --include=*.ts -l)",
+      "Bash(grep -rn StudentNotesTab src/ --include=*.tsx --include=*.ts)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(find 'C:/Josh Files/College/Capstone/app/frontend/src' -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
+      "Bash(find src/utils src/types src/pages/counselor -type f -name *.ts -o -name *.tsx)",
+      "Bash(find 'C:/Josh Files/College/Capstone/app/frontend/src' -name *.ts -o -name *.tsx)",
+      "Bash(find src/ -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\))"
+    ]
+  }
+}

@@ -48,18 +48,4 @@ export interface SessionMessage {
   time: string
 }
 
-export interface SessionRequestMessage {
-  id: string
-  senderId: 'me' | 'them'
-  type: 'session_request'
-  sessionRequest: {
-    id: string
-    sessionId?: string | null
-    preferredTime: string
-    note: string
-    status: string
-  }
-  time: string
-}
-
-export type ChatMessage = TextMessage | SessionMessage | SessionRequestMessage
+export type ChatMessage = TextMessage | SessionMessage

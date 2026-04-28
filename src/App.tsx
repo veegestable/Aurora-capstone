@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { UserDaySettingsProvider } from './contexts/UserDaySettingsContext'
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
 import PendingCounselor from './pages/PendingCounselor'
@@ -10,11 +11,11 @@ import StudentHistory from './pages/student/History'
 import StudentMessages from './pages/student/Messages'
 import StudentProfile from './pages/student/Profile'
 import StudentResources from './pages/student/Resources'
+import StudentDailySelfie from './pages/student/DailySelfie'
+import StudentSettings from './pages/student/Settings'
 import CounselorLayout from './layouts/CounselorLayout'
 import CounselorDashboard from './pages/CounselorDashboard'
 import CounselorStudents from './pages/counselor/Students'
-import CounselorStudentDetail from './pages/counselor/StudentDetail'
-import CounselorRiskCenter from './pages/counselor/RiskCenter'
 import CounselorMessages from './pages/counselor/Messages'
 import CounselorProfile from './pages/counselor/Profile'
 import CounselorSessionHistory from './pages/counselor/SessionHistory'
@@ -32,7 +33,6 @@ import AdminStudentDetail from './pages/admin/StudentDetail'
 import AdminResourceDetail from './pages/admin/ResourceDetail'
 
 import MoodCheckIn from './components/MoodCheckIn'
-import MoodCalendar from './components/MoodCalendar'
 import Analytics from './components/Analytics'
 import ScheduleManager from './components/ScheduleManager'
 import NotificationPanel from './components/NotificationPanel'
@@ -72,7 +72,6 @@ function AppContent() {
           <Route element={<StudentLayout />}>
             <Route index element={<StudentDashboard />} />
             <Route path="mood" element={<MoodCheckIn />} />
-            <Route path="calendar" element={<MoodCalendar />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="schedule" element={<ScheduleManager />} />
             <Route path="notifications" element={<NotificationPanel />} />
@@ -80,7 +79,8 @@ function AppContent() {
             <Route path="student/messages" element={<StudentMessages />} />
             <Route path="student/profile" element={<StudentProfile />} />
             <Route path="student/resources" element={<StudentResources />} />
-            <Route path="settings" element={<Settings />} />
+            <Route path="student/daily-selfie" element={<StudentDailySelfie />} />
+            <Route path="settings" element={<StudentSettings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
@@ -107,8 +107,6 @@ function AppContent() {
           <Route element={<CounselorLayout />}>
             <Route index element={<CounselorDashboard />} />
             <Route path="counselor/students" element={<CounselorStudents />} />
-            <Route path="counselor/students/:id" element={<CounselorStudentDetail />} />
-            <Route path="counselor/risk-center" element={<CounselorRiskCenter />} />
             <Route path="counselor/messages" element={<CounselorMessages />} />
             <Route path="counselor/session-history" element={<CounselorSessionHistory />} />
             <Route path="counselor/profile" element={<CounselorProfile />} />
@@ -124,7 +122,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <UserDaySettingsProvider>
+        <AppContent />
+      </UserDaySettingsProvider>
     </AuthProvider>
   )
 }
