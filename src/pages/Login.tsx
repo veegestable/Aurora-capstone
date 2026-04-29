@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Eye, EyeOff, Heart, Brain, Users, Shield, Lock, Award } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import logoLight from '../assets/logos/logo light.png'
 
 const STARS = [
   { top: '8%', left: '12%', delay: '0s', size: '2px' },
@@ -130,7 +129,7 @@ export default function Login() {
       <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative flex-col items-center justify-center p-12 xl:p-16">
         <div className="relative z-10 max-w-lg text-center">
           <img
-            src={logoLight}
+            src="/images/logos/logo light.png"
             alt="Aurora"
             className="h-20 xl:h-24 w-auto mx-auto mb-6 filter drop-shadow-xl"
           />
@@ -176,7 +175,7 @@ export default function Login() {
           {/* Mobile-only compact branding */}
           <div className="lg:hidden text-center mb-8">
             <img
-              src={logoLight}
+              src="/images/logos/logo light.png"
               alt="Aurora"
               className="h-14 w-auto mx-auto mb-4"
             />

@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Mail, ArrowLeft } from 'lucide-react'
 import { authService } from '../services/firebase-auth'
-import logoLight from '../assets/logos/logo light.png'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -26,7 +25,7 @@ export default function ForgotPassword() {
     <div className="min-h-screen bg-aurora-bg flex items-center justify-center px-4">
       <div className="card-aurora max-w-md w-full p-6">
         <div className="text-center mb-6">
-          <img src={logoLight} alt="Aurora" className="h-12 mx-auto mb-4" />
+          <img src="/images/logos/logo light.png" alt="Aurora" className="h-12 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-white font-heading">
             Reset Password
           </h1>

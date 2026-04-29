@@ -5,7 +5,6 @@ import {
   Megaphone, BarChart3, ScrollText,
   Settings, LogOut,
 } from 'lucide-react'
-import logoLight from '../assets/logos/logo light.png'
 
 const PRIMARY_NAV = [
   { path: '/',                    label: 'Dashboard',     icon: Home },
@@ -37,7 +36,7 @@ export default function AdminLayout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             <NavLink to="/" className="flex items-center space-x-3">
-              <img src={logoLight} alt="Aurora Mental Health Platform" className="h-6 sm:h-8 w-auto" />
+              <img src="/images/logos/logo light.png" alt="Aurora Mental Health Platform" className="h-6 sm:h-8 w-auto" />
               <h1 className="text-lg sm:text-xl font-bold text-white hidden xs:block">Aurora</h1>
             </NavLink>
 
