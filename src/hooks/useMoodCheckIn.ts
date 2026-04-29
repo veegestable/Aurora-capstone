@@ -3,46 +3,61 @@ import { useAuth } from '../contexts/AuthContext'
 import { moodService } from '../services/mood'
 import { getBlendedColorWithAlpha } from '../utils/moodColors'
 import type { DetectedEmotion, ManualEmotion } from '../types/mood.types'
+import type { SleepQuality, ContextCategoryKey } from '../services/mood/types'
 
-interface UseMoodCheckInOptions {
-  onMoodLogged?: () => void
-  onBackgroundChange?: (background: string | undefined) => void
+export type CategoryConfig = {
+  key: ContextCategoryKey;
+  title: string;
+  helper: string;
+  tags: string[];
+};
+
+export const CONTEXT_CATEGORIES: CategoryConfig[] = [
+  { key: 'school', title: 'School', helper: 'Academic activities and pressure.', tags: ['classes', 'study', 'quiz', 'exam', 'homework', 'deadline', 'group-project', 'presentation'] },
+  { key: 'health', title: 'Health', helper: 'Physical condition and body signals.', tags: ['headache', 'pain', 'sick', 'medication', 'exercise', 'nap', 'period', 'low-appetite', 'binge-eating'] },
+  { key: 'social', title: 'Social', helper: 'Relationships and interactions.', tags: ['friends', 'family', 'partner', 'conflict', 'alone', 'social-media'] },
+  { key: 'fun', title: 'Fun / Leisure', helper: 'Recreation and enjoyment.', tags: ['gaming', 'movie-series', 'music', 'travel', 'shopping', 'restaurant', 'hobby', 'outdoor'] },
+  { key: 'productivity', title: 'Productivity', helper: 'Workload and life tasks.', tags: ['work', 'chores', 'finance', 'commute', 'screen-overload'] },
+];
+
+function getDayKey(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodCheckInOptions) {
+export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: { onMoodLogged?: () => void, onBackgroundChange?: (bg?: string) => void }) {
   const { user } = useAuth()
-  const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>([])
-  const [notes, setNotes] = useState('')
-  const [isManualMode, setIsManualMode] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [energyLevel, setEnergyLevel] = useState(5)
-  const [stressLevel, setStressLevel] = useState(3)
-  const [existingLogId, setExistingLogId] = useState<string | null>(null)
+  
+  const [currentStep, setCurrentStep] = useState(1)
+  const totalSteps = 4 
 
-  // Check for existing mood log for today
+  const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>([])
+  const [moodInputMode, setMoodInputMode] = useState<'manual' | 'selfie'>('manual')
+  const [intensity, setIntensity] = useState(6) 
+  
+  const [energyLevel, setEnergyLevel] = useState(3) 
+  const [stressLevel, setStressLevel] = useState(3) 
+  const [sleepQuality, setSleepQuality] = useState<SleepQuality | null>(null)
+  const [sleepCapturedToday, setSleepCapturedToday] = useState(false)
+
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [notes, setNotes] = useState('')
+  const [journalEdited, setJournalEdited] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Check if sleep was already captured today
   useEffect(() => {
-    const checkExistingLog = async () => {
-      if (user) {
-        try {
-          const log = await moodService.getTodayMoodLog(user.id)
-          if (log) {
-            console.log('Found existing mood log:', log)
-            setExistingLogId(log.id)
-            setSelectedEmotions(log.emotions)
-            setNotes(log.notes)
-            setEnergyLevel(log.energy_level)
-            setStressLevel(log.stress_level)
-            setIsManualMode(log.detection_method === 'manual')
-          }
-        } catch (error) {
-          console.error('Error checking existing mood log:', error)
-        }
+    const checkDailySleep = async () => {
+      if (user?.id) {
+        const hasEntry = await moodService.hasMoodEntryForDayKey(user.id, getDayKey(new Date()))
+        setSleepCapturedToday(hasEntry)
       }
     }
-    checkExistingLog()
-  }, [user])
+    checkDailySleep()
+  }, [user?.id])
 
-  // Update background when emotions change
   useEffect(() => {
     if (onBackgroundChange) {
       const background = selectedEmotions.length > 0
@@ -52,88 +67,120 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
     }
   }, [selectedEmotions, onBackgroundChange])
 
+  useEffect(() => {
+    if (selectedTags.length === 0) {
+      if (!journalEdited) setNotes('')
+      return
+    }
+    if (!journalEdited) {
+      const emotionName = selectedEmotions[0]?.emotion || 'neutral'
+      let draft = `Today I felt ${emotionName}, with energy level ${energyLevel}/5 and stress level ${stressLevel}/5.`
+      
+      const tagContexts = selectedTags.slice(0, 3).join(', ')
+      if (tagContexts) draft += ` My day was mainly influenced by: ${tagContexts}.`
+      
+      setNotes(draft)
+    }
+  }, [selectedTags, energyLevel, stressLevel, selectedEmotions, journalEdited])
+
   const handleAIEmotionDetected = (emotions: DetectedEmotion[]) => {
     setSelectedEmotions(emotions)
-    setIsManualMode(false)
+    setMoodInputMode('selfie')
   }
 
   const handleManualEmotionToggle = (emotion: ManualEmotion) => {
-    const existing = selectedEmotions.find(e => e.emotion === emotion.name)
-    if (existing) {
-      setSelectedEmotions(prev => prev.filter(e => e.emotion !== emotion.name))
-    } else {
-      const newEmotion: DetectedEmotion = {
-        emotion: emotion.name,
-        confidence: 0.7,
-        color: emotion.color,
-      }
-      setSelectedEmotions(prev => [...prev, newEmotion])
+    const newEmotion: DetectedEmotion = {
+      emotion: emotion.name,
+      confidence: intensity / 10,
+      color: emotion.color,
     }
+    setSelectedEmotions([newEmotion])
+  }
+  
+  useEffect(() => {
+    if (selectedEmotions.length > 0 && moodInputMode === 'manual') {
+      setSelectedEmotions(prev => prev.map(e => ({ ...e, confidence: intensity / 10 })))
+    }
+  }, [intensity, moodInputMode])
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])
+  }
+
+  const handleNext = () => {
+    if (currentStep < totalSteps) setCurrentStep(c => c + 1)
+  }
+  
+  const handleBack = () => {
+    if (currentStep > 1) setCurrentStep(c => c - 1)
   }
 
   const handleSubmit = async () => {
-    console.log('=== MOOD SUBMIT DEBUG ===')
-    console.log('Selected emotions:', selectedEmotions)
-    console.log('Current user:', user)
-    console.log('User ID:', user?.id)
-    console.log('Auth token in localStorage:', localStorage.getItem('token'))
-
     if (selectedEmotions.length === 0) {
-      alert('Please select at least one emotion or use AI detection')
+      alert('Please select a mood first.')
       return
     }
-    if (!user) {
+    if (!sleepCapturedToday && !sleepQuality) {
+      alert('Please select your sleep quality for today.')
+      return
+    }
+    if (!user?.id) {
       alert('Please log in to save your mood')
       return
     }
 
     try {
       setIsSubmitting(true)
-      const moodData = {
-        emotions: selectedEmotions,
+      const primaryEmotion = selectedEmotions[0]
+      const now = new Date()
+
+      await moodService.createMoodLog(user.id, {
+        mood: primaryEmotion.emotion,
+        intensity: intensity,
+        stress: stressLevel,
+        energy: energyLevel,
+        sleepQuality: sleepQuality || 'fair', // fallback if already captured
+        color: primaryEmotion.color,
+        dayKey: getDayKey(now),
+        eventCategories: CONTEXT_CATEGORIES.filter(c => c.tags.some(t => selectedTags.includes(t))).map(c => c.key),
+        eventTags: selectedTags,
         notes,
-        log_date: new Date(),
-        energy_level: energyLevel,
-        stress_level: stressLevel,
-        detection_method: (isManualMode ? 'manual' : 'ai') as 'manual' | 'ai',
-      }
-
-      if (existingLogId) {
-        await moodService.updateMoodLog(existingLogId, moodData)
-        alert('🎉 Mood updated successfully!')
-      } else {
-        const newLog = await moodService.createMoodLog(moodData)
-        setExistingLogId(newLog.id)
-        alert('🎉 Mood logged successfully!')
-      }
-
-      if (onMoodLogged) {
-        onMoodLogged()
-      }
+        journalSource: journalEdited ? 'manual' : 'auto',
+        timestamp: now,
+      })
+      
+      if (onMoodLogged) onMoodLogged()
+      setCurrentStep(4) 
     } catch (error) {
-      console.error('=== MOOD SUBMIT ERROR ===')
-      console.error('Error object:', error)
-      console.error('Error message:', error instanceof Error ? error.message : 'Unknown error')
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to log mood: ${errorMessage}`)
+      alert(`Failed to log mood.`)
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return {
+    currentStep,
+    totalSteps,
+    handleNext,
+    handleBack,
     selectedEmotions,
-    setSelectedEmotions,
-    notes,
-    setNotes,
-    isManualMode,
-    setIsManualMode,
-    isSubmitting,
+    moodInputMode,
+    setMoodInputMode,
+    intensity,
+    setIntensity,
     energyLevel,
     setEnergyLevel,
     stressLevel,
     setStressLevel,
-    existingLogId,
+    sleepQuality,
+    setSleepQuality,
+    sleepCapturedToday,
+    selectedTags,
+    toggleTag,
+    notes,
+    setNotes,
+    setJournalEdited,
+    isSubmitting,
     handleAIEmotionDetected,
     handleManualEmotionToggle,
     handleSubmit,

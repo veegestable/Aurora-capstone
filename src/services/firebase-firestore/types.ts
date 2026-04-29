@@ -1,17 +1,3 @@
-export interface MoodData {
-  user_id: string
-  emotions: Array<{
-    emotion: string
-    confidence: number
-    color: string
-  }>
-  notes: string
-  log_date: Date
-  energy_level: number
-  stress_level: number
-  detection_method: 'manual' | 'ai'
-}
-
 export interface ScheduleData {
   user_id: string
   title: string

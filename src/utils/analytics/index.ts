@@ -1,3 +1,3 @@
 export { computeStreak } from './computeStreak'
-export { computeTrend, type TrendDirection } from './computeTrend'
+export { computeStability, type StabilityMetrics } from './computeStability'
 export { computeDailyInsight } from './computeDailyInsight'

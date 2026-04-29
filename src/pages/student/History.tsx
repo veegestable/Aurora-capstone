@@ -2,21 +2,11 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { moodService } from '../../services/mood'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-
-// Types 
-interface MoodEntry {
-  id: string
-  emotions: Array<{ emotion: string; confidence: number; color: string }>
-  energy_level: number
-  stress_level: number
-  notes: string
-  log_date: Date
-  created_at?: Date
-}
+import type { MoodLogEntryRow } from '../../services/mood/types'
 
 interface CalendarDay {
   date: Date
-  moods: MoodEntry[]
+  moods: MoodLogEntryRow[]
   isCurrentMonth: boolean
   isToday: boolean
   blendedColor?: string
@@ -60,18 +50,20 @@ const EMOTION_DOT_COLOR: Record<string, string> = {
 const WEEK_DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 // Helpers 
-function getBlendedColor(moods: MoodEntry[]): string | undefined {
+function getBlendedColor(moods: MoodLogEntryRow[]): string | undefined {
   if (!moods?.length) return undefined
   let rT = 0, gT = 0, bT = 0, wT = 0
-  moods.forEach((mood) =>
-    mood.emotions.forEach((e) => {
-      const hex = (e.color || '#94A3B8').replace('#', '')
-      rT += parseInt(hex.substring(0, 2), 16) * (e.confidence || 1)
-      gT += parseInt(hex.substring(2, 4), 16) * (e.confidence || 1)
-      bT += parseInt(hex.substring(4, 6), 16) * (e.confidence || 1)
-      wT += e.confidence || 1
-    })
-  )
+  moods.forEach((mood) => {
+    if (!mood.color) return
+
+    const hex = mood.color.replace('#', '')
+    const confidence = mood.intensity / 10
+
+    rT += parseInt(hex.substring(0, 2), 16) * confidence
+    gT += parseInt(hex.substring(2, 4), 16) * confidence
+    bT += parseInt(hex.substring(4, 6), 16) * confidence
+    wT += confidence
+  })
   if (!wT) return undefined
   return `rgb(${Math.round(rT / wT)},${Math.round(gT / wT)},${Math.round(bT / wT)})`
 }
@@ -100,26 +92,30 @@ function IntensityDots({ confidence, color }: { confidence: number; color: strin
 }
 
 // Day Entry Row 
-function DayEntryRow({ entry }: { entry: MoodEntry }) {
-  const primaryEmotion = entry.emotions?.[0]?.emotion?.toLowerCase() || 'neutral'
+function DayEntryRow({ entry }: { entry: MoodLogEntryRow }) {
+  const primaryEmotion = entry.mood?.toLowerCase() || 'neutral'
   const emotionLabel = primaryEmotion.charAt(0).toUpperCase() + primaryEmotion.slice(1)
   const bgClass = EMOTION_BG[primaryEmotion] || 'bg-gray-700/30'
   const textClass = EMOTION_COLOR[primaryEmotion] || 'text-gray-400'
   const dotColor = EMOTION_DOT_COLOR[primaryEmotion] || '#94A3B8'
-  const confidence = entry.emotions?.[0]?.confidence || 0.5
-  const contextLabel = entry.notes
-    ? entry.notes.split(' ').slice(0, 4).join(' ')
-    : 'No context'
+  const confidence = entry.intensity / 10
+  
+  // Use event tags if available, otherwise fallback to notes
+  const contextLabel = entry.eventTags?.length 
+    ? entry.eventTags.join(', ')
+    : entry.notes ? entry.notes.split(' ').slice(0, 4).join(' ') : 'No context'
+
+  const entryDate = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp)
 
   return (
-    <div className="card-aurora flex items-center space-x-3 mb-3">
+    <div className="card-aurora flex items-center space-x-3 mb-3 p-4">
       <div className={`w-11 h-11 rounded-xl ${bgClass} flex items-center justify-center shrink-0`}>
         <span className="text-xl">{DAY_DETAIL_ICONS[primaryEmotion] || '😶'}</span>
       </div>
       <div className="flex-1 min-w-0">
         <p className={`font-bold ${textClass}`}>{emotionLabel}</p>
         <p className="text-sm text-aurora-gray-500 truncate">
-          {formatTime(entry.log_date)} • {contextLabel}
+          {formatTime(entryDate)} • {contextLabel}
         </p>
       </div>
       <div className="text-right shrink-0">
@@ -136,7 +132,7 @@ function DayEntryRow({ entry }: { entry: MoodEntry }) {
 export default function History() {
   const { user } = useAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [moodData, setMoodData] = useState<MoodEntry[]>([])
+  const [moodData, setMoodData] = useState<MoodLogEntryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null)
 
@@ -173,12 +169,8 @@ export default function History() {
       date.setDate(startDay.getDate() + i)
       const ds = date.toISOString().split('T')[0]
       const dayMoods = moodData.filter((m) => {
-        if (!m?.log_date) return false
-        return (
-          (m.log_date instanceof Date ? m.log_date : new Date(m.log_date))
-            .toISOString()
-            .split('T')[0] === ds
-        )
+        if (!m?.timestamp) return false
+        return m.timestamp.toISOString().split('T')[0] === ds
       })
       days.push({
         date,

@@ -1,18 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { moodService } from '../services/mood'
-import { MoodData } from '../services/firebase-firestore'
+import type { MoodLogEntryRow } from '../services/mood/types'
 import { getBlendedColorWeighted } from '../utils/moodColors'
-
-interface MoodEntry extends MoodData {
-  id: string
-  created_at: Date
-  log_date: Date
-}
 
 export interface CalendarDay {
   date: Date
-  moods: MoodEntry[]
+  moods: MoodLogEntryRow[]
   isCurrentMonth: boolean
   isToday: boolean
   blendedColor?: string
@@ -21,7 +15,7 @@ export interface CalendarDay {
 export function useMoodCalendar() {
   const { user } = useAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [moodData, setMoodData] = useState<MoodEntry[]>([])
+  const [moodData, setMoodData] = useState<MoodLogEntryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null)
 
@@ -44,12 +38,7 @@ export function useMoodCalendar() {
         endOfMonth.toISOString()
       )
 
-      console.log('Mood data loaded:', data)
-      if (Array.isArray(data)) {
-        setMoodData(data)
-      } else {
-        setMoodData([])
-      }
+      setMoodData(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error loading mood data:', error)
       setMoodData([])
@@ -87,16 +76,16 @@ export function useMoodCalendar() {
 
       const dateString = date.toISOString().split('T')[0]
       const dayMoods = moodData.filter(mood => {
-        if (!mood || !mood.log_date) return false
-        const moodDateString = mood.log_date.toISOString().split('T')[0]
-        return moodDateString === dateString
+        if (!mood || !mood.timestamp) return false
+        // V2 timestamp is already a parsed Date object from MoodLogEntryRow
+        return mood.timestamp.toISOString().split('T')[0] === dateString
       })
 
-      const colorData = dayMoods.flatMap(mood =>
-        (mood?.emotions ?? [])
-          .filter(e => e?.color && typeof e.confidence === 'number')
-          .map(e => ({ color: e.color, confidence: e.confidence }))
-      )
+      // Map V2 single mood/intensity to color data for blending
+      const colorData = dayMoods
+        .filter(m => m?.color && typeof m.intensity === 'number')
+        .map(m => ({ color: m.color, confidence: m.intensity / 10 }))
+
       const blendedColor = colorData.length > 0
         ? getBlendedColorWeighted(colorData)
         : undefined
