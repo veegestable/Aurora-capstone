@@ -134,16 +134,26 @@ export function BreathingContainer({
             justifyContent: "space-between",
             paddingHorizontal: 16,
             paddingVertical: 10,
+            position: "relative",
           }}
         >
           <TouchableOpacity onPress={handleCloseNow} style={{ padding: 6 }}>
             <ArrowLeft size={22} color="#FFFFFF" />
           </TouchableOpacity>
-          <View style={{ alignItems: "center" }}>
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
             <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 18 }}>{title}</Text>
             {!!subtitle && <Text style={{ color: "#BBD1FF", fontSize: 12 }}>{subtitle}</Text>}
           </View>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             onPress={() => setIsPlaying((prev) => !prev)}
             style={{
               width: 36,
@@ -155,7 +165,7 @@ export function BreathingContainer({
             }}
           >
             {isPlaying ? <Pause size={17} color="#FFFFFF" /> : <Play size={17} color="#FFFFFF" />}
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
