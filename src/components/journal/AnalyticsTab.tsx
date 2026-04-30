@@ -335,16 +335,29 @@ function WeekView({ a }: { a: ReturnType<typeof useJournalAnalytics> }) {
         </p>
 
         {/* Bar chart */}
-        <div className="flex items-end gap-2 h-40">
+        <div className="flex gap-2 h-40">
           {bars.map((bar, i) => (
             <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-              <div className="w-full relative h-full flex items-end justify-center">
+              <div className="w-full relative flex-1 flex items-end justify-center">
                 {bar.hasData ? (
-                  <div
-                    className="w-full max-w-[36px] rounded-t-lg transition-all duration-500 group-hover:opacity-100 opacity-85"
-                    style={{ height: `${(bar.avg / 5) * 100}%`, backgroundColor: bar.color }}
-                    title={`${bar.dayLabel}: ${bar.avg}`}
-                  />
+                  <div className="relative w-full h-full flex items-end justify-center cursor-pointer">
+                    <div
+                      className="w-full max-w-[36px] rounded-t-lg transition-all duration-500 group-hover:opacity-100 group-hover:scale-x-110 opacity-85"
+                      style={{ height: `${(bar.avg / 5) * 100}%`, backgroundColor: bar.color }}
+                    />
+                    {/* Hover tooltip */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 z-20">
+                      <div className="bg-[#1a1a2e] border border-white/10 rounded-xl px-3 py-2 shadow-xl whitespace-nowrap">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: bar.color }} />
+                          <span className="text-xs font-bold text-white">{bar.dayLabel}</span>
+                        </div>
+                        <p className="text-[10px] text-aurora-text-sec font-semibold">
+                          {a.stabilityMetric === 'stress' ? '😣' : '⚡'} Avg {a.stabilityMetric}: {bar.avg}/5
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="w-full max-w-[36px] h-2 rounded-full bg-white/10" />
                 )}
