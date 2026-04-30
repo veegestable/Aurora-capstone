@@ -22,6 +22,8 @@ type BreathingContainerProps = {
   soundscapeUrl?: string;
   soundscapeName?: string;
   soundscapeVolume?: number;
+  useZenTheme?: boolean;
+  showExitButton?: boolean;
   onClose: () => void;
   onComplete?: () => void;
 };
@@ -36,6 +38,8 @@ export function BreathingContainer({
   soundscapeUrl,
   soundscapeName,
   soundscapeVolume,
+  useZenTheme = false,
+  showExitButton = false,
   onClose,
   onComplete,
 }: BreathingContainerProps) {
@@ -44,6 +48,7 @@ export function BreathingContainer({
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [phaseElapsedMs, setPhaseElapsedMs] = useState(0);
   const lastPhaseIdRef = useRef<string>(exercise.phases[0]?.id ?? "");
+  const hasCompletedRef = useRef(false);
 
   const totalMs = durationSeconds * 1000;
   const currentPhase: BreathPhase = exercise.phases[phaseIndex];
@@ -73,16 +78,7 @@ export function BreathingContainer({
     const ticker = setInterval(() => {
       setElapsedMs((prevElapsed) => {
         const nextElapsed = prevElapsed + 250;
-        if (nextElapsed >= totalMs) {
-          clearInterval(ticker);
-          setIsPlaying(false);
-          Vibration.vibrate(350);
-          triggerHapticSuccess();
-          void stopBreathingAudio(3000);
-          onComplete?.();
-          return totalMs;
-        }
-        return nextElapsed;
+        return Math.min(totalMs, nextElapsed);
       });
 
       setPhaseElapsedMs((prev) => {
@@ -99,6 +95,16 @@ export function BreathingContainer({
   }, [exercise.phases.length, isPlaying, onComplete, phaseDurationMs, totalMs]);
 
   useEffect(() => {
+    if (elapsedMs < totalMs || hasCompletedRef.current) return;
+    hasCompletedRef.current = true;
+    setIsPlaying(false);
+    Vibration.vibrate(350);
+    triggerHapticSuccess();
+    void stopBreathingAudio(3000);
+    onComplete?.();
+  }, [elapsedMs, onComplete, totalMs]);
+
+  useEffect(() => {
     const phaseId = currentPhase.id;
     if (lastPhaseIdRef.current === phaseId) return;
     lastPhaseIdRef.current = phaseId;
@@ -109,6 +115,8 @@ export function BreathingContainer({
 
   const cycleLabel = `${phaseIndex + 1}/${Math.max(1, exercise.phases.length)} phases`;
   const totalCycleLabel = `${totalCycles} cycles planned`;
+  const themeBg = useZenTheme ? AURORA.bgDeep : `${moodColor}16`;
+  const themeAccent = useZenTheme ? AURORA.blue : moodColor;
 
   const handleCloseNow = () => {
     setIsPlaying(false);
@@ -117,7 +125,7 @@ export function BreathingContainer({
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: `${moodColor}16` }}>
+    <View style={{ flex: 1, backgroundColor: themeBg }}>
       <SafeAreaView style={{ flex: 1 }}>
         <View
           style={{
@@ -156,16 +164,16 @@ export function BreathingContainer({
               borderRadius: 20,
               paddingVertical: 6,
               paddingHorizontal: 12,
-              backgroundColor: `${moodColor}25`,
+              backgroundColor: `${themeAccent}25`,
               marginBottom: 10,
             }}
           >
-            <Text style={{ color: moodColor, fontWeight: "700" }}>{exercise.name}</Text>
+            <Text style={{ color: themeAccent, fontWeight: "700" }}>{exercise.name}</Text>
           </View>
           <BreathingCircle
             exerciseId={exercise.id}
             phase={currentPhase}
-            moodColor={moodColor}
+            moodColor={themeAccent}
             phaseProgress={phaseProgress}
           />
           <Text style={{ color: "#FFFFFF", fontSize: 34, fontWeight: "800", marginBottom: 4 }}>
@@ -191,6 +199,24 @@ export function BreathingContainer({
               {remainingSeconds}s remaining
             </Text>
           </View>
+          {showExitButton ? (
+            <TouchableOpacity
+              onPress={handleCloseNow}
+              style={{
+                marginTop: 14,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.22)",
+                backgroundColor: "rgba(255,255,255,0.08)",
+                paddingVertical: 10,
+                paddingHorizontal: 18,
+              }}
+            >
+              <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>
+                Exit Session
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </SafeAreaView>
     </View>

@@ -67,7 +67,6 @@ import {
 } from "../services/mood-firestore-v2.service";
 import {
   getBreathingExerciseForMood,
-  getMoodColor,
 } from "../features/breathing/breathing-data";
 
 interface MoodCheckInProps {
@@ -885,7 +884,6 @@ export function MoodCheckIn({
     stressLevel,
     energyLevel,
   });
-  const quickResetMoodColor = getMoodColor(selectedEmotion?.emotion);
   const quickResetPromptLine = `That was a lot. Take 60 seconds to find your center with ${quickResetExercise.name}?`;
   const workloadBand =
     schoolTagCount === 0
@@ -919,11 +917,13 @@ export function MoodCheckIn({
             subtitle="60-second guided breathing"
             exercise={quickResetExercise}
             durationSeconds={60}
-            moodColor={quickResetMoodColor}
+            moodColor={AURORA.blue}
             soundscapeAsset={quickResetExercise.soundscapeAsset}
             soundscapeUrl={quickResetExercise.soundscapeUrl}
             soundscapeName={quickResetExercise.soundscapeName}
             soundscapeVolume={quickResetExercise.soundscapeVolume}
+            useZenTheme
+            showExitButton
             onClose={() => setShowQuickResetSession(false)}
             onComplete={async () => {
               setShowQuickResetSession(false);
@@ -958,8 +958,8 @@ export function MoodCheckIn({
             duration={420}
             useNativeDriver
             style={{
-              backgroundColor: `${quickResetMoodColor}20`,
-              borderColor: `${quickResetMoodColor}66`,
+              backgroundColor: "rgba(45,107,255,0.18)",
+              borderColor: `${AURORA.blue}66`,
               borderWidth: 1,
               borderRadius: 14,
               padding: 12,
@@ -980,7 +980,7 @@ export function MoodCheckIn({
                   borderRadius: 10,
                   paddingVertical: 10,
                   alignItems: "center",
-                  backgroundColor: quickResetMoodColor,
+                  backgroundColor: AURORA.blue,
                 }}
               >
                 <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 12 }}>

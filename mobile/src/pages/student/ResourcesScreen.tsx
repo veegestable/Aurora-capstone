@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Wind } from "lucide-react-native";
 import { AURORA } from "../../constants/aurora-colors";
@@ -15,29 +15,38 @@ import {
 export default function ResourcesScreen() {
   const [selectedDuration, setSelectedDuration] = useState<DurationOptionMinutes>(3);
   const [activeExercise, setActiveExercise] = useState<BreathingExercise | null>(null);
+  const [isSessionModalVisible, setIsSessionModalVisible] = useState(false);
 
   const durationSeconds = useMemo(() => selectedDuration * 60, [selectedDuration]);
-
-  if (activeExercise) {
-    return (
-      <BreathingContainer
-        title="Zen Breathing"
-        subtitle={`${selectedDuration} min session`}
-        exercise={activeExercise}
-        durationSeconds={durationSeconds}
-        moodColor={AURORA.blue}
-        soundscapeAsset={activeExercise.soundscapeAsset}
-        soundscapeUrl={activeExercise.soundscapeUrl}
-        soundscapeName={activeExercise.soundscapeName}
-        soundscapeVolume={activeExercise.soundscapeVolume}
-        onClose={() => setActiveExercise(null)}
-      />
-    );
-  }
 
   return (
     <View style={{ flex: 1, backgroundColor: AURORA.bgResources }}>
       <SafeAreaView style={{ flex: 1 }}>
+        <Modal
+          visible={isSessionModalVisible}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => setIsSessionModalVisible(false)}
+          onDismiss={() => setActiveExercise(null)}
+        >
+          {activeExercise ? (
+            <BreathingContainer
+              title="Zen Breathing"
+              subtitle={`${selectedDuration} min session`}
+              exercise={activeExercise}
+              durationSeconds={durationSeconds}
+              moodColor={AURORA.blue}
+              soundscapeAsset={activeExercise.soundscapeAsset}
+              soundscapeUrl={activeExercise.soundscapeUrl}
+              soundscapeName={activeExercise.soundscapeName}
+              soundscapeVolume={activeExercise.soundscapeVolume}
+              useZenTheme
+              showExitButton
+              onClose={() => setIsSessionModalVisible(false)}
+            />
+          ) : null}
+        </Modal>
+
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 24 }}
@@ -100,6 +109,7 @@ export default function ResourcesScreen() {
               onPress={() => {
                 triggerHaptic("light");
                 setActiveExercise(exercise);
+                setIsSessionModalVisible(true);
               }}
               style={{
                 backgroundColor: AURORA.card,
