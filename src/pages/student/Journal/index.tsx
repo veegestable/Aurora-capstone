@@ -36,7 +36,7 @@ export default function Journal() {
           className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
             activeTab === 'analytics'
               ? 'bg-aurora-purple text-white shadow-md'
-              : 'text-aurora-text-sec hover:text-white hover:bg-white/5'
+              : 'text-aurora-text-sec hover:text-white cursor-pointer hover:bg-white/5'
           }`}
         >
           <BarChart3 className="w-4 h-4" />
