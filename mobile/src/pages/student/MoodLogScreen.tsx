@@ -74,7 +74,7 @@ function MoodBubble({ mood, selected, onPress }: {
                 shadowRadius: 10,
                 elevation: selected ? 8 : 0,
             }}>
-                <Image source={mood.icon} style={{ width: 36, height: 36 }} resizeMode="contain" />
+                <Image source={mood.icon} style={{ width: 38, height: 38 }} resizeMode="contain" />
             </View>
             <Text style={{ color: selected ? '#FFFFFF' : UI_TEXT_SECONDARY, fontSize: 12, fontWeight: selected ? '700' : '500' }}>
                 {mood.label}

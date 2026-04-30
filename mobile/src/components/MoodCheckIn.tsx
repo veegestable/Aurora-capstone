@@ -1523,7 +1523,7 @@ export function MoodCheckIn({
                               transform: [{ scale: selected ? 1.02 : 1 }],
                             }}
                           >
-                            {renderMoodVisual(emotion, 34)}
+                            {renderMoodVisual(emotion, 36)}
                             <Text
                               style={{
                                 marginTop: 5,
@@ -1569,7 +1569,7 @@ export function MoodCheckIn({
                             floatingMoodStyle,
                           ]}
                         >
-                          {renderMoodVisual(selectedManualEmotion, 128)}
+                          {renderMoodVisual(selectedManualEmotion, 132)}
                         </Animated.View>
                         <Animated.View
                           style={[

@@ -216,7 +216,7 @@ const MOOD_ICON_BY_MOOD: Record<MoodLog['mood'], any> = {
     Neutral: require('../../assets/moodIcon/neutral.png'),
 };
 
-function MoodIcon({ mood, size = 14 }: { mood: MoodLog['mood']; size?: number }) {
+function MoodIcon({ mood, size = 16 }: { mood: MoodLog['mood']; size?: number }) {
     return <Image source={MOOD_ICON_BY_MOOD[mood]} style={{ width: size, height: size }} resizeMode="contain" />;
 }
 
