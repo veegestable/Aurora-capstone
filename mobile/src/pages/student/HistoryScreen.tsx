@@ -98,6 +98,18 @@ function formatTime(input: Date | string | undefined): string {
     return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+function formatMealTimeToAmPm(time: string): string {
+    const [hRaw, mRaw] = (time || '').split(':');
+    const h = Number(hRaw);
+    const m = Number(mRaw);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return time;
+    const clampedHour = Math.max(0, Math.min(23, h));
+    const clampedMinute = Math.max(0, Math.min(59, m));
+    const period = clampedHour >= 12 ? 'PM' : 'AM';
+    const hour12 = clampedHour % 12 || 12;
+    return `${hour12}:${String(clampedMinute).padStart(2, '0')} ${period}`;
+}
+
 function getTimeBucketLabel(input: Date | string | undefined): 'Morning' | 'Afternoon' | 'Evening' | 'Night' {
     const hour = toDateSafe(input).getHours();
     if (hour >= 5 && hour < 12) return 'Morning';
@@ -526,7 +538,7 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
                                                             <View style={{ marginTop: 6, gap: 4 }}>
                                                                 {mealResponses.map((meal, mealIdx) => (
                                                                     <Text key={`${groupKey}-meal-${mealIdx}`} style={styles.detailsLine}>
-                                                                        {meal.meal_label} ({meal.meal_time}):{' '}
+                                                                        {meal.meal_label} ({formatMealTimeToAmPm(meal.meal_time)}):{' '}
                                                                         <Text style={styles.healthValue}>{meal.taken ? 'Taken' : 'Not yet'}</Text>
                                                                     </Text>
                                                                 ))}
@@ -560,7 +572,7 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
             ) : (
                 <View style={styles.emptyState}>
                     <Text style={styles.emptyText}>No mood logged on this day.</Text>
-                    <Text style={styles.emptySubText}>Tap the + button to log how you felt.</Text>
+                    {/* <Text style={styles.emptySubText}>Tap the + button to log how you felt.</Text> */}
                 </View>
             )}
         </Animatable.View>
@@ -954,6 +966,7 @@ export default function HistoryScreen() {
         setLoading(true);
         const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
         const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+        end.setHours(23, 59, 59, 999);
         const unsub = moodService.subscribeMoodLogs(
             user.id,
             (data) => {
