@@ -1,16 +1,22 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { EmotionDetection } from './EmotionDetection'
 import { 
   Sparkles, MousePointerClick, ChevronRight, ChevronLeft, 
-  CheckCircle2, BedDouble, Zap, Frown, PenLine, X 
+  BedDouble, Zap, Frown, PenLine, X, MessageSquare, ArrowRight,
 } from 'lucide-react'
 import type { MoodCheckInProps } from '../types/mood.types'
 import { MANUAL_EMOTIONS } from '../utils/emotions'
+import { useAuth } from '../contexts/AuthContext'
 import { useMoodCheckIn, CONTEXT_CATEGORIES } from '../hooks/useMoodCheckIn'
 import type { SleepQuality } from '../services/mood/types'
 
 export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const firstName = user?.full_name?.split(' ')[0] || 'Student'
   
   const {
     currentStep,
@@ -333,14 +339,74 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
 
               {/* STEP 4: SUMMARY */}
               {currentStep === 4 && (
-                <div className="flex flex-col items-center justify-center h-full min-h-[50vh] text-center animate-in zoom-in-95 duration-500">
-                  <div className="w-24 h-24 bg-linear-to-br from-[rgba(34,197,94,0.3)] to-[rgba(34,197,94,0.1)] rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(34,197,94,0.2)]">
-                    <CheckCircle2 className="w-12 h-12 text-aurora-green" />
+                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
+                  
+                  {/* Top Card */}
+                  <div className="card-aurora p-6 flex flex-col items-center text-center">
+                    <div className="w-22 h-22 bg-[rgba(124,58,237,0.15)] rounded-full flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(124,58,237,0.2)] border border-[rgba(124,58,237,0.3)]">
+                      <img src="/images/logos/logomark light.png" className="w-12 h-12 text-aurora-purple" />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-2 font-heading">
+                      Thank you for checking in, {firstName}!
+                    </h2>
+                    <p className="text-sm text-aurora-text-sec leading-relaxed">
+                      Keep tracking your mood regularly to better understand your daily patterns.
+                    </p>
                   </div>
-                  <h2 className="text-3xl font-bold text-white mb-4 font-heading">Check-in Complete</h2>
-                  <p className="text-aurora-text-sec max-w-sm mb-8 leading-relaxed">
-                    Your mood has been securely saved. Keep up the great habit of tracking your well-being!
-                  </p>
+
+                  {/* Supportive Space Card */}
+                  <div className="card-aurora p-5 border border-aurora-purple/50 shadow-[0_0_15px_rgba(124,58,237,0.1)]">
+                    <h3 className="text-sm font-bold text-white mb-3">A supportive space for you</h3>
+                    <button 
+                      onClick={() => navigate('/student/messages')}
+                      className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    >
+                      Talk to a Counselor <MessageSquare className="w-4 h-4 text-aurora-text-sec" />
+                    </button>
+                  </div>
+
+                  {/* Recommended Exercise */}
+                  <div className="card-aurora p-5">
+                    <p className="text-[10px] font-extrabold tracking-widest text-aurora-amber uppercase mb-1">
+                      Recommended
+                    </p>
+                    <h3 className="text-base font-bold text-white mb-3">5-minute Breathing Exercise</h3>
+                    
+                    <button 
+                      onClick={() => {
+                        handleClose()
+                        navigate('/student/resources')
+                      }}
+                      className="w-full bg-[#10143C] hover:bg-[#161b4d] border border-white/5 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between text-left transition-colors cursor-pointer"
+                    >
+                      <div>
+                        <p className="text-sm font-bold text-white mb-1">Calm reset for your day</p>
+                        <p className="text-xs font-semibold text-aurora-text-muted">5 Min</p>
+                      </div>
+                      <div className="mt-3 sm:mt-0 flex items-center gap-1.5 text-xs font-bold text-aurora-amber tracking-wider">
+                        TRY NOW <ArrowRight className="w-4 h-4" />
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Stats Row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="card-aurora p-4 flex flex-col justify-center">
+                      <p className="text-[10px] font-extrabold tracking-widest text-aurora-text-muted uppercase mb-1">
+                        Streak
+                      </p>
+                      <p className="text-2xl font-bold text-white font-heading">
+                        1 <span className="text-sm font-semibold text-aurora-text-sec ml-0.5">Days</span>
+                      </p>
+                    </div>
+                    <div className="card-aurora p-4 flex flex-col justify-center">
+                      <p className="text-[10px] font-extrabold tracking-widest text-aurora-text-muted uppercase mb-1">
+                        Check-ins
+                      </p>
+                      <p className="text-2xl font-bold text-white font-heading">1</p>
+                    </div>
+                  </div>
+
                 </div>
               )}
             </div>
@@ -359,7 +425,7 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
               ) : (
                 <button
                   onClick={handleClose}
-                  className="w-full bg-white/10 hover:bg-white/20 text-white py-4 rounded-xl font-bold transition-colors cursor-pointer"
+                  className="w-full bg-linear-to-r from-aurora-blue to-aurora-purple hover:opacity-90 text-white py-4 rounded-xl font-bold text-base transition-all shadow-[0_0_25px_rgba(124,58,237,0.3)] cursor-pointer"
                 >
                   Done
                 </button>

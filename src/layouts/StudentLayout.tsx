@@ -1,14 +1,14 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  Home, CalendarDays, MessageSquare, BookOpen,
-  User, Heart, BarChart3, Calendar,
-  Bell, LogOut, Settings as SettingsIcon
+  Home, MessageSquare, BookOpen, User, 
+  Heart, Calendar, Bell, LogOut, 
+  Settings as SettingsIcon, 
 } from 'lucide-react'
 
 const PRIMARY_NAV = [
   { path: '/', label: 'Home', icon: Home },
-  { path: '/student/history', label: 'History', icon: CalendarDays },
+  { path: '/student/journal', label: 'Journal', icon: BookOpen },
   { path: '/student/messages', label: 'Messages', icon: MessageSquare },
   { path: '/student/resources', label: 'Resources', icon: BookOpen },
   { path: '/student/profile', label: 'Profile', icon: User },
@@ -16,7 +16,6 @@ const PRIMARY_NAV = [
 
 const SECONDARY_NAV = [
   { path: '/mood', label: 'Mood Check-in', icon: Heart },
-  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
   { path: '/schedule', label: 'Schedule', icon: Calendar },
   { path: '/notifications', label: 'Notifications', icon: Bell },
   { path: '/settings', label: 'Settings', icon: SettingsIcon },

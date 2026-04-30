@@ -7,7 +7,7 @@ import PendingCounselor from './pages/PendingCounselor'
 import Settings from './pages/Settings'
 import StudentLayout from './layouts/StudentLayout'
 import StudentDashboard from './pages/StudentDashboard'
-import StudentHistory from './pages/student/History'
+import StudentJournal from './pages/student/Journal'
 import StudentMessages from './pages/student/Messages'
 import StudentProfile from './pages/student/Profile'
 import StudentResources from './pages/student/Resources'
@@ -33,7 +33,6 @@ import AdminStudentDetail from './pages/admin/StudentDetail'
 import AdminResourceDetail from './pages/admin/ResourceDetail'
 
 import MoodCheckIn from './components/MoodCheckIn'
-import Analytics from './components/Analytics'
 import ScheduleManager from './components/ScheduleManager'
 import NotificationPanel from './components/NotificationPanel'
 import LoadingScreen from './components/LoadingScreen'
@@ -72,10 +71,9 @@ function AppContent() {
           <Route element={<StudentLayout />}>
             <Route index element={<StudentDashboard />} />
             <Route path="mood" element={<MoodCheckIn />} />
-            <Route path="analytics" element={<Analytics />} />
             <Route path="schedule" element={<ScheduleManager />} />
             <Route path="notifications" element={<NotificationPanel />} />
-            <Route path="student/history" element={<StudentHistory />} />
+            <Route path="student/journal" element={<StudentJournal />} />
             <Route path="student/messages" element={<StudentMessages />} />
             <Route path="student/profile" element={<StudentProfile />} />
             <Route path="student/resources" element={<StudentResources />} />

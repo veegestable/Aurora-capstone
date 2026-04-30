@@ -6,11 +6,11 @@ import type { DetectedEmotion, ManualEmotion } from '../types/mood.types'
 import type { SleepQuality, ContextCategoryKey } from '../services/mood/types'
 
 export type CategoryConfig = {
-  key: ContextCategoryKey;
-  title: string;
-  helper: string;
-  tags: string[];
-};
+  key: ContextCategoryKey
+  title: string
+  helper: string
+  tags: string[]
+}
 
 export const CONTEXT_CATEGORIES: CategoryConfig[] = [
   { key: 'school', title: 'School', helper: 'Academic activities and pressure.', tags: ['classes', 'study', 'quiz', 'exam', 'homework', 'deadline', 'group-project', 'presentation'] },
@@ -18,13 +18,13 @@ export const CONTEXT_CATEGORIES: CategoryConfig[] = [
   { key: 'social', title: 'Social', helper: 'Relationships and interactions.', tags: ['friends', 'family', 'partner', 'conflict', 'alone', 'social-media'] },
   { key: 'fun', title: 'Fun / Leisure', helper: 'Recreation and enjoyment.', tags: ['gaming', 'movie-series', 'music', 'travel', 'shopping', 'restaurant', 'hobby', 'outdoor'] },
   { key: 'productivity', title: 'Productivity', helper: 'Workload and life tasks.', tags: ['work', 'chores', 'finance', 'commute', 'screen-overload'] },
-];
+]
 
 function getDayKey(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: { onMoodLogged?: () => void, onBackgroundChange?: (bg?: string) => void }) {
@@ -149,6 +149,7 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: { onMoodLog
         timestamp: now,
       })
       
+      setSleepCapturedToday(true)
       if (onMoodLogged) onMoodLogged()
       setCurrentStep(4) 
     } catch (error) {

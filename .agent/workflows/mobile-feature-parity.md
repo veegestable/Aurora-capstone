@@ -391,18 +391,18 @@ Collections used across features (verify rules allow web client access):
 | D1 | Zen ambient audio | Small | ✅ Done |
 | D2 | Admin settings | Small | ✅ Done |
 | **E1** | **Counselor Signals system (replace risk levels)** | **Large** | ✅ Done |
-| **E2** | **StudentProfileModal with check-in summary** | **Medium** | ❌ Not started |
-| **E3** | **Daily Selfie Screen** | **Small** | ❌ Not started |
+| **E2** | **StudentProfileModal with check-in summary** | **Medium** | ✅ Done |
+| **E3** | **Daily Selfie Screen** | **Small** | ✅ Done |
 | **E4** | **Mood V2 dual-source merging** | **Medium** | ✅ Done |
-| **E5** | **UserDaySettings context** | **Medium** | ❌ Not started |
-| **E6** | **Weekly Summary via Cloud Functions** | **Small** | ❌ Not started |
-| **E7** | **Counselor Profile — Edit Modal + avatar upload** | **Medium** | ❌ Not started |
-| **F1** | **Admin Students (real page)** | **Medium** | ❌ Not started |
-| **F2** | **Admin Resources (real page)** | **Medium** | ❌ Not started |
-| **F3** | **Admin Analytics (real page)** | **Small** | ❌ Not started |
-| **F4** | **Admin CounselorDetail** | **Small** | ❌ Not started |
-| **F5** | **Admin StudentDetail** | **Small** | ❌ Not started |
-| **F6** | **Admin ResourceDetail** | **Small** | ❌ Not started |
+| **E5** | **UserDaySettings context** | **Medium** | ✅ Done |
+| **E6** | **Weekly Summary via Cloud Functions** | **Small** | ✅ Done |
+| **E7** | **Counselor Profile — Edit Modal + avatar upload** | **Medium** | ✅ Done |
+| **F1** | **Admin Students (real page)** | **Medium** | ✅ Done |
+| **F2** | **Admin Resources (real page)** | **Medium** | ✅ Done |
+| **F3** | **Admin Analytics (real page)** | **Small** | ✅ Done |
+| **F4** | **Admin CounselorDetail** | **Small** | ✅ Done |
+| **F5** | **Admin StudentDetail** | **Small** | ✅ Done |
+| **F6** | **Admin ResourceDetail** | **Small** | ✅ Done |
 
 ---
 
