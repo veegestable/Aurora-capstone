@@ -71,6 +71,8 @@ export interface MoodData {
   color?: string;
   dayKey?: string;
   entryId?: string;
+  duration_in_minutes?: number;
+  emotional_volume?: number;
   journal_image_url?: string;
   bath_taken?: boolean;
   meal_responses?: Array<{ meal_id: string; meal_label: string; meal_time: string; taken: boolean }>;

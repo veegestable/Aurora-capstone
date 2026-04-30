@@ -14,6 +14,7 @@ export type MergedMoodLog = MoodData & { id: string; created_at?: Date; log_date
 
 function mapV2EntryToMoodData(e: MoodLogEntryRow, userId: string): MergedMoodLog {
   const logDate = e.timestamp instanceof Date ? e.timestamp : new Date(e.timestamp);
+  const durationMinutes = Math.max(1, Math.round(e.durationMinutes || 60));
   return {
     id: e.id,
     entryId: e.id,
@@ -26,6 +27,8 @@ function mapV2EntryToMoodData(e: MoodLogEntryRow, userId: string): MergedMoodLog
     detection_method: e.detectionMethod || 'manual',
     mood: e.mood,
     intensity: e.intensity,
+    duration_in_minutes: durationMinutes,
+    emotional_volume: e.intensity * durationMinutes,
     color: e.color,
     dayKey: e.dayKey,
     sleep_quality: e.sleepQuality,
@@ -65,6 +68,14 @@ export const moodService = {
     const intensity = Math.max(1, Math.min(10, Math.round(conf * 10)));
     const stress = Math.max(1, Math.min(5, Math.round((moodData.stress_level ?? 5) / 2)));
     const energy = Math.max(1, Math.min(5, Math.round((moodData.energy_level ?? 5) / 2)));
+    const durationMinutes = Math.max(
+      1,
+      Math.round(
+        typeof moodData.duration_in_minutes === 'number' && Number.isFinite(moodData.duration_in_minutes)
+          ? moodData.duration_in_minutes
+          : 60
+      )
+    );
     const color = primary?.color || '#888888';
     const dayKey = moodData.dayKey;
     const sleepQuality: SleepQuality =
@@ -107,6 +118,7 @@ export const moodService = {
     const created = await createMoodLogEntry(user.uid, {
       mood,
       intensity,
+      durationMinutes,
       stress,
       energy,
       sleepQuality,
@@ -126,6 +138,7 @@ export const moodService = {
       id: created.id,
       mood: created.mood,
       intensity: created.intensity,
+      durationMinutes: created.durationMinutes,
       stress: created.stress,
       energy: created.energy,
       sleepQuality: created.sleepQuality,

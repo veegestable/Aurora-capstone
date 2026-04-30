@@ -25,6 +25,7 @@ const UI_TEXT_MUTED = '#9AA9C8';
 interface MoodEntry {
     id: string;
     emotions: Array<{ emotion: string; confidence: number; color: string }>;
+    duration_in_minutes?: number;
     energy_level: number;
     stress_level: number;
     sleep_quality?: 'poor' | 'fair' | 'good';
@@ -107,6 +108,11 @@ function formatMealTimeToAmPm(time: string): string {
     const period = clampedHour >= 12 ? 'PM' : 'AM';
     const hour12 = clampedHour % 12 || 12;
     return `${hour12}:${String(clampedMinute).padStart(2, '0')} ${period}`;
+}
+
+function formatDurationShort(minutes: number | undefined): string {
+    if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes <= 0) return 'N/A';
+    return `${Math.round(minutes)} min`;
 }
 
 function getTimeBucketLabel(input: Date | string | undefined): 'Morning' | 'Afternoon' | 'Evening' | 'Night' {
@@ -395,6 +401,12 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
                                 {bucketEntries.map((entry, idx) => {
                                     const group = toMoodLogs([entry]);
                                     const noteText = typeof entry.notes === 'string' ? entry.notes.trim() : '';
+                                    const durationMinutes =
+                                        typeof entry.duration_in_minutes === 'number' &&
+                                        Number.isFinite(entry.duration_in_minutes) &&
+                                        entry.duration_in_minutes > 0
+                                            ? Math.round(entry.duration_in_minutes)
+                                            : undefined;
                                     const journalImageUrl =
                                         typeof entry.journal_image_url === 'string' ? entry.journal_image_url.trim() : '';
                                     const bathTaken = !!entry.bath_taken;
@@ -418,7 +430,10 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
                                         >
                                             <View style={styles.entryHeader}>
                                                 <Text style={styles.entryTime}>{formatTime(entry.created_at || entry.log_date)}</Text>
-                                                <Text style={styles.entryHint}>{expanded ? 'Hide details' : 'Tap for details'}</Text>
+                                                <View style={styles.entryMetaRow}>
+                                                    <Text style={styles.entryHint}>{expanded ? 'Hide details' : 'Tap for details'}</Text>
+                                                    {/* <Text style={styles.entryDuration}>Duration: {formatDurationShort(durationMinutes)}</Text> */}
+                                                </View>
                                             </View>
 
                                             <View style={styles.chipsRow}>
@@ -510,6 +525,10 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
                                                             })}
                                                         </View>
                                                     ) : null}
+                                                    <Text style={[styles.detailsLine, { marginTop: 10 }]}>
+                                                        Mood duration:{' '}
+                                                        <Text style={styles.healthValue}>{formatDurationShort(durationMinutes)}</Text>
+                                                    </Text>
                                                     <View style={styles.noteBlock}>
                                                         <Text style={styles.noteLabel}>Note</Text>
                                                         <Text style={noteText ? styles.noteBody : styles.noteBodyEmpty}>
@@ -654,7 +673,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(148,163,184,0.2)',
         backgroundColor: 'rgba(15,23,42,0.3)',
-        padding: 10,
+        padding: 12,
     },
     bucketBlock: {
         marginBottom: 12,
@@ -671,8 +690,8 @@ const styles = StyleSheet.create({
     entryHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
+        alignItems: 'flex-start',
+        marginBottom: 10,
     },
     entryTime: {
         color: AURORA.blue,
@@ -680,13 +699,24 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     entryHint: {
-        color: '#94a3b8',
+        color: '#cbd5e1',
         fontSize: 11,
+        fontWeight: '600',
+    },
+    entryMetaRow: {
+        alignItems: 'flex-end',
+        gap: 2,
+    },
+    entryDuration: {
+        color: '#9fb9ec',
+        fontSize: 10,
+        fontWeight: '600',
     },
     chipsRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 8,
+        marginTop: 2,
     },
     entryNotes: {
         color: '#94a3b8',
