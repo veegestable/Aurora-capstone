@@ -2,15 +2,17 @@ import { EMOTION_COLORS } from './emotions'
 
 // Removed export keyword since it's only used internally
 const EMOTION_LABELS = {
-  joy: 'Joy',
-  love: 'Love',
+  happy: 'Happy',
+  sad: 'Sad',
+  angry: 'Angry',
   surprise: 'Surprise',
-  anger: 'Anger',
-  fear: 'Fear',
-  sadness: 'Sadness',
-  disgust: 'Disgust',
-  neutral: 'Neutral'
+  neutral: 'Neutral',
+  // Legacy aliases
+  joy: 'Happy',
+  sadness: 'Sad',
+  anger: 'Angry',
 } as const
+
 
 export function getEmotionColor(emotion: string): string {
   return EMOTION_COLORS[emotion as keyof typeof EMOTION_COLORS] || EMOTION_COLORS.neutral

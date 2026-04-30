@@ -80,7 +80,7 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
       <div className="card-aurora p-5">
         <h3 className="text-lg font-semibold mb-4 text-white text-center">How are you feeling?</h3>
         <div className="flex justify-between items-center max-w-sm mx-auto">
-          {MANUAL_EMOTIONS.filter(e => ['joy', 'sadness', 'anger', 'surprise', 'neutral'].includes(e.name)).map(emotion => (
+          {MANUAL_EMOTIONS.map(emotion => (
             <button
               key={emotion.name}
               onClick={() => startCheckIn(emotion.name)}
@@ -163,8 +163,8 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                     </div>
                   ) : (
                     <div className="card-aurora p-6 max-w-sm mx-auto">
-                      <div className="grid grid-cols-4 gap-4 justify-items-center">
-                        {MANUAL_EMOTIONS.slice(0, 8).map(emotion => {
+                      <div className="grid grid-cols-5 gap-4 justify-items-center">
+                        {MANUAL_EMOTIONS.map(emotion => {
                           const isSelected = selectedEmotions.some(e => e.emotion === emotion.name);
                           return (
                             <button

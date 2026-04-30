@@ -4,6 +4,8 @@ import { moodService } from '../../services/mood'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { MoodLogEntryRow } from '../../services/mood/types'
 import { MoodLogEntry } from './MoodLogEntry'
+import { getEmotionColor } from '../../utils/moodColors'
+import { MANUAL_EMOTIONS } from '../../utils/emotions'
 
 interface CalendarDay {
   date: Date
@@ -19,8 +21,7 @@ function getBlendedColor(moods: MoodLogEntryRow[]): string | undefined {
   if (!moods?.length) return undefined
   let rT = 0, gT = 0, bT = 0, wT = 0
   moods.forEach((mood) => {
-    if (!mood.color) return
-    const hex = mood.color.replace('#', '')
+    const hex = getEmotionColor(mood.mood).replace('#', '')
     const confidence = mood.intensity / 10
     rT += parseInt(hex.substring(0, 2), 16) * confidence
     gT += parseInt(hex.substring(2, 4), 16) * confidence
@@ -182,21 +183,12 @@ export function JournalCalendar() {
 
       {/* Legend */}
       <div className="px-2 hidden sm:flex items-center justify-center gap-4 flex-wrap text-xs font-semibold text-aurora-text-sec">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-green-400/80" /> <span>Positive</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-blue-400/80" /> <span>Low Energy</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-red-400/80" /> <span>High Stress</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-orange-400/80" /> <span>Surprise</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-gray-400/80" /> <span>Neutral</span>
-        </div>
+        {MANUAL_EMOTIONS.map(e => (
+          <div key={e.name} className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getEmotionColor(e.name) }} />
+            <span>{e.label}</span>
+          </div>
+        ))}
       </div>
 
       {/* Day Details */}

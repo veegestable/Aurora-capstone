@@ -134,7 +134,7 @@ function computeCategoryFrequency(logs: MoodLogEntryRow[]): { category: string; 
 function computeHourlyDots(logs: MoodLogEntryRow[]): HourlyDot[] {
   return logs.map(l => {
     const t = l.timestamp instanceof Date ? l.timestamp : new Date(l.timestamp)
-    return { hour: t.getHours(), intensity: l.intensity, color: l.color || getEmotionColor(l.mood), mood: l.mood }
+    return { hour: t.getHours(), intensity: l.intensity, color: getEmotionColor(l.mood), mood: l.mood }
   })
 }
 

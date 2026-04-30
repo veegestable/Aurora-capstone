@@ -1,27 +1,25 @@
 import type { ManualEmotion } from '../types/mood.types'
 
-/** Colors for manual mood selection (used in MoodCheckIn) */
+/** The 5 core emotions used across the project */
 export const MANUAL_EMOTIONS: ManualEmotion[] = [
-  { name: 'joy', color: '#FFA900', label: 'Joy', emoji: '😊' },
-  { name: 'love', color: '#FF55B8', label: 'Love', emoji: '🥰' },
+  { name: 'happy', color: '#FFA900', label: 'Happy', emoji: '😊' },
+  { name: 'sad', color: '#086FE6', label: 'Sad', emoji: '😢' },
+  { name: 'angry', color: '#F90038', label: 'Angry', emoji: '😡' },
   { name: 'surprise', color: '#FF7105', label: 'Surprise', emoji: '😮' },
-  { name: 'anger', color: '#F90038', label: 'Anger', emoji: '😡' },
-  { name: 'fear', color: '#920FFE', label: 'Fear', emoji: '😰' },
-  { name: 'sadness', color: '#086FE6', label: 'Sadness', emoji: '😢' },
-  { name: 'disgust', color: '#19BF20', label: 'Disgust', emoji: '🤢' },
   { name: 'neutral', color: '#CAC1C4', label: 'Neutral', emoji: '😐' },
 ]
 
-/** Hex colors for AI-detected emotions (used in EmotionDetection) */
+/** Hex colors for emotion rendering */
 export const EMOTION_COLORS: Record<string, string> = {
-  joy: '#FFD700',
-  love: '#FF69B4',
+  happy: '#FFD700',
+  sad: '#4169E1',
+  angry: '#DC143C',
   surprise: '#FF8C00',
-  anger: '#DC143C',
-  fear: '#8A2BE2',
-  sadness: '#4169E1',
-  disgust: '#32CD32',
   neutral: '#808080',
+  // Legacy aliases for existing Firestore data
+  joy: '#FFD700',
+  sadness: '#4169E1',
+  anger: '#DC143C',
 }
 
 /** Tailwind class combos for schedule event types */

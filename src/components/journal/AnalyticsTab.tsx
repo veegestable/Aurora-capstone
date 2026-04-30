@@ -143,33 +143,72 @@ function TodayView({ a }: { a: ReturnType<typeof useJournalAnalytics> }) {
         <h4 className="text-lg font-bold text-white mb-1">Mood spikes in 24 hours</h4>
         <p className="text-xs text-aurora-text-sec mb-6">Higher points show hours where your mood intensity peaked.</p>
 
-        <div className="relative h-48 border-b border-l border-white/10">
-          {/* Y-axis grid lines */}
-          {[2, 4, 6, 8, 10].map(v => (
-            <div key={v} className="absolute w-full border-t border-dashed border-white/5" style={{ bottom: `${(v / 10) * 100}%` }} />
-          ))}
-          {/* Dots */}
-          {a.hourlyDots.map((dot, i) => (
-            <div
-              key={i}
-              className="absolute w-3 h-3 rounded-full border-2 border-aurora-card shadow-lg transition-all"
-              style={{
-                left: `${((dot.hour - 6) / 18) * 100}%`,
-                bottom: `${(dot.intensity / 10) * 100}%`,
-                backgroundColor: dot.color,
-                transform: 'translate(-50%, 50%)',
-              }}
-              title={`${dot.hour}:00 — ${dot.mood} (${dot.intensity}/10)`}
-            />
-          ))}
+        <div className="flex">
+          {/* Y-axis title */}
+          <div className="flex items-center mr-1">
+            <span className="text-[9px] font-bold text-aurora-text-muted uppercase tracking-widest [writing-mode:vertical-lr] rotate-180">
+              Intensity
+            </span>
+          </div>
+
+          {/* Y-axis labels */}
+          <div className="flex flex-col justify-between h-48 pr-2 py-0.5">
+            {[10, 8, 6, 4, 2].map(v => (
+              <span key={v} className="text-[9px] text-aurora-text-muted font-bold leading-none">{v}</span>
+            ))}
+          </div>
+
+          {/* Graph area */}
+          <div className="flex-1 flex flex-col">
+            <div className="relative h-48 border-b border-l border-white/10">
+              {/* Grid lines */}
+              {[2, 4, 6, 8, 10].map(v => (
+                <div key={v} className="absolute w-full border-t border-dashed border-white/5" style={{ bottom: `${(v / 10) * 100}%` }} />
+              ))}
+              {/* Dots */}
+              {a.hourlyDots.map((dot, i) => (
+                <div
+                  key={i}
+                  className="absolute group cursor-pointer"
+                  style={{
+                    left: `${((dot.hour) / 24) * 100}%`,
+                    bottom: `${(dot.intensity / 10) * 100}%`,
+                    transform: 'translate(-50%, 50%)',
+                  }}
+                >
+                  {/* The dot */}
+                  <div
+                    className="w-3.5 h-3.5 rounded-full border-2 shadow-lg transition-transform group-hover:scale-150"
+                    style={{ backgroundColor: dot.color, borderColor: `${dot.color}60`, boxShadow: `0 0 8px ${dot.color}50` }}
+                  />
+                  {/* Hover tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 z-20">
+                    <div className="bg-[#1a1a2e] border border-white/10 rounded-xl px-3 py-2 shadow-xl whitespace-nowrap">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: dot.color }} />
+                        <span className="text-xs font-bold text-white capitalize">{dot.mood}</span>
+                      </div>
+                      <p className="text-[10px] text-aurora-text-sec font-semibold">{dot.hour}:00 · Intensity {dot.intensity}/10</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* X-axis hour labels — all 24h marks */}
+            <div className="flex justify-between mt-2 px-0.5">
+              {Array.from({ length: 13 }, (_, i) => i * 2).map(h => (
+                <span key={h} className="text-[8px] text-aurora-text-muted font-bold">{String(h).padStart(2, '0')}h</span>
+              ))}
+            </div>
+
+            {/* X-axis title */}
+            <p className="text-[9px] font-bold text-aurora-text-muted uppercase tracking-widest text-center mt-1.5">Time of Day</p>
+          </div>
         </div>
-        {/* X-axis hour labels */}
-        <div className="flex justify-between mt-2 px-1">
-          {[6, 8, 10, 12, 14, 16, 18, 20, 22].map(h => (
-            <span key={h} className="text-[9px] text-aurora-text-muted font-bold">{h}h</span>
-          ))}
-        </div>
-        <div className="flex items-center gap-4 mt-4 text-[10px] text-aurora-text-sec font-semibold">
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 mt-5 text-[10px] text-aurora-text-sec font-semibold">
           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-aurora-text-sec" /> Logged</div>
           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full border border-aurora-text-muted" /> No check-in</div>
         </div>
