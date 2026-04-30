@@ -48,6 +48,8 @@ export interface DailyContextDoc {
   sleepQuality?: SleepQuality;
   bathTaken?: boolean;
   mealStatusById?: Record<string, boolean>;
+  zenSessionsCompleted?: number;
+  zenMinutesCompleted?: number;
   createdAt: Timestamp;
 }
 
@@ -278,6 +280,8 @@ export async function setDailyContext(
     sleepQuality: data.sleepQuality,
     bathTaken: data.bathTaken ?? false,
     mealStatusById: data.mealStatusById ?? {},
+    zenSessionsCompleted: data.zenSessionsCompleted ?? 0,
+    zenMinutesCompleted: data.zenMinutesCompleted ?? 0,
     createdAt,
   });
 }

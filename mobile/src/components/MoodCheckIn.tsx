@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
+  Modal,
   PanResponder,
   ScrollView,
   Text,
@@ -46,6 +47,7 @@ import { AURORA } from "../constants/aurora-colors";
 import { useAuth } from "../stores/AuthContext";
 import { triggerHaptic } from "../utils/haptics";
 import { EmotionDetection } from "./EmotionDetection";
+import { BreathingContainer } from "./breathing/BreathingContainer";
 import { useUserDaySettings } from "../stores/UserDaySettingsContext";
 import { uploadImage } from "../services/firebase-storage.service";
 import {
@@ -63,6 +65,10 @@ import {
   type DailyContextDoc,
   type SleepQuality,
 } from "../services/mood-firestore-v2.service";
+import {
+  getBreathingExerciseForMood,
+  getMoodColor,
+} from "../features/breathing/breathing-data";
 
 interface MoodCheckInProps {
   onComplete?: () => void;
@@ -260,6 +266,8 @@ export function MoodCheckIn({
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [showQuickResetPrompt, setShowQuickResetPrompt] = useState(false);
+  const [showQuickResetSession, setShowQuickResetSession] = useState(false);
   const [dayKey, setDayKey] = useState("");
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const [expandedTagGroups, setExpandedTagGroups] = useState<
@@ -781,6 +789,8 @@ export function MoodCheckIn({
           ...(existing?.mealStatusById || {}),
           ...mealStatusById,
         },
+        zenSessionsCompleted: existing?.zenSessionsCompleted || 0,
+        zenMinutesCompleted: existing?.zenMinutesCompleted || 0,
       });
 
       try {
@@ -802,6 +812,7 @@ export function MoodCheckIn({
 
       setIsSubmitting(false);
       setIsSubmitted(true);
+      setShowQuickResetPrompt(true);
     } catch (error: any) {
       setIsSubmitting(false);
       setUploadingJournalImage(false);
@@ -869,6 +880,13 @@ export function MoodCheckIn({
   const schoolTagCount = selectedTags.filter((tag) =>
     SCHOOL_TAGS.includes(tag),
   ).length;
+  const quickResetExercise = getBreathingExerciseForMood({
+    mood: selectedEmotion?.emotion,
+    stressLevel,
+    energyLevel,
+  });
+  const quickResetMoodColor = getMoodColor(selectedEmotion?.emotion);
+  const quickResetPromptLine = `That was a lot. Take 60 seconds to find your center with ${quickResetExercise.name}?`;
   const workloadBand =
     schoolTagCount === 0
       ? "Light day"
@@ -895,6 +913,100 @@ export function MoodCheckIn({
           paddingBottom: 20,
         }}
       >
+        <Modal visible={showQuickResetSession} animationType="slide" presentationStyle="fullScreen">
+          <BreathingContainer
+            title="Quick Reset"
+            subtitle="60-second guided breathing"
+            exercise={quickResetExercise}
+            durationSeconds={60}
+            moodColor={quickResetMoodColor}
+            soundscapeAsset={quickResetExercise.soundscapeAsset}
+            soundscapeUrl={quickResetExercise.soundscapeUrl}
+            soundscapeName={quickResetExercise.soundscapeName}
+            soundscapeVolume={quickResetExercise.soundscapeVolume}
+            onClose={() => setShowQuickResetSession(false)}
+            onComplete={async () => {
+              setShowQuickResetSession(false);
+              setShowQuickResetPrompt(false);
+              if (user?.id && dayKey) {
+                try {
+                  const existing = await getDailyContext(user.id, dayKey);
+                  await setDailyContext(user.id, dayKey, {
+                    exams: existing?.exams || 0,
+                    quizzes: existing?.quizzes || 0,
+                    deadlines: existing?.deadlines || 0,
+                    assignments: existing?.assignments || 0,
+                    notes: existing?.notes || "",
+                    sleepQuality: existing?.sleepQuality,
+                    bathTaken: existing?.bathTaken || false,
+                    mealStatusById: existing?.mealStatusById || {},
+                    zenSessionsCompleted: (existing?.zenSessionsCompleted || 0) + 1,
+                    zenMinutesCompleted: (existing?.zenMinutesCompleted || 0) + 1,
+                  });
+                } catch {
+                  // no-op
+                }
+              }
+              Alert.alert("Well done", "You completed your quick reset.");
+            }}
+          />
+        </Modal>
+
+        {showQuickResetPrompt && !showQuickResetSession ? (
+          <Animatable.View
+            animation="fadeInDown"
+            duration={420}
+            useNativeDriver
+            style={{
+              backgroundColor: `${quickResetMoodColor}20`,
+              borderColor: `${quickResetMoodColor}66`,
+              borderWidth: 1,
+              borderRadius: 14,
+              padding: 12,
+              marginBottom: 10,
+            }}
+          >
+            <Text style={{ color: "#FFFFFF", fontWeight: "700", marginBottom: 4 }}>
+              Quick Reset
+            </Text>
+            <Text style={{ color: "#D4DDF8", fontSize: 12, lineHeight: 18, marginBottom: 10 }}>
+              {quickResetPromptLine}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => setShowQuickResetSession(true)}
+                style={{
+                  flex: 1,
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  backgroundColor: quickResetMoodColor,
+                }}
+              >
+                <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 12 }}>
+                  Start 60s
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowQuickResetPrompt(false)}
+                style={{
+                  flex: 1,
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: AURORA.border,
+                  backgroundColor: AURORA.cardAlt,
+                }}
+              >
+                <Text style={{ color: AURORA.textSec, fontWeight: "700", fontSize: 12 }}>
+                  Skip for now
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animatable.View>
+        ) : null}
+
         <Animatable.View
           animation="fadeInUp"
           duration={520}
@@ -1048,7 +1160,7 @@ export function MoodCheckIn({
               marginBottom: 10,
             }}
           >
-            5-minute Breathing Exercise
+            Dynamic breathing recommendation
           </Text>
           <Animatable.View
             animation="fadeIn"
@@ -1085,7 +1197,7 @@ export function MoodCheckIn({
                     fontSize: 13,
                   }}
                 >
-                  Calm reset for your day
+                  {quickResetExercise.name}
                 </Text>
                 <View
                   style={{
@@ -1094,7 +1206,7 @@ export function MoodCheckIn({
                   }}
                 >
                   <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
-                    5 Min
+                    Mood-based
                   </Text>
                   <Text
                     style={{
@@ -1103,7 +1215,7 @@ export function MoodCheckIn({
                       fontSize: 12,
                     }}
                   >
-                    TRY NOW →
+                    OPEN ZEN →
                   </Text>
                 </View>
               </Animatable.View>
