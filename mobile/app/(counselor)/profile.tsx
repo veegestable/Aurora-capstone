@@ -85,7 +85,7 @@ function SettingsRow({
             )}
         </TouchableOpacity>
     );
-}
+    }
 
 type SexOption = 'male' | 'female';
 

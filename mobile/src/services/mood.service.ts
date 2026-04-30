@@ -23,7 +23,7 @@ function mapV2EntryToMoodData(e: MoodLogEntryRow, userId: string): MergedMoodLog
     log_date: logDate,
     energy_level: Math.min(10, Math.max(1, e.energy * 2)),
     stress_level: Math.min(10, Math.max(1, e.stress * 2)),
-    detection_method: 'manual',
+    detection_method: e.detectionMethod || 'manual',
     mood: e.mood,
     intensity: e.intensity,
     color: e.color,
@@ -31,6 +31,16 @@ function mapV2EntryToMoodData(e: MoodLogEntryRow, userId: string): MergedMoodLog
     sleep_quality: e.sleepQuality,
     event_categories: e.eventCategories ?? [],
     event_tags: e.eventTags ?? [],
+    journal_image_url: e.journalImageUrl ?? '',
+    bath_taken: e.bathTaken ?? false,
+    meal_responses: Array.isArray(e.mealResponses)
+      ? e.mealResponses.map((x) => ({
+          meal_id: x.mealId,
+          meal_label: x.mealLabel,
+          meal_time: x.mealTime,
+          taken: !!x.taken,
+        }))
+      : [],
     created_at: logDate,
   };
 }
@@ -75,6 +85,24 @@ export const moodService = {
     if (!dayKey || typeof dayKey !== 'string') {
       throw new Error('dayKey is required for mood logs');
     }
+    const detectionMethod: 'manual' | 'selfie_ai' =
+      moodData.detection_method === 'selfie_ai' || moodData.detection_method === 'ai'
+        ? 'selfie_ai'
+        : 'manual';
+    const bathTaken = !!moodData.bath_taken;
+    const journalImageUrl = typeof moodData.journal_image_url === 'string' ? moodData.journal_image_url.trim() : '';
+    const rawMealResponses: unknown[] = Array.isArray(moodData.meal_responses) ? moodData.meal_responses : [];
+    const mealResponses = rawMealResponses
+      .map((x) => {
+        if (!x || typeof x !== 'object') return null;
+        const v = x as Record<string, unknown>;
+        const mealId = typeof v.meal_id === 'string' ? v.meal_id.trim() : '';
+        const mealLabel = typeof v.meal_label === 'string' ? v.meal_label.trim() : '';
+        const mealTime = typeof v.meal_time === 'string' ? v.meal_time.trim() : '';
+        if (!mealId || !mealLabel || !mealTime) return null;
+        return { mealId, mealLabel, mealTime, taken: !!v.taken };
+      })
+      .filter((x): x is { mealId: string; mealLabel: string; mealTime: string; taken: boolean } => x !== null);
 
     const created = await createMoodLogEntry(user.uid, {
       mood,
@@ -88,6 +116,10 @@ export const moodService = {
       eventTags,
       notes,
       journalSource,
+      detectionMethod,
+      bathTaken,
+      mealResponses,
+      journalImageUrl,
       timestamp: now,
     });
     const row: MoodLogEntryRow = {
@@ -101,6 +133,10 @@ export const moodService = {
       dayKey: created.dayKey,
       eventCategories: created.eventCategories ?? [],
       eventTags: created.eventTags ?? [],
+      journalImageUrl: created.journalImageUrl ?? '',
+      bathTaken: created.bathTaken ?? false,
+      mealResponses: created.mealResponses ?? [],
+      detectionMethod: created.detectionMethod ?? detectionMethod,
       timestamp: now,
     };
     return mapV2EntryToMoodData(row, user.uid);

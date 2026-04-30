@@ -42,6 +42,11 @@ function sanitizeConversationPreview(raw: unknown): string {
   return stripped || 'No messages yet';
 }
 
+function normalizeDetectionMethod(raw: unknown): 'manual' | 'selfie_ai' {
+  if (raw === 'selfie_ai' || raw === 'ai') return 'selfie_ai';
+  return 'manual';
+}
+
 export interface MoodData {
   user_id: string;
   emotions: Array<{
@@ -53,17 +58,22 @@ export interface MoodData {
   log_date: Date;
   energy_level: number;
   stress_level: number;
-  detection_method: 'manual' | 'ai';
-  sleep_quality?: number;
+  detection_method: 'manual' | 'ai' | 'selfie_ai';
+  sleep_quality?: number | 'poor' | 'fair' | 'good';
   classes_count?: number;
   exams_count?: number;
   deadlines_count?: number;
+  event_tags?: string[];
+  event_categories?: string[];
   /** Present when row comes from `moodLogs/{uid}/entries`. */
   mood?: string;
   intensity?: number;
   color?: string;
   dayKey?: string;
   entryId?: string;
+  journal_image_url?: string;
+  bath_taken?: boolean;
+  meal_responses?: Array<{ meal_id: string; meal_label: string; meal_time: string; taken: boolean }>;
 }
 
 export interface ScheduleData {
@@ -233,7 +243,7 @@ export const firestoreService = {
           classes_count: data.classes_count,
           exams_count: data.exams_count,
           deadlines_count: data.deadlines_count,
-          detection_method: data.detection_method || 'manual',
+          detection_method: normalizeDetectionMethod(data.detection_method),
           created_at: data.created_at?.toDate() || new Date()
         } as MoodData & { id: string; created_at: Date; log_date: Date };
       });
@@ -285,7 +295,7 @@ export const firestoreService = {
               classes_count: data.classes_count,
               exams_count: data.exams_count,
               deadlines_count: data.deadlines_count,
-              detection_method: data.detection_method || 'manual',
+              detection_method: normalizeDetectionMethod(data.detection_method),
               created_at: data.created_at?.toDate() || new Date(),
             } as MoodData & { id: string; created_at: Date; log_date: Date };
           });

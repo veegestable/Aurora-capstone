@@ -26,11 +26,18 @@ export interface UserSettingsDoc {
   shareCheckInsWithGuidance?: boolean;
   /** One-time in-app disclosure on the student dashboard (briefing modal). */
   checkInSharingBriefingSeen?: boolean;
+  mealSchedule?: MealScheduleItem[];
   updatedAt?: Timestamp;
 }
 
 export type ContextCategoryKey = 'school' | 'health' | 'social' | 'fun' | 'productivity';
 export type SleepQuality = 'poor' | 'fair' | 'good';
+
+export interface MealScheduleItem {
+  id: string;
+  label: string;
+  time: string; // HH:mm
+}
 
 export interface DailyContextDoc {
   exams: number;
@@ -39,6 +46,8 @@ export interface DailyContextDoc {
   assignments: number;
   notes: string;
   sleepQuality?: SleepQuality;
+  bathTaken?: boolean;
+  mealStatusById?: Record<string, boolean>;
   createdAt: Timestamp;
 }
 
@@ -55,6 +64,10 @@ export interface MoodLogEntryDoc {
   eventTags?: string[];
   notes?: string;
   journalSource?: 'auto' | 'manual';
+  detectionMethod?: 'manual' | 'selfie_ai';
+  bathTaken?: boolean;
+  mealResponses?: Array<{ mealId: string; mealLabel: string; mealTime: string; taken: boolean }>;
+  journalImageUrl?: string;
 }
 
 /** Client-side row after reading Firestore (Date instead of Timestamp). */
@@ -67,6 +80,7 @@ const DEFAULT_SETTINGS: UserSettingsDoc = {
   remindersEnabled: true,
   academicContextEnabled: true,
   enabledContextCategories: ['school', 'health', 'social', 'fun', 'productivity'],
+  mealSchedule: [],
 };
 
 export async function getUserSettings(userId: string): Promise<UserSettingsDoc> {
@@ -85,6 +99,19 @@ export async function getUserSettings(userId: string): Promise<UserSettingsDoc> 
       : [...(DEFAULT_SETTINGS.enabledContextCategories || [])],
     shareCheckInsWithGuidance: typeof d.shareCheckInsWithGuidance === 'boolean' ? d.shareCheckInsWithGuidance : false,
     checkInSharingBriefingSeen: typeof d.checkInSharingBriefingSeen === 'boolean' ? d.checkInSharingBriefingSeen : false,
+    mealSchedule: Array.isArray(d.mealSchedule)
+      ? d.mealSchedule
+          .map((x: unknown) => {
+            if (!x || typeof x !== 'object') return null;
+            const v = x as Record<string, unknown>;
+            const id = typeof v.id === 'string' ? v.id.trim() : '';
+            const label = typeof v.label === 'string' ? v.label.trim() : '';
+            const time = typeof v.time === 'string' ? v.time.trim() : '';
+            if (!id || !label || !time) return null;
+            return { id, label, time } as MealScheduleItem;
+          })
+          .filter((x): x is MealScheduleItem => x !== null)
+      : [],
     updatedAt: d.updatedAt,
   };
 }
@@ -100,6 +127,7 @@ export async function updateUserSettings(
     | 'enabledContextCategories'
     | 'shareCheckInsWithGuidance'
     | 'checkInSharingBriefingSeen'
+    | 'mealSchedule'
   >>
 ): Promise<void> {
   const ref = doc(db, 'userSettings', userId);
@@ -127,6 +155,10 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
     eventTags: entry.eventTags ?? [],
     notes: entry.notes ?? '',
     journalSource: entry.journalSource ?? 'auto',
+    detectionMethod: entry.detectionMethod ?? 'manual',
+    bathTaken: entry.bathTaken ?? false,
+    mealResponses: entry.mealResponses ?? [],
+    journalImageUrl: entry.journalImageUrl ?? '',
     timestamp: Timestamp.fromDate(entry.timestamp),
   };
   const docRef = await addDoc(col, payload);
@@ -143,6 +175,10 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
     eventTags: entry.eventTags ?? [],
     notes: entry.notes ?? '',
     journalSource: entry.journalSource ?? 'auto',
+    detectionMethod: entry.detectionMethod ?? 'manual',
+    bathTaken: entry.bathTaken ?? false,
+    mealResponses: entry.mealResponses ?? [],
+    journalImageUrl: entry.journalImageUrl ?? '',
     timestamp: entry.timestamp,
   };
 }
@@ -240,6 +276,8 @@ export async function setDailyContext(
     assignments: data.assignments,
     notes: data.notes ?? '',
     sleepQuality: data.sleepQuality,
+    bathTaken: data.bathTaken ?? false,
+    mealStatusById: data.mealStatusById ?? {},
     createdAt,
   });
 }

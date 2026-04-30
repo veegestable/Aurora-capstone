@@ -34,6 +34,9 @@ interface MoodEntry {
     created_at?: Date | string;
     event_tags?: string[];
     event_categories?: string[];
+    journal_image_url?: string;
+    bath_taken?: boolean;
+    meal_responses?: Array<{ meal_id: string; meal_label: string; meal_time: string; taken: boolean }>;
 }
 
 interface CalendarDay {
@@ -121,6 +124,9 @@ const EVENT_CATEGORY_BY_TAG: Record<string, 'school' | 'health' | 'social' | 'fu
     period: 'health',
     'low-appetite': 'health',
     'binge-eating': 'health',
+    meals: 'health',
+    snacks: 'health',
+    bath: 'health',
     friends: 'social',
     family: 'social',
     partner: 'social',
@@ -380,6 +386,10 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
                                 {bucketEntries.map((entry, idx) => {
                                     const group = toMoodLogs([entry]);
                                     const noteText = typeof entry.notes === 'string' ? entry.notes.trim() : '';
+                                    const journalImageUrl =
+                                        typeof entry.journal_image_url === 'string' ? entry.journal_image_url.trim() : '';
+                                    const bathTaken = !!entry.bath_taken;
+                                    const mealResponses = Array.isArray(entry.meal_responses) ? entry.meal_responses : [];
                                     const groupKey = entry.id || `${bucket}-entry-${idx}`;
                                     const tags = Array.isArray(entry.event_tags) ? entry.event_tags : [];
                                     const categoriesFromEntry = Array.isArray(entry.event_categories) ? entry.event_categories : [];
@@ -496,6 +506,34 @@ function DayDetailsCard({ date, entries }: { date: string; entries: MoodEntry[] 
                                                         <Text style={noteText ? styles.noteBody : styles.noteBodyEmpty}>
                                                             {noteText || 'No notes'}
                                                         </Text>
+                                                    </View>
+                                                    {journalImageUrl ? (
+                                                        <View style={styles.journalImageBlock}>
+                                                            <Text style={styles.noteLabel}>Journal selfie</Text>
+                                                            <Image
+                                                                source={{ uri: journalImageUrl }}
+                                                                style={styles.journalImage}
+                                                                resizeMode="cover"
+                                                            />
+                                                        </View>
+                                                    ) : null}
+                                                    <View style={styles.healthChecksBlock}>
+                                                        <Text style={styles.noteLabel}>Health checks</Text>
+                                                        <Text style={styles.detailsLine}>
+                                                            Bath: <Text style={styles.healthValue}>{bathTaken ? 'Taken' : 'Not yet'}</Text>
+                                                        </Text>
+                                                        {mealResponses.length > 0 ? (
+                                                            <View style={{ marginTop: 6, gap: 4 }}>
+                                                                {mealResponses.map((meal, mealIdx) => (
+                                                                    <Text key={`${groupKey}-meal-${mealIdx}`} style={styles.detailsLine}>
+                                                                        {meal.meal_label} ({meal.meal_time}):{' '}
+                                                                        <Text style={styles.healthValue}>{meal.taken ? 'Taken' : 'Not yet'}</Text>
+                                                                    </Text>
+                                                                ))}
+                                                            </View>
+                                                        ) : (
+                                                            <Text style={styles.detailsLine}>Meals: <Text style={styles.inlineNone}>No meal schedule response</Text></Text>
+                                                        )}
                                                     </View>
                                                     {schoolInsight ? (
                                                         <View style={styles.schoolInsightBlock}>
@@ -737,6 +775,30 @@ const styles = StyleSheet.create({
         color: '#dbeafe',
         fontSize: 12,
         lineHeight: 18,
+    },
+    journalImageBlock: {
+        marginTop: 10,
+    },
+    journalImage: {
+        width: '100%',
+        aspectRatio: 3 / 4,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: AURORA.border,
+        backgroundColor: 'rgba(15,23,42,0.6)',
+    },
+    healthChecksBlock: {
+        marginTop: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(16,185,129,0.28)',
+        backgroundColor: 'rgba(16,185,129,0.10)',
+    },
+    healthValue: {
+        color: '#BBF7D0',
+        fontWeight: '700',
     },
     chip: {
         flexDirection: 'row',

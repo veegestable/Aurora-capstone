@@ -31,7 +31,20 @@ import {
 import { getUserSettings, updateUserSettings } from '../../services/mood-firestore-v2.service';
 import { COUNSELOR_CHECKIN_WINDOW_DAYS, COUNSELOR_VISIBLE_CHECKIN_SUMMARY } from '../../constants/counselor-checkin-policy';
 import { Shield } from 'lucide-react-native';
+import type { MealScheduleItem } from '../../services/mood-firestore-v2.service';
 
+
+function SectionLabel({ text }: { text: string }) {
+    return (
+        <Text style={{
+            color: AURORA.textMuted, fontSize: 11,
+            fontWeight: '700', letterSpacing: 1.5,
+            marginTop: 28, marginBottom: 8,
+        }}>
+            {text}
+        </Text>
+    );
+}
 // ─── Section Header ───────────────────────────────────────────────────────────
 function SectionHeader({ icon, title }: { icon?: React.ReactNode; title: string }) {
     return (
@@ -51,6 +64,36 @@ function InfoRow({ label, value }: { label: string; value: string }) {
             <Text style={{ color: '#95A8D4', fontSize: 11, marginBottom: 4, fontWeight: '600' }}>{label}</Text>
             <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '500', lineHeight: 21 }}>{value}</Text>
         </View>
+    );
+}
+
+function SettingsRow({
+    icon, label, onPress, rightElement,
+}: {
+    icon: React.ReactNode;
+    label: string;
+    onPress?: () => void;
+    rightElement?: React.ReactNode;
+}) {
+    return (
+        <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={onPress ? 0.75 : 1}
+            style={{
+                flexDirection: 'row', alignItems: 'center',
+                paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: AURORA.border, marginBottom: 4,
+            }}
+        >
+            <View style={{ width: 34, alignItems: 'center', marginRight: 14 }}>
+                {icon}
+            </View>
+            <Text style={{ flex: 1, color: '#FFFFFF', fontSize: 15, fontWeight: '500' }}>
+                {label}
+            </Text>
+            {rightElement || (
+                onPress ? <ChevronRight size={18} color={AURORA.textMuted} /> : null
+            )}
+        </TouchableOpacity>
     );
 }
 
@@ -493,16 +536,27 @@ function formatResetHourLabel(h: number): string {
 
 export default function ProfileScreen() {
     const { user, signOut, updateUser, uploadAvatar } = useAuth();
-    const { reminderHour, remindersEnabled, setReminderHour, setRemindersEnabled, loading: settingsLoading } = useUserDaySettings();
+    const {
+        reminderHour,
+        remindersEnabled,
+        setReminderHour,
+        setRemindersEnabled,
+        mealSchedule,
+        setMealSchedule,
+        loading: settingsLoading,
+    } = useUserDaySettings();
     const [aiCamera, setAiCamera] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
     const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
+    const [showMeal, setMeal] = useState(false);
+    const [activeMealIndex, setActiveMealIndex] = useState<number | null>(null);
     const [sessionPushEnabled, setSessionPushEnabled] = useState(true);
     const [savingSessionPushPreference, setSavingSessionPushPreference] = useState(false);
     const [devicePermissionGranted, setDevicePermissionGranted] = useState<boolean | null>(null);
     const [shareCheckInsWithGuidance, setShareCheckInsWithGuidance] = useState(false);
     const [sharePrefsLoading, setSharePrefsLoading] = useState(true);
     const [expandedPrivacyRow, setExpandedPrivacyRow] = useState<'visible' | 'private' | null>('visible');
+    const [mealDraft, setMealDraft] = useState<MealScheduleItem[]>([]);
     const profileCompletion = useMemo(() => {
         let score = 0;
         if (user?.preferred_name || user?.full_name) score += 20;
@@ -519,6 +573,95 @@ export default function ProfileScreen() {
         d.setHours(reminderHour, 0, 0, 0);
         return d;
     }, [reminderHour]);
+    const mealTimePickerValue = useMemo(() => {
+        const meal = activeMealIndex != null ? mealDraft[activeMealIndex] : null;
+        const [hRaw, mRaw] = (meal?.time || '07:00').split(':');
+        const h = Number(hRaw);
+        const m = Number(mRaw);
+        const d = new Date();
+        d.setHours(
+            Number.isFinite(h) ? Math.max(0, Math.min(23, h)) : 7,
+            Number.isFinite(m) ? Math.max(0, Math.min(59, m)) : 0,
+            0,
+            0
+        );
+        return d;
+    }, [activeMealIndex, mealDraft]);
+
+    useEffect(() => {
+        setMealDraft(Array.isArray(mealSchedule) ? mealSchedule : []);
+    }, [mealSchedule]);
+
+    const toFriendlyMealTime = (time: string) => {
+        const [hRaw, mRaw] = (time || '').split(':');
+        const h = Number(hRaw);
+        const m = Number(mRaw);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) return time;
+        const clampedHour = Math.max(0, Math.min(23, h));
+        const clampedMinute = Math.max(0, Math.min(59, m));
+        const period = clampedHour >= 12 ? 'PM' : 'AM';
+        const hour12 = clampedHour % 12 || 12;
+        return `${hour12}:${String(clampedMinute).padStart(2, '0')} ${period}`;
+    };
+
+    const normalizeMealCount = (count: number, base: MealScheduleItem[]) => {
+        const nextCount = Math.max(1, Math.min(6, Math.floor(count)));
+        const current = [...base];
+        if (current.length === nextCount) return current;
+        if (current.length > nextCount) return current.slice(0, nextCount);
+        const start = current.length;
+        for (let i = start; i < nextCount; i++) {
+            current.push({
+                id: `meal_${i + 1}`,
+                label: `Meal ${i + 1}`,
+                time: '',
+            });
+        }
+        return current;
+    };
+
+    const setMealCount = (count: number) => {
+        setMealDraft((prev) => normalizeMealCount(count, prev));
+    };
+
+    const updateMealTime = (idx: number, hour: number, minute = 0) => {
+        setMealDraft((prev) =>
+            prev.map((meal, i) => (
+                i === idx
+                    ? { ...meal, time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}` }
+                    : meal
+            ))
+        );
+    };
+
+    const saveMealSchedule = async (): Promise<boolean> => {
+        if (!mealDraft.length) return false;
+        const hasMissingTime = mealDraft.some((meal) => !meal.time?.trim());
+        if (hasMissingTime) {
+            Alert.alert('Set all meal times', 'Please set a time for each meal before saving.');
+            return false;
+        }
+        try {
+            await setMealSchedule(mealDraft);
+            Alert.alert('Saved', 'Meal schedule updated for your check-ins.');
+            return true;
+        } catch {
+            Alert.alert('Could not save', 'Please try again.');
+            return false;
+        }
+    };
+
+    const handleSaveMealScheduleAndClose = async () => {
+        const ok = await saveMealSchedule();
+        if (ok) {
+            setMeal(false);
+            setActiveMealIndex(null);
+        }
+    };
+
+    const openMealTimePicker = (idx: number) => {
+        setActiveMealIndex(idx);
+    };
 
     const handleSignOut = () => {
         Alert.alert('Logout Account', 'Are you sure you want to sign out?', [
@@ -651,22 +794,33 @@ export default function ProfileScreen() {
                         <Text style={{ color: AURORA.textMuted, fontSize: 12, marginTop: 5 }}>
                             Profile {profileCompletion}% complete
                         </Text>
-                        <TouchableOpacity
+            
+                    </View>
+
+                    {/* ── Account Settings ──────────────────────────────── */}
+                    
+                        <SectionHeader title="ACCOUNT SETTINGS" />
+                    
+                    <View style={{
+                        backgroundColor: AURORA.card, borderRadius: 16,
+                        paddingHorizontal: 16,
+                        borderWidth: 1, borderColor: AURORA.border,
+                    }}>
+                        {/* <SettingsRow
+                            icon={<Lock size={18} color={AURORA.textSec} />}
+                            label="Security & Password"
+                            onPress={() => { }}
+                        /> */}
+                        <SettingsRow
+                            icon={<User size={18} color={AURORA.textSec} />}
+                            label="Edit Profile"
                             onPress={() => setShowEditProfile(true)}
-                            style={{
-                                marginTop: 10,
-                                minHeight: 42,
-                                paddingHorizontal: 16,
-                                borderRadius: 12,
-                                borderWidth: 1,
-                                borderColor: 'rgba(45,107,255,0.45)',
-                                backgroundColor: 'rgba(45,107,255,0.14)',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                        >
-                            <Text style={{ color: '#B9CCFF', fontSize: 13, fontWeight: '700' }}>Edit profile</Text>
-                        </TouchableOpacity>
+                        />
+                        <SettingsRow
+                            icon={<User size={18} color={AURORA.textSec} />}
+                            label="Meal Schedule"
+                            onPress={() => setMeal(true)}
+                        />
                     </View>
 
                     {/* ── Personal Details ─────────────────────────────────── */}
@@ -849,6 +1003,7 @@ export default function ProfileScreen() {
                             <Text style={{ color: '#9EB5EA', fontSize: 12, fontWeight: '600' }}>Send test notification now</Text>
                         </TouchableOpacity> */}
                     </View>
+
                     <Modal visible={showReminderTimePicker} transparent animationType="slide">
                         <TouchableOpacity
                             style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}
@@ -893,8 +1048,214 @@ export default function ProfileScreen() {
                             </TouchableOpacity>
                         </TouchableOpacity>
                     </Modal>
+                    <Modal visible={showMeal} transparent animationType="slide">
+                        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+                            <TouchableOpacity
+                                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+                                activeOpacity={1}
+                                onPress={() => setMeal(false)}
+                            />
+                            <View
+                                style={{
+                                    backgroundColor: AURORA.card,
+                                    paddingHorizontal: 16,
+                                    paddingTop: 16,
+                                    paddingBottom: 20,
+                                    borderTopLeftRadius: 16,
+                                    borderTopRightRadius: 16,
+                                    borderWidth: 1,
+                                    borderColor: AURORA.border,
+                                    height: '88%',
+                                    minHeight: 420,
+                                }}
+                            >
+                                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 8 }}>
+                                    Meal Schedule
+                                </Text>
+                                <Text style={{ color: '#9AAEDB', fontSize: 12, lineHeight: 18, marginBottom: 10 }}>
+                                    Set your daily meal count and usual meal times. Aurora will ask these in mood check-ins.
+                                </Text>
+                                <ScrollView
+                                    style={{ flex: 1 }}
+                                    showsVerticalScrollIndicator={true}
+                                    contentContainerStyle={{ paddingBottom: 14 }}
+                                    keyboardShouldPersistTaps="handled"
+                                >
+                                    <View
+                                        style={{
+                                            borderRadius: 12,
+                                            borderWidth: 1,
+                                            borderColor: AURORA.border,
+                                            backgroundColor: AURORA.cardAlt,
+                                            padding: 12,
+                                            marginBottom: 14,
+                                        }}
+                                    >
+                                        <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700', marginBottom: 8 }}>
+                                            Meal count per day
+                                        </Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                            <TouchableOpacity
+                                                onPress={() => setMealCount(mealDraft.length - 1)}
+                                                disabled={mealDraft.length <= 1}
+                                                style={{
+                                                    width: 36,
+                                                    height: 36,
+                                                    borderRadius: 10,
+                                                    borderWidth: 1,
+                                                    borderColor: mealDraft.length <= 1 ? AURORA.border : AURORA.blue,
+                                                    backgroundColor: mealDraft.length <= 1 ? AURORA.card : 'rgba(45,107,255,0.16)',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    opacity: mealDraft.length <= 1 ? 0.55 : 1,
+                                                }}
+                                            >
+                                                <Text style={{ color: mealDraft.length <= 1 ? AURORA.textMuted : AURORA.blue, fontSize: 18, fontWeight: '700' }}>-</Text>
+                                            </TouchableOpacity>
+                                            <View style={{ flex: 1, alignItems: 'center' }}>
+                                                <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800' }}>{mealDraft.length}</Text>
+                                                <Text style={{ color: AURORA.textMuted, fontSize: 11 }}>
+                                                    meal{mealDraft.length === 1 ? '' : 's'}
+                                                </Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                onPress={() => setMealCount(mealDraft.length + 1)}
+                                                disabled={mealDraft.length >= 6}
+                                                style={{
+                                                    width: 36,
+                                                    height: 36,
+                                                    borderRadius: 10,
+                                                    borderWidth: 1,
+                                                    borderColor: mealDraft.length >= 6 ? AURORA.border : AURORA.blue,
+                                                    backgroundColor: mealDraft.length >= 6 ? AURORA.card : 'rgba(45,107,255,0.16)',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    opacity: mealDraft.length >= 6 ? 0.55 : 1,
+                                                }}
+                                            >
+                                                <Text style={{ color: mealDraft.length >= 6 ? AURORA.textMuted : AURORA.blue, fontSize: 18, fontWeight: '700' }}>+</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                    {mealDraft.map((meal, idx) => (
+                                        <View
+                                            key={meal.id}
+                                            style={{
+                                                paddingVertical: 12,
+                                                borderTopWidth: idx === 0 ? 0 : 1,
+                                                borderTopColor: AURORA.border,
+                                            }}
+                                        >
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <View>
+                                                    <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>
+                                                        {meal.label}
+                                                    </Text>
+                                                    <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}>
+                                                        {meal.time ? toFriendlyMealTime(meal.time) : 'No time set yet'}
+                                                    </Text>
+                                                </View>
+                                                <TouchableOpacity
+                                                    onPress={() => openMealTimePicker(idx)}
+                                                    style={{
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 8,
+                                                        borderRadius: 10,
+                                                        borderWidth: 1,
+                                                        borderColor: AURORA.blue,
+                                                        backgroundColor: 'rgba(45,107,255,0.16)',
+                                                    }}
+                                                >
+                                                    <Text style={{ color: AURORA.blue, fontSize: 12, fontWeight: '700' }}>
+                                                        Set time
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    ))}
+                                </ScrollView>
+                                {activeMealIndex != null ? (
+                                    <View
+                                        style={{
+                                            marginTop: 8,
+                                            marginBottom: 10,
+                                            padding: 10,
+                                            borderRadius: 12,
+                                            borderWidth: 1,
+                                            borderColor: AURORA.border,
+                                            backgroundColor: AURORA.cardAlt,
+                                        }}
+                                    >
+                                        <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+                                            Set time for {mealDraft[activeMealIndex]?.label || 'meal'}
+                                        </Text>
+                                        <DateTimePicker
+                                            value={mealTimePickerValue}
+                                            mode="time"
+                                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                            onChange={(_e, date) => {
+                                                if (date && activeMealIndex != null) {
+                                                    updateMealTime(activeMealIndex, date.getHours(), date.getMinutes());
+                                                }
+                                                if (Platform.OS === 'android') {
+                                                    setActiveMealIndex(null);
+                                                }
+                                            }}
+                                        />
+                                        {Platform.OS === 'ios' ? (
+                                            <TouchableOpacity
+                                                onPress={() => setActiveMealIndex(null)}
+                                                style={{
+                                                    marginTop: 8,
+                                                    alignSelf: 'flex-end',
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 8,
+                                                    borderRadius: 10,
+                                                    borderWidth: 1,
+                                                    borderColor: AURORA.blue,
+                                                    backgroundColor: 'rgba(45,107,255,0.16)',
+                                                }}
+                                            >
+                                                <Text style={{ color: AURORA.blue, fontSize: 12, fontWeight: '700' }}>Done</Text>
+                                            </TouchableOpacity>
+                                        ) : null}
+                                    </View>
+                                ) : null}
+                                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                                    <TouchableOpacity
+                                        onPress={() => setMeal(false)}
+                                        style={{
+                                            flex: 1,
+                                            paddingVertical: 11,
+                                            borderRadius: 10,
+                                            alignItems: 'center',
+                                            borderWidth: 1,
+                                            borderColor: AURORA.border,
+                                            backgroundColor: AURORA.cardAlt,
+                                        }}
+                                    >
+                                        <Text style={{ color: AURORA.textSec, fontSize: 12, fontWeight: '700' }}>Close</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => { void handleSaveMealScheduleAndClose(); }}
+                                        style={{
+                                            flex: 1,
+                                            paddingVertical: 11,
+                                            borderRadius: 10,
+                                            alignItems: 'center',
+                                            borderWidth: 1,
+                                            borderColor: 'rgba(45,107,255,0.45)',
+                                            backgroundColor: 'rgba(45,107,255,0.16)',
+                                        }}
+                                    >
+                                        <Text style={{ color: '#B9CCFF', fontSize: 12, fontWeight: '700' }}>Save</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+                    </Modal>
 
-                    {/* ── Edit Profile Button ───────────────────────────────── */}
+                    {/* ── Edit Profile Button ─────────────────────────────────
                     <TouchableOpacity
                         onPress={() => setShowEditProfile(true)}
                         style={{
@@ -904,7 +1265,7 @@ export default function ProfileScreen() {
                         }}
                     >
                         <Text style={{ color: '#C3D4FF', fontSize: 15, fontWeight: '700' }}>Edit Profile</Text>
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
 
                     {/* ── Logout ───────────────────────────────────────────── */}
                     <TouchableOpacity
