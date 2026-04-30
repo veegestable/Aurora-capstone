@@ -15,7 +15,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Animatable from "react-native-animatable";
-import { SvgUri } from "react-native-svg";
 import Animated, {
   Easing,
   ReduceMotion,
@@ -101,35 +100,35 @@ const MANUAL_EMOTIONS = [
     color: AURORA.moodHappy,
     label: "Happy",
     image: require("../assets/moods3d/happy-3d.png"),
-    svg: require("../assets/moodsSvg/happy1.svg"),
+    icon: require("../assets/moodIcon/happy.png"),
   },
   {
     name: "sadness",
     color: AURORA.moodSad,
     label: "Sad",
     image: require("../assets/moods3d/sad-3d.png"),
-    svg: require("../assets/moodsSvg/sad.svg"),
+    icon: require("../assets/moodIcon/sad.png"),
   },
   {
     name: "anger",
     color: AURORA.moodAngry,
     label: "Angry",
     image: require("../assets/moods3d/angry-3d.png"),
-    svg: require("../assets/moodsSvg/angry.svg"),
+    icon: require("../assets/moodIcon/angry.png"),
   },
   {
     name: "surprise",
     color: AURORA.moodSurprise,
     label: "Surprise",
     image: require("../assets/moods3d/surprise-3d.png"),
-    svg: require("../assets/moodsSvg/surprise.svg"),
+    icon: require("../assets/moodIcon/surprise.png"),
   },
   {
     name: "neutral",
     color: AURORA.moodNeutral,
     label: "Neutral",
     image: require("../assets/moods3d/neutral-3d.png"),
-    svg: require("../assets/moodsSvg/neutral4.svg"),
+    icon: require("../assets/moodIcon/neutral.png"),
   },
 ];
 
@@ -307,16 +306,7 @@ export function MoodCheckIn({
     emotion: (typeof MANUAL_EMOTIONS)[0],
     size: number,
   ) => {
-    const source = Image.resolveAssetSource(emotion.svg);
-    if (source?.uri)
-      return <SvgUri uri={source.uri} width={size} height={size} />;
-    return (
-      <Image
-        source={emotion.image}
-        style={{ width: size, height: size }}
-        resizeMode="contain"
-      />
-    );
+    return <Image source={emotion.icon} style={{ width: size, height: size }} resizeMode="contain" />;
   };
 
   const parseMealMinutes = (time: string): number | null => {

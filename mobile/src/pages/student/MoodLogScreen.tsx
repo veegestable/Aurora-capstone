@@ -34,15 +34,14 @@ import { aggregateByDay, moodStabilityScore } from '../../utils/moodAggregates';
 import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
 import { getUserSettings, updateUserSettings } from '../../services/mood-firestore-v2.service';
 import { COUNSELOR_CHECKIN_WINDOW_DAYS } from '../../constants/counselor-checkin-policy';
-import { SvgUri } from 'react-native-svg';
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
 const MOOD_EMOTIONS = [
-    { name: 'joy', label: 'Happy', color: AURORA.moodHappy, svg: require('../../assets/moodsSvg/happy.svg') },
-    { name: 'sadness', label: 'Sad', color: AURORA.moodSad, svg: require('../../assets/moodsSvg/sad.svg') },
-    { name: 'neutral', label: 'Neutral', color: AURORA.moodNeutral, svg: require('../../assets/moodsSvg/neutral4.svg') },
-    { name: 'surprise', label: 'Surprise', color: AURORA.moodSurprise, svg: require('../../assets/moodsSvg/surprise.svg') },
-    { name: 'anger', label: 'Angry', color: AURORA.moodAngry, svg: require('../../assets/moodsSvg/angry.svg') },
+    { name: 'joy', label: 'Happy', color: AURORA.moodHappy, icon: require('../../assets/moodIcon/happy.png') },
+    { name: 'sadness', label: 'Sad', color: AURORA.moodSad, icon: require('../../assets/moodIcon/sad.png') },
+    { name: 'neutral', label: 'Neutral', color: AURORA.moodNeutral, icon: require('../../assets/moodIcon/neutral.png') },
+    { name: 'surprise', label: 'Surprise', color: AURORA.moodSurprise, icon: require('../../assets/moodIcon/surprise.png') },
+    { name: 'anger', label: 'Angry', color: AURORA.moodAngry, icon: require('../../assets/moodIcon/angry.png') },
 ];
 
 const UI_TEXT_SECONDARY = '#C1CEE9';
@@ -56,8 +55,6 @@ function MoodBubble({ mood, selected, onPress }: {
     selected: boolean;
     onPress: () => void;
 }) {
-    const source = mood.svg ? Image.resolveAssetSource(mood.svg) : undefined;
-
     return (
         <TouchableOpacity
             onPress={() => { triggerHaptic('light'); onPress(); }}
@@ -77,7 +74,7 @@ function MoodBubble({ mood, selected, onPress }: {
                 shadowRadius: 10,
                 elevation: selected ? 8 : 0,
             }}>
-                {source?.uri ? <SvgUri uri={source.uri} width={36} height={36} /> : null}
+                <Image source={mood.icon} style={{ width: 36, height: 36 }} resizeMode="contain" />
             </View>
             <Text style={{ color: selected ? '#FFFFFF' : UI_TEXT_SECONDARY, fontSize: 12, fontWeight: selected ? '700' : '500' }}>
                 {mood.label}

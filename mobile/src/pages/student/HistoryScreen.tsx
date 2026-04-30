@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Settings2, BarChart3, BookMarked, CircleHelp } from 'lucide-react-native';
 import * as Animatable from 'react-native-animatable';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { SvgUri } from 'react-native-svg';
 import { useAuth } from '../../stores/AuthContext';
 import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
 import { moodService } from '../../services/mood.service';
@@ -209,18 +208,16 @@ function ruleBasedSchoolInsight(entry: MoodEntry): string | null {
     return `${loadBand}: this check-in shows a tougher mood-stress pattern around school activities.`;
 }
 
-const MOOD_SVG_BY_MOOD: Record<MoodLog['mood'], any> = {
-    Happy: require('../../assets/moodsSvg/happy1.svg'),
-    Sad: require('../../assets/moodsSvg/sad.svg'),
-    Angry: require('../../assets/moodsSvg/angry.svg'),
-    Surprise: require('../../assets/moodsSvg/surprise.svg'),
-    Neutral: require('../../assets/moodsSvg/neutral4.svg'),
+const MOOD_ICON_BY_MOOD: Record<MoodLog['mood'], any> = {
+    Happy: require('../../assets/moodIcon/happy.png'),
+    Sad: require('../../assets/moodIcon/sad.png'),
+    Angry: require('../../assets/moodIcon/angry.png'),
+    Surprise: require('../../assets/moodIcon/surprise.png'),
+    Neutral: require('../../assets/moodIcon/neutral.png'),
 };
 
 function MoodIcon({ mood, size = 14 }: { mood: MoodLog['mood']; size?: number }) {
-    const source = Image.resolveAssetSource(MOOD_SVG_BY_MOOD[mood]);
-    if (source?.uri) return <SvgUri uri={source.uri} width={size} height={size} />;
-    return <Image source={MOOD_SVG_BY_MOOD[mood]} style={{ width: size, height: size }} resizeMode="contain" />;
+    return <Image source={MOOD_ICON_BY_MOOD[mood]} style={{ width: size, height: size }} resizeMode="contain" />;
 }
 
 /** One Firestore mood_log can contain multiple emotions; group so notes show once per log. */
