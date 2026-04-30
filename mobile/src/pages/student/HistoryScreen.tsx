@@ -632,7 +632,7 @@ const styles = StyleSheet.create({
     },
     legendLabel: {
         color: '#cbd5e1',
-        fontSize: 12,
+        fontSize: 10,
     },
 
     // Day details card

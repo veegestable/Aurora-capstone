@@ -655,7 +655,7 @@ export function MoodCheckIn({
     if (currentStep < totalSteps) setCurrentStep((c) => c + 1);
   };
 
-  const pickJournalImage = async () => {
+  const pickJournalImageFromLibrary = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permission.status !== "granted") {
       Alert.alert(
@@ -672,6 +672,34 @@ export function MoodCheckIn({
     if (!result.canceled && result.assets[0]?.uri) {
       setJournalImageUri(result.assets[0].uri);
     }
+  };
+
+  const captureJournalImage = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (permission.status !== "granted") {
+      Alert.alert(
+        "Permission needed",
+        "Please allow camera access to take a journal selfie.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.75,
+      cameraType: ImagePicker.CameraType.front,
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      setJournalImageUri(result.assets[0].uri);
+    }
+  };
+
+  const pickJournalImage = () => {
+    Alert.alert("Journal selfie", "Add your photo using camera or gallery.", [
+      { text: "Take photo", onPress: () => void captureJournalImage() },
+      { text: "Choose from library", onPress: () => void pickJournalImageFromLibrary() },
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   const applyAnalyzedMood = (emotion: DetectedEmotion) => {
@@ -783,9 +811,16 @@ export function MoodCheckIn({
 
   const showSelfiePrivacyGuide = () => {
     Alert.alert(
-      "Daily selfie privacy",
+      "Selfie check-in privacy",
       "Aurora analyzes visible facial expression to suggest a mood. You can retake, switch to manual check-in, or choose whether to use the analyzed mood before continuing.",
       [{ text: "Got it" }],
+    );
+  };
+
+  const showManualMoodGuide = () => {
+    Alert.alert(
+      "Manual check-in guide",
+      "Manual check-in lets you choose your mood directly.\n\n1) Pick the emotion that best matches how you feel now.\n2) Adjust intensity to reflect how strongly you feel it.\n\nUse this mode when you prefer full control over mood selection."
     );
   };
 
@@ -1413,7 +1448,7 @@ export function MoodCheckIn({
                         fontWeight: "700",
                       }}
                     >
-                      Daily selfie
+                      Selfie check-in
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1432,7 +1467,7 @@ export function MoodCheckIn({
                     style={{ color: AURORA.textMuted, fontSize: 12, flex: 1 }}
                   >
                     {moodInputMode === "selfie"
-                      ? "Daily selfie suggests mood from facial expression. You can use AI mood or retake before continuing."
+                      ? "Selfie check-in suggests mood from facial expression. You can use AI mood or retake before continuing."
                       : "Manual mode gives full control when selecting your mood and intensity."}
                   </Text>
                   {moodInputMode === "selfie" ? (
@@ -1442,12 +1477,19 @@ export function MoodCheckIn({
                     >
                       <CircleHelp size={14} color={AURORA.textMuted} />
                     </TouchableOpacity>
-                  ) : null}
+                  ) : (
+                    <TouchableOpacity
+                      onPress={showManualMoodGuide}
+                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    >
+                      <CircleHelp size={14} color={AURORA.textMuted} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
               {moodInputMode === "selfie" ? (
                 <EmotionDetection
-                  title="Daily Selfie (Expression-Based)"
+                  title="Selfie check-in (Expression-Based)"
                   helperText="Aurora estimates your mood from visible facial expression only. You can choose the analyzed mood and continue, or retake another selfie."
                   onEmotionDetected={(emotions) => {
                     if (emotions.length > 0) {
