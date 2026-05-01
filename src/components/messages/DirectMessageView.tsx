@@ -116,17 +116,9 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
         }
       )
 
-      // 2. Send the automated "Accepted" message to the chat
-      const autoMsgId = await messagesService.sendTextMessage(
-        contact.conversationId, 
-        user.id, 
-        `__AUTO_ACCEPTED__Just accepted your request`
-      )
-
-      // 3. Update Local React State so the Green Banner appears immediately!
+      // 2. Update Local React State so the Green Banner appears immediately
       setMessages((prev) => {
-        // Find and update the session invite card
-        const updatedMessages = prev.map(m => {
+        return prev.map(m => {
           if (m.type === 'session' && m.session.id === sessionId) {
             return {
               ...m,
@@ -139,20 +131,9 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
           }
           return m
         })
-
-        // Append the new auto-reply message
-        return [
-          ...updatedMessages,
-          {
-            id: autoMsgId || Date.now().toString(),
-            senderId: 'me',
-            type: 'text',
-            text: '__AUTO_ACCEPTED__Just accepted your request',
-            time: 'Just now'
-          }
-        ]
       })
 
+      // Ensure we stay scrolled to the bottom
       setTimeout(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
       }, 100)
