@@ -1,8 +1,12 @@
-import * as Haptics from 'expo-haptics';
+import * as Haptics from "expo-haptics";
 
-const styleMap = { light: Haptics.ImpactFeedbackStyle.Light, medium: Haptics.ImpactFeedbackStyle.Medium, heavy: Haptics.ImpactFeedbackStyle.Heavy };
+const styleMap = {
+  light: Haptics.ImpactFeedbackStyle.Light,
+  medium: Haptics.ImpactFeedbackStyle.Medium,
+  heavy: Haptics.ImpactFeedbackStyle.Heavy,
+};
 
-export function triggerHaptic(style: 'light' | 'medium' | 'heavy' = 'light') {
+export function triggerHaptic(style: "light" | "medium" | "heavy" = "light") {
   try {
     Haptics.impactAsync(styleMap[style]);
   } catch {

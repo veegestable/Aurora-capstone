@@ -13,11 +13,16 @@ import {
 } from "../../features/breathing/breathing-data";
 
 export default function ResourcesScreen() {
-  const [selectedDuration, setSelectedDuration] = useState<DurationOptionMinutes>(3);
-  const [activeExercise, setActiveExercise] = useState<BreathingExercise | null>(null);
+  const [selectedDuration, setSelectedDuration] =
+    useState<DurationOptionMinutes>(3);
+  const [activeExercise, setActiveExercise] =
+    useState<BreathingExercise | null>(null);
   const [isSessionModalVisible, setIsSessionModalVisible] = useState(false);
 
-  const durationSeconds = useMemo(() => selectedDuration * 60, [selectedDuration]);
+  const durationSeconds = useMemo(
+    () => selectedDuration * 60,
+    [selectedDuration],
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: AURORA.bgResources }}>
@@ -49,10 +54,16 @@ export default function ResourcesScreen() {
 
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 24 }}
+          contentContainerStyle={{
+            paddingHorizontal: 18,
+            paddingTop: 10,
+            paddingBottom: 24,
+          }}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={{ color: "#FFFFFF", fontSize: 25, fontWeight: "800" }}>Zen Section</Text>
+          <Text style={{ color: "#FFFFFF", fontSize: 25, fontWeight: "800" }}>
+            Zen Section
+          </Text>
           <Text style={{ color: "#9CB2E2", marginTop: 4, marginBottom: 18 }}>
             Pick a breathing practice and pace your nervous system in real time.
           </Text>
@@ -67,7 +78,11 @@ export default function ResourcesScreen() {
               marginBottom: 18,
             }}
           >
-            <Text style={{ color: "#FFFFFF", fontWeight: "700", marginBottom: 8 }}>Duration</Text>
+            <Text
+              style={{ color: "#FFFFFF", fontWeight: "700", marginBottom: 8 }}
+            >
+              Duration
+            </Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
               {DURATION_OPTIONS_MINUTES.map((minutes) => {
                 const selected = selectedDuration === minutes;
@@ -85,7 +100,9 @@ export default function ResourcesScreen() {
                       paddingVertical: 11,
                       borderWidth: 1,
                       borderColor: selected ? AURORA.blue : AURORA.border,
-                      backgroundColor: selected ? "rgba(45,107,255,0.2)" : AURORA.cardAlt,
+                      backgroundColor: selected
+                        ? "rgba(45,107,255,0.2)"
+                        : AURORA.cardAlt,
                     }}
                   >
                     <Text
@@ -120,7 +137,13 @@ export default function ResourcesScreen() {
                 marginBottom: 12,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 10,
+                }}
+              >
                 <View
                   style={{
                     width: 40,
@@ -135,11 +158,30 @@ export default function ResourcesScreen() {
                   <Wind size={18} color="#9EC2FF" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "800" }}>{exercise.name}</Text>
-                  <Text style={{ color: "#B7C8ED", fontSize: 12, marginTop: 2 }}>{exercise.description}</Text>
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 16,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {exercise.name}
+                  </Text>
+                  <Text
+                    style={{ color: "#B7C8ED", fontSize: 12, marginTop: 2 }}
+                  >
+                    {exercise.description}
+                  </Text>
                 </View>
               </View>
-              <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 6,
+                  flexWrap: "wrap",
+                  marginBottom: 8,
+                }}
+              >
                 {exercise.primaryMoodTargets.map((target) => (
                   <View
                     key={`${exercise.id}-${target}`}
@@ -150,12 +192,23 @@ export default function ResourcesScreen() {
                       backgroundColor: "rgba(124,58,237,0.18)",
                     }}
                   >
-                    <Text style={{ color: "#D7C6FF", fontSize: 11, fontWeight: "700" }}>{target}</Text>
+                    <Text
+                      style={{
+                        color: "#D7C6FF",
+                        fontSize: 11,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {target}
+                    </Text>
                   </View>
                 ))}
               </View>
               <Text style={{ color: "#9BB0DC", fontSize: 12 }}>
-                Pattern: {exercise.phases.map((phase) => `${phase.label} ${phase.seconds}s`).join(" • ")}
+                Pattern:{" "}
+                {exercise.phases
+                  .map((phase) => `${phase.label} ${phase.seconds}s`)
+                  .join(" • ")}
               </Text>
               <Text style={{ color: "#8FB4FF", fontSize: 11, marginTop: 6 }}>
                 Audio: {exercise.soundscapeName}

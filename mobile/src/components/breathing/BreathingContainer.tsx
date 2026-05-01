@@ -10,7 +10,10 @@ import {
   getCycleCountForDuration,
 } from "../../features/breathing/breathing-data";
 import { BreathingCircle } from "./BreathingCircle";
-import { startBreathingAudio, stopBreathingAudio } from "../../services/breathing-audio.service";
+import {
+  startBreathingAudio,
+  stopBreathingAudio,
+} from "../../services/breathing-audio.service";
 
 type BreathingContainerProps = {
   exercise: BreathingExercise;
@@ -53,7 +56,10 @@ export function BreathingContainer({
   const totalMs = durationSeconds * 1000;
   const currentPhase: BreathPhase = exercise.phases[phaseIndex];
   const phaseDurationMs = currentPhase.seconds * 1000;
-  const phaseProgress = Math.min(1, phaseElapsedMs / Math.max(1, phaseDurationMs));
+  const phaseProgress = Math.min(
+    1,
+    phaseElapsedMs / Math.max(1, phaseDurationMs),
+  );
   const remainingSeconds = Math.max(0, Math.ceil((totalMs - elapsedMs) / 1000));
 
   const totalCycles = useMemo(
@@ -84,7 +90,9 @@ export function BreathingContainer({
       setPhaseElapsedMs((prev) => {
         const next = prev + 250;
         if (next >= phaseDurationMs) {
-          setPhaseIndex((prevPhase) => (prevPhase + 1) % exercise.phases.length);
+          setPhaseIndex(
+            (prevPhase) => (prevPhase + 1) % exercise.phases.length,
+          );
           return 0;
         }
         return next;
@@ -150,8 +158,12 @@ export function BreathingContainer({
               justifyContent: "center",
             }}
           >
-            <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 18 }}>{title}</Text>
-            {!!subtitle && <Text style={{ color: "#BBD1FF", fontSize: 12 }}>{subtitle}</Text>}
+            <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 18 }}>
+              {title}
+            </Text>
+            {!!subtitle && (
+              <Text style={{ color: "#BBD1FF", fontSize: 12 }}>{subtitle}</Text>
+            )}
           </View>
           {/* <TouchableOpacity
             onPress={() => setIsPlaying((prev) => !prev)}
@@ -168,7 +180,14 @@ export function BreathingContainer({
           </TouchableOpacity> */}
         </View>
 
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingHorizontal: 24,
+          }}
+        >
           <View
             style={{
               borderRadius: 20,
@@ -178,7 +197,9 @@ export function BreathingContainer({
               marginBottom: 10,
             }}
           >
-            <Text style={{ color: themeAccent, fontWeight: "700" }}>{exercise.name}</Text>
+            <Text style={{ color: themeAccent, fontWeight: "700" }}>
+              {exercise.name}
+            </Text>
           </View>
           <BreathingCircle
             exerciseId={exercise.id}
@@ -186,17 +207,30 @@ export function BreathingContainer({
             moodColor={themeAccent}
             phaseProgress={phaseProgress}
           />
-          <Text style={{ color: "#FFFFFF", fontSize: 34, fontWeight: "800", marginBottom: 4 }}>
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 34,
+              fontWeight: "800",
+              marginBottom: 4,
+            }}
+          >
             {currentPhase.label}
           </Text>
-          <Text style={{ color: "#CFD9F8", marginBottom: 14 }}>{currentPhase.instruction}</Text>
+          <Text style={{ color: "#CFD9F8", marginBottom: 14 }}>
+            {currentPhase.instruction}
+          </Text>
           {!!soundscapeName && (
             <Text style={{ color: "#D8E4FF", fontSize: 12, marginBottom: 8 }}>
               Audio: {soundscapeName}
             </Text>
           )}
-          <Text style={{ color: "#A8B8DF", fontSize: 12, marginBottom: 4 }}>{cycleLabel}</Text>
-          <Text style={{ color: "#8EA6DA", fontSize: 12, marginBottom: 18 }}>{totalCycleLabel}</Text>
+          <Text style={{ color: "#A8B8DF", fontSize: 12, marginBottom: 4 }}>
+            {cycleLabel}
+          </Text>
+          <Text style={{ color: "#8EA6DA", fontSize: 12, marginBottom: 18 }}>
+            {totalCycleLabel}
+          </Text>
           <View
             style={{
               backgroundColor: "rgba(255,255,255,0.1)",
@@ -222,7 +256,9 @@ export function BreathingContainer({
                 paddingHorizontal: 18,
               }}
             >
-              <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>
+              <Text
+                style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}
+              >
                 Exit Session
               </Text>
             </TouchableOpacity>

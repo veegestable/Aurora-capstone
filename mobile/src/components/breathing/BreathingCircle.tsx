@@ -25,7 +25,12 @@ export function BreathingCircle({
   const scaleTarget = useSharedValue(1);
 
   useEffect(() => {
-    let target = phase.type === "inhale" ? 2 : phase.type === "exhale" ? 1 : scaleTarget.value;
+    let target =
+      phase.type === "inhale"
+        ? 2
+        : phase.type === "exhale"
+          ? 1
+          : scaleTarget.value;
     if (exerciseId === "physiological-sigh") {
       if (phase.id === "in") target = 1.8;
       if (phase.id === "in-sharp") target = 2.2;
@@ -50,7 +55,13 @@ export function BreathingCircle({
   });
 
   return (
-    <View style={{ alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
+    <View
+      style={{
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 24,
+      }}
+    >
       <View
         style={{
           width: 240,

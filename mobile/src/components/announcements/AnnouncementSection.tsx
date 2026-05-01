@@ -1,26 +1,30 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Plus } from 'lucide-react-native';
-import { useAuth } from '../../stores/AuthContext';
-import { AnnouncementCarousel } from './AnnouncementCarousel';
-import { AddAnnouncementModal } from './AddAnnouncementModal';
-import { AnnouncementDetailModal } from './AnnouncementDetailModal';
-import { EditAnnouncementModal } from './EditAnnouncementModal';
-import { announcementsService } from '../../services/announcements.service';
-import type { Announcement } from '../../services/announcements.service';
-import { AURORA } from '../../constants/aurora-colors';
-import { triggerHaptic } from '../../utils/haptics';
+import React, { useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { Plus } from "lucide-react-native";
+import { useAuth } from "../../stores/AuthContext";
+import { AnnouncementCarousel } from "./AnnouncementCarousel";
+import { AddAnnouncementModal } from "./AddAnnouncementModal";
+import { AnnouncementDetailModal } from "./AnnouncementDetailModal";
+import { EditAnnouncementModal } from "./EditAnnouncementModal";
+import { announcementsService } from "../../services/announcements.service";
+import type { Announcement } from "../../services/announcements.service";
+import { AURORA } from "../../constants/aurora-colors";
+import { triggerHaptic } from "../../utils/haptics";
 
 interface AnnouncementSectionProps {
-  role: 'counselor' | 'student';
+  role: "counselor" | "student";
   showAddButton?: boolean;
 }
 
-export function AnnouncementSection({ role, showAddButton = false }: AnnouncementSectionProps) {
+export function AnnouncementSection({
+  role,
+  showAddButton = false,
+}: AnnouncementSectionProps) {
   const { user } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
+  const [selectedAnnouncement, setSelectedAnnouncement] =
+    useState<Announcement | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
 
@@ -46,15 +50,16 @@ export function AnnouncementSection({ role, showAddButton = false }: Announcemen
   };
 
   const canEdit =
-    role === 'counselor' &&
+    role === "counselor" &&
     !!user?.id &&
     !!selectedAnnouncement &&
     selectedAnnouncement.createdBy === user.id;
 
   const canDelete =
-    role !== 'student' &&
+    role !== "student" &&
     !!selectedAnnouncement &&
-    ((!!user?.id && selectedAnnouncement.createdBy === user.id) || user?.role === 'admin');
+    ((!!user?.id && selectedAnnouncement.createdBy === user.id) ||
+      user?.role === "admin");
 
   const handleDelete = async () => {
     if (!selectedAnnouncement?.id) return;
@@ -75,7 +80,10 @@ export function AnnouncementSection({ role, showAddButton = false }: Announcemen
         <Text style={styles.sectionTitle}>Announcements</Text>
         {showAddButton && (
           <TouchableOpacity
-            onPress={() => { triggerHaptic('light'); setModalVisible(true); }}
+            onPress={() => {
+              triggerHaptic("light");
+              setModalVisible(true);
+            }}
             style={styles.addBtn}
             activeOpacity={0.8}
           >
@@ -99,7 +107,7 @@ export function AnnouncementSection({ role, showAddButton = false }: Announcemen
         announcement={selectedAnnouncement}
         canEdit={canEdit}
         canDelete={canDelete}
-        showAuthor={role !== 'student'}
+        showAuthor={role !== "student"}
         onClose={handleDetailClose}
         onEdit={handleEditPress}
         onDelete={handleDelete}
@@ -119,31 +127,31 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
     paddingHorizontal: 4,
   },
   sectionTitle: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: 'rgba(45,107,255,0.15)',
+    backgroundColor: "rgba(45,107,255,0.15)",
     borderWidth: 1,
-    borderColor: 'rgba(45,107,255,0.4)',
+    borderColor: "rgba(45,107,255,0.4)",
   },
   addBtnText: {
     color: AURORA.blue,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });

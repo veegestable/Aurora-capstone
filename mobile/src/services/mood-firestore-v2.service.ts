@@ -13,8 +13,8 @@ import {
   Timestamp,
   onSnapshot,
   type DocumentData,
-} from 'firebase/firestore';
-import { db } from './firebase';
+} from "firebase/firestore";
+import { db } from "./firebase";
 
 export interface UserSettingsDoc {
   dayResetHour: number;
@@ -28,11 +28,33 @@ export interface UserSettingsDoc {
   /** One-time in-app disclosure on the student dashboard (briefing modal). */
   checkInSharingBriefingSeen?: boolean;
   mealSchedule?: MealScheduleItem[];
+  /** Usual wake time for smart prompts / routines (`HH:mm`, device-local interpretation). Empty if unset. */
+  usualWakeTime?: string;
+  /** Usual bath time for smart prompts (`HH:mm`). Empty if unset. */
+  usualBathTime?: string;
   updatedAt?: Timestamp;
 }
 
-export type ContextCategoryKey = 'school' | 'health' | 'social' | 'fun' | 'productivity';
-export type SleepQuality = 'poor' | 'fair' | 'good';
+/** Normalize optional `HH:mm` from Firestore; returns "" if invalid or missing. */
+export function normalizeSettingsHHmm(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const m = /^(\d{1,2}):(\d{2})$/.exec(raw.trim());
+  if (!m) return "";
+  let h = parseInt(m[1], 10);
+  let min = parseInt(m[2], 10);
+  if (!Number.isFinite(h) || !Number.isFinite(min)) return "";
+  h = Math.max(0, Math.min(23, h));
+  min = Math.max(0, Math.min(59, min));
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
+export type ContextCategoryKey =
+  | "school"
+  | "health"
+  | "social"
+  | "fun"
+  | "productivity";
+export type SleepQuality = "poor" | "fair" | "good";
 
 export interface MealScheduleItem {
   id: string;
@@ -67,92 +89,149 @@ export interface MoodLogEntryDoc {
   eventCategories?: ContextCategoryKey[];
   eventTags?: string[];
   notes?: string;
-  journalSource?: 'auto' | 'manual';
-  detectionMethod?: 'manual' | 'selfie_ai';
+  journalSource?: "auto" | "manual";
+  detectionMethod?: "manual" | "selfie_ai";
   bathTaken?: boolean;
-  mealResponses?: Array<{ mealId: string; mealLabel: string; mealTime: string; taken: boolean }>;
+  mealResponses?: Array<{
+    mealId: string;
+    mealLabel: string;
+    mealTime: string;
+    taken: boolean;
+  }>;
   journalImageUrl?: string;
 }
 
 /** Client-side row after reading Firestore (Date instead of Timestamp). */
-export type MoodLogEntryRow = Omit<MoodLogEntryDoc, 'timestamp'> & { id: string; timestamp: Date };
+export type MoodLogEntryRow = Omit<MoodLogEntryDoc, "timestamp"> & {
+  id: string;
+  timestamp: Date;
+};
 
 const DEFAULT_SETTINGS: UserSettingsDoc = {
   dayResetHour: 0,
-  timezone: typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' : 'UTC',
+  timezone:
+    typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+      : "UTC",
   reminderHour: 7,
   remindersEnabled: true,
   academicContextEnabled: true,
-  enabledContextCategories: ['school', 'health', 'social', 'fun', 'productivity'],
+  enabledContextCategories: [
+    "school",
+    "health",
+    "social",
+    "fun",
+    "productivity",
+  ],
   mealSchedule: [],
+  usualWakeTime: "",
+  usualBathTime: "",
 };
 
-export async function getUserSettings(userId: string): Promise<UserSettingsDoc> {
-  const ref = doc(db, 'userSettings', userId);
+export async function getUserSettings(
+  userId: string,
+): Promise<UserSettingsDoc> {
+  const ref = doc(db, "userSettings", userId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return { ...DEFAULT_SETTINGS };
   const d = snap.data() as DocumentData;
   return {
-    dayResetHour: typeof d.dayResetHour === 'number' ? Math.min(23, Math.max(0, d.dayResetHour)) : 0,
-    timezone: typeof d.timezone === 'string' && d.timezone.trim() ? d.timezone.trim() : DEFAULT_SETTINGS.timezone,
-    reminderHour: typeof d.reminderHour === 'number' ? Math.min(23, Math.max(0, d.reminderHour)) : (DEFAULT_SETTINGS.reminderHour ?? 7),
-    remindersEnabled: typeof d.remindersEnabled === 'boolean' ? d.remindersEnabled : (DEFAULT_SETTINGS.remindersEnabled ?? true),
-    academicContextEnabled: typeof d.academicContextEnabled === 'boolean' ? d.academicContextEnabled : true,
+    dayResetHour:
+      typeof d.dayResetHour === "number"
+        ? Math.min(23, Math.max(0, d.dayResetHour))
+        : 0,
+    timezone:
+      typeof d.timezone === "string" && d.timezone.trim()
+        ? d.timezone.trim()
+        : DEFAULT_SETTINGS.timezone,
+    reminderHour:
+      typeof d.reminderHour === "number"
+        ? Math.min(23, Math.max(0, d.reminderHour))
+        : (DEFAULT_SETTINGS.reminderHour ?? 7),
+    remindersEnabled:
+      typeof d.remindersEnabled === "boolean"
+        ? d.remindersEnabled
+        : (DEFAULT_SETTINGS.remindersEnabled ?? true),
+    academicContextEnabled:
+      typeof d.academicContextEnabled === "boolean"
+        ? d.academicContextEnabled
+        : true,
     enabledContextCategories: Array.isArray(d.enabledContextCategories)
-      ? (d.enabledContextCategories.filter((x: unknown) => typeof x === 'string') as ContextCategoryKey[])
+      ? (d.enabledContextCategories.filter(
+          (x: unknown) => typeof x === "string",
+        ) as ContextCategoryKey[])
       : [...(DEFAULT_SETTINGS.enabledContextCategories || [])],
-    shareCheckInsWithGuidance: typeof d.shareCheckInsWithGuidance === 'boolean' ? d.shareCheckInsWithGuidance : false,
-    checkInSharingBriefingSeen: typeof d.checkInSharingBriefingSeen === 'boolean' ? d.checkInSharingBriefingSeen : false,
+    shareCheckInsWithGuidance:
+      typeof d.shareCheckInsWithGuidance === "boolean"
+        ? d.shareCheckInsWithGuidance
+        : false,
+    checkInSharingBriefingSeen:
+      typeof d.checkInSharingBriefingSeen === "boolean"
+        ? d.checkInSharingBriefingSeen
+        : false,
     mealSchedule: Array.isArray(d.mealSchedule)
       ? d.mealSchedule
           .map((x: unknown) => {
-            if (!x || typeof x !== 'object') return null;
+            if (!x || typeof x !== "object") return null;
             const v = x as Record<string, unknown>;
-            const id = typeof v.id === 'string' ? v.id.trim() : '';
-            const label = typeof v.label === 'string' ? v.label.trim() : '';
-            const time = typeof v.time === 'string' ? v.time.trim() : '';
+            const id = typeof v.id === "string" ? v.id.trim() : "";
+            const label = typeof v.label === "string" ? v.label.trim() : "";
+            const time = typeof v.time === "string" ? v.time.trim() : "";
             if (!id || !label || !time) return null;
             return { id, label, time } as MealScheduleItem;
           })
           .filter((x): x is MealScheduleItem => x !== null)
       : [],
+    usualWakeTime: normalizeSettingsHHmm(d.usualWakeTime),
+    usualBathTime: normalizeSettingsHHmm(d.usualBathTime),
     updatedAt: d.updatedAt,
   };
 }
 
 export async function updateUserSettings(
   userId: string,
-  partial: Partial<Pick<UserSettingsDoc,
-    | 'dayResetHour'
-    | 'timezone'
-    | 'reminderHour'
-    | 'remindersEnabled'
-    | 'academicContextEnabled'
-    | 'enabledContextCategories'
-    | 'shareCheckInsWithGuidance'
-    | 'checkInSharingBriefingSeen'
-    | 'mealSchedule'
-  >>
+  partial: Partial<
+    Pick<
+      UserSettingsDoc,
+      | "dayResetHour"
+      | "timezone"
+      | "reminderHour"
+      | "remindersEnabled"
+      | "academicContextEnabled"
+      | "enabledContextCategories"
+      | "shareCheckInsWithGuidance"
+      | "checkInSharingBriefingSeen"
+      | "mealSchedule"
+      | "usualWakeTime"
+      | "usualBathTime"
+    >
+  >,
 ): Promise<void> {
-  const ref = doc(db, 'userSettings', userId);
+  const ref = doc(db, "userSettings", userId);
   await setDoc(
     ref,
     {
       ...partial,
       updatedAt: Timestamp.now(),
     },
-    { merge: true }
+    { merge: true },
   );
 }
 
-export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntryDoc, 'timestamp'> & { timestamp: Date }) {
-  const col = collection(db, 'moodLogs', userId, 'entries');
-  const normalizedDurationMinutes = Math.max(1, Math.round(entry.durationMinutes || 0));
+export async function createMoodLogEntry(
+  userId: string,
+  entry: Omit<MoodLogEntryDoc, "timestamp"> & { timestamp: Date },
+) {
+  const col = collection(db, "moodLogs", userId, "entries");
+  const normalizedDurationMinutes = Math.max(
+    1,
+    Math.round(entry.durationMinutes || 0),
+  );
   const latestSameMoodQuery = query(
     col,
-    where('mood', '==', entry.mood),
-    orderBy('timestamp', 'desc'),
-    limit(1)
+    where("mood", "==", entry.mood),
+    orderBy("timestamp", "desc"),
+    limit(1),
   );
   const latestSameMoodSnap = await getDocs(latestSameMoodQuery);
   const latestSameMood = latestSameMoodSnap.docs[0];
@@ -162,15 +241,20 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
     const latestTimestamp = latestData.timestamp?.toDate?.() ?? entry.timestamp;
     const elapsedMinutes = Math.max(
       0,
-      Math.floor((entry.timestamp.getTime() - latestTimestamp.getTime()) / 60000)
+      Math.floor(
+        (entry.timestamp.getTime() - latestTimestamp.getTime()) / 60000,
+      ),
     );
-    const latestDurationMinutes = Math.max(1, Math.round(latestData.durationMinutes || 0));
+    const latestDurationMinutes = Math.max(
+      1,
+      Math.round(latestData.durationMinutes || 0),
+    );
     const withinContiguousWindow = elapsedMinutes <= latestDurationMinutes + 15;
 
     if (withinContiguousWindow) {
       const mergedDurationMinutes = Math.max(
         latestDurationMinutes,
-        elapsedMinutes + normalizedDurationMinutes
+        elapsedMinutes + normalizedDurationMinutes,
       );
       await updateDoc(doc(col, latestSameMood.id), {
         intensity: entry.intensity,
@@ -182,12 +266,12 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
         dayKey: entry.dayKey,
         eventCategories: entry.eventCategories ?? [],
         eventTags: entry.eventTags ?? [],
-        notes: entry.notes ?? '',
-        journalSource: entry.journalSource ?? 'auto',
-        detectionMethod: entry.detectionMethod ?? 'manual',
+        notes: entry.notes ?? "",
+        journalSource: entry.journalSource ?? "auto",
+        detectionMethod: entry.detectionMethod ?? "manual",
         bathTaken: entry.bathTaken ?? false,
         mealResponses: entry.mealResponses ?? [],
-        journalImageUrl: entry.journalImageUrl ?? '',
+        journalImageUrl: entry.journalImageUrl ?? "",
       });
       return {
         id: latestSameMood.id,
@@ -201,12 +285,12 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
         dayKey: entry.dayKey,
         eventCategories: entry.eventCategories ?? [],
         eventTags: entry.eventTags ?? [],
-        notes: entry.notes ?? '',
-        journalSource: entry.journalSource ?? 'auto',
-        detectionMethod: entry.detectionMethod ?? 'manual',
+        notes: entry.notes ?? "",
+        journalSource: entry.journalSource ?? "auto",
+        detectionMethod: entry.detectionMethod ?? "manual",
         bathTaken: entry.bathTaken ?? false,
         mealResponses: entry.mealResponses ?? [],
-        journalImageUrl: entry.journalImageUrl ?? '',
+        journalImageUrl: entry.journalImageUrl ?? "",
         timestamp: latestTimestamp,
       };
     }
@@ -223,12 +307,12 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
     dayKey: entry.dayKey,
     eventCategories: entry.eventCategories ?? [],
     eventTags: entry.eventTags ?? [],
-    notes: entry.notes ?? '',
-    journalSource: entry.journalSource ?? 'auto',
-    detectionMethod: entry.detectionMethod ?? 'manual',
+    notes: entry.notes ?? "",
+    journalSource: entry.journalSource ?? "auto",
+    detectionMethod: entry.detectionMethod ?? "manual",
     bathTaken: entry.bathTaken ?? false,
     mealResponses: entry.mealResponses ?? [],
-    journalImageUrl: entry.journalImageUrl ?? '',
+    journalImageUrl: entry.journalImageUrl ?? "",
     timestamp: Timestamp.fromDate(entry.timestamp),
   };
   const docRef = await addDoc(col, payload);
@@ -244,12 +328,12 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
     dayKey: entry.dayKey,
     eventCategories: entry.eventCategories ?? [],
     eventTags: entry.eventTags ?? [],
-    notes: entry.notes ?? '',
-    journalSource: entry.journalSource ?? 'auto',
-    detectionMethod: entry.detectionMethod ?? 'manual',
+    notes: entry.notes ?? "",
+    journalSource: entry.journalSource ?? "auto",
+    detectionMethod: entry.detectionMethod ?? "manual",
     bathTaken: entry.bathTaken ?? false,
     mealResponses: entry.mealResponses ?? [],
-    journalImageUrl: entry.journalImageUrl ?? '',
+    journalImageUrl: entry.journalImageUrl ?? "",
     timestamp: entry.timestamp,
   };
 }
@@ -257,7 +341,7 @@ export async function createMoodLogEntry(userId: string, entry: Omit<MoodLogEntr
 export async function getMoodLogEntries(
   userId: string,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
 ): Promise<MoodLogEntryRow[]> {
   const snap = await getDocs(entriesQuery(userId, startDate, endDate));
   return snap.docs.map((d) => {
@@ -271,22 +355,30 @@ export async function getMoodLogEntries(
 }
 
 function entriesQuery(userId: string, startDate?: Date, endDate?: Date) {
-  const col = collection(db, 'moodLogs', userId, 'entries');
+  const col = collection(db, "moodLogs", userId, "entries");
   if (startDate && endDate) {
     return query(
       col,
-      where('timestamp', '>=', Timestamp.fromDate(startDate)),
-      where('timestamp', '<=', Timestamp.fromDate(endDate)),
-      orderBy('timestamp', 'desc')
+      where("timestamp", ">=", Timestamp.fromDate(startDate)),
+      where("timestamp", "<=", Timestamp.fromDate(endDate)),
+      orderBy("timestamp", "desc"),
     );
   }
   if (startDate) {
-    return query(col, where('timestamp', '>=', Timestamp.fromDate(startDate)), orderBy('timestamp', 'desc'));
+    return query(
+      col,
+      where("timestamp", ">=", Timestamp.fromDate(startDate)),
+      orderBy("timestamp", "desc"),
+    );
   }
   if (endDate) {
-    return query(col, where('timestamp', '<=', Timestamp.fromDate(endDate)), orderBy('timestamp', 'desc'));
+    return query(
+      col,
+      where("timestamp", "<=", Timestamp.fromDate(endDate)),
+      orderBy("timestamp", "desc"),
+    );
   }
-  return query(col, orderBy('timestamp', 'desc'));
+  return query(col, orderBy("timestamp", "desc"));
 }
 
 export function subscribeMoodLogEntries(
@@ -294,7 +386,7 @@ export function subscribeMoodLogEntries(
   startDate: Date | undefined,
   endDate: Date | undefined,
   onNext: (entries: MoodLogEntryRow[]) => void,
-  onError?: (error: Error) => void
+  onError?: (error: Error) => void,
 ): () => void {
   const q = entriesQuery(userId, startDate, endDate);
   return onSnapshot(
@@ -310,23 +402,30 @@ export function subscribeMoodLogEntries(
       });
       onNext(list);
     },
-    (err) => onError?.(err instanceof Error ? err : new Error(String(err)))
+    (err) => onError?.(err instanceof Error ? err : new Error(String(err))),
   );
 }
 
-export async function hasMoodEntryForDayKey(userId: string, dayKey: string): Promise<boolean> {
+export async function hasMoodEntryForDayKey(
+  userId: string,
+  dayKey: string,
+): Promise<boolean> {
   const q = query(
-    collection(db, 'moodLogs', userId, 'entries'),
-    where('dayKey', '==', dayKey),
-    limit(1)
+    collection(db, "moodLogs", userId, "entries"),
+    where("dayKey", "==", dayKey),
+    limit(1),
   );
   const snap = await getDocs(q);
   return !snap.empty;
 }
 
-const dailyDayCollection = (userId: string) => collection(doc(db, 'dailyContext', userId), 'days');
+const dailyDayCollection = (userId: string) =>
+  collection(doc(db, "dailyContext", userId), "days");
 
-export async function getDailyContext(userId: string, dayKey: string): Promise<DailyContextDoc | null> {
+export async function getDailyContext(
+  userId: string,
+  dayKey: string,
+): Promise<DailyContextDoc | null> {
   const ref = doc(dailyDayCollection(userId), dayKey);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
@@ -336,7 +435,7 @@ export async function getDailyContext(userId: string, dayKey: string): Promise<D
 export async function setDailyContext(
   userId: string,
   dayKey: string,
-  data: Omit<DailyContextDoc, 'createdAt'> & { createdAt?: Timestamp }
+  data: Omit<DailyContextDoc, "createdAt"> & { createdAt?: Timestamp },
 ): Promise<void> {
   const ref = doc(dailyDayCollection(userId), dayKey);
   const createdAt = data.createdAt ?? Timestamp.now();
@@ -345,7 +444,7 @@ export async function setDailyContext(
     quizzes: data.quizzes,
     deadlines: data.deadlines,
     assignments: data.assignments,
-    notes: data.notes ?? '',
+    notes: data.notes ?? "",
     sleepQuality: data.sleepQuality,
     bathTaken: data.bathTaken ?? false,
     mealStatusById: data.mealStatusById ?? {},
@@ -357,14 +456,14 @@ export async function setDailyContext(
 
 export async function getDailyContextsInRange(
   userId: string,
-  dayKeys: string[]
+  dayKeys: string[],
 ): Promise<Map<string, DailyContextDoc>> {
   const map = new Map<string, DailyContextDoc>();
   await Promise.all(
     dayKeys.map(async (k) => {
       const ctx = await getDailyContext(userId, k);
       if (ctx) map.set(k, ctx);
-    })
+    }),
   );
   return map;
 }

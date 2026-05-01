@@ -11,7 +11,7 @@ import {
   Easing,
 } from 'react-native';
 import type { MoodData } from '../../services/firebase-firestore.service';
-import { getDayKey } from '../../utils/dayKey';
+import { calendarDayKeyLocal } from '../../utils/dayKey';
 import { moodLogsToMoodEntries } from '../../utils/moodEntryNormalize';
 import { aggregateByDay, moodStabilityScore } from '../../utils/moodAggregates';
 import { blendColors } from '../../utils/blendColors';
@@ -34,8 +34,6 @@ function stabilityCopy(score: number): string {
 
 type Props = {
   logs: (MoodData & { log_date: Date })[];
-  resetHour: number;
-  timezone: string;
 };
 
 function AnimatedBar({ height, color, delay, animateKey }: { height: number; color: string; delay: number; animateKey: string }) {
@@ -55,7 +53,7 @@ function AnimatedBar({ height, color, delay, animateKey }: { height: number; col
   return <Animated.View style={{ height: h, backgroundColor: color, borderRadius: 4 }} />;
 }
 
-export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
+export function AnalyticsMoodWidgets({ logs }: Props) {
   const [period, setPeriod] = useState<'week' | 'last30'>('week');
   const [metric, setMetric] = useState<'stress' | 'energy'>('stress');
   const [tip, setTip] = useState<{ label: string; text: string; emotion?: string; color?: string } | null>(null);
@@ -63,10 +61,7 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
   const [last30ZoomScale, setLast30ZoomScale] = useState(1);
   const toggleAnim = useMemo(() => new Animated.Value(0), []);
 
-  const entries = useMemo(
-    () => moodLogsToMoodEntries(logs, resetHour, timezone),
-    [logs, resetHour, timezone]
-  );
+  const entries = useMemo(() => moodLogsToMoodEntries(logs), [logs]);
 
   const weekSlots = useMemo(() => {
     const today = new Date();
@@ -76,12 +71,12 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       out.push({
-        key: getDayKey(d, resetHour, timezone),
+        key: calendarDayKeyLocal(d),
         label: d.toLocaleDateString('en-US', { weekday: 'short' }),
       });
     }
     return out;
-  }, [resetHour, timezone]);
+  }, []);
 
   const weekBarData = useMemo(() => {
     const today = new Date();
@@ -104,12 +99,12 @@ export function AnalyticsMoodWidgets({ logs, resetHour, timezone }: Props) {
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const key = getDayKey(d, resetHour, timezone);
+      const key = calendarDayKeyLocal(d);
       const label = String(d.getDate());
       rows.push({ label, key, date: d, agg: aggregateByDay(entries, key) });
     }
     return rows;
-  }, [entries, resetHour, timezone]);
+  }, [entries]);
 
   const last30WithDataCount = useMemo(
     () => last30BarData.filter((d) => d.agg.entryCount > 0).length,

@@ -57,7 +57,11 @@ import {
 } from "../utils/analytics/ethicsDailyAnalytics";
 import { logSuddenMoodDropIfNeeded } from "../utils/analytics/suddenMoodChange";
 import { getMostRecentLogNotOnSameCalendarDay } from "../utils/analytics/dateKeys";
-import { getDayKey } from "../utils/dayKey";
+import { calendarDayKeyLocal } from "../utils/dayKey";
+import {
+  cycleDayKeyForUsualTime,
+  isBeforeUsualHHmmToday,
+} from "../utils/wellnessDayKey";
 import {
   getDailyContext,
   setDailyContext,
@@ -65,9 +69,7 @@ import {
   type DailyContextDoc,
   type SleepQuality,
 } from "../services/mood-firestore-v2.service";
-import {
-  getBreathingExerciseForMood,
-} from "../features/breathing/breathing-data";
+import { getBreathingExerciseForMood } from "../features/breathing/breathing-data";
 
 interface MoodCheckInProps {
   onComplete?: () => void;
@@ -226,11 +228,12 @@ export function MoodCheckIn({
 }: MoodCheckInProps) {
   const { user } = useAuth();
   const {
-    dayResetHour,
     timezone,
     academicContextEnabled,
     enabledContextCategories,
     mealSchedule,
+    usualWakeTime,
+    usualBathTime,
   } = useUserDaySettings();
 
   const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>(
@@ -269,7 +272,6 @@ export function MoodCheckIn({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showQuickResetPrompt, setShowQuickResetPrompt] = useState(false);
   const [showQuickResetSession, setShowQuickResetSession] = useState(false);
-  const [dayKey, setDayKey] = useState("");
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const scrollRef = useRef<ScrollView | null>(null);
   const durationInputYRef = useRef(0);
@@ -317,7 +319,13 @@ export function MoodCheckIn({
     emotion: (typeof MANUAL_EMOTIONS)[0],
     size: number,
   ) => {
-    return <Image source={emotion.icon} style={{ width: size, height: size }} resizeMode="contain" />;
+    return (
+      <Image
+        source={emotion.icon}
+        style={{ width: size, height: size }}
+        resizeMode="contain"
+      />
+    );
   };
 
   const parseMealMinutes = (time: string): number | null => {
@@ -449,34 +457,52 @@ export function MoodCheckIn({
   ].filter((x) => isCategoryEnabled(x.key));
 
   useEffect(() => {
-    setDayKey(getDayKey(new Date(), dayResetHour, timezone));
-  }, [dayResetHour, timezone]);
-
-  useEffect(() => {
     const loadDaily = async () => {
-      if (!user?.id || !dayKey) return;
+      if (!user?.id) return;
+      const now = new Date();
+      const calKey = calendarDayKeyLocal(now);
+      const wakeTrim = (usualWakeTime || "").trim();
+      const bathTrim = (usualBathTime || "").trim();
+      const sleepKey = wakeTrim
+        ? cycleDayKeyForUsualTime(now, usualWakeTime)
+        : calKey;
+      const bathKey = bathTrim
+        ? cycleDayKeyForUsualTime(now, usualBathTime)
+        : calKey;
       try {
-        const ctx = await getDailyContext(user.id, dayKey);
-        setDailyContextState(ctx);
-        if (ctx?.sleepQuality) {
-          setSleepQuality(ctx.sleepQuality);
+        const calCtx = await getDailyContext(user.id, calKey);
+        const sleepCtx =
+          sleepKey !== calKey
+            ? await getDailyContext(user.id, sleepKey)
+            : calCtx;
+        const bathCtx =
+          bathKey === calKey
+            ? calCtx
+            : bathKey === sleepKey
+              ? sleepCtx
+              : await getDailyContext(user.id, bathKey);
+        setDailyContextState(calCtx);
+        setMealStatusById(calCtx?.mealStatusById ?? {});
+        if (sleepCtx?.sleepQuality) {
+          setSleepQuality(sleepCtx.sleepQuality);
           setSleepCapturedToday(true);
         } else {
+          setSleepQuality(null);
           setSleepCapturedToday(false);
         }
-        setBathTakenToday(!!ctx?.bathTaken);
-        setBathTakenNow(!!ctx?.bathTaken);
-        setMealStatusById(ctx?.mealStatusById ?? {});
+        setBathTakenToday(!!bathCtx?.bathTaken);
+        setBathTakenNow(!!bathCtx?.bathTaken);
       } catch {
         setDailyContextState(null);
         setSleepCapturedToday(false);
+        setSleepQuality(null);
         setBathTakenToday(false);
         setBathTakenNow(false);
         setMealStatusById({});
       }
     };
     loadDaily();
-  }, [user?.id, dayKey]);
+  }, [user?.id, usualWakeTime, usualBathTime]);
 
   useEffect(() => {
     if (!initialMood) return;
@@ -642,7 +668,12 @@ export function MoodCheckIn({
       );
       return;
     }
-    if (currentStep === 2 && !sleepCapturedToday && !sleepQuality) {
+    if (
+      currentStep === 2 &&
+      !sleepLockedBeforeWake &&
+      !sleepCapturedToday &&
+      !sleepQuality
+    ) {
       Alert.alert(
         "Sleep quality is required",
         "Please set sleep quality once for today.",
@@ -708,7 +739,10 @@ export function MoodCheckIn({
   const pickJournalImage = () => {
     Alert.alert("Journal selfie", "Add your photo using camera or gallery.", [
       { text: "Take photo", onPress: () => void captureJournalImage() },
-      { text: "Choose from library", onPress: () => void pickJournalImageFromLibrary() },
+      {
+        text: "Choose from library",
+        onPress: () => void pickJournalImageFromLibrary(),
+      },
       { text: "Cancel", style: "cancel" },
     ]);
   };
@@ -726,9 +760,23 @@ export function MoodCheckIn({
       Alert.alert("Error", "Please log in to save mood");
       return;
     }
+    const now = new Date();
+    const dk = calendarDayKeyLocal(now);
+    const wakeTrim = (usualWakeTime || "").trim();
+    const bathTrim = (usualBathTime || "").trim();
+    const sleepKey = wakeTrim
+      ? cycleDayKeyForUsualTime(now, usualWakeTime)
+      : dk;
+    const bathKey = bathTrim
+      ? cycleDayKeyForUsualTime(now, usualBathTime)
+      : dk;
+    const sleepLocked =
+      wakeTrim.length > 0 && isBeforeUsualHHmmToday(now, usualWakeTime);
+    const bathLocked =
+      bathTrim.length > 0 && isBeforeUsualHHmmToday(now, usualBathTime);
     if (
       selectedEmotions.length === 0 ||
-      (!sleepCapturedToday && !sleepQuality)
+      (!sleepCapturedToday && !sleepQuality && !sleepLocked)
     ) {
       Alert.alert(
         "Missing data",
@@ -736,8 +784,6 @@ export function MoodCheckIn({
       );
       return;
     }
-
-    const dk = dayKey || getDayKey(new Date(), dayResetHour, timezone);
     try {
       setIsSubmitting(true);
       let uploadedJournalImageUrl = "";
@@ -757,6 +803,22 @@ export function MoodCheckIn({
         meal_time: meal.time,
         taken: !!mealStatusById[meal.id],
       }));
+      const calCtx = await getDailyContext(user.id, dk);
+      const sleepDoc =
+        sleepKey === dk ? calCtx : await getDailyContext(user.id, sleepKey);
+      const bathDoc =
+        bathKey === dk
+          ? calCtx
+          : bathKey === sleepKey
+            ? sleepDoc
+            : await getDailyContext(user.id, bathKey);
+      const sleepForMoodLog = sleepLocked
+        ? (sleepDoc?.sleepQuality ?? sleepQuality ?? "fair")
+        : (sleepQuality || "fair");
+      const bathForMoodLog = bathLocked
+        ? (bathDoc?.bathTaken ?? false)
+        : bathTakenToday || bathTakenNow;
+
       await moodService.createMoodLog({
         emotions: selectedEmotions.map((e) => ({
           ...e,
@@ -766,7 +828,7 @@ export function MoodCheckIn({
         energy_level: energyLevel * 2,
         stress_level: stressLevel * 2,
         duration_in_minutes: durationMinutes,
-        sleep_quality: sleepQuality || "fair",
+        sleep_quality: sleepForMoodLog,
         dayKey: dk,
         event_categories: categoryConfigs
           .filter((c) => c.tags.some((t) => selectedTags.includes(t)))
@@ -775,27 +837,48 @@ export function MoodCheckIn({
         notes: journalText.trim(),
         journal_source: journalEdited ? "manual" : "auto",
         detection_method: detectionMethod,
-        bath_taken: bathTakenToday ? true : bathTakenNow,
+        bath_taken: bathForMoodLog,
         meal_responses: normalizedMealResponses,
         journal_image_url: uploadedJournalImageUrl,
       });
 
-      const existing = await getDailyContext(user.id, dk);
-      await setDailyContext(user.id, dk, {
+      const mealMergedCal = {
+        ...(calCtx?.mealStatusById || {}),
+        ...mealStatusById,
+      };
+
+      const buildDoc = (
+        key: string,
+        existing: DailyContextDoc | null,
+      ): Omit<DailyContextDoc, "createdAt"> => ({
         exams: existing?.exams || 0,
         quizzes: existing?.quizzes || 0,
         deadlines: existing?.deadlines || 0,
         assignments: existing?.assignments || 0,
         notes: existing?.notes || "",
-        sleepQuality: existing?.sleepQuality || sleepQuality || undefined,
-        bathTaken: existing?.bathTaken || bathTakenNow,
-        mealStatusById: {
-          ...(existing?.mealStatusById || {}),
-          ...mealStatusById,
-        },
+        sleepQuality:
+          key === sleepKey
+            ? sleepLocked
+              ? existing?.sleepQuality
+              : (existing?.sleepQuality || sleepQuality || undefined)
+            : existing?.sleepQuality,
+        bathTaken:
+          key === bathKey
+            ? bathLocked
+              ? (existing?.bathTaken ?? false)
+              : (existing?.bathTaken || bathTakenNow)
+            : (existing?.bathTaken ?? false),
+        mealStatusById: key === dk ? mealMergedCal : existing?.mealStatusById || {},
         zenSessionsCompleted: existing?.zenSessionsCompleted || 0,
         zenMinutesCompleted: existing?.zenMinutesCompleted || 0,
       });
+
+      const keys = Array.from(new Set([dk, sleepKey, bathKey]));
+      for (const key of keys) {
+        const existing =
+          key === dk ? calCtx : key === sleepKey ? sleepDoc : bathDoc;
+        await setDailyContext(user.id, key, buildDoc(key, existing));
+      }
 
       try {
         const weekAgo = new Date();
@@ -835,7 +918,7 @@ export function MoodCheckIn({
   const showManualMoodGuide = () => {
     Alert.alert(
       "Manual check-in guide",
-      "Manual check-in lets you choose your mood directly.\n\n1) Pick the emotion that best matches how you feel now.\n2) Adjust intensity to reflect how strongly you feel it.\n3) Select how long you have been feeling this mood.\n\nUse this mode when you prefer full control over mood selection."
+      "Manual check-in lets you choose your mood directly.\n\n1) Pick the emotion that best matches how you feel now.\n2) Adjust intensity to reflect how strongly you feel it.\n3) Select how long you have been feeling this mood.\n\nUse this mode when you prefer full control over mood selection.",
     );
   };
 
@@ -967,7 +1050,11 @@ export function MoodCheckIn({
           paddingBottom: 20,
         }}
       >
-        <Modal visible={showQuickResetSession} animationType="slide" presentationStyle="fullScreen">
+        <Modal
+          visible={showQuickResetSession}
+          animationType="slide"
+          presentationStyle="fullScreen"
+        >
           <BreathingContainer
             title="Quick Reset"
             subtitle="60-second guided breathing"
@@ -984,10 +1071,11 @@ export function MoodCheckIn({
             onComplete={async () => {
               setShowQuickResetSession(false);
               setShowQuickResetPrompt(false);
-              if (user?.id && dayKey) {
+              const zenDayKey = calendarDayKeyLocal(new Date());
+              if (user?.id) {
                 try {
-                  const existing = await getDailyContext(user.id, dayKey);
-                  await setDailyContext(user.id, dayKey, {
+                  const existing = await getDailyContext(user.id, zenDayKey);
+                  await setDailyContext(user.id, zenDayKey, {
                     exams: existing?.exams || 0,
                     quizzes: existing?.quizzes || 0,
                     deadlines: existing?.deadlines || 0,
@@ -996,8 +1084,10 @@ export function MoodCheckIn({
                     sleepQuality: existing?.sleepQuality,
                     bathTaken: existing?.bathTaken || false,
                     mealStatusById: existing?.mealStatusById || {},
-                    zenSessionsCompleted: (existing?.zenSessionsCompleted || 0) + 1,
-                    zenMinutesCompleted: (existing?.zenMinutesCompleted || 0) + 1,
+                    zenSessionsCompleted:
+                      (existing?.zenSessionsCompleted || 0) + 1,
+                    zenMinutesCompleted:
+                      (existing?.zenMinutesCompleted || 0) + 1,
                   });
                 } catch {
                   // no-op
@@ -1022,10 +1112,19 @@ export function MoodCheckIn({
               marginBottom: 10,
             }}
           >
-            <Text style={{ color: "#FFFFFF", fontWeight: "700", marginBottom: 4 }}>
+            <Text
+              style={{ color: "#FFFFFF", fontWeight: "700", marginBottom: 4 }}
+            >
               Quick Reset
             </Text>
-            <Text style={{ color: "#D4DDF8", fontSize: 12, lineHeight: 18, marginBottom: 10 }}>
+            <Text
+              style={{
+                color: "#D4DDF8",
+                fontSize: 12,
+                lineHeight: 18,
+                marginBottom: 10,
+              }}
+            >
               {quickResetPromptLine}
             </Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
@@ -1039,7 +1138,9 @@ export function MoodCheckIn({
                   backgroundColor: AURORA.blue,
                 }}
               >
-                <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 12 }}>
+                <Text
+                  style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 12 }}
+                >
                   Start 60s
                 </Text>
               </TouchableOpacity>
@@ -1055,7 +1156,13 @@ export function MoodCheckIn({
                   backgroundColor: AURORA.cardAlt,
                 }}
               >
-                <Text style={{ color: AURORA.textSec, fontWeight: "700", fontSize: 12 }}>
+                <Text
+                  style={{
+                    color: AURORA.textSec,
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
                   Skip for now
                 </Text>
               </TouchableOpacity>
@@ -1414,9 +1521,27 @@ export function MoodCheckIn({
   const isMoodStep = currentStep === 1;
   const isVitalityStep = currentStep === 2;
   const isContextStep = currentStep === 3;
+  const scheduleNow = new Date();
+  const wakeTrimLive = (usualWakeTime || "").trim();
+  const bathTrimLive = (usualBathTime || "").trim();
+  const sleepLockedBeforeWake =
+    wakeTrimLive.length > 0 &&
+    isBeforeUsualHHmmToday(scheduleNow, usualWakeTime);
+  const bathLockedBeforeBath =
+    bathTrimLive.length > 0 &&
+    isBeforeUsualHHmmToday(scheduleNow, usualBathTime);
+  const usualWakeTimeLabel = wakeTrimLive
+    ? formatMealTime(usualWakeTime)
+    : "";
+  const usualBathTimeLabel = bathTrimLive
+    ? formatMealTime(usualBathTime)
+    : "";
   const canContinueCurrentStep =
     (isMoodStep && selectedEmotions.length > 0) ||
-    (isVitalityStep && (sleepCapturedToday || !!sleepQuality)) ||
+    (isVitalityStep &&
+      (sleepCapturedToday ||
+        !!sleepQuality ||
+        sleepLockedBeforeWake)) ||
     isContextStep;
   const isPrimaryActionDisabled = isSubmitting || !canContinueCurrentStep;
 
@@ -1902,7 +2027,8 @@ export function MoodCheckIn({
                       </Text>
                       <View
                         onLayout={(event) => {
-                          durationInputYRef.current = event.nativeEvent.layout.y;
+                          durationInputYRef.current =
+                            event.nativeEvent.layout.y;
                         }}
                         style={{
                           borderRadius: 12,
@@ -1933,7 +2059,9 @@ export function MoodCheckIn({
                             paddingVertical: 0,
                           }}
                         />
-                        <Text style={{ color: AURORA.textMuted, fontWeight: "700" }}>
+                        <Text
+                          style={{ color: AURORA.textMuted, fontWeight: "700" }}
+                        >
                           min
                         </Text>
                       </View>
@@ -2087,9 +2215,11 @@ export function MoodCheckIn({
                 <MoonStar size={16} color={AURORA.blue} />
                 <Text style={{ color: AURORA.textPrimary, fontWeight: "700" }}>
                   Sleep quality{" "}
-                  {sleepCapturedToday
-                    ? "(already set today)"
-                    : "(set once daily)"}
+                  {sleepLockedBeforeWake
+                    ? "(opens after wake time)"
+                    : sleepCapturedToday
+                      ? "(already set today)"
+                      : "(set once daily)"}
                 </Text>
                 <TouchableOpacity
                   onPress={showSleepGuide}
@@ -2106,12 +2236,21 @@ export function MoodCheckIn({
                   marginBottom: 10,
                 }}
               >
-                {sleepCapturedToday
-                  ? "You already logged sleep quality today. You can continue without changing it."
-                  : "Set this once daily based on your main/night sleep (not naps)."}
+                {sleepLockedBeforeWake
+                  ? `Before ${usualWakeTimeLabel}, sleep still counts toward yesterday’s cycle. You can log sleep quality after ${usualWakeTimeLabel}.`
+                  : sleepCapturedToday
+                    ? "You already logged sleep quality today. You can continue without changing it."
+                    : "Set this once daily based on your main/night sleep (not naps)."}
               </Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                {(["poor", "fair", "good"] as SleepQuality[]).map((quality) => {
+              <View
+                style={{
+                  position: "relative",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                }}
+              >
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {(["poor", "fair", "good"] as SleepQuality[]).map((quality) => {
                   const selected = sleepQuality === quality;
                   return (
                     <TouchableOpacity
@@ -2126,13 +2265,18 @@ export function MoodCheckIn({
                         backgroundColor: selected
                           ? "rgba(45, 107, 255, 0.18)"
                           : AURORA.cardAlt,
-                        opacity: sleepCapturedToday ? 0.75 : 1,
+                        opacity:
+                          sleepCapturedToday || sleepLockedBeforeWake
+                            ? 0.75
+                            : 1,
                         alignItems: "center",
                         flexDirection: "row",
                         justifyContent: "center",
                         gap: 6,
                       }}
-                      disabled={sleepCapturedToday}
+                      disabled={
+                        sleepCapturedToday || sleepLockedBeforeWake
+                      }
                     >
                       <MoonStar
                         size={14}
@@ -2149,6 +2293,47 @@ export function MoodCheckIn({
                     </TouchableOpacity>
                   );
                 })}
+                </View>
+                {sleepLockedBeforeWake && (
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      backgroundColor: "rgba(8, 12, 42, 0.84)",
+                      borderWidth: 1,
+                      borderColor: "rgba(148, 163, 184, 0.35)",
+                      borderRadius: 12,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingHorizontal: 10,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: AURORA.textPrimary,
+                        fontSize: 12,
+                        fontWeight: "800",
+                        textAlign: "center",
+                      }}
+                    >
+                      Locked for now
+                    </Text>
+                    <Text
+                      style={{
+                        color: "#B8C5E7",
+                        fontSize: 11,
+                        marginTop: 3,
+                        textAlign: "center",
+                      }}
+                    >
+                      Opens at {usualWakeTimeLabel}
+                    </Text>
+                  </View>
+                )}
               </View>
               <View
                 style={{
@@ -2352,7 +2537,11 @@ export function MoodCheckIn({
                     style={{ color: AURORA.textPrimary, fontWeight: "700" }}
                   >
                     Bath today{" "}
-                    {bathTakenToday ? "(already set today)" : "(once daily)"}
+                    {bathLockedBeforeBath
+                      ? "(opens after bath time)"
+                      : bathTakenToday
+                        ? "(already set today)"
+                        : "(once daily)"}
                   </Text>
                   <TouchableOpacity
                     onPress={showBathGuide}
@@ -2362,73 +2551,140 @@ export function MoodCheckIn({
                     <CircleHelp size={16} color={AURORA.textMuted} />
                   </TouchableOpacity>
                 </View>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <TouchableOpacity
-                    onPress={() => setBathTakenNow(true)}
-                    disabled={bathTakenToday}
+                {bathTrimLive.length > 0 && (
+                  <Text
                     style={{
-                      flex: 1,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor:
-                        bathTakenToday || bathTakenNow
-                          ? AURORA.blue
-                          : AURORA.border,
-                      backgroundColor:
-                        bathTakenToday || bathTakenNow
-                          ? "rgba(45,107,255,0.18)"
-                          : AURORA.cardAlt,
-                      paddingVertical: 10,
-                      alignItems: "center",
-                      opacity: bathTakenToday ? 0.75 : 1,
+                      color: AURORA.textMuted,
+                      fontSize: 12,
+                      marginBottom: 8,
                     }}
                   >
-                    <Text
+                    {bathLockedBeforeBath
+                      ? `Before ${usualBathTimeLabel}, bath check-in stays on the previous cycle.`
+                      : "Log once per cycle based on your usual bath time in Profile."}
+                  </Text>
+                )}
+                <View
+                  style={{
+                    position: "relative",
+                    borderRadius: 10,
+                    overflow: "hidden",
+                  }}
+                >
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => setBathTakenNow(true)}
+                      disabled={bathTakenToday || bathLockedBeforeBath}
                       style={{
-                        color:
+                        flex: 1,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor:
                           bathTakenToday || bathTakenNow
                             ? AURORA.blue
-                            : AURORA.textSec,
-                        fontWeight: "700",
-                        fontSize: 12,
+                            : AURORA.border,
+                        backgroundColor:
+                          bathTakenToday || bathTakenNow
+                            ? "rgba(45,107,255,0.18)"
+                            : AURORA.cardAlt,
+                        paddingVertical: 10,
+                        alignItems: "center",
+                        opacity:
+                          bathTakenToday || bathLockedBeforeBath
+                            ? 0.75
+                            : 1,
                       }}
                     >
-                      Yes
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setBathTakenNow(false)}
-                    disabled={bathTakenToday}
-                    style={{
-                      flex: 1,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor:
-                        !bathTakenNow && !bathTakenToday
-                          ? AURORA.amber
-                          : AURORA.border,
-                      backgroundColor:
-                        !bathTakenNow && !bathTakenToday
-                          ? "rgba(245,158,11,0.18)"
-                          : AURORA.cardAlt,
-                      paddingVertical: 10,
-                      alignItems: "center",
-                      opacity: bathTakenToday ? 0.75 : 1,
-                    }}
-                  >
-                    <Text
+                      <Text
+                        style={{
+                          color:
+                            bathTakenToday || bathTakenNow
+                              ? AURORA.blue
+                              : AURORA.textSec,
+                          fontWeight: "700",
+                          fontSize: 12,
+                        }}
+                      >
+                        Yes
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setBathTakenNow(false)}
+                      disabled={bathTakenToday || bathLockedBeforeBath}
                       style={{
-                        color:
+                        flex: 1,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor:
                           !bathTakenNow && !bathTakenToday
                             ? AURORA.amber
-                            : AURORA.textSec,
-                        fontWeight: "700",
-                        fontSize: 12,
+                            : AURORA.border,
+                        backgroundColor:
+                          !bathTakenNow && !bathTakenToday
+                            ? "rgba(245,158,11,0.18)"
+                            : AURORA.cardAlt,
+                        paddingVertical: 10,
+                        alignItems: "center",
+                        opacity:
+                          bathTakenToday || bathLockedBeforeBath
+                            ? 0.75
+                            : 1,
                       }}
                     >
-                      Not yet
-                    </Text>
-                  </TouchableOpacity>
+                      <Text
+                        style={{
+                          color:
+                            !bathTakenNow && !bathTakenToday
+                              ? AURORA.amber
+                              : AURORA.textSec,
+                          fontWeight: "700",
+                          fontSize: 12,
+                        }}
+                      >
+                        Not yet
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {bathLockedBeforeBath && (
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        backgroundColor: "rgba(8, 12, 42, 0.84)",
+                        borderWidth: 1,
+                        borderColor: "rgba(148, 163, 184, 0.35)",
+                        borderRadius: 10,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        paddingHorizontal: 10,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: AURORA.textPrimary,
+                          fontSize: 12,
+                          fontWeight: "800",
+                          textAlign: "center",
+                        }}
+                      >
+                        Locked for now
+                      </Text>
+                      <Text
+                        style={{
+                          color: "#B8C5E7",
+                          fontSize: 11,
+                          marginTop: 3,
+                          textAlign: "center",
+                        }}
+                      >
+                        Opens at {usualBathTimeLabel}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
             </View>
@@ -2742,7 +2998,9 @@ export function MoodCheckIn({
                             fontWeight: "700",
                           }}
                         >
-                          {selectedTags.length > 0 ? "Use auto draft" : "Clear note"}
+                          {selectedTags.length > 0
+                            ? "Use auto draft"
+                            : "Clear note"}
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity

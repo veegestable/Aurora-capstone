@@ -1,1 +1,1 @@
-export { counselorService as counselorsService } from './counselor.service';
+export { counselorService as counselorsService } from "./counselor.service";

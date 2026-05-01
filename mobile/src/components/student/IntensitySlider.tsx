@@ -1,1 +1,1 @@
-export { SimpleSlider } from '../common/SimpleSlider';
+export { SimpleSlider } from "../common/SimpleSlider";

@@ -33,16 +33,6 @@ import {
     stressCategoryLabelFromFive,
 } from '../../utils/analytics/metricCategories';
 
-const DAY_RESET_FALLBACK = 0;
-
-function deviceTimezone(): string {
-    try {
-        return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    } catch {
-        return 'UTC';
-    }
-}
-
 function stabilityCaption(score: number): string {
     if (score >= 80) return 'Very steady between check-ins';
     if (score >= 60) return 'Mostly steady';
@@ -203,7 +193,6 @@ function CounselorCheckInSummaryPanel({ logs }: { logs: MergedMoodLog[] }) {
         setExpandedTileId((prev) => (prev === id ? null : id));
     };
 
-    const tz = deviceTimezone();
     const entries = useMemo(
         () =>
             moodLogsToMoodEntries(
@@ -211,10 +200,8 @@ function CounselorCheckInSummaryPanel({ logs }: { logs: MergedMoodLog[] }) {
                     ...l,
                     log_date: l.log_date instanceof Date ? l.log_date : new Date((l as { log_date?: Date | string }).log_date as Date),
                 })) as (MoodData & { log_date: Date })[],
-                DAY_RESET_FALLBACK,
-                tz
             ),
-        [logs, tz]
+        [logs]
     );
 
     const agg = useMemo(() => aggregateEntriesAsSingleDay(entries), [entries]);

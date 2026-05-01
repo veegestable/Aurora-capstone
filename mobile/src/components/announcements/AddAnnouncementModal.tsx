@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -11,14 +11,17 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { X, Camera } from 'lucide-react-native';
-import { useAuth } from '../../stores/AuthContext';
-import { announcementsService, type CreateAnnouncementInput } from '../../services/announcements.service';
-import { uploadImage } from '../../services/firebase-storage.service';
-import { AURORA } from '../../constants/aurora-colors';
-import { triggerHaptic } from '../../utils/haptics';
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { X, Camera } from "lucide-react-native";
+import { useAuth } from "../../stores/AuthContext";
+import {
+  announcementsService,
+  type CreateAnnouncementInput,
+} from "../../services/announcements.service";
+import { uploadImage } from "../../services/firebase-storage.service";
+import { AURORA } from "../../constants/aurora-colors";
+import { triggerHaptic } from "../../utils/haptics";
 
 interface AddAnnouncementModalProps {
   visible: boolean;
@@ -26,36 +29,43 @@ interface AddAnnouncementModalProps {
   onSuccess?: () => void;
 }
 
-type TargetRole = 'all' | 'counselor' | 'student';
+type TargetRole = "all" | "counselor" | "student";
 
-export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnouncementModalProps) {
+export function AddAnnouncementModal({
+  visible,
+  onClose,
+  onSuccess,
+}: AddAnnouncementModalProps) {
   const { user } = useAuth();
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
-  const [targetRole, setTargetRole] = useState<TargetRole>('all');
+  const [targetRole, setTargetRole] = useState<TargetRole>("all");
   const [saving, setSaving] = useState(false);
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library to add an image.');
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission needed",
+        "Please allow access to your photo library to add an image.",
+      );
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]?.uri) {
-      triggerHaptic('light');
+      triggerHaptic("light");
       setSelectedImageUri(result.assets[0].uri);
     }
   };
 
   const handleRemoveImage = () => {
-    triggerHaptic('light');
+    triggerHaptic("light");
     setSelectedImageUri(null);
   };
 
@@ -63,11 +73,11 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
     const t = title.trim();
     const c = content.trim();
     if (!t) {
-      Alert.alert('Missing title', 'Please enter a title.');
+      Alert.alert("Missing title", "Please enter a title.");
       return;
     }
     if (!c) {
-      Alert.alert('Missing content', 'Please enter the announcement content.');
+      Alert.alert("Missing content", "Please enter the announcement content.");
       return;
     }
     if (!user) return;
@@ -85,26 +95,26 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
         imageUrl,
         targetRole,
         createdBy: user.id,
-        createdByName: user.full_name || user.preferred_name || 'Unknown',
+        createdByName: user.full_name || user.preferred_name || "Unknown",
       };
       await announcementsService.create(input);
-      setTitle('');
-      setContent('');
+      setTitle("");
+      setContent("");
       setSelectedImageUri(null);
-      setTargetRole('all');
+      setTargetRole("all");
       onSuccess?.();
       onClose();
     } catch (e) {
-      Alert.alert('Error', 'Failed to create announcement. Please try again.');
+      Alert.alert("Error", "Failed to create announcement. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
   const roles: { key: TargetRole; label: string }[] = [
-    { key: 'all', label: 'Everyone' },
-    { key: 'student', label: 'Students only' },
-    { key: 'counselor', label: 'Counselors only' },
+    { key: "all", label: "Everyone" },
+    { key: "student", label: "Students only" },
+    { key: "counselor", label: "Counselors only" },
   ];
 
   return (
@@ -118,7 +128,13 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.title}>New Announcement</Text>
-            <TouchableOpacity onPress={() => { triggerHaptic('light'); onClose(); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <TouchableOpacity
+              onPress={() => {
+                triggerHaptic("light");
+                onClose();
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
               <X size={22} color={AURORA.textSec} />
             </TouchableOpacity>
           </View>
@@ -140,7 +156,11 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
             <Text style={styles.label}>Image (optional)</Text>
             {selectedImageUri ? (
               <View style={styles.imagePreviewWrap}>
-                <Image source={{ uri: selectedImageUri }} style={styles.imagePreview} resizeMode="cover" />
+                <Image
+                  source={{ uri: selectedImageUri }}
+                  style={styles.imagePreview}
+                  resizeMode="cover"
+                />
                 <TouchableOpacity
                   onPress={handleRemoveImage}
                   style={styles.removeImageBtn}
@@ -149,7 +169,10 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity onPress={handlePickImage} style={styles.pickImageBtn}>
+              <TouchableOpacity
+                onPress={handlePickImage}
+                style={styles.pickImageBtn}
+              >
                 <Camera size={24} color={AURORA.blue} />
                 <Text style={styles.pickImageText}>Add image from gallery</Text>
               </TouchableOpacity>
@@ -171,7 +194,10 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
               {roles.map((r) => (
                 <TouchableOpacity
                   key={r.key}
-                  onPress={() => { triggerHaptic('light'); setTargetRole(r.key); }}
+                  onPress={() => {
+                    triggerHaptic("light");
+                    setTargetRole(r.key);
+                  }}
                   style={[
                     styles.roleBtn,
                     targetRole === r.key && styles.roleBtnActive,
@@ -190,12 +216,15 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
             </View>
 
             <TouchableOpacity
-              onPress={() => { triggerHaptic('light'); handleSubmit(); }}
+              onPress={() => {
+                triggerHaptic("light");
+                handleSubmit();
+              }}
               disabled={saving}
               style={[styles.submit, saving && styles.submitDisabled]}
             >
               <Text style={styles.submitText}>
-                {saving ? 'Publishing...' : 'Publish'}
+                {saving ? "Publishing..." : "Publish"}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -208,20 +237,20 @@ export function AddAnnouncementModal({ visible, onClose, onSuccess }: AddAnnounc
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
   sheet: {
     backgroundColor: AURORA.bg,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '85%',
-    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+    maxHeight: "85%",
+    paddingBottom: Platform.OS === "ios" ? 34 : 24,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 16,
@@ -229,16 +258,16 @@ const styles = StyleSheet.create({
     borderBottomColor: AURORA.border,
   },
   title: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   scroll: { maxHeight: 400 },
   scrollContent: { padding: 20, paddingTop: 16 },
   label: {
     color: AURORA.textSec,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
     letterSpacing: 0.5,
   },
@@ -247,58 +276,58 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: AURORA.border,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 15,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 16,
   },
   imagePreviewWrap: {
-    position: 'relative',
+    position: "relative",
     marginBottom: 16,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   imagePreview: {
-    width: '100%',
+    width: "100%",
     height: 140,
     backgroundColor: AURORA.card,
   },
   removeImageBtn: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     right: 8,
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   pickImageBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     paddingVertical: 16,
     marginBottom: 16,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: AURORA.border,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     backgroundColor: AURORA.card,
   },
   pickImageText: {
     color: AURORA.blue,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   textArea: {
     minHeight: 100,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   roleRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginBottom: 24,
   },
@@ -310,16 +339,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: AURORA.border,
     backgroundColor: AURORA.card,
-    alignItems: 'center',
+    alignItems: "center",
   },
   roleBtnActive: {
     borderColor: AURORA.blue,
-    backgroundColor: 'rgba(45,107,255,0.15)',
+    backgroundColor: "rgba(45,107,255,0.15)",
   },
   roleText: {
     color: AURORA.textSec,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   roleTextActive: {
     color: AURORA.blue,
@@ -328,14 +357,14 @@ const styles = StyleSheet.create({
     backgroundColor: AURORA.blue,
     borderRadius: 14,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
   },
   submitDisabled: {
     opacity: 0.6,
   },
   submitText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });

@@ -1,4 +1,4 @@
-import { blendColors } from './blendColors';
+import { blendColors } from "./blendColors";
 
 export interface MoodEntry {
   mood: string;
@@ -33,10 +33,10 @@ export interface DailyAggregate {
 function dominantMoodByIntensity(entries: MoodEntry[]): string {
   const byMood: Record<string, number> = {};
   for (const e of entries) {
-    const k = (e.mood || 'neutral').toLowerCase();
+    const k = (e.mood || "neutral").toLowerCase();
     byMood[k] = (byMood[k] ?? 0) + e.intensity;
   }
-  let best = 'neutral';
+  let best = "neutral";
   let max = -1;
   for (const [m, sum] of Object.entries(byMood)) {
     if (sum > max) {
@@ -68,22 +68,27 @@ export function aggregateByHour(entries: MoodEntry[]): HourlyAggregate[] {
       avgIntensity,
       avgStress,
       avgEnergy,
-      blendedColor: blendColors(list.map((x) => ({ color: x.color, intensity: x.intensity }))),
+      blendedColor: blendColors(
+        list.map((x) => ({ color: x.color, intensity: x.intensity })),
+      ),
       entryCount: n,
     };
   });
 }
 
-export function aggregateByDay(entries: MoodEntry[], dayKey: string): DailyAggregate {
+export function aggregateByDay(
+  entries: MoodEntry[],
+  dayKey: string,
+): DailyAggregate {
   const list = entries.filter((e) => e.dayKey === dayKey);
   if (list.length === 0) {
     return {
       dayKey,
-      dominantMood: '—',
+      dominantMood: "—",
       avgIntensity: 0,
       avgStress: 0,
       avgEnergy: 0,
-      blendedColor: '#888888',
+      blendedColor: "#888888",
       entryCount: 0,
     };
   }
@@ -94,20 +99,24 @@ export function aggregateByDay(entries: MoodEntry[], dayKey: string): DailyAggre
     avgIntensity: list.reduce((s, x) => s + x.intensity, 0) / n,
     avgStress: list.reduce((s, x) => s + x.stress, 0) / n,
     avgEnergy: list.reduce((s, x) => s + x.energy, 0) / n,
-    blendedColor: blendColors(list.map((x) => ({ color: x.color, intensity: x.intensity }))),
+    blendedColor: blendColors(
+      list.map((x) => ({ color: x.color, intensity: x.intensity })),
+    ),
     entryCount: n,
   };
 }
 
 /** Aggregate all entries in a set as one "day" (e.g. week-level rollups). */
-export function aggregateEntriesAsSingleDay(entries: MoodEntry[]): Omit<DailyAggregate, 'dayKey'> & { dayKey?: string } {
+export function aggregateEntriesAsSingleDay(
+  entries: MoodEntry[],
+): Omit<DailyAggregate, "dayKey"> & { dayKey?: string } {
   if (entries.length === 0) {
     return {
-      dominantMood: '—',
+      dominantMood: "—",
       avgIntensity: 0,
       avgStress: 0,
       avgEnergy: 0,
-      blendedColor: '#888888',
+      blendedColor: "#888888",
       entryCount: 0,
     };
   }
@@ -117,7 +126,9 @@ export function aggregateEntriesAsSingleDay(entries: MoodEntry[]): Omit<DailyAgg
     avgIntensity: entries.reduce((s, x) => s + x.intensity, 0) / n,
     avgStress: entries.reduce((s, x) => s + x.stress, 0) / n,
     avgEnergy: entries.reduce((s, x) => s + x.energy, 0) / n,
-    blendedColor: blendColors(entries.map((x) => ({ color: x.color, intensity: x.intensity }))),
+    blendedColor: blendColors(
+      entries.map((x) => ({ color: x.color, intensity: x.intensity })),
+    ),
     entryCount: n,
   };
 }
@@ -125,7 +136,9 @@ export function aggregateEntriesAsSingleDay(entries: MoodEntry[]): Omit<DailyAgg
 export function moodStabilityScore(intensities: number[]): number {
   if (intensities.length < 2) return 100;
   const mean = intensities.reduce((a, b) => a + b, 0) / intensities.length;
-  const variance = intensities.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / intensities.length;
+  const variance =
+    intensities.reduce((s, v) => s + Math.pow(v - mean, 2), 0) /
+    intensities.length;
   const stdDev = Math.sqrt(variance);
   return Math.round(Math.max(0, 100 - (stdDev / 4.5) * 100));
 }
