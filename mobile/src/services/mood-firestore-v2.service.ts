@@ -4,7 +4,6 @@ import {
   getDoc,
   setDoc,
   addDoc,
-  updateDoc,
   query,
   where,
   orderBy,
@@ -227,74 +226,6 @@ export async function createMoodLogEntry(
     1,
     Math.round(entry.durationMinutes || 0),
   );
-  const latestSameMoodQuery = query(
-    col,
-    where("mood", "==", entry.mood),
-    orderBy("timestamp", "desc"),
-    limit(1),
-  );
-  const latestSameMoodSnap = await getDocs(latestSameMoodQuery);
-  const latestSameMood = latestSameMoodSnap.docs[0];
-
-  if (latestSameMood) {
-    const latestData = latestSameMood.data() as MoodLogEntryDoc;
-    const latestTimestamp = latestData.timestamp?.toDate?.() ?? entry.timestamp;
-    const elapsedMinutes = Math.max(
-      0,
-      Math.floor(
-        (entry.timestamp.getTime() - latestTimestamp.getTime()) / 60000,
-      ),
-    );
-    const latestDurationMinutes = Math.max(
-      1,
-      Math.round(latestData.durationMinutes || 0),
-    );
-    const withinContiguousWindow = elapsedMinutes <= latestDurationMinutes + 15;
-
-    if (withinContiguousWindow) {
-      const mergedDurationMinutes = Math.max(
-        latestDurationMinutes,
-        elapsedMinutes + normalizedDurationMinutes,
-      );
-      await updateDoc(doc(col, latestSameMood.id), {
-        intensity: entry.intensity,
-        durationMinutes: mergedDurationMinutes,
-        stress: entry.stress,
-        energy: entry.energy,
-        sleepQuality: entry.sleepQuality,
-        color: entry.color,
-        dayKey: entry.dayKey,
-        eventCategories: entry.eventCategories ?? [],
-        eventTags: entry.eventTags ?? [],
-        notes: entry.notes ?? "",
-        journalSource: entry.journalSource ?? "auto",
-        detectionMethod: entry.detectionMethod ?? "manual",
-        bathTaken: entry.bathTaken ?? false,
-        mealResponses: entry.mealResponses ?? [],
-        journalImageUrl: entry.journalImageUrl ?? "",
-      });
-      return {
-        id: latestSameMood.id,
-        mood: entry.mood,
-        intensity: entry.intensity,
-        durationMinutes: mergedDurationMinutes,
-        stress: entry.stress,
-        energy: entry.energy,
-        sleepQuality: entry.sleepQuality,
-        color: entry.color,
-        dayKey: entry.dayKey,
-        eventCategories: entry.eventCategories ?? [],
-        eventTags: entry.eventTags ?? [],
-        notes: entry.notes ?? "",
-        journalSource: entry.journalSource ?? "auto",
-        detectionMethod: entry.detectionMethod ?? "manual",
-        bathTaken: entry.bathTaken ?? false,
-        mealResponses: entry.mealResponses ?? [],
-        journalImageUrl: entry.journalImageUrl ?? "",
-        timestamp: latestTimestamp,
-      };
-    }
-  }
 
   const payload: MoodLogEntryDoc = {
     mood: entry.mood,

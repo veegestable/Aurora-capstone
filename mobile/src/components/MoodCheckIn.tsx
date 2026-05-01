@@ -15,6 +15,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { Asset } from "expo-asset";
 import * as Animatable from "react-native-animatable";
 import Animated, {
   Easing,
@@ -270,6 +271,7 @@ export function MoodCheckIn({
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submittedTodayCheckIns, setSubmittedTodayCheckIns] = useState(1);
   const [showQuickResetPrompt, setShowQuickResetPrompt] = useState(false);
   const [showQuickResetSession, setShowQuickResetSession] = useState(false);
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
@@ -278,6 +280,15 @@ export function MoodCheckIn({
   const [expandedTagGroups, setExpandedTagGroups] = useState<
     Record<string, boolean>
   >({});
+
+  useEffect(() => {
+    // Warm local mood assets so first render does not wait on decode/download.
+    void Promise.allSettled(
+      MANUAL_EMOTIONS.flatMap((emotion) => [emotion.icon, emotion.image]).map(
+        (assetModule) => Asset.fromModule(assetModule).downloadAsync(),
+      ),
+    );
+  }, []);
 
   const selectedEmotion = selectedEmotions[0];
   const selectedManualEmotion =
@@ -324,6 +335,7 @@ export function MoodCheckIn({
         source={emotion.icon}
         style={{ width: size, height: size }}
         resizeMode="contain"
+        fadeDuration={0}
       />
     );
   };
@@ -767,9 +779,7 @@ export function MoodCheckIn({
     const sleepKey = wakeTrim
       ? cycleDayKeyForUsualTime(now, usualWakeTime)
       : dk;
-    const bathKey = bathTrim
-      ? cycleDayKeyForUsualTime(now, usualBathTime)
-      : dk;
+    const bathKey = bathTrim ? cycleDayKeyForUsualTime(now, usualBathTime) : dk;
     const sleepLocked =
       wakeTrim.length > 0 && isBeforeUsualHHmmToday(now, usualWakeTime);
     const bathLocked =
@@ -814,7 +824,7 @@ export function MoodCheckIn({
             : await getDailyContext(user.id, bathKey);
       const sleepForMoodLog = sleepLocked
         ? (sleepDoc?.sleepQuality ?? sleepQuality ?? "fair")
-        : (sleepQuality || "fair");
+        : sleepQuality || "fair";
       const bathForMoodLog = bathLocked
         ? (bathDoc?.bathTaken ?? false)
         : bathTakenToday || bathTakenNow;
@@ -860,15 +870,16 @@ export function MoodCheckIn({
           key === sleepKey
             ? sleepLocked
               ? existing?.sleepQuality
-              : (existing?.sleepQuality || sleepQuality || undefined)
+              : existing?.sleepQuality || sleepQuality || undefined
             : existing?.sleepQuality,
         bathTaken:
           key === bathKey
             ? bathLocked
               ? (existing?.bathTaken ?? false)
-              : (existing?.bathTaken || bathTakenNow)
+              : existing?.bathTaken || bathTakenNow
             : (existing?.bathTaken ?? false),
-        mealStatusById: key === dk ? mealMergedCal : existing?.mealStatusById || {},
+        mealStatusById:
+          key === dk ? mealMergedCal : existing?.mealStatusById || {},
         zenSessionsCompleted: existing?.zenSessionsCompleted || 0,
         zenMinutesCompleted: existing?.zenMinutesCompleted || 0,
       });
@@ -895,6 +906,23 @@ export function MoodCheckIn({
         logSuddenMoodDropIfNeeded(prev?.energy_level, energyLevel * 2);
       } catch {
         // no-op
+      }
+
+      try {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+        const todayLogs = await moodService.getMoodLogs(
+          user.id,
+          startOfDay.toISOString(),
+          endOfDay.toISOString(),
+        );
+        setSubmittedTodayCheckIns(
+          Math.max(1, Array.isArray(todayLogs) ? todayLogs.length : 1),
+        );
+      } catch {
+        setSubmittedTodayCheckIns(1);
       }
 
       setIsSubmitting(false);
@@ -1046,7 +1074,7 @@ export function MoodCheckIn({
     );
     const dailyBody = getDailyFeedback(stressBand, moodScale);
     const isPositive = moodScale >= 4 && stressBand !== "High";
-    const totalCheckIns = selectedTags.length + 1;
+    const totalCheckIns = submittedTodayCheckIns;
     return (
       <View
         style={{
@@ -1298,7 +1326,7 @@ export function MoodCheckIn({
           </Animatable.View>
         </Animatable.View>
 
-        <Animatable.View
+        {/* <Animatable.View
           animation="fadeInUp"
           delay={140}
           duration={520}
@@ -1391,7 +1419,7 @@ export function MoodCheckIn({
               </Animatable.View>
             </TouchableOpacity>
           </Animatable.View>
-        </Animatable.View>
+        </Animatable.View> */}
 
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
           <Animatable.View
@@ -1537,18 +1565,12 @@ export function MoodCheckIn({
   const bathLockedBeforeBath =
     bathTrimLive.length > 0 &&
     isBeforeUsualHHmmToday(scheduleNow, usualBathTime);
-  const usualWakeTimeLabel = wakeTrimLive
-    ? formatMealTime(usualWakeTime)
-    : "";
-  const usualBathTimeLabel = bathTrimLive
-    ? formatMealTime(usualBathTime)
-    : "";
+  const usualWakeTimeLabel = wakeTrimLive ? formatMealTime(usualWakeTime) : "";
+  const usualBathTimeLabel = bathTrimLive ? formatMealTime(usualBathTime) : "";
   const canContinueCurrentStep =
     (isMoodStep && selectedEmotions.length > 0) ||
     (isVitalityStep &&
-      (sleepCapturedToday ||
-        !!sleepQuality ||
-        sleepLockedBeforeWake)) ||
+      (sleepCapturedToday || !!sleepQuality || sleepLockedBeforeWake)) ||
     isContextStep;
   const isPrimaryActionDisabled = isSubmitting || !canContinueCurrentStep;
 
@@ -2264,49 +2286,49 @@ export function MoodCheckIn({
                 }}
               >
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  {(["poor", "fair", "good"] as SleepQuality[]).map((quality) => {
-                  const selected = sleepQuality === quality;
-                  return (
-                    <TouchableOpacity
-                      key={quality}
-                      onPress={() => setSleepQuality(quality)}
-                      style={{
-                        flex: 1,
-                        borderRadius: 12,
-                        paddingVertical: 12,
-                        borderWidth: 1,
-                        borderColor: selected ? AURORA.blue : AURORA.border,
-                        backgroundColor: selected
-                          ? "rgba(45, 107, 255, 0.18)"
-                          : AURORA.cardAlt,
-                        opacity:
-                          sleepCapturedToday || sleepLockedBeforeWake
-                            ? 0.75
-                            : 1,
-                        alignItems: "center",
-                        flexDirection: "row",
-                        justifyContent: "center",
-                        gap: 6,
-                      }}
-                      disabled={
-                        sleepCapturedToday || sleepLockedBeforeWake
-                      }
-                    >
-                      <MoonStar
-                        size={14}
-                        color={selected ? AURORA.blue : AURORA.textSec}
-                      />
-                      <Text
-                        style={{
-                          color: selected ? AURORA.blue : AURORA.textSec,
-                          fontWeight: "700",
-                        }}
-                      >
-                        {quality.charAt(0).toUpperCase() + quality.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                  {(["poor", "fair", "good"] as SleepQuality[]).map(
+                    (quality) => {
+                      const selected = sleepQuality === quality;
+                      return (
+                        <TouchableOpacity
+                          key={quality}
+                          onPress={() => setSleepQuality(quality)}
+                          style={{
+                            flex: 1,
+                            borderRadius: 12,
+                            paddingVertical: 12,
+                            borderWidth: 1,
+                            borderColor: selected ? AURORA.blue : AURORA.border,
+                            backgroundColor: selected
+                              ? "rgba(45, 107, 255, 0.18)"
+                              : AURORA.cardAlt,
+                            opacity:
+                              sleepCapturedToday || sleepLockedBeforeWake
+                                ? 0.75
+                                : 1,
+                            alignItems: "center",
+                            flexDirection: "row",
+                            justifyContent: "center",
+                            gap: 6,
+                          }}
+                          disabled={sleepCapturedToday || sleepLockedBeforeWake}
+                        >
+                          <MoonStar
+                            size={14}
+                            color={selected ? AURORA.blue : AURORA.textSec}
+                          />
+                          <Text
+                            style={{
+                              color: selected ? AURORA.blue : AURORA.textSec,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {quality.charAt(0).toUpperCase() + quality.slice(1)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    },
+                  )}
                 </View>
                 {sleepLockedBeforeWake && (
                   <View
@@ -2604,9 +2626,7 @@ export function MoodCheckIn({
                         paddingVertical: 10,
                         alignItems: "center",
                         opacity:
-                          bathTakenToday || bathLockedBeforeBath
-                            ? 0.75
-                            : 1,
+                          bathTakenToday || bathLockedBeforeBath ? 0.75 : 1,
                       }}
                     >
                       <Text
@@ -2640,9 +2660,7 @@ export function MoodCheckIn({
                         paddingVertical: 10,
                         alignItems: "center",
                         opacity:
-                          bathTakenToday || bathLockedBeforeBath
-                            ? 0.75
-                            : 1,
+                          bathTakenToday || bathLockedBeforeBath ? 0.75 : 1,
                       }}
                     >
                       <Text
