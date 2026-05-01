@@ -4,12 +4,14 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Alert,
   LayoutChangeEvent,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Animated,
   Easing,
 } from 'react-native';
+import { CircleHelp } from 'lucide-react-native';
 import type { MoodData } from '../../services/firebase-firestore.service';
 import { calendarDayKeyLocal } from '../../utils/dayKey';
 import { moodLogsToMoodEntries } from '../../utils/moodEntryNormalize';
@@ -181,11 +183,42 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
     outputRange: [3, toggleTrackWidth - toggleThumbWidth - 3],
   });
 
+  const showStabilityGuide = () => {
+    Alert.alert(
+      'Mood stability',
+      "This score reflects how steady your mood intensity stayed in the selected range.\n\nHigher % means fewer sharp swings.\nLower % means mood changed more across check-ins.",
+    );
+  };
+  const showMetricGuide = () => {
+    if (metric === 'stress') {
+      Alert.alert(
+        'Stress trend guide',
+        "This chart shows your stress level trend in the selected range.\n\nStress categories:\n- 1.0 to 1.8: Very calm\n- 1.9 to 2.6: Normal\n- 2.7 to 3.5: Stressed\n- 3.6 to 5.0: Very stressed",
+      );
+      return;
+    }
+    Alert.alert(
+      'Energy trend guide',
+      "This chart shows your energy level trend in the selected range.\n\nEnergy categories:\n- 1.0 to 1.8: Very low energy\n- 1.9 to 2.6: Low energy\n- 2.7 to 3.5: Steady energy\n- 3.6 to 5.0: High energy",
+    );
+  };
+
   return (
     <View style={{ marginTop: 8 }}>
       {/* Widget A */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
-        <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700' }}>Mood stability</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700' }}>Mood stability</Text>
+          <TouchableOpacity
+            onPress={showStabilityGuide}
+            onLongPress={() => {}}
+            delayLongPress={10000}
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            style={{ padding: 2 }}
+          >
+            <CircleHelp size={13} color={UI_TEXT_MUTED} />
+          </TouchableOpacity>
+        </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Text style={{ color: AURORA.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>
             TIME RANGE
@@ -301,9 +334,20 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
         </TouchableOpacity>
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700', flex: 1, paddingRight: 8 }}>
-          {metric === 'stress' ? 'Daily stress trend' : 'Daily energy trend'}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, paddingRight: 8 }}>
+          <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: '700' }}>
+            {metric === 'stress' ? 'Daily stress trend' : 'Daily energy trend'}
+          </Text>
+          <TouchableOpacity
+            onPress={showMetricGuide}
+            onLongPress={() => {}}
+            delayLongPress={10000}
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            style={{ padding: 2 }}
+          >
+            <CircleHelp size={13} color={UI_TEXT_MUTED} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View

@@ -5,7 +5,13 @@
 
 import type { ReactElement } from "react";
 import { Fragment, useEffect, useRef } from "react";
-import { View, Text, useWindowDimensions, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  useWindowDimensions,
+  ScrollView,
+  TouchableOpacity,
+} from "react-native";
 import Svg, {
   Circle,
   Line,
@@ -756,6 +762,8 @@ interface DonutProps {
   segments: { label: string; value: number; color: string; hint?: string }[];
   centerValue: string;
   centerLabel: string;
+  selectedSegmentLabel?: string | null;
+  onSegmentPress?: (label: string) => void;
 }
 
 function DonutSvgAnimatedWrap({
@@ -785,6 +793,8 @@ export function MoodDistributionDonut({
   segments,
   centerValue,
   centerLabel,
+  selectedSegmentLabel,
+  onSegmentPress,
 }: DonutProps) {
   const reduceMotion = useReducedMotion();
   const { width: winW } = useWindowDimensions();
@@ -908,9 +918,33 @@ export function MoodDistributionDonut({
       </DonutSvgAnimatedWrap>
       <View style={{ gap: 10, marginTop: 4 }}>
         {segments.map((s) => (
-          <View
+          <TouchableOpacity
             key={s.label}
-            style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}
+            activeOpacity={0.85}
+            onPress={
+              onSegmentPress ? () => onSegmentPress(s.label) : undefined
+            }
+            style={{
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: 10,
+              borderRadius: 10,
+              paddingHorizontal: 6,
+              paddingVertical: 4,
+              borderWidth: selectedSegmentLabel === s.label ? 1 : 0,
+              borderColor:
+                selectedSegmentLabel === s.label
+                  ? "rgba(124,58,237,0.6)"
+                  : "transparent",
+              backgroundColor:
+                selectedSegmentLabel === s.label
+                  ? "rgba(124,58,237,0.12)"
+                  : "transparent",
+              opacity:
+                selectedSegmentLabel && selectedSegmentLabel !== s.label
+                  ? 0.62
+                  : 1,
+            }}
           >
             <View
               style={{
@@ -947,7 +981,7 @@ export function MoodDistributionDonut({
                 </Text>
               ) : null}
             </View>
-          </View>
+          </TouchableOpacity>
         ))}
       </View>
     </View>

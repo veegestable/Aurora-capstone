@@ -11,8 +11,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   TouchableOpacity,
-  Alert,
   AppState,
+  Modal,
+  useWindowDimensions,
   type AppStateStatus,
   type LayoutChangeEvent,
 } from "react-native";
@@ -53,7 +54,7 @@ import {
 } from "../utils/moodAggregates";
 import { blendColors } from "../utils/blendColors";
 import {
-  LineTrendChart,
+  MoodDistributionDonut,
   ETHICS_ANALYTICS_FOOTER,
 } from "./analytics/DescriptiveCharts";
 import { AnalyticsMoodWidgets } from "./analytics/AnalyticsMoodWidgets";
@@ -61,7 +62,7 @@ import { averageMoodPlainLine } from "../utils/analytics/studentInsightsCopy";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import { useCountUp } from "../hooks/useCountUp";
 import { AURORA } from "../constants/aurora-colors";
-import { getEmotionLabel } from "../utils/moodColors";
+import { getEmotionColor, getEmotionLabel } from "../utils/moodColors";
 import {
   moodCategoryFromFive,
   stressCategoryFromFive,
@@ -135,6 +136,70 @@ function normalizeEmotionBucket(
   if (e === "sadness" || e === "sad") return "sad";
   if (e === "neutral") return "neutral";
   return "";
+}
+
+type MoodChartAggregate = {
+  mood: string;
+  label: string;
+  color: string;
+  count: number;
+  totalMinutes: number;
+  averageIntensity: number;
+  intensitySamples: number;
+};
+
+type MoodEpisode = {
+  startMs: number;
+  endMs: number;
+};
+
+type GuideContent = {
+  title: string;
+  body: string;
+};
+
+function getMoodFromLog(
+  log: MoodData & { mood?: string; emotions?: Array<{ emotion?: string }> },
+): string {
+  const raw = log.mood || log.emotions?.[0]?.emotion || "neutral";
+  return String(raw).toLowerCase().trim() || "neutral";
+}
+
+function getIntensityFromLog(log: MoodData): number | null {
+  const raw = typeof log.intensity === "number" ? log.intensity : null;
+  if (raw == null || !Number.isFinite(raw)) return null;
+  return Math.max(1, Math.min(10, Math.round(raw)));
+}
+
+function getDurationMinutesFromLog(log: MoodData): number | null {
+  const raw =
+    typeof log.duration_in_minutes === "number" ? log.duration_in_minutes : null;
+  if (raw == null || !Number.isFinite(raw)) return null;
+  return Math.max(1, Math.min(1440, Math.round(raw)));
+}
+
+function localDayBounds(d: Date): { start: Date; end: Date } {
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(d);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function mergeEpisodes(episodes: MoodEpisode[]): MoodEpisode[] {
+  if (episodes.length <= 1) return episodes;
+  const sorted = [...episodes].sort((a, b) => a.startMs - b.startMs);
+  const merged: MoodEpisode[] = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    const previous = merged[merged.length - 1];
+    if (current.startMs <= previous.endMs) {
+      previous.endMs = Math.max(previous.endMs, current.endMs);
+      continue;
+    }
+    merged.push({ ...current });
+  }
+  return merged;
 }
 
 type SchoolAnalysis = {
@@ -506,6 +571,8 @@ function ChartSection({ children }: { children: React.ReactNode }) {
 }
 
 export default function Analytics() {
+  const { width: screenWidth } = useWindowDimensions();
+  const isCompactWidth = screenWidth <= 380;
   const { user } = useAuth();
   const reduceMotion = useReducedMotion();
   const [loading, setLoading] = useState(true);
@@ -528,6 +595,8 @@ export default function Analytics() {
   const [activeWeekPill, setActiveWeekPill] = useState<
     "days" | "checkins" | "streak" | null
   >(null);
+  const [activeGuide, setActiveGuide] = useState<GuideContent | null>(null);
+  const [selectedTodayMood, setSelectedTodayMood] = useState<string | null>(null);
   const [logs, setLogs] = useState<
     (MoodData & { log_date: Date; id?: string })[]
   >([]);
@@ -714,24 +783,39 @@ export default function Analytics() {
     [todayEntries],
   );
 
-  const todayLineLabels = useMemo(
-    () =>
-      Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}h`),
-    [],
-  );
-
-  const todayLineValues = useMemo(() => {
-    const byHour = new Map<number, number>();
-    for (const h of todayHourly) byHour.set(h.hour, h.avgIntensity);
-    return Array.from({ length: 24 }, (_, h) => byHour.get(h) ?? null);
+  const todayMetricBars = useMemo(() => {
+    const byHour = new Map<number, { stress: number; energy: number }>();
+    for (const h of todayHourly) {
+      byHour.set(h.hour, {
+        stress: h.avgStress,
+        energy: h.avgEnergy,
+      });
+    }
+    return Array.from({ length: 24 }, (_, hour) => {
+      const point = byHour.get(hour);
+      return {
+        hour,
+        label: `${String(hour).padStart(2, "0")}h`,
+        stress: point?.stress ?? null,
+        energy: point?.energy ?? null,
+      };
+    });
   }, [todayHourly]);
-  const todayLinePointCount = useMemo(
+  const todayStressPointCount = useMemo(
     () =>
-      todayLineValues.reduce<number>(
-        (count, value) => (value == null ? count : count + 1),
+      todayMetricBars.reduce<number>(
+        (count, value) => (value.stress == null ? count : count + 1),
         0,
       ),
-    [todayLineValues],
+    [todayMetricBars],
+  );
+  const todayEnergyPointCount = useMemo(
+    () =>
+      todayMetricBars.reduce<number>(
+        (count, value) => (value.energy == null ? count : count + 1),
+        0,
+      ),
+    [todayMetricBars],
   );
 
   const todayBlended = useMemo(() => {
@@ -843,6 +927,112 @@ export default function Analytics() {
       (l) => calendarDayKeyLocal(new Date(l.log_date)) === dk,
     );
   }, [logs]);
+  const todayMoodCharts = useMemo(() => {
+    if (todayDayLogs.length === 0) {
+      return {
+        byMood: [] as MoodChartAggregate[],
+        totalCheckIns: 0,
+      };
+    }
+
+    const now = new Date();
+    const { start, end } = localDayBounds(now);
+    const dayStartMs = start.getTime();
+    const dayEndMs = end.getTime();
+
+    const moodCount = new Map<string, number>();
+    const moodIntensity = new Map<string, { sum: number; n: number }>();
+    const moodEpisodes = new Map<string, MoodEpisode[]>();
+
+    for (const log of todayDayLogs) {
+      const moodKey = getMoodFromLog(log);
+      moodCount.set(moodKey, (moodCount.get(moodKey) ?? 0) + 1);
+
+      const intensity = getIntensityFromLog(log);
+      if (intensity != null) {
+        const prev = moodIntensity.get(moodKey) ?? { sum: 0, n: 0 };
+        moodIntensity.set(moodKey, { sum: prev.sum + intensity, n: prev.n + 1 });
+      }
+
+      const minutes = getDurationMinutesFromLog(log);
+      if (minutes != null) {
+        const endMs = new Date(log.log_date).getTime();
+        const startMs = endMs - minutes * 60 * 1000;
+        const clippedStart = Math.max(startMs, dayStartMs);
+        const clippedEnd = Math.min(endMs, dayEndMs);
+        if (clippedEnd > clippedStart) {
+          const list = moodEpisodes.get(moodKey) ?? [];
+          list.push({ startMs: clippedStart, endMs: clippedEnd });
+          moodEpisodes.set(moodKey, list);
+        }
+      }
+    }
+
+    const moodKeys = Array.from(
+      new Set([...moodCount.keys(), ...moodIntensity.keys(), ...moodEpisodes.keys()]),
+    );
+    const byMood = moodKeys
+      .map((mood) => {
+        const episodes = mergeEpisodes(moodEpisodes.get(mood) ?? []);
+        const totalMinutes = episodes.reduce(
+          (sum, e) => sum + Math.max(0, Math.round((e.endMs - e.startMs) / 60000)),
+          0,
+        );
+        const intensityStats = moodIntensity.get(mood) ?? { sum: 0, n: 0 };
+        const averageIntensity =
+          intensityStats.n > 0 ? intensityStats.sum / intensityStats.n : 0;
+        return {
+          mood,
+          label: getEmotionLabel(mood),
+          color: getEmotionColor(mood),
+          count: moodCount.get(mood) ?? 0,
+          totalMinutes,
+          averageIntensity,
+          intensitySamples: intensityStats.n,
+        };
+      })
+      .sort((a, b) => b.count - a.count || b.totalMinutes - a.totalMinutes);
+
+    return {
+      byMood,
+      totalCheckIns: todayDayLogs.length,
+    };
+  }, [todayDayLogs]);
+  const todayFrequencySegments = useMemo(
+    () =>
+      todayMoodCharts.byMood
+        .filter((x) => x.count > 0)
+        .map((x) => ({
+          label: x.label,
+          mood: x.mood,
+          value: x.count,
+          color: x.color,
+          hint: `${x.count} check-in${x.count === 1 ? "" : "s"}`,
+        })),
+    [todayMoodCharts],
+  );
+  const todayDurationBars = useMemo(
+    () =>
+      [...todayMoodCharts.byMood]
+        .filter((x) => x.totalMinutes > 0)
+        .sort((a, b) => b.totalMinutes - a.totalMinutes || b.count - a.count),
+    [todayMoodCharts],
+  );
+  const todayIntensityBars = useMemo(
+    () =>
+      [...todayMoodCharts.byMood]
+        .filter((x) => x.intensitySamples > 0)
+        .sort(
+          (a, b) =>
+            b.averageIntensity - a.averageIntensity ||
+            b.intensitySamples - a.intensitySamples,
+        ),
+    [todayMoodCharts],
+  );
+  const selectedMoodSummary = useMemo(() => {
+    if (!selectedTodayMood) return null;
+    return todayMoodCharts.byMood.find((x) => x.mood === selectedTodayMood) ?? null;
+  }, [selectedTodayMood, todayMoodCharts]);
   const todaySchoolAnalysis = useMemo(() => {
     return analyzeSchoolLogs(todayDayLogs as any);
   }, [todayDayLogs]);
@@ -994,10 +1184,42 @@ export default function Analytics() {
     return weekMoodMeta.color;
   }, [weekWellnessStats.emotionLabel, weekMoodMeta.color]);
 
-  const showStabilityInfo = () => {
-    Alert.alert(
+  const openGuide = (title: string, body: string) => {
+    setActiveGuide({ title, body });
+  };
+  const showStabilityInfo = () =>
+    openGuide(
       "Today mood stability",
       "This score reflects how steady your mood intensity is across today's check-ins. A higher percentage means your mood pattern was more consistent.",
+    );
+  const showMoodFrequencyGuide = () => {
+    openGuide(
+      "Mood frequency (today)",
+      "This pie chart shows how many check-ins each mood has today.\n\nBigger slice = higher count for that mood.\n\nIt is based on check-in count, not duration.",
+    );
+  };
+  const showMoodDurationGuide = () => {
+    openGuide(
+      "Mood duration (retrospective)",
+      "Each check-in duration is treated as look-back time from when you logged.\n\nExample: logging 10 minutes at 9:00 means 8:50 to 9:00.\n\nOverlapping time blocks of the same mood are merged so minutes are not double-counted.",
+    );
+  };
+  const showMoodIntensityGuide = () => {
+    openGuide(
+      "Average intensity by mood",
+      "This compares average intensity (1-10) per mood for today.\n\nIt uses simple average from check-ins of that mood.\n\nn means sample size (how many entries were used for that mood).",
+    );
+  };
+  const showTodayStressTrendGuide = () => {
+    openGuide(
+      "Today stress trend",
+      "This chart shows stress per hourly slot today.\n\nY-axis: 1 (low) to 5 (high).\nX-axis: hour slot index.\n\nStress categories:\n- 1.0 to 1.8: Very calm\n- 1.9 to 2.6: Normal\n- 2.7 to 3.5: Stressed\n- 3.6 to 5.0: Very stressed",
+    );
+  };
+  const showTodayEnergyTrendGuide = () => {
+    openGuide(
+      "Today energy trend",
+      "This chart shows energy per hourly slot today.\n\nY-axis: 1 (low) to 5 (high).\nX-axis: hour slot index.\n\nEnergy categories:\n- 1.0 to 1.8: Very low energy\n- 1.9 to 2.6: Low energy\n- 2.7 to 3.5: Steady energy\n- 3.6 to 5.0: High energy",
     );
   };
   const weekBestWorstInsight = useMemo(() => {
@@ -1140,17 +1362,18 @@ export default function Analytics() {
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ paddingBottom: 72 }}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={AURORA.blue}
-        />
-      }
-    >
+    <>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 72 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={AURORA.blue}
+          />
+        }
+      >
       {totalCheckIns === 0 ? (
         reduceMotion ? (
           <View
@@ -1412,6 +1635,8 @@ export default function Analytics() {
                       </Text>
                       <TouchableOpacity
                         onPress={showStabilityInfo}
+                        onLongPress={() => {}}
+                        delayLongPress={10000}
                         hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                         style={{ padding: 2 }}
                       >
@@ -1735,36 +1960,693 @@ export default function Analytics() {
                   </View>
                 </Animatable.View>
                 <Animatable.View {...analyticsPanelEnter(reduceMotion, 340)}>
-                  {todayLinePointCount >= 2 ? (
-                    <View style={{ marginBottom: 12 }}>
+                  <View
+                    style={{
+                      backgroundColor: AURORA.cardAlt,
+                      borderRadius: 14,
+                      padding: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 10,
+                      }}
+                    >
                       <Text
                         style={{
                           color: AURORA.textMuted,
                           fontSize: 10,
                           fontWeight: "700",
-                          marginBottom: 8,
                         }}
                       >
-                        HOURLY TREND
+                        MOOD FREQUENCY (TODAY)
                       </Text>
-                      <LineTrendChart
-                        title="Mood spikes in 24 hours"
-                        caption="Higher points show hours where your mood intensity peaked."
-                        values={todayLineValues}
-                        labels={todayLineLabels}
-                        yMin={1}
-                        yMax={10}
-                        stroke={todayBlended}
-                        friendlyAxis={{
-                          high: "High",
-                          mid: "Mid",
-                          low: "Low",
+                      <TouchableOpacity
+                        onPress={showMoodFrequencyGuide}
+                        onLongPress={() => {}}
+                        delayLongPress={10000}
+                        style={{ padding: 4, marginLeft: "auto" }}
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                      >
+                        <CircleHelp size={14} color={AURORA.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                    <MoodDistributionDonut
+                      title="Check-ins by mood"
+                      caption="Largest slice means the mood you logged most today."
+                      segments={todayFrequencySegments.map((x) => ({
+                        label: x.label,
+                        value: x.value,
+                        color: x.color,
+                        hint: x.hint,
+                      }))}
+                      centerValue={String(todayMoodCharts.totalCheckIns)}
+                      centerLabel={
+                        selectedMoodSummary
+                          ? `${selectedMoodSummary.label} selected`
+                          : "check-ins"
+                      }
+                      selectedSegmentLabel={selectedMoodSummary?.label ?? null}
+                      onSegmentPress={(label) => {
+                        const moodKey =
+                          todayFrequencySegments.find((x) => x.label === label)
+                            ?.mood ?? null;
+                        if (!moodKey) return;
+                        setSelectedTodayMood((prev) =>
+                          prev === moodKey ? null : moodKey,
+                        );
+                      }}
+                    />
+                    {selectedMoodSummary ? (
+                      <TouchableOpacity
+                        onPress={() => setSelectedTodayMood(null)}
+                        style={{
+                          marginTop: 8,
+                          alignSelf: "flex-start",
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: "rgba(124,58,237,0.45)",
+                          backgroundColor: "rgba(124,58,237,0.16)",
                         }}
-                        chartHeight={180}
-                        xSlot={30}
-                        labelEvery={3}
-                        zoomable
-                      />
+                      >
+                        <Text
+                          style={{
+                            color: AURORA.textPrimary,
+                            fontSize: 11,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Clear highlight
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </Animatable.View>
+                <Animatable.View {...analyticsPanelEnter(reduceMotion, 390)}>
+                  <View
+                    style={{
+                      backgroundColor: AURORA.cardAlt,
+                      borderRadius: 14,
+                      padding: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: AURORA.textMuted,
+                          fontSize: 10,
+                          fontWeight: "700",
+                        }}
+                      >
+                        MOOD DURATION (TODAY)
+                      </Text>
+                      <TouchableOpacity
+                        onPress={showMoodDurationGuide}
+                        onLongPress={() => {}}
+                        delayLongPress={10000}
+                        style={{ padding: 4, marginLeft: "auto" }}
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                      >
+                        <CircleHelp size={14} color={AURORA.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text
+                      style={{
+                        color: AURORA.textSec,
+                        fontSize: isCompactWidth ? 11 : 12,
+                        marginBottom: 10,
+                      }}
+                    >
+                      Total merged retrospective minutes per mood.
+                    </Text>
+                    {todayDurationBars.length === 0 ? (
+                      <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
+                        No duration entries yet for today.
+                      </Text>
+                    ) : (
+                      <View style={{ gap: 10 }}>
+                        {todayDurationBars.map((item) => {
+                          const maxMinutes = Math.max(
+                            1,
+                            todayDurationBars[0]?.totalMinutes ?? 1,
+                          );
+                          const widthPct = Math.max(
+                            10,
+                            Math.round((item.totalMinutes / maxMinutes) * 100),
+                          );
+                          return (
+                            <View key={`today-duration-${item.mood}`}>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  marginBottom: 4,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: AURORA.textPrimary,
+                                    fontSize: 12,
+                                    fontWeight: "700",
+                                  }}
+                                >
+                                  {item.label}
+                                </Text>
+                                <Text
+                                  style={{
+                                    color: AURORA.textMuted,
+                                    fontSize: 11,
+                                    fontWeight: "700",
+                                  }}
+                                >
+                                  {item.totalMinutes} min
+                                </Text>
+                              </View>
+                              <View
+                                style={{
+                                  opacity:
+                                    selectedTodayMood &&
+                                    selectedTodayMood !== item.mood
+                                      ? 0.38
+                                      : 1,
+                                  height: 8,
+                                  borderRadius: 999,
+                                  backgroundColor: "rgba(255,255,255,0.10)",
+                                }}
+                              >
+                                <View
+                                  style={{
+                                    width: `${widthPct}%`,
+                                    height: 8,
+                                    borderRadius: 999,
+                                    backgroundColor: item.color,
+                                  }}
+                                />
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                </Animatable.View>
+                <Animatable.View {...analyticsPanelEnter(reduceMotion, 440)}>
+                  <View
+                    style={{
+                      backgroundColor: AURORA.cardAlt,
+                      borderRadius: 14,
+                      padding: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: AURORA.textMuted,
+                          fontSize: 10,
+                          fontWeight: "700",
+                        }}
+                      >
+                        AVERAGE INTENSITY BY MOOD
+                      </Text>
+                      <TouchableOpacity
+                        onPress={showMoodIntensityGuide}
+                        onLongPress={() => {}}
+                        delayLongPress={10000}
+                        style={{ padding: 4, marginLeft: "auto" }}
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                      >
+                        <CircleHelp size={14} color={AURORA.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text
+                      style={{
+                        color: AURORA.textSec,
+                        fontSize: isCompactWidth ? 11 : 12,
+                        marginBottom: 10,
+                      }}
+                    >
+                      Compare which moods had higher or lower average intensity
+                      today.
+                    </Text>
+                    {todayIntensityBars.length === 0 ? (
+                      <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
+                        No intensity entries yet for today.
+                      </Text>
+                    ) : (
+                      <View style={{ gap: 10 }}>
+                        {todayIntensityBars.map((item) => {
+                          const widthPct = Math.max(
+                            10,
+                            Math.round((item.averageIntensity / 10) * 100),
+                          );
+                          return (
+                            <View key={`today-intensity-${item.mood}`}>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  marginBottom: 4,
+                                  opacity:
+                                    selectedTodayMood &&
+                                    selectedTodayMood !== item.mood
+                                      ? 0.38
+                                      : 1,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: AURORA.textPrimary,
+                                    fontSize: 12,
+                                    fontWeight: "700",
+                                  }}
+                                >
+                                  {item.label}
+                                </Text>
+                                <View
+                                  style={{
+                                    marginLeft: 8,
+                                    paddingHorizontal: 7,
+                                    paddingVertical: 2,
+                                    borderRadius: 999,
+                                    borderWidth: 1,
+                                    borderColor: "rgba(255,255,255,0.22)",
+                                    backgroundColor: "rgba(255,255,255,0.08)",
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      color: AURORA.textMuted,
+                                      fontSize: 10,
+                                      fontWeight: "700",
+                                    }}
+                                  >
+                                    n={item.intensitySamples}
+                                  </Text>
+                                </View>
+                                {item.intensitySamples < 3 ? (
+                                  <View
+                                    style={{
+                                      marginLeft: 6,
+                                      paddingHorizontal: 7,
+                                      paddingVertical: 2,
+                                      borderRadius: 999,
+                                      borderWidth: 1,
+                                      borderColor: "rgba(250,204,21,0.45)",
+                                      backgroundColor: "rgba(250,204,21,0.14)",
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        color: AURORA.amber,
+                                        fontSize: 10,
+                                        fontWeight: "700",
+                                      }}
+                                    >
+                                      Low confidence
+                                    </Text>
+                                  </View>
+                                ) : null}
+                                <Text
+                                  style={{
+                                    color: AURORA.textMuted,
+                                    fontSize: 11,
+                                    fontWeight: "700",
+                                    marginLeft: "auto",
+                                  }}
+                                >
+                                  {item.averageIntensity.toFixed(1)} / 10
+                                </Text>
+                              </View>
+                              <View
+                                style={{
+                                  opacity:
+                                    selectedTodayMood &&
+                                    selectedTodayMood !== item.mood
+                                      ? 0.38
+                                      : 1,
+                                  height: 8,
+                                  borderRadius: 999,
+                                  backgroundColor: "rgba(255,255,255,0.10)",
+                                }}
+                              >
+                                <View
+                                  style={{
+                                    width: `${widthPct}%`,
+                                    height: 8,
+                                    borderRadius: 999,
+                                    backgroundColor: item.color,
+                                  }}
+                                />
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                </Animatable.View>
+                <Animatable.View {...analyticsPanelEnter(reduceMotion, 490)}>
+                  {todayStressPointCount >= 2 || todayEnergyPointCount >= 2 ? (
+                    <View style={{ marginBottom: 12 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginBottom: 10,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: AURORA.textMuted,
+                            fontSize: 10,
+                            fontWeight: "700",
+                          }}
+                        >
+                          STRESS & ENERGY TREND (TODAY)
+                        </Text>
+                      </View>
+                      {todayStressPointCount >= 2 ? (
+                        <View style={{ marginBottom: 12 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              marginBottom: 8,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: AURORA.textMuted,
+                                fontSize: 10,
+                                fontWeight: "700",
+                              }}
+                            >
+                              STRESS TREND (TODAY)
+                            </Text>
+                            <TouchableOpacity
+                              onPress={showTodayStressTrendGuide}
+                              onLongPress={() => {}}
+                              delayLongPress={10000}
+                              style={{ padding: 4, marginLeft: 6 }}
+                              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                            >
+                              <CircleHelp size={13} color={AURORA.textMuted} />
+                            </TouchableOpacity>
+                          </View>
+                          <Text
+                            style={{
+                              color: AURORA.textSec,
+                              fontSize: 12,
+                              marginBottom: 8,
+                            }}
+                          >
+                            Higher bars show hours where stress was higher.
+                          </Text>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                            <View>
+                              <View style={{ flexDirection: "row", gap: 8 }}>
+                                <View
+                                  style={{
+                                    height: 120,
+                                    justifyContent: "space-between",
+                                    alignItems: "flex-end",
+                                    paddingTop: 2,
+                                    paddingBottom: 2,
+                                  }}
+                                >
+                                  {[5, 4, 3, 2, 1].map((tick) => (
+                                    <Text
+                                      key={`stress-y-${tick}`}
+                                      style={{
+                                        color: AURORA.textMuted,
+                                        fontSize: 9,
+                                        width: 12,
+                                        textAlign: "right",
+                                      }}
+                                    >
+                                      {tick}
+                                    </Text>
+                                  ))}
+                                </View>
+                                <View>
+                                  {[1, 2, 3, 4, 5].map((tick) => (
+                                    <View
+                                      key={`stress-grid-${tick}`}
+                                      style={{
+                                        position: "absolute",
+                                        left: 0,
+                                        right: 0,
+                                        top: ((5 - tick) / 4) * 112 + 4,
+                                        borderTopWidth: 1,
+                                        borderTopColor: "rgba(255,255,255,0.09)",
+                                      }}
+                                    />
+                                  ))}
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "flex-end",
+                                      height: 120,
+                                      gap: 4,
+                                    }}
+                                  >
+                                    {todayMetricBars.map((item) => {
+                                      const hasData = item.stress != null;
+                                      const barHeight = hasData
+                                        ? Math.max(8, (item.stress! / 5) * 104)
+                                        : 8;
+                                      return (
+                                        <View
+                                          key={`stress-hour-${item.hour}`}
+                                          style={{
+                                            width: 14,
+                                            height: 120,
+                                            justifyContent: "flex-end",
+                                          }}
+                                        >
+                                          <View
+                                            style={{
+                                              width: 14,
+                                              height: barHeight,
+                                              borderRadius: 4,
+                                              backgroundColor: hasData
+                                                ? AURORA.moodAngry
+                                                : "rgba(148,163,184,0.35)",
+                                            }}
+                                          />
+                                        </View>
+                                      );
+                                    })}
+                                  </View>
+                                </View>
+                              </View>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  gap: 4,
+                                  marginTop: 6,
+                                  marginLeft: 20,
+                                }}
+                              >
+                                {todayMetricBars.map((item, index) => (
+                                  <Text
+                                    key={`stress-hour-label-${item.hour}`}
+                                    style={{
+                                      width: 14,
+                                      color: AURORA.textMuted,
+                                      fontSize: 8,
+                                      textAlign: "center",
+                                    }}
+                                  >
+                                    {index % 2 === 0 ? String(index + 1) : ""}
+                                  </Text>
+                                ))}
+                              </View>
+                              <Text
+                                style={{
+                                  color: AURORA.textMuted,
+                                  fontSize: 10,
+                                  marginTop: 6,
+                                  marginLeft: 20,
+                                }}
+                              >
+                                Unit: hour
+                              </Text>
+                            </View>
+                          </ScrollView>
+                        </View>
+                      ) : null}
+                      {todayEnergyPointCount >= 2 ? (
+                        <View>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              marginBottom: 8,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: AURORA.textMuted,
+                                fontSize: 10,
+                                fontWeight: "700",
+                              }}
+                            >
+                              ENERGY TREND (TODAY)
+                            </Text>
+                            <TouchableOpacity
+                              onPress={showTodayEnergyTrendGuide}
+                              onLongPress={() => {}}
+                              delayLongPress={10000}
+                              style={{ padding: 4, marginLeft: 6 }}
+                              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                            >
+                              <CircleHelp size={13} color={AURORA.textMuted} />
+                            </TouchableOpacity>
+                          </View>
+                          <Text
+                            style={{
+                              color: AURORA.textSec,
+                              fontSize: 12,
+                              marginBottom: 8,
+                            }}
+                          >
+                            Higher bars show hours where energy felt stronger.
+                          </Text>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                            <View>
+                              <View style={{ flexDirection: "row", gap: 8 }}>
+                                <View
+                                  style={{
+                                    height: 120,
+                                    justifyContent: "space-between",
+                                    alignItems: "flex-end",
+                                    paddingTop: 2,
+                                    paddingBottom: 2,
+                                  }}
+                                >
+                                  {[5, 4, 3, 2, 1].map((tick) => (
+                                    <Text
+                                      key={`energy-y-${tick}`}
+                                      style={{
+                                        color: AURORA.textMuted,
+                                        fontSize: 9,
+                                        width: 12,
+                                        textAlign: "right",
+                                      }}
+                                    >
+                                      {tick}
+                                    </Text>
+                                  ))}
+                                </View>
+                                <View>
+                                  {[1, 2, 3, 4, 5].map((tick) => (
+                                    <View
+                                      key={`energy-grid-${tick}`}
+                                      style={{
+                                        position: "absolute",
+                                        left: 0,
+                                        right: 0,
+                                        top: ((5 - tick) / 4) * 112 + 4,
+                                        borderTopWidth: 1,
+                                        borderTopColor: "rgba(255,255,255,0.09)",
+                                      }}
+                                    />
+                                  ))}
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "flex-end",
+                                      height: 120,
+                                      gap: 4,
+                                    }}
+                                  >
+                                    {todayMetricBars.map((item) => {
+                                      const hasData = item.energy != null;
+                                      const barHeight = hasData
+                                        ? Math.max(8, (item.energy! / 5) * 104)
+                                        : 8;
+                                      return (
+                                        <View
+                                          key={`energy-hour-${item.hour}`}
+                                          style={{
+                                            width: 14,
+                                            height: 120,
+                                            justifyContent: "flex-end",
+                                          }}
+                                        >
+                                          <View
+                                            style={{
+                                              width: 14,
+                                              height: barHeight,
+                                              borderRadius: 4,
+                                              backgroundColor: hasData
+                                                ? AURORA.moodHappy
+                                                : "rgba(148,163,184,0.35)",
+                                            }}
+                                          />
+                                        </View>
+                                      );
+                                    })}
+                                  </View>
+                                </View>
+                              </View>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  gap: 4,
+                                  marginTop: 6,
+                                  marginLeft: 20,
+                                }}
+                              >
+                                {todayMetricBars.map((item, index) => (
+                                  <Text
+                                    key={`energy-hour-label-${item.hour}`}
+                                    style={{
+                                      width: 14,
+                                      color: AURORA.textMuted,
+                                      fontSize: 8,
+                                      textAlign: "center",
+                                    }}
+                                  >
+                                    {index % 2 === 0 ? String(index + 1) : ""}
+                                  </Text>
+                                ))}
+                              </View>
+                              <Text
+                                style={{
+                                  color: AURORA.textMuted,
+                                  fontSize: 10,
+                                  marginTop: 6,
+                                  marginLeft: 20,
+                                }}
+                              >
+                                Unit: hour
+                              </Text>
+                            </View>
+                          </ScrollView>
+                        </View>
+                      ) : null}
                     </View>
                   ) : (
                     <View
@@ -1782,7 +2664,7 @@ export default function Analytics() {
                           fontWeight: "700",
                         }}
                       >
-                        HOURLY TREND
+                        STRESS & ENERGY TREND
                       </Text>
                       <Text
                         style={{
@@ -1792,8 +2674,8 @@ export default function Analytics() {
                           lineHeight: 18,
                         }}
                       >
-                        Log at least 2 check-ins today to unlock the hourly
-                        trend graph.
+                        Log at least 2 check-ins today to unlock your stress and
+                        energy trend graphs.
                       </Text>
                     </View>
                   )}
@@ -1804,7 +2686,7 @@ export default function Analytics() {
         </View>
       ) : null}
 
-      {analyticsView === "week" ? (
+        {analyticsView === "week" ? (
         <View key={`week-open-${weekPanelAnimKey}`}>
           <Animatable.View {...analyticsPanelEnter(reduceMotion, 0)}>
             <Text
@@ -2344,7 +3226,79 @@ export default function Analytics() {
             )}
           </View>
         </View>
-      ) : null}
-    </ScrollView>
+        ) : null}
+      </ScrollView>
+      <Modal
+        transparent
+        animationType="fade"
+        visible={!!activeGuide}
+        onRequestClose={() => setActiveGuide(null)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(3,8,24,0.55)",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <View
+            style={{
+              width: "100%",
+              maxWidth: 420,
+              backgroundColor: AURORA.card,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: AURORA.border,
+              padding: 16,
+            }}
+          >
+            <Text
+              style={{
+                color: AURORA.textPrimary,
+                fontSize: 16,
+                fontWeight: "800",
+                marginBottom: 10,
+              }}
+            >
+              {activeGuide?.title}
+            </Text>
+            <Text
+              style={{
+                color: AURORA.textSec,
+                fontSize: 13,
+                lineHeight: 19,
+              }}
+            >
+              {activeGuide?.body}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setActiveGuide(null)}
+              style={{
+                alignSelf: "flex-end",
+                marginTop: 14,
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: 999,
+                backgroundColor: "rgba(124,58,237,0.18)",
+                borderWidth: 1,
+                borderColor: "rgba(124,58,237,0.45)",
+              }}
+            >
+              <Text
+                style={{
+                  color: AURORA.textPrimary,
+                  fontSize: 12,
+                  fontWeight: "700",
+                }}
+              >
+                Got it
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }

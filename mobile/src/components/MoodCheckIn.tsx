@@ -936,6 +936,13 @@ export function MoodCheckIn({
     );
   };
 
+  const showIntensityGuide = () => {
+    Alert.alert(
+      "Intensity scale (1-10)",
+      "This measures how strongly you feel the selected emotion right now.\n\n1 means very mild or barely noticeable.\n10 means extremely strong and hard to ignore.\n\nUse the number that best matches your current emotional intensity, not whether the emotion is good or bad.",
+    );
+  };
+
   const getDurationCategoryLabel = (minutes: number) => {
     if (minutes < 15) return "Just a moment";
     if (minutes <= 60) return "About an hour";
@@ -1968,6 +1975,13 @@ export function MoodCheckIn({
                         >
                           Intensity (1-10)
                         </Text>
+                        <TouchableOpacity
+                          onPress={showIntensityGuide}
+                          style={{ padding: 4, marginLeft: "auto" }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <CircleHelp size={16} color={AURORA.textMuted} />
+                        </TouchableOpacity>
                       </View>
                       <SimpleSlider
                         value={(intensityTen - 1) / 9}
