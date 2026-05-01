@@ -439,19 +439,22 @@ export async function setDailyContext(
 ): Promise<void> {
   const ref = doc(dailyDayCollection(userId), dayKey);
   const createdAt = data.createdAt ?? Timestamp.now();
-  await setDoc(ref, {
+  const payload: Record<string, unknown> = {
     exams: data.exams,
     quizzes: data.quizzes,
     deadlines: data.deadlines,
     assignments: data.assignments,
     notes: data.notes ?? "",
-    sleepQuality: data.sleepQuality,
     bathTaken: data.bathTaken ?? false,
     mealStatusById: data.mealStatusById ?? {},
     zenSessionsCompleted: data.zenSessionsCompleted ?? 0,
     zenMinutesCompleted: data.zenMinutesCompleted ?? 0,
     createdAt,
-  });
+  };
+  if (data.sleepQuality != null) {
+    payload.sleepQuality = data.sleepQuality;
+  }
+  await setDoc(ref, payload);
 }
 
 export async function getDailyContextsInRange(
