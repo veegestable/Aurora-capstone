@@ -5,7 +5,8 @@ import { auditLogsService } from '../../services/audit-logs'
 import { sessionsService } from '../../services/sessions'
 import { LetterAvatar } from '../LetterAvatar'
 import { ChatBubble } from './ChatBubble'
-import { ArrowLeft, Send, Info } from 'lucide-react'
+import { SendSessionInviteModal } from '../counselor/SendSessionInviteModal'
+import { Calendar, ArrowLeft, Send, Info } from 'lucide-react'
 import type { CounselorContact, StudentContact, ChatMessage } from '../../types/message.types'
 import { usePeerPresence } from '../../hooks/usePeerPresence'
 
@@ -20,6 +21,7 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingMessages, setIsLoadingMessages] = useState(true)
   const [isSending, setIsSending] = useState(false)
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const peerOnline = usePeerPresence(contact.id)
   const isOnline = peerOnline || contact.isOnline
@@ -115,17 +117,44 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
       )
 
       // 2. Send the automated "Accepted" message to the chat
-      await messagesService.sendTextMessage(
+      const autoMsgId = await messagesService.sendTextMessage(
         contact.conversationId, 
         user.id, 
         `__AUTO_ACCEPTED__Just accepted your request`
       )
 
-      setTimeout(() => {
-        scrollRef.current?.scrollTo({
-          top: scrollRef.current.scrollHeight,
-          behavior: 'smooth'
+      // 3. Update Local React State so the Green Banner appears immediately!
+      setMessages((prev) => {
+        // Find and update the session invite card
+        const updatedMessages = prev.map(m => {
+          if (m.type === 'session' && m.session.id === sessionId) {
+            return {
+              ...m,
+              session: {
+                ...m.session,
+                sessionStatus: 'confirmed',
+                agreedSlot: slot
+              }
+            }
+          }
+          return m
         })
+
+        // Append the new auto-reply message
+        return [
+          ...updatedMessages,
+          {
+            id: autoMsgId || Date.now().toString(),
+            senderId: 'me',
+            type: 'text',
+            text: '__AUTO_ACCEPTED__Just accepted your request',
+            time: 'Just now'
+          }
+        ]
+      })
+
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
       }, 100)
     } catch (e: any) {
       console.error('Failed to confirm session time:', e)
@@ -215,6 +244,16 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
       {/* Input Bar */}
       <div className="shrink-0 border-t border-aurora-gray-200 px-4 py-3">
         <div className="flex items-center gap-3">
+          {user?.role === 'counselor' && (
+            <button
+              onClick={() => setIsInviteModalOpen(true)}
+              className="w-10 h-10 rounded-full bg-aurora-gray-100 flex items-center justify-center shrink-0 hover:bg-aurora-gray-200 transition-colors cursor-pointer"
+              title="Send Session Invite"
+            >
+              <Calendar className="w-5 h-5 text-aurora-secondary-blue" />
+            </button>
+          )}
+
           <input
             type="text"
             value={message}
@@ -237,6 +276,25 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
           Messages are encrypted and shared only with your counselor.
         </p>
       </div>
+
+      {user?.role === 'counselor' && (
+        <SendSessionInviteModal
+          visible={isInviteModalOpen}
+          student={{
+            id: contact.id,
+            name: contact.name,
+            avatar: contact.avatar
+          }}
+          counselorId={user.id}
+          onClose={() => setIsInviteModalOpen(false)}
+          onSuccess={() => setTimeout(() => {
+            scrollRef.current?.scrollTo({
+              top: scrollRef.current.scrollHeight,
+              behavior: 'smooth'
+            })
+          }, 500)}
+        />
+      )}
     </div>
   )
 }

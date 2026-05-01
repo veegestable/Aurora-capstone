@@ -183,7 +183,7 @@ export function ChatBubble({
                     className={`w-full mt-1.5 rounded-xl flex items-center justify-center gap-2 py-2.5 transition-all
                       ${isConfirming || isMe 
                         ? 'bg-aurora-secondary-blue/15 border border-aurora-secondary-blue/40 opacity-60 cursor-not-allowed' 
-                        : 'bg-aurora-secondary-blue/20 border border-aurora-secondary-blue hover:bg-aurora-secondary-blue/30 active:scale-[0.98]'
+                        : 'bg-aurora-secondary-blue/20 border border-aurora-secondary-blue cursor-pointer hover:bg-aurora-secondary-blue/30 active:scale-[0.98]'
                       }`}
                   >
                     <div className="w-6 h-6 rounded-full bg-aurora-secondary-blue/20 flex items-center justify-center shrink-0">

@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, Timestamp, collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
 
 export async function studentConfirmFinalSlot(
@@ -23,7 +23,7 @@ export async function studentConfirmFinalSlot(
   // Verify Authorization
   let authorized = data.studentId != null && String(data.studentId) === uid
 
-  if (!authorized && data.studentId == null && opts?.conversationId && opts?.conversationId) {
+  if (!authorized && data.studentId == null && opts?.conversationId && opts?.counselorId) {
     const convSnap = await getDoc(doc(db, 'conversations', opts.conversationId))
     const conv = convSnap.data()
     
@@ -42,7 +42,31 @@ export async function studentConfirmFinalSlot(
     updatedAt: Timestamp.now()
   }
 
-  if (data.studentId  == null) patch.studentId = uid
+  if (data.studentId == null) patch.studentId = uid
 
   await updateDoc(sessionRef, patch as any)
+
+  // NEW: Update the actual chat message so ChatBubble.tsx shows the Green Banner!
+  if (opts?.conversationId) {
+    const messagesRef = collection(db, 'conversations', opts.conversationId, 'messages')
+    const q = query(messagesRef, where('sessionId', '==', sessionId))
+    const snapshot = await getDocs(q)
+    
+    const updates = snapshot.docs.map(messageDoc => {
+      const msgData = messageDoc.data()
+      if (msgData.type === 'session_invite' || msgData.type === 'session_request') {
+        const currentSessionData = msgData.sessionData || {}
+        return updateDoc(messageDoc.ref, {
+          sessionData: {
+            ...currentSessionData,
+            sessionStatus: 'confirmed', // This triggers the visual queue in ChatBubble
+            agreedSlot: slot            // This populates the text in the visual queue
+          }
+        })
+      }
+      return Promise.resolve()
+    })
+
+    await Promise.all(updates)
+  }
 }
