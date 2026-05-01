@@ -1994,9 +1994,28 @@ export default function Analytics() {
                         <CircleHelp size={14} color={AURORA.textMuted} />
                       </TouchableOpacity>
                     </View>
+                    <Text
+                      style={{
+                        color: AURORA.textPrimary,
+                        fontSize: 16,
+                        fontWeight: "700",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Mood Frequency (Pie Chart)
+                    </Text>
+                    <Text
+                      style={{
+                        color: AURORA.textSec,
+                        fontSize: 12,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Share of today&apos;s check-ins by mood.
+                    </Text>
                     <MoodDistributionDonut
-                      title="Check-ins by mood"
-                      caption="Largest slice means the mood you logged most today."
+                      title=""
+                      caption=""
                       segments={todayFrequencySegments.map((x) => ({
                         label: x.label,
                         value: x.value,
@@ -2082,6 +2101,16 @@ export default function Analytics() {
                         <CircleHelp size={14} color={AURORA.textMuted} />
                       </TouchableOpacity>
                     </View>
+                    <Text
+                      style={{
+                        color: AURORA.textPrimary,
+                        fontSize: 16,
+                        fontWeight: "700",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Mood Duration (Bar Chart)
+                    </Text>
                     <Text
                       style={{
                         color: AURORA.textSec,
@@ -2198,6 +2227,16 @@ export default function Analytics() {
                         <CircleHelp size={14} color={AURORA.textMuted} />
                       </TouchableOpacity>
                     </View>
+                    <Text
+                      style={{
+                        color: AURORA.textPrimary,
+                        fontSize: 16,
+                        fontWeight: "700",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Average Intensity (Bar Chart)
+                    </Text>
                     <Text
                       style={{
                         color: AURORA.textSec,
@@ -2345,6 +2384,25 @@ export default function Analytics() {
                           STRESS & ENERGY TREND (TODAY)
                         </Text>
                       </View>
+                      <Text
+                        style={{
+                          color: AURORA.textPrimary,
+                          fontSize: 16,
+                          fontWeight: "700",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Stress & Energy by Hour (Bar Charts)
+                      </Text>
+                      <Text
+                        style={{
+                          color: AURORA.textSec,
+                          fontSize: 12,
+                          marginBottom: 8,
+                        }}
+                      >
+                        Each bar compares average level in an hourly slot today.
+                      </Text>
                       {todayStressPointCount >= 2 ? (
                         <View style={{ marginBottom: 12 }}>
                           <View
