@@ -119,7 +119,7 @@ export default function AdminCounselors() {
           {filtered.map(c => (
             <div key={c.id} className="card-aurora p-4">
               <div className="flex items-center gap-3">
-                <LetterAvatar name={c.full_name || 'Unknown'} size={44} />
+                <LetterAvatar name={c.full_name || 'Unknown'} size={44} avatarUrl={c.avatar_url || undefined} />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-aurora-primary-dark text-sm truncate">
                     {c.full_name || 'Unknown'}

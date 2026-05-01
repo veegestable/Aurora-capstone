@@ -40,15 +40,7 @@ export default function StudentProfile() {
       <div className="flex flex-col items-center">
         <div className="relative mb-3">
           <div className="ring-[3px] ring-aurora-secondary-blue rounded-full">
-            {user?.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt={displayName}
-                className="w-20 h-20 rounded-full object-cover"
-              />
-            ) : (
-              <LetterAvatar name={displayName} size={80} />
-            )}
+            <LetterAvatar name={displayName} size={80} avatarUrl={user?.avatar_url ?? undefined} />
           </div>
           <button
             onClick={() => setShowEditProfile(true)}

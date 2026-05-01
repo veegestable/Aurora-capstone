@@ -5,13 +5,13 @@ import { ContactRow } from '../../components/messages/ContactRow'
 import { DirectMessageView } from '../../components/messages/DirectMessageView'
 import type { CounselorContact } from '../../types/message.types'
 
-type TabType = 'Counselors' | 'Peer Support' | 'Archive'
+type TabType = 'All messages' | 'Unread'
 
-const TABS: TabType[] = ['Counselors', 'Peer Support', 'Archive']
+const TABS: TabType[] = ['All messages', 'Unread']
 
 export default function Messages() {
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<TabType>('Counselors')
+  const [activeTab, setActiveTab] = useState<TabType>('All messages')
   const [selectedContact, setSelectedContact] = useState<CounselorContact | null>(null)
   const [contacts, setContacts] = useState<CounselorContact[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -57,26 +57,38 @@ export default function Messages() {
     )
   }
 
+  // Filter contacts
+  const filtered =
+    activeTab === 'All messages'
+      ? contacts
+      : contacts.filter((c) => c.isUnread)
+
   // Contact List View 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Header */}
       <div>
-        <h2 className="text-2xl sm:text-3xl font-bold text-aurora-primary-dark font-heading">
+        <p className="text-[10px] font-bold tracking-[0.15em] text-aurora-blue uppercase mb-1">
+          Counselor Conversations
+        </p>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-heading">
           Messages
         </h2>
+        <p className="text-sm text-[#7B8EC8] mt-1">
+          You are chatting with your assigned counselors here.
+        </p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-aurora-gray-200">
+      {/* Tab Pills */}
+      <div className="flex gap-2">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`py-2.5 mr-5 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
+            className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors cursor-pointer ${
               activeTab === tab
-                ? 'border-aurora-secondary-blue text-aurora-secondary-blue'
-                : 'border-transparent text-aurora-gray-500 hover:text-aurora-primary-dark'
+                ? 'bg-aurora-blue/15 border-aurora-blue/40 text-white'
+                : 'bg-transparent border-white/12 text-[#7B8EC8] hover:border-white/20'
             }`}
           >
             {tab}
@@ -88,30 +100,25 @@ export default function Messages() {
       <div>
         {isLoading ? (
           <div className="flex flex-col items-center py-16">
-            <div className="spinner" />
-            <p className="text-aurora-gray-400 text-sm mt-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-aurora-blue" />
+            <p className="text-[#4B5693] text-sm mt-4">
               Loading conversations...
             </p>
           </div>
-        ) : activeTab === 'Counselors' && contacts.length > 0 ? (
-          contacts.map((contact) => (
+        ) : filtered.length > 0 ? (
+          filtered.map((contact) => (
             <ContactRow
               key={contact.conversationId}
               contact={contact}
               onSelect={() => setSelectedContact(contact)}
             />
           ))
-        ) : activeTab === 'Counselors' ? (
-          <div className="text-center py-16">
-            <p className="text-aurora-gray-400 text-sm">
-              No conversations yet. Your counselor will invite you when
-              they're ready to connect.
-            </p>
-          </div>
         ) : (
           <div className="text-center py-16">
-            <p className="text-aurora-gray-400 text-sm">
-              No conversations yet.
+            <p className="text-[#4B5693] text-sm">
+              {contacts.length === 0
+                ? 'No conversations yet. Your counselor will invite you when they\'re ready to connect.'
+                : 'No unread conversations.'}
             </p>
           </div>
         )}

@@ -57,7 +57,7 @@ function StudentRow({ student, onClick }: { student: StudentEntry, onClick: () =
       aria-label={`View details for ${student.full_name}`}
     >
       <div className="p-3 pl-4">
-        <LetterAvatar name={student.full_name} size={44} />
+        <LetterAvatar name={student.full_name} size={44} avatarUrl={(student as any).avatar_url || undefined} />
       </div>
       <div className="flex-1 py-3 min-w-0">
         <p className="font-bold text-aurora-primary-dark text-sm truncate">{student.full_name}</p>

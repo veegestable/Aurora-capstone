@@ -101,7 +101,7 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
 
         <div className="flex items-center gap-3">
           <div className="relative">
-            <LetterAvatar name={contact.name} size={36} />
+            <LetterAvatar name={contact.name} size={36} avatarUrl={contact.avatar} />
             {isOnline && (
               <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-aurora-accent-green border-2 border-white" />
             )}

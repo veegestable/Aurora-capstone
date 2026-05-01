@@ -1,9 +1,9 @@
 import { LetterAvatar } from '../LetterAvatar'
 import { usePeerPresence } from '../../hooks/usePeerPresence'
-import type { CounselorContact } from '../../types/message.types'
+import type { CounselorContact, StudentContact } from '../../types/message.types'
 
 interface ContactRowProps {
-  contact: CounselorContact
+  contact: CounselorContact | StudentContact
   onSelect: () => void
 }
 
@@ -14,31 +14,36 @@ export function ContactRow({ contact, onSelect }: ContactRowProps) {
   return (
     <button
       onClick={onSelect}
-      className="w-full flex items-center py-3.5 border-b border-aurora-gray-200 hover:bg-aurora-gray-50 transition-colors cursor-pointer text-left"
+      className="w-full flex items-center py-3.5 border-b border-white/8 hover:bg-white/5 transition-colors cursor-pointer text-left"
       aria-label={`Chat with ${contact.name}`}
     >
       <div className="relative mr-3">
-        <LetterAvatar name={contact.name} size={48} />
+        <LetterAvatar
+          name={contact.name}
+          size={48}
+          avatarUrl={contact.avatar}
+          className="border-2 border-[#7B8EC8]/30"
+        />
         {isOnline && (
-          <div className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-aurora-accent-green border-2 border-white" />
+          <div className="absolute bottom-0.5 left-0.5 w-3 h-3 rounded-full bg-aurora-blue border-2 border-aurora-bg-messages" />
         )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
-          <span className="font-bold text-aurora-primary-dark text-sm truncate">
+          <span className="font-bold text-white text-sm truncate">
             {contact.name}
           </span>
           <span
             className={`text-xs shrink-0 ml-2 ${
               contact.isUnread
-                ? 'font-bold text-aurora-secondary-blue'
-                : 'text-aurora-gray-400'
+                ? 'font-bold text-aurora-blue'
+                : 'text-[#7B8EC8]'
             }`}
           >
             {contact.time}
           </span>
         </div>
-        <p className="text-sm text-aurora-gray-500 truncate">{contact.preview}</p>
+        <p className="text-sm text-[#7B8EC8] truncate">{contact.preview}</p>
       </div>
     </button>
   )

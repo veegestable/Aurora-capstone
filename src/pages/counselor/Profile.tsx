@@ -60,15 +60,7 @@ export default function CounselorProfile() {
       <div className="flex flex-col items-center pt-2 pb-1">
         <div className="relative mb-4">
           <div className="ring-[3px] ring-aurora-secondary-blue rounded-full">
-            {user?.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt={displayName}
-                className="w-[110px] h-[110px] rounded-full object-cover"
-              />
-            ) : (
-              <LetterAvatar name={displayName} size={110} />
-            )}
+            <LetterAvatar name={displayName} size={110} avatarUrl={user?.avatar_url ?? undefined} />
           </div>
           <button
             onClick={() => setShowEditProfile(true)}

@@ -5,13 +5,13 @@ import { ContactRow } from '../../components/messages/ContactRow'
 import { DirectMessageView } from '../../components/messages/DirectMessageView'
 import type { StudentContact } from '../../types/message.types'
 
-type FilterTab = 'All Messages' | 'Unread' | 'Priority'
+type TabType = 'All messages' | 'Unread'
 
-const TABS: FilterTab[] = ['All Messages', 'Unread', 'Priority']
+const TABS: TabType[] = ['All messages', 'Unread']
 
 export default function Messages() {
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<FilterTab>('All Messages')
+  const [activeTab, setActiveTab] = useState<TabType>('All messages')
   const [selectedContact, setSelectedContact] = useState<StudentContact | null>(null)
   const [contacts, setContacts] = useState<StudentContact[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -59,48 +59,51 @@ export default function Messages() {
 
   // Filter contacts
   const filtered =
-    activeTab === 'All Messages'
+    activeTab === 'All messages'
       ? contacts
-      : activeTab === 'Unread'
-        ? contacts.filter((c) => c.isUnread)
-        : contacts.filter((c) => c.isAlerted)
+      : contacts.filter((c) => c.isUnread)
 
   const unreadCount = contacts.filter((c) => c.isUnread).length
 
   // Contact List View
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Header */}
       <div>
-        <h2 className="text-2xl sm:text-3xl font-bold text-aurora-primary-dark font-heading">
+        <p className="text-[10px] font-bold tracking-[0.15em] text-aurora-blue uppercase mb-1">
+          Student Conversations
+        </p>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-heading">
           Messages
         </h2>
-        <p className="text-sm text-aurora-primary-dark/50 mt-1">
+        <p className="text-sm text-[#7B8EC8] mt-1">
           {unreadCount} Unread Conversation{unreadCount !== 1 ? 's' : ''}
         </p>
       </div>
-      {/* Filter Tabs */}
-      <div className="flex border-b border-aurora-gray-200">
+
+      {/* Tab Pills */}
+      <div className="flex gap-2">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`py-2.5 mr-5 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
+            className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors cursor-pointer ${
               activeTab === tab
-                ? 'border-aurora-secondary-blue text-aurora-secondary-blue'
-                : 'border-transparent text-aurora-gray-500 hover:text-aurora-primary-dark'
+                ? 'bg-aurora-blue/15 border-aurora-blue/40 text-white'
+                : 'bg-transparent border-white/12 text-[#7B8EC8] hover:border-white/20'
             }`}
           >
             {tab}
           </button>
         ))}
       </div>
+
       {/* Contact List */}
       <div>
         {isLoading ? (
           <div className="flex flex-col items-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-aurora-secondary-blue" />
-            <p className="text-aurora-gray-400 text-sm mt-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-aurora-blue" />
+            <p className="text-[#4B5693] text-sm mt-4">
               Loading conversations...
             </p>
           </div>
@@ -114,10 +117,10 @@ export default function Messages() {
           ))
         ) : (
           <div className="text-center py-16">
-            <p className="text-aurora-gray-400 text-sm">
+            <p className="text-[#4B5693] text-sm">
               {contacts.length === 0
-                ? 'No conversations yet. Invite students from the Risk Center.'
-                : 'No conversations match this filter.'}
+                ? 'No conversations yet. Invite students from the Student Directory.'
+                : 'No unread conversations.'}
             </p>
           </div>
         )}

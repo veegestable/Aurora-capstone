@@ -102,7 +102,7 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
 
         <div className="p-5">
           <div className="flex items-center gap-4 mb-6">
-            <LetterAvatar name={student.full_name} size={64} />
+            <LetterAvatar name={student.full_name} size={64} avatarUrl={(student as any).avatar_url || undefined} />
             <div>
               <h3 className="text-xl font-bold text-aurora-primary-dark">{student.full_name}</h3>
               <p className="text-sm text-aurora-primary-dark/60">{student.email}</p>

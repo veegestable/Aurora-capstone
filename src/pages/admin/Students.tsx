@@ -81,11 +81,7 @@ export default function AdminStudents() {
           {filtered.map(s => (
             <div key={s.id} className="card-aurora p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {s.avatar_url ? (
-                  <img src={s.avatar_url} alt={s.full_name} className="w-[44px] h-[44px] rounded-full object-cover shrink-0 border border-white/8" />
-                ) : (
-                  <LetterAvatar name={s.full_name || 'Student'} size={44} />
-                )}
+                <LetterAvatar name={s.full_name || 'Unknown'} size={44} avatarUrl={s.avatar_url || undefined} />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-aurora-primary-dark text-sm truncate">
                     {s.full_name || 'Unknown'}

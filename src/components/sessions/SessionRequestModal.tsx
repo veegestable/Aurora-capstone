@@ -125,7 +125,7 @@ export function SessionRequestModal({
                     : 'border-transparent bg-white/3 hover:bg-white/5'
                 }`}
               >
-                <LetterAvatar name={c.full_name ?? 'Counselor'} size={40} />
+                <LetterAvatar name={c.full_name ?? 'Counselor'} size={40} avatarUrl={c.avatar_url ?? undefined} />
                 <span className="text-sm font-semibold text-white flex-1 text-left">
                   {c.full_name || 'Counselor'}
                 </span>
