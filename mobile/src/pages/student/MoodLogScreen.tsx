@@ -7,7 +7,6 @@ import {
   Image,
   Modal,
   Platform,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -52,6 +51,10 @@ import {
   getUserSettings,
   updateUserSettings,
 } from "../../services/mood-firestore-v2.service";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../components/common/InfoGuideModal";
 import { COUNSELOR_CHECKIN_WINDOW_DAYS } from "../../constants/counselor-checkin-policy";
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
@@ -356,6 +359,7 @@ export default function MoodLogScreen() {
   const { user } = useAuth();
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [showLogModal, setShowLogModal] = useState(false);
+  const [activeGuide, setActiveGuide] = useState<InfoGuideContent | null>(null);
   const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
   const [showCheckInSharingBriefing, setShowCheckInSharingBriefing] =
     useState(false);
@@ -499,10 +503,10 @@ export default function MoodLogScreen() {
   };
 
   const showStabilityInfo = () => {
-    Alert.alert(
-      "Today Stability",
-      "This score summarizes how steady your mood intensity is across today's check-ins. Higher % means more consistent patterns.",
-    );
+    setActiveGuide({
+      title: "Today Stability",
+      body: "This score summarizes how steady your mood intensity is across today's check-ins. Higher % means more consistent patterns.",
+    });
   };
 
   return (
@@ -930,6 +934,8 @@ export default function MoodLogScreen() {
           </View>
         </View>
       </Modal>
+
+      <InfoGuideModal guide={activeGuide} onClose={() => setActiveGuide(null)} />
 
       {showLogModal && (
         <Modal

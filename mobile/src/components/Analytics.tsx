@@ -12,7 +12,6 @@ import {
   RefreshControl,
   TouchableOpacity,
   AppState,
-  Modal,
   useWindowDimensions,
   type AppStateStatus,
   type LayoutChangeEvent,
@@ -62,6 +61,10 @@ import { averageMoodPlainLine } from "../utils/analytics/studentInsightsCopy";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import { useCountUp } from "../hooks/useCountUp";
 import { AURORA } from "../constants/aurora-colors";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "./common/InfoGuideModal";
 import { getEmotionColor, getEmotionLabel } from "../utils/moodColors";
 import {
   moodCategoryFromFive,
@@ -151,11 +154,6 @@ type MoodChartAggregate = {
 type MoodEpisode = {
   startMs: number;
   endMs: number;
-};
-
-type GuideContent = {
-  title: string;
-  body: string;
 };
 
 function getMoodFromLog(
@@ -595,7 +593,7 @@ export default function Analytics() {
   const [activeWeekPill, setActiveWeekPill] = useState<
     "days" | "checkins" | "streak" | null
   >(null);
-  const [activeGuide, setActiveGuide] = useState<GuideContent | null>(null);
+  const [activeGuide, setActiveGuide] = useState<InfoGuideContent | null>(null);
   const [selectedTodayMood, setSelectedTodayMood] = useState<string | null>(null);
   const [logs, setLogs] = useState<
     (MoodData & { log_date: Date; id?: string })[]
@@ -3286,77 +3284,7 @@ export default function Analytics() {
         </View>
         ) : null}
       </ScrollView>
-      <Modal
-        transparent
-        animationType="fade"
-        visible={!!activeGuide}
-        onRequestClose={() => setActiveGuide(null)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(3,8,24,0.55)",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          <View
-            style={{
-              width: "100%",
-              maxWidth: 420,
-              backgroundColor: AURORA.card,
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: AURORA.border,
-              padding: 16,
-            }}
-          >
-            <Text
-              style={{
-                color: AURORA.textPrimary,
-                fontSize: 16,
-                fontWeight: "800",
-                marginBottom: 10,
-              }}
-            >
-              {activeGuide?.title}
-            </Text>
-            <Text
-              style={{
-                color: AURORA.textSec,
-                fontSize: 13,
-                lineHeight: 19,
-              }}
-            >
-              {activeGuide?.body}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setActiveGuide(null)}
-              style={{
-                alignSelf: "flex-end",
-                marginTop: 14,
-                paddingHorizontal: 12,
-                paddingVertical: 7,
-                borderRadius: 999,
-                backgroundColor: "rgba(124,58,237,0.18)",
-                borderWidth: 1,
-                borderColor: "rgba(124,58,237,0.45)",
-              }}
-            >
-              <Text
-                style={{
-                  color: AURORA.textPrimary,
-                  fontSize: 12,
-                  fontWeight: "700",
-                }}
-              >
-                Got it
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <InfoGuideModal guide={activeGuide} onClose={() => setActiveGuide(null)} />
     </>
   );
 }

@@ -71,6 +71,10 @@ import {
   type SleepQuality,
 } from "../services/mood-firestore-v2.service";
 import { getBreathingExerciseForMood } from "../features/breathing/breathing-data";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "./common/InfoGuideModal";
 
 interface MoodCheckInProps {
   onComplete?: () => void;
@@ -271,6 +275,7 @@ export function MoodCheckIn({
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [activeGuide, setActiveGuide] = useState<InfoGuideContent | null>(null);
   const [submittedTodayCheckIns, setSubmittedTodayCheckIns] = useState(1);
   const [showQuickResetPrompt, setShowQuickResetPrompt] = useState(false);
   const [showQuickResetSession, setShowQuickResetSession] = useState(false);
@@ -936,39 +941,38 @@ export function MoodCheckIn({
   };
 
   const showSelfiePrivacyGuide = () => {
-    Alert.alert(
-      "Selfie check-in privacy",
-      "Aurora analyzes visible facial expression to suggest a mood. You can retake, switch to manual check-in, or choose whether to use the analyzed mood before continuing.",
-      [{ text: "Got it" }],
-    );
+    setActiveGuide({
+      title: "Selfie check-in privacy",
+      body: "Aurora analyzes visible facial expression to suggest a mood. You can retake, switch to manual check-in, or choose whether to use the analyzed mood before continuing.",
+    });
   };
 
   const showManualMoodGuide = () => {
-    Alert.alert(
-      "Manual check-in guide",
-      "Manual check-in lets you choose your mood directly.\n\n1) Pick the emotion that best matches how you feel now.\n2) Adjust intensity to reflect how strongly you feel it.\n3) Select how long you have been feeling this mood.\n\nUse this mode when you prefer full control over mood selection.",
-    );
+    setActiveGuide({
+      title: "Manual check-in guide",
+      body: "Manual check-in lets you choose your mood directly.\n\n1) Pick the emotion that best matches how you feel now.\n2) Adjust intensity to reflect how strongly you feel it.\n3) Select how long you have been feeling this mood.\n\nUse this mode when you prefer full control over mood selection.",
+    });
   };
 
   const showScaleGuide = (type: "energy" | "stress") => {
     if (type === "energy") {
-      Alert.alert(
-        "Energy scale (1-5)",
-        "Rate how energized you feel right now.\n\n1 - Exhausted\n2 - Low energy\n3 - Okay / average\n4 - Active\n5 - Very energized",
-      );
+      setActiveGuide({
+        title: "Energy scale (1-5)",
+        body: "Rate how energized you feel right now.\n\n1 - Exhausted\n2 - Low energy\n3 - Okay / average\n4 - Active\n5 - Very energized",
+      });
       return;
     }
-    Alert.alert(
-      "Stress scale (1-5)",
-      "Rate how pressured or tense you feel right now.\n\n1 - Very calm\n2 - Slightly tense\n3 - Moderate stress\n4 - High stress\n5 - Overwhelmed",
-    );
+    setActiveGuide({
+      title: "Stress scale (1-5)",
+      body: "Rate how pressured or tense you feel right now.\n\n1 - Very calm\n2 - Slightly tense\n3 - Moderate stress\n4 - High stress\n5 - Overwhelmed",
+    });
   };
 
   const showIntensityGuide = () => {
-    Alert.alert(
-      "Intensity scale (1-10)",
-      "This measures how strongly you feel the selected emotion right now.\n\n1 means very mild or barely noticeable.\n10 means extremely strong and hard to ignore.\n\nUse the number that best matches your current emotional intensity, not whether the emotion is good or bad.",
-    );
+    setActiveGuide({
+      title: "Intensity scale (1-10)",
+      body: "This measures how strongly you feel the selected emotion right now.\n\n1 means very mild or barely noticeable.\n10 means extremely strong and hard to ignore.\n\nUse the number that best matches your current emotional intensity, not whether the emotion is good or bad.",
+    });
   };
 
   const getDurationCategoryLabel = (minutes: number) => {
@@ -1002,10 +1006,10 @@ export function MoodCheckIn({
   };
 
   const showDurationGuide = () => {
-    Alert.alert(
-      "Duration categories guide",
-      "These labels help classify your entered minutes:\n\n- Less than 15 mins: Just a moment\n- 15 to 60 mins: About an hour\n- 61 to 180 mins: A few hours\n- 181 to 480 mins: Most of the day\n- 481+ mins: All day / Ongoing",
-    );
+    setActiveGuide({
+      title: "Duration categories guide",
+      body: "These labels help classify your entered minutes:\n\n- Less than 15 mins: Just a moment\n- 15 to 60 mins: About an hour\n- 61 to 180 mins: A few hours\n- 181 to 480 mins: Most of the day\n- 481+ mins: All day / Ongoing",
+    });
   };
 
   const scrollDurationInputIntoView = () => {
@@ -1016,38 +1020,38 @@ export function MoodCheckIn({
   };
 
   const showSleepGuide = () => {
-    Alert.alert(
-      "Sleep quality (once per day)",
-      "Log this once per day based on your main/night sleep, not short naps.\n\nUse:\n- Poor: you woke up tired or unrested\n- Fair: okay sleep, but not fully refreshed\n- Good: restful sleep and you feel recovered",
-    );
+    setActiveGuide({
+      title: "Sleep quality (once per day)",
+      body: "Log this once per day based on your main/night sleep, not short naps.\n\nUse:\n- Poor: you woke up tired or unrested\n- Fair: okay sleep, but not fully refreshed\n- Good: restful sleep and you feel recovered",
+    });
   };
 
   const showMealGuide = () => {
-    Alert.alert(
-      "Meal check-in guide",
-      "Track if each scheduled meal is already taken.\n\nThis schedule comes from your Profile settings.\nTo set or edit meal times, go to:\nProfile -> Meal Schedule\n\n- Taken: you already had this meal.\n- Not yet: you have not taken it yet.\n\nFuture meal slots are locked until their scheduled time.",
-    );
+    setActiveGuide({
+      title: "Meal check-in guide",
+      body: "Track if each scheduled meal is already taken.\n\nThis schedule comes from your Profile settings.\nTo set or edit meal times, go to:\nProfile -> Meal Schedule\n\n- Taken: you already had this meal.\n- Not yet: you have not taken it yet.\n\nFuture meal slots are locked until their scheduled time.",
+    });
   };
 
   const showBathGuide = () => {
-    Alert.alert(
-      "Bath check-in guide",
-      "Mark this once daily to log your hygiene routine for today.\n\n- Yes: you already took a bath today.\n- Not yet: you have not taken a bath yet.",
-    );
+    setActiveGuide({
+      title: "Bath check-in guide",
+      body: "Mark this once daily to log your hygiene routine for today.\n\n- Yes: you already took a bath today.\n- Not yet: you have not taken a bath yet.",
+    });
   };
 
   const showAcademicSignalGuide = () => {
-    Alert.alert(
-      "School pressure today",
-      "This is an estimate based on the school-related tags you selected in this check-in. It helps summarize how much school may have influenced your mood today.",
-    );
+    setActiveGuide({
+      title: "School pressure today",
+      body: "This is an estimate based on the school-related tags you selected in this check-in. It helps summarize how much school may have influenced your mood today.",
+    });
   };
 
   const showContextCategoriesGuide = () => {
-    Alert.alert(
-      "Mood context categories",
-      "These categories organize what influenced your mood in this check-in.\n\n- School: classes, quizzes, deadlines, study pressure\n- Health: body condition, pain, appetite, exercise\n- Social: friends, family, partner, conflict, feeling alone\n- Fun / Leisure: hobbies, games, media, outdoor activities\n- Productivity: work, chores, commute, responsibilities\n\nThe tags you select are saved for analytics and help identify patterns in your mood trends.",
-    );
+    setActiveGuide({
+      title: "Mood context categories",
+      body: "These categories organize what influenced your mood in this check-in.\n\n- School: classes, quizzes, deadlines, study pressure\n- Health: body condition, pain, appetite, exercise\n- Social: friends, family, partner, conflict, feeling alone\n- Fun / Leisure: hobbies, games, media, outdoor activities\n- Productivity: work, chores, commute, responsibilities\n\nThe tags you select are saved for analytics and help identify patterns in your mood trends.",
+    });
   };
 
   const schoolTagCount = selectedTags.filter((tag) =>
@@ -3147,6 +3151,7 @@ export function MoodCheckIn({
           </View>
         </View>
       </ScrollView>
+      <InfoGuideModal guide={activeGuide} onClose={() => setActiveGuide(null)} />
     </KeyboardAvoidingView>
   );
 }

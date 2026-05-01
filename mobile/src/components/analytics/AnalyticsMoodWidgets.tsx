@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Alert,
   LayoutChangeEvent,
   NativeSyntheticEvent,
   NativeScrollEvent,
@@ -23,6 +22,10 @@ import {
   energyCategoryLabelFromFive,
   stressCategoryLabelFromFive,
 } from "../../utils/analytics/metricCategories";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../common/InfoGuideModal";
 
 const UI_TEXT_SECONDARY = "#C1CEE9";
 const UI_TEXT_MUTED = "#9AA9C8";
@@ -72,6 +75,7 @@ function AnimatedBar({
 export function AnalyticsMoodWidgets({ logs }: Props) {
   const [period, setPeriod] = useState<"week" | "last30">("week");
   const [metric, setMetric] = useState<"stress" | "energy">("stress");
+  const [activeGuide, setActiveGuide] = useState<InfoGuideContent | null>(null);
   const [tip, setTip] = useState<{
     label: string;
     text: string;
@@ -214,25 +218,24 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
   });
 
   const showStabilityGuide = () => {
-    Alert.alert(
-      "Mood stability",
-      "This score reflects how steady your mood intensity stayed in the selected range.\n\nHigher % means fewer sharp swings.\nLower % means mood changed more across check-ins.",
-    );
+    setActiveGuide({
+      title: "Mood stability",
+      body: "This score reflects how steady your mood intensity stayed in the selected range.\n\nHigher % means fewer sharp swings.\nLower % means mood changed more across check-ins.",
+    });
   };
   const showMetricGuide = () => {
     if (metric === "stress") {
-      Alert.alert(
-        "Stress trend guide",
-        "This chart shows your stress level trend in the selected range.\n\nStress categories:\n- 1.0 to 1.8: Very calm\n- 1.9 to 2.6: Normal\n- 2.7 to 3.5: Stressed\n- 3.6 to 5.0: Very stressed",
-      );
+      setActiveGuide({
+        title: "Stress trend guide",
+        body: "This chart shows your stress level trend in the selected range.\n\nStress categories:\n- 1.0 to 1.8: Very calm\n- 1.9 to 2.6: Normal\n- 2.7 to 3.5: Stressed\n- 3.6 to 5.0: Very stressed",
+      });
       return;
     }
-    Alert.alert(
-      "Energy trend guide",
-      "This chart shows your energy level trend in the selected range.\n\nEnergy categories:\n- 1.0 to 1.8: Very low energy\n- 1.9 to 2.6: Low energy\n- 2.7 to 3.5: Steady energy\n- 3.6 to 5.0: High energy",
-    );
+    setActiveGuide({
+      title: "Energy trend guide",
+      body: "This chart shows your energy level trend in the selected range.\n\nEnergy categories:\n- 1.0 to 1.8: Very low energy\n- 1.9 to 2.6: Low energy\n- 2.7 to 3.5: Steady energy\n- 3.6 to 5.0: High energy",
+    });
   };
-
   return (
     <View style={{ marginTop: 8 }}>
       {/* Widget A */}
@@ -1028,6 +1031,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           </>
         )}
       </View>
+      <InfoGuideModal guide={activeGuide} onClose={() => setActiveGuide(null)} />
     </View>
   );
 }

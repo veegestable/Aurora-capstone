@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -35,6 +34,10 @@ import {
   generateExplanation,
   type MoodLog,
 } from "../../utils/blendMoods";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../components/common/InfoGuideModal";
 
 const UI_TEXT_SECONDARY = "#C1CEE9";
 const UI_TEXT_MUTED = "#9AA9C8";
@@ -411,11 +414,12 @@ function CalendarDayCell({
 }
 
 function CalendarLegend() {
+  const [activeGuide, setActiveGuide] = useState<InfoGuideContent | null>(null);
   const showLegendInfo = () => {
-    Alert.alert(
-      "Mixed days",
-      "Mixed days show a blended color based on how strongly each mood was felt.",
-    );
+    setActiveGuide({
+      title: "Mixed days",
+      body: "Mixed days show a blended color based on how strongly each mood was felt.",
+    });
   };
 
   return (
@@ -438,6 +442,7 @@ function CalendarLegend() {
           </View>
         ))}
       </View>
+      <InfoGuideModal guide={activeGuide} onClose={() => setActiveGuide(null)} />
     </View>
   );
 }
