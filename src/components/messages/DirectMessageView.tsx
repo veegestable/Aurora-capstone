@@ -2,14 +2,15 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import { auditLogsService } from '../../services/audit-logs'
+import { sessionsService } from '../../services/sessions'
 import { LetterAvatar } from '../LetterAvatar'
 import { ChatBubble } from './ChatBubble'
 import { ArrowLeft, Send, Info } from 'lucide-react'
-import type { CounselorContact, ChatMessage } from '../../types/message.types'
+import type { CounselorContact, StudentContact, ChatMessage } from '../../types/message.types'
 import { usePeerPresence } from '../../hooks/usePeerPresence'
 
 interface DirectMessageViewProps {
-  contact: CounselorContact
+  contact: CounselorContact | StudentContact
   onBack: () => void
 }
 
@@ -87,6 +88,53 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
     }
   }
 
+  const handleConfirmSession = async (
+    sessionId: string,
+    slot: {
+      date: string
+      time: string
+    }
+  ) => {
+    if (!user?.id || !contact.conversationId || isSending) return
+    if (!sessionId || sessionId.startsWith('session_')) {
+      alert('This invite is missing a valid session link.')
+      return
+    }
+
+    setIsSending(true)
+    try {
+      // 1. Confirm slot in Firestore
+      await sessionsService.studentConfirmFinalSlot(
+        sessionId, 
+        user.id, 
+        slot, 
+        {
+          conversationId: contact.conversationId,
+          counselorId: contact.id
+        }
+      )
+
+      // 2. Send the automated "Accepted" message to the chat
+      await messagesService.sendTextMessage(
+        contact.conversationId, 
+        user.id, 
+        `__AUTO_ACCEPTED__Just accepted your request`
+      )
+
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({
+          top: scrollRef.current.scrollHeight,
+          behavior: 'smooth'
+        })
+      }, 100)
+    } catch (e: any) {
+      console.error('Failed to confirm session time:', e)
+      alert('Could not confirm session: ' + (e.message || 'Please try again.'))
+    } finally {
+      setIsSending(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] -mx-3 sm:-mx-4 lg:-mx-6 xl:-mx-8 -my-3 sm:-my-4 lg:-my-6">
       {/* Chat Header */}
@@ -155,6 +203,10 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
               message={msg}
               contactName={contact.name}
               userName={user?.full_name ?? 'You'}
+              contactAvatarUrl={contact.avatar || undefined}
+              userAvatarUrl={user?.avatar_url ?? undefined}
+              onConfirmSession={handleConfirmSession}
+              isConfirming={isSending}
             />
           ))
         )}

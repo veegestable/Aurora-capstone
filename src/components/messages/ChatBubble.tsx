@@ -1,15 +1,37 @@
+import { useState } from 'react'
 import { LetterAvatar } from '../LetterAvatar'
+import { Calendar, Check } from 'lucide-react'
 import type { ChatMessage } from '../../types/message.types'
 
 interface ChatBubbleProps {
   message: ChatMessage
   contactName: string
   userName: string
+  contactAvatarUrl?: string
+  userAvatarUrl?: string
+  onConfirmSession?: (
+    sessionId: string,
+    slot: {
+      date: string
+      time: string
+    }
+  ) => void
+  isConfirming?: boolean
 }
 
-export function ChatBubble({ message, contactName, userName }: ChatBubbleProps) {
+export function ChatBubble({ 
+  message, 
+  contactName, 
+  userName, 
+  contactAvatarUrl, 
+  userAvatarUrl,
+  onConfirmSession,
+  isConfirming,
+}: ChatBubbleProps) {
   const isMe = message.senderId === 'me'
   const senderLabel = isMe ? 'You' : contactName
+
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState(0)
 
   return (
     <div className="mb-4">
@@ -31,6 +53,7 @@ export function ChatBubble({ message, contactName, userName }: ChatBubbleProps) 
         <LetterAvatar
           name={isMe ? userName : contactName}
           size={32}
+          avatarUrl={isMe ? userAvatarUrl : contactAvatarUrl}
         />
 
         {message.type === 'text' ? (
@@ -64,7 +87,7 @@ export function ChatBubble({ message, contactName, userName }: ChatBubbleProps) 
             <div className="mt-2 flex items-center gap-1.5">
               <div
                 className={`w-2 h-2 rounded-full ${
-                  message.sessionRequest.status === 'pending'
+                  message.sessionRequest.status === 'pending' || message.sessionRequest.status === 'requested'
                     ? 'bg-aurora-accent-orange'
                     : message.sessionRequest.status === 'confirmed'
                       ? 'bg-aurora-accent-green'
@@ -80,14 +103,100 @@ export function ChatBubble({ message, contactName, userName }: ChatBubbleProps) 
             </p>
           </div>
         ) : (
-          /* session invite — minimal card for now */
-          <div className="max-w-[78%] card-aurora border border-aurora-secondary-blue/30">
-            <p className="text-xs font-bold text-aurora-secondary-blue uppercase tracking-wider mb-1">
-              Session Invite
+          /* session invite matching mobile ScheduleInviteCard */
+          <div className="max-w-[78%] card-aurora border border-white/8 bg-[#0B0D30]">
+            <p className="text-[11px] text-aurora-gray-400 mb-2">
+              Aurora Academic Support
             </p>
-            <p className="text-sm text-aurora-primary-dark">
-              {message.session.title ?? 'Counseling Session'}
-            </p>
+            
+            {/* Header: Icon + Title */}
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full bg-aurora-secondary-blue/20 flex items-center justify-center shrink-0">
+                <Calendar className="w-5 h-5 text-aurora-secondary-blue" />
+              </div>
+              <p className="text-base font-bold text-white leading-tight">
+                {message.session.title ?? 'Schedule Next Session'}
+              </p>
+            </div>
+
+            {/* Note */}
+            {message.session.note && (
+              <p className="text-sm text-aurora-gray-400 italic mb-3.5 leading-relaxed">
+                "{message.session.note}"
+              </p>
+            )}
+
+            {/* Status Banner (if confirmed/cancelled/etc) */}
+            {message.session.sessionStatus && ['confirmed', 'completed', 'missed', 'cancelled'].includes(message.session.sessionStatus) ? (
+              <div className={`rounded-xl px-3 py-2.5 mb-2 border ${
+                message.session.sessionStatus === 'confirmed' 
+                  ? 'bg-green-500/15 border-green-500/30' 
+                  : 'bg-slate-400/10 border-slate-400/25'
+              }`}>
+                <p className={`text-[13px] font-semibold leading-relaxed ${
+                  message.session.sessionStatus === 'confirmed' ? 'text-green-400' : 'text-aurora-gray-400'
+                }`}>
+                  {message.session.sessionStatus === 'confirmed'
+                    ? message.session.agreedSlot
+                      ? `Accepted — ${message.session.agreedSlot.date}, ${message.session.agreedSlot.time}`
+                      : 'Accepted — saved to your schedule.'
+                    : message.session.sessionStatus === 'completed'
+                      ? 'This session was completed.'
+                      : message.session.sessionStatus === 'missed'
+                        ? 'This session was marked as missed.'
+                        : 'This session was cancelled.'}
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Time Slots */}
+                {message.session.timeSlots && message.session.timeSlots.length > 0 && (
+                  <div className="flex flex-col gap-2 mb-3.5">
+                    {message.session.timeSlots.map((slot, i) => (
+                      <div 
+                        key={i} 
+                        className="flex items-center cursor-pointer group"
+                        onClick={() => setSelectedSlotIndex(i)}
+                      >
+                        <Calendar className="w-3.5 h-3.5 text-aurora-gray-400 mr-2 shrink-0 group-hover:text-aurora-secondary-blue transition-colors" />
+                        <p className="flex-1 text-sm text-white group-hover:text-blue-100 transition-colors">
+                          {slot.date}, {slot.time}
+                        </p>
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                          selectedSlotIndex === i ? 'border-aurora-secondary-blue' : 'border-aurora-gray-400 group-hover:border-blue-400'
+                        }`}>
+                          {selectedSlotIndex === i && <div className="w-2 h-2 rounded-full bg-aurora-secondary-blue" />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Confirm Button */}
+                {message.session.timeSlots && message.session.timeSlots.length > 0 && onConfirmSession && (
+                  <button 
+                    disabled={isConfirming || isMe}
+                    onClick={() => {
+                      if (message.session.timeSlots && message.session.id) {
+                        onConfirmSession(message.session.id, message.session.timeSlots[selectedSlotIndex])
+                      }
+                    }}
+                    className={`w-full mt-1.5 rounded-xl flex items-center justify-center gap-2 py-2.5 transition-all
+                      ${isConfirming || isMe 
+                        ? 'bg-aurora-secondary-blue/15 border border-aurora-secondary-blue/40 opacity-60 cursor-not-allowed' 
+                        : 'bg-aurora-secondary-blue/20 border border-aurora-secondary-blue hover:bg-aurora-secondary-blue/30 active:scale-[0.98]'
+                      }`}
+                  >
+                    <div className="w-6 h-6 rounded-full bg-aurora-secondary-blue/20 flex items-center justify-center shrink-0">
+                      <Check className="w-[18px] h-[18px] text-[#32CD32]" strokeWidth={2.75} />
+                    </div>
+                    <span className="text-sm font-bold tracking-wide text-[#CFE0FF]">
+                      {isConfirming ? 'Confirming...' : 'Confirm slot'}
+                    </span>
+                  </button>
+                )}
+              </>
+            )}
+
             <p className="text-[11px] text-aurora-gray-400 mt-2 text-right">
               {message.time}
             </p>

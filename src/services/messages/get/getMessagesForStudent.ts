@@ -18,8 +18,8 @@ export async function getMessagesForStudent(
       const isMe = data.senderId === studentId
       const senderId = isMe ? 'me' : 'them'
 
-      if (data.type === 'session_invite') {
-        const session = data.session ?? {}
+      if (data.type === 'session_invite' || data.type === 'session') {
+        const session = data.sessionData ?? data.session ?? {}
 
         return {
           id: d.id,
@@ -27,7 +27,7 @@ export async function getMessagesForStudent(
           type: 'session' as const,
           session: { 
             ...session,
-            id: data.sessionId ?? d.id
+            id: data.sessionId ?? session.sessionId ?? d.id
           },
           time: formatMessageTime(createdAt)
         }
@@ -43,9 +43,9 @@ export async function getMessagesForStudent(
           sessionRequest: {
             id: d.id,
             sessionId: data.sessionId ?? req.sessionId ?? null,
-            preferredTime: req.preferredTime ?? '',
+            preferredTime: req.preferredTime || formatMessageTime(createdAt),
             note: req.note ?? '',
-            status: req.status ?? 'pending'
+            status: req.status ?? 'requested'
           },
           time: formatMessageTime(createdAt)
         }
