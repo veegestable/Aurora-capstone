@@ -33,6 +33,7 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
     }
 
     let isCancelled = false
+    messagesService.markConversationAsRead(contact.conversationId, user.id)
     messagesService
       .getMessagesForStudent(contact.conversationId, user.id)
       .then((msgs) => {
