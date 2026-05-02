@@ -16,6 +16,7 @@ import {
   InfoGuideModal,
   type InfoGuideContent,
 } from "../common/InfoGuideModal";
+import { CounselorStressEnergyTrendChart } from "./CounselorStressEnergyTrendChart";
 
 function last7DayKeySet(): Set<string> {
   const today = new Date();
@@ -96,24 +97,6 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
     ? charts.byMood.find((x) => x.mood === selectedMood) ?? null
     : null;
 
-  if (last7Logs.length === 0) {
-    return (
-      <View
-        style={{
-          backgroundColor: AURORA.cardAlt,
-          borderRadius: 14,
-          padding: 16,
-          borderWidth: 1,
-          borderColor: AURORA.border,
-        }}
-      >
-        <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 20 }}>
-          No check-ins recorded in the last 7 days — charts will appear when this student logs moods.
-        </Text>
-      </View>
-    );
-  }
-
   const chartCard = {
     backgroundColor: AURORA.cardAlt,
     borderRadius: 14,
@@ -176,7 +159,28 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         Last 7 days — same charts as student analytics
       </Text>
 
-      <View style={chartCard}>
+      <CounselorStressEnergyTrendChart logs={logs} />
+
+      {last7Logs.length === 0 ? (
+        <View
+          style={{
+            backgroundColor: AURORA.cardAlt,
+            borderRadius: 14,
+            padding: 16,
+            marginBottom: 12,
+            borderWidth: 1,
+            borderColor: AURORA.border,
+          }}
+        >
+          <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 20 }}>
+            No mood check-ins in the last 7 days — mood charts below will appear
+            when this student logs. Stress and energy bars above show grey
+            placeholders on days without data.
+          </Text>
+        </View>
+      ) : (
+        <>
+          <View style={chartCard}>
         <SectionHead
           label="MOOD FREQUENCY (LAST 7 DAYS)"
           onInfo={() =>
@@ -451,6 +455,8 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
           </View>
         )}
       </View>
+        </>
+      )}
 
       <Text
         style={{

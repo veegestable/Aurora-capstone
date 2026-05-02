@@ -10,7 +10,7 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import { CircleHelp } from "lucide-react-native";
+import { Battery, CircleHelp, Flame } from "lucide-react-native";
 import type { MoodData } from "../../services/firebase-firestore.service";
 import { calendarDayKeyLocal } from "../../utils/dayKey";
 import { moodLogsToMoodEntries } from "../../utils/moodEntryNormalize";
@@ -433,6 +433,9 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           onPress={() => setMetric("stress")}
           activeOpacity={0.9}
           style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
             paddingHorizontal: 10,
             paddingVertical: 5,
             borderRadius: 999,
@@ -443,6 +446,10 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
               metric === "stress" ? "rgba(124,58,237,0.45)" : "transparent",
           }}
         >
+          <Flame
+            size={14}
+            color={metric === "stress" ? "#F59E0B" : "rgba(245,158,11,0.72)"}
+          />
           <Text
             style={{
               color: metric === "stress" ? AURORA.textPrimary : UI_TEXT_MUTED,
@@ -450,13 +457,16 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
               fontWeight: "800",
             }}
           >
-            😵 Stress
+            Stress
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setMetric("energy")}
           activeOpacity={0.9}
           style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
             paddingHorizontal: 10,
             paddingVertical: 5,
             borderRadius: 999,
@@ -467,6 +477,10 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
               metric === "energy" ? "rgba(124,58,237,0.45)" : "transparent",
           }}
         >
+          <Battery
+            size={14}
+            color={metric === "energy" ? "#FACC15" : "rgba(250,204,21,0.72)"}
+          />
           <Text
             style={{
               color: metric === "energy" ? AURORA.textPrimary : UI_TEXT_MUTED,
@@ -474,7 +488,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
               fontWeight: "800",
             }}
           >
-            ⚡ Energy
+            Energy
           </Text>
         </TouchableOpacity>
       </View>

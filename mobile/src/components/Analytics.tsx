@@ -1099,6 +1099,7 @@ export default function Analytics() {
       ),
     );
   }, [logs, last7DayKeySet]);
+  const last7TotalCheckIns = last7Logs.length;
   const weekWellnessStats = useMemo(() => {
     if (last7Logs.length === 0) {
       return {
@@ -2780,7 +2781,7 @@ export default function Analytics() {
                   {
                     key: "checkins" as const,
                     label: "Check-ins",
-                    value: String(totalCheckIns),
+                    value: String(last7TotalCheckIns),
                   },
                   {
                     key: "streak" as const,
@@ -2792,7 +2793,7 @@ export default function Analytics() {
                   activeWeekPill === "days"
                     ? `${weekDaysLogged} out of 7 days had at least one mood check-in.`
                     : activeWeekPill === "checkins"
-                      ? `You logged ${totalCheckIns} mood entries in the last 7 days.`
+                      ? `You logged ${last7TotalCheckIns} mood entries in the last 7 days.`
                       : activeWeekPill === "streak"
                         ? `You are on a ${Math.round(animStreak)} day streak.`
                         : null;
