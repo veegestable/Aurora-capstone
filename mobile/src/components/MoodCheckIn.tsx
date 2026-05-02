@@ -32,6 +32,7 @@ import {
   ArrowRight,
   Briefcase,
   Check,
+  Clock3,
   GraduationCap,
   Heart,
   MoonStar,
@@ -972,7 +973,7 @@ export function MoodCheckIn({
   const showIntensityGuide = () => {
     setActiveGuide({
       title: "Intensity scale (1-10)",
-      body: "This measures how strongly you feel the selected emotion right now.\n\n1 means very mild or barely noticeable.\n10 means extremely strong and hard to ignore.\n\nUse the number that best matches your current emotional intensity, not whether the emotion is good or bad.",
+      body: "This measures how strongly you feel the selected emotion right now.\n\nQuick reference:\n- 1 to 3: Mild\n- 4 to 6: Noticeable\n- 7 to 8: Strong\n- 9 to 10: Very intense\n\nUse the number that best matches intensity, not whether the emotion is good or bad.",
     });
   };
 
@@ -1016,8 +1017,8 @@ export function MoodCheckIn({
   const scrollDurationInputIntoView = () => {
     setTimeout(() => {
       const y = Math.max(0, durationInputYRef.current - 36);
-      scrollRef.current?.scrollTo({ y, animated: true });
-    }, 240);
+      scrollRef.current?.scrollTo({ y, animated: false });
+    }, 80);
   };
 
   const showSleepGuide = () => {
@@ -1962,6 +1963,15 @@ export function MoodCheckIn({
                           <CircleHelp size={16} color={AURORA.textMuted} />
                         </TouchableOpacity>
                       </View>
+                      <Text
+                        style={{
+                          color: AURORA.textMuted,
+                          fontSize: 12,
+                          marginBottom: 10,
+                        }}
+                      >
+                        How strong is this feeling right now?
+                      </Text>
                       <SimpleSlider
                         value={(intensityTen - 1) / 9}
                         onValueChange={(val: number) =>
@@ -1977,8 +1987,8 @@ export function MoodCheckIn({
                       <Text
                         style={{
                           color: selectedManualEmotion.color,
-                          marginTop: 8,
-                          marginBottom: 14,
+                          marginTop: 4,
+                          marginBottom: 10,
                           fontWeight: "700",
                         }}
                       >
@@ -1992,7 +2002,7 @@ export function MoodCheckIn({
                           marginBottom: 8,
                         }}
                       >
-                        <Heart size={16} color={selectedManualEmotion.color} />
+                        <Clock3 size={16} color={selectedManualEmotion.color} />
                         <Text
                           style={{
                             color: AURORA.textPrimary,
