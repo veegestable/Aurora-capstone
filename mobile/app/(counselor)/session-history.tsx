@@ -4,7 +4,13 @@
  * Counselor can mark attendance when scheduled date/time is reached.
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import {
   View,
   Text,
@@ -14,7 +20,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import {
   ArrowLeft,
   Search,
@@ -104,6 +110,16 @@ interface SessionHistoryItem {
   createdAt: Date;
 }
 
+function normalizeRouteSessionId(
+  raw: string | string[] | undefined,
+): string | undefined {
+  if (typeof raw === "string" && raw.trim()) return raw.trim();
+  if (Array.isArray(raw) && typeof raw[0] === "string" && raw[0].trim()) {
+    return raw[0].trim();
+  }
+  return undefined;
+}
+
 function formatDateHeader(date: Date): string {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -181,6 +197,17 @@ function SessionHistoryBadgePill({ badge }: { badge: SessionHistoryBadge }) {
 
 export default function SessionHistoryScreen() {
   const { user } = useAuth();
+  const params = useLocalSearchParams<{ sessionId?: string | string[] }>();
+  const openedFromRouteSessionRef = useRef<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        openedFromRouteSessionRef.current = null;
+      };
+    }, []),
+  );
+
   const [sessions, setSessions] = useState<SessionHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -215,6 +242,17 @@ export default function SessionHistoryScreen() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    const routeSessionId = normalizeRouteSessionId(params.sessionId);
+    if (!routeSessionId || loading) return;
+    if (openedFromRouteSessionRef.current === routeSessionId) return;
+    const found = sessions.find((s) => s.id === routeSessionId);
+    if (!found) return;
+    openedFromRouteSessionRef.current = routeSessionId;
+    setSelectedSession(found);
+    setShowDetailModal(true);
+  }, [params.sessionId, loading, sessions]);
 
   const filteredSessions = useMemo(() => {
     // Only show sessions counselor has acted on: confirmed slot, proposed slots, or terminal status

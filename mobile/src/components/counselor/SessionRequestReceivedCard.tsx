@@ -3,9 +3,9 @@
  * Shows NEW SESSION REQUEST with Accept Request + Propose New Time
  */
 
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Calendar, FileText, Check, Clock } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from 'react-native';
+import { Calendar, FileText, Check, Clock, ChevronRight } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 
 export interface SessionRequestReceivedData {
@@ -30,6 +30,7 @@ export default function SessionRequestReceivedCard({
     onProposeNewTime,
     isFromMe = false,
 }: SessionRequestReceivedCardProps) {
+    const [detailOpen, setDetailOpen] = useState(false);
     const status = data.status;
     const isExpired = data.isExpired ?? false;
     const isNeedsRescheduling = status === 'needs_rescheduling';
@@ -40,7 +41,8 @@ export default function SessionRequestReceivedCard({
         ['pending', 'requested', 'needs_rescheduling'].includes(status);
 
     const statusPillConfig: { label: string; bg: string; text: string } = (() => {
-        if (isExpired) return { label: 'EXPIRED', bg: 'rgba(255,255,255,0.08)', text: AURORA.textMuted };
+        if (isExpired)
+            return { label: 'REQUEST EXPIRED', bg: 'rgba(255,255,255,0.08)', text: AURORA.textMuted };
         if (status === 'cancelled') return { label: 'CANCELLED', bg: 'rgba(239,68,68,0.2)', text: AURORA.red };
         if (status === 'needs_rescheduling') return { label: 'NEEDS RESCHEDULING', bg: 'rgba(245,158,11,0.2)', text: AURORA.orange };
         if (isAccepted) return { label: 'ACCEPTED', bg: 'rgba(34,197,94,0.2)', text: AURORA.green };
@@ -52,23 +54,40 @@ export default function SessionRequestReceivedCard({
     const showAccept = !!data.preferredTime && !!onAccept && !isNeedsRescheduling && canAct;
     const showPropose = !!onProposeNewTime && canAct;
 
+    const hasDetailTrigger =
+        !!(data.preferredTime?.trim()) || !!(typeof data.note === 'string' && data.note.trim());
+
     return (
         <View style={styles.wrapper}>
             <View style={[styles.card, isFromMe ? styles.cardTailRight : styles.cardTailLeft]}>
                 <View style={styles.header}>
-                    <View style={styles.iconWrap}>
-                        <Calendar size={20} color={AURORA.blue} />
-                    </View>
+                    <View style={styles.headerMain}>
+                        <View style={styles.iconWrap}>
+                            <Calendar size={20} color={AURORA.blue} />
+                        </View>
 
-                    <View style={styles.headerText}>
-                        <Text style={styles.title}>{data.title || 'Session Request'}</Text>
+                        <View style={styles.headerText}>
+                            <Text style={styles.title}>{data.title || 'Session Request'}</Text>
 
-                        <View style={[styles.statusPill, { backgroundColor: statusPillConfig.bg }]}>
-                            <Text style={[styles.statusText, { color: statusPillConfig.text }]}>
-                                {statusPillConfig.label}
-                            </Text>
+                            <View style={[styles.statusPill, { backgroundColor: statusPillConfig.bg }]}>
+                                <Text style={[styles.statusText, { color: statusPillConfig.text }]}>
+                                    {statusPillConfig.label}
+                                </Text>
+                            </View>
                         </View>
                     </View>
+
+                    {hasDetailTrigger ? (
+                        <TouchableOpacity
+                            style={styles.detailChevronBtn}
+                            onPress={() => setDetailOpen(true)}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            accessibilityRole="button"
+                            accessibilityLabel="View full session details"
+                        >
+                            <ChevronRight size={22} color={AURORA.blue} />
+                        </TouchableOpacity>
+                    ) : null}
                 </View>
 
                 {data.preferredTime ? (
@@ -97,8 +116,12 @@ export default function SessionRequestReceivedCard({
                     <View style={styles.actions}>
                         {showAccept ? (
                             <TouchableOpacity style={styles.primaryBtn} onPress={onAccept} activeOpacity={0.85}>
-                                <Check size={18} color="#FFFFFF" />
-                                <Text style={styles.primaryBtnText}>Accept Request</Text>
+                                <View style={styles.btnRow}>
+                                    <Check size={15} color="#FFFFFF" />
+                                    <Text style={styles.primaryBtnText} numberOfLines={1}>
+                                        Accept
+                                    </Text>
+                                </View>
                             </TouchableOpacity>
                         ) : null}
 
@@ -108,10 +131,12 @@ export default function SessionRequestReceivedCard({
                                 onPress={onProposeNewTime}
                                 activeOpacity={0.85}
                             >
-                                <Clock size={18} color={AURORA.blue} />
-                                <Text style={styles.proposeBtnText}>
-                                    {isNeedsRescheduling ? 'Reschedule' : 'Propose New Time'}
-                                </Text>
+                                <View style={styles.btnRow}>
+                                    <Clock size={15} color={AURORA.blue} />
+                                    <Text style={styles.proposeBtnText} numberOfLines={2}>
+                                        {isNeedsRescheduling ? 'Reschedule' : 'Propose New Time'}
+                                    </Text>
+                                </View>
                             </TouchableOpacity>
                         ) : null}
                     </View>
@@ -120,6 +145,61 @@ export default function SessionRequestReceivedCard({
 
             {/* Bubble tail */}
             <View style={[styles.tail, isFromMe ? styles.tailRight : styles.tailLeft]} />
+
+            <Modal
+                visible={detailOpen}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setDetailOpen(false)}
+            >
+                <View style={styles.detailOverlay}>
+                    <TouchableOpacity
+                        style={styles.detailBackdrop}
+                        activeOpacity={1}
+                        onPress={() => setDetailOpen(false)}
+                    />
+                    <View style={styles.detailSheet}>
+                        <View style={styles.detailHandleBar} />
+                        <Text style={styles.detailSheetTitle}>Session details</Text>
+                        <Text style={styles.detailSheetSubtitle}>{data.title || 'Session Request'}</Text>
+
+                        <ScrollView
+                            style={styles.detailScroll}
+                            contentContainerStyle={styles.detailScrollContent}
+                            keyboardShouldPersistTaps="handled"
+                            showsVerticalScrollIndicator={false}
+                        >
+                            {data.preferredTime?.trim() ? (
+                                <View style={styles.detailSection}>
+                                    <View style={styles.detailSectionHeader}>
+                                        <Calendar size={16} color={AURORA.blue} />
+                                        <Text style={styles.detailSectionLabel}>Preferred time</Text>
+                                    </View>
+                                    <Text style={styles.detailSectionBody}>{data.preferredTime.trim()}</Text>
+                                </View>
+                            ) : null}
+
+                            {data.note?.trim() ? (
+                                <View style={styles.detailSection}>
+                                    <View style={styles.detailSectionHeader}>
+                                        <FileText size={16} color={AURORA.blue} />
+                                        <Text style={styles.detailSectionLabel}>Your note</Text>
+                                    </View>
+                                    <Text style={styles.detailSectionBody}>{data.note.trim()}</Text>
+                                </View>
+                            ) : null}
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            style={styles.detailDoneBtn}
+                            onPress={() => setDetailOpen(false)}
+                            activeOpacity={0.85}
+                        >
+                            <Text style={styles.detailDoneBtnText}>Done</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -173,9 +253,22 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
         marginBottom: 12,
+        gap: 8,
+    },
+    headerMain: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 12,
+        minWidth: 0,
+    },
+    detailChevronBtn: {
+        paddingVertical: 4,
+        paddingLeft: 4,
+        marginTop: 2,
     },
     iconWrap: {
         width: 36,
@@ -245,29 +338,41 @@ const styles = StyleSheet.create({
     },
     actions: {
         flexDirection: 'row',
+        alignItems: 'stretch',
         gap: 10,
+    },
+    btnRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        minWidth: 0,
+        maxWidth: '100%',
+        paddingHorizontal: 8,
     },
     primaryBtn: {
         flex: 1,
-        flexDirection: 'row',
+        minWidth: 0,
+        overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: AURORA.blue,
         borderRadius: 10,
         paddingVertical: 12,
-        gap: 6,
     },
     primaryBtnText: {
+        flexShrink: 1,
         color: '#FFFFFF',
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: '700',
+        textAlign: 'center',
     },
     proposeBtn: {
         flex: 1,
-        flexDirection: 'row',
+        minWidth: 0,
+        overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 6,
         borderRadius: 10,
         paddingVertical: 12,
         borderWidth: 2,
@@ -278,8 +383,96 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     proposeBtnText: {
+        flexShrink: 1,
         color: AURORA.blue,
-        fontSize: 14,
+        fontSize: 12,
+        fontWeight: '700',
+        textAlign: 'center',
+    },
+    detailOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    detailBackdrop: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    detailSheet: {
+        backgroundColor: AURORA.card,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        borderWidth: 1,
+        borderColor: AURORA.border,
+        paddingHorizontal: 20,
+        paddingBottom: 28,
+        maxHeight: '88%',
+    },
+    detailHandleBar: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: AURORA.border,
+        alignSelf: 'center',
+        marginTop: 12,
+        marginBottom: 16,
+    },
+    detailSheetTitle: {
+        color: '#FFFFFF',
+        fontSize: 20,
+        fontWeight: '700',
+        textAlign: 'center',
+        marginBottom: 4,
+    },
+    detailSheetSubtitle: {
+        color: AURORA.textMuted,
+        fontSize: 13,
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    detailScroll: {
+        flexGrow: 0,
+        maxHeight: 420,
+    },
+    detailScrollContent: {
+        paddingBottom: 8,
+    },
+    detailSection: {
+        backgroundColor: AURORA.cardDark,
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: AURORA.border,
+    },
+    detailSectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    detailSectionLabel: {
+        color: AURORA.textSec,
+        fontSize: 12,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    detailSectionBody: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        lineHeight: 22,
+    },
+    detailDoneBtn: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: AURORA.blue,
+        borderRadius: 12,
+        paddingVertical: 14,
+        marginTop: 8,
+    },
+    detailDoneBtnText: {
+        color: '#FFFFFF',
+        fontSize: 16,
         fontWeight: '700',
     },
 });

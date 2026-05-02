@@ -12,7 +12,8 @@ export type CounselorSignalPill =
 export const COUNSELOR_SIGNAL_LABEL: Record<CounselorSignalPill, string> = {
     sharing_off: 'Sharing off',
     no_checkins: 'No check-ins',
-    higher_self_report: 'Higher self-report',
+    /** Counselor triage — supportive wording; avoids labeling students as "high stress". */
+    higher_self_report: 'Follow-up suggested',
     moderate_self_report: 'Moderate self-report',
     typical_self_report: 'Typical self-report',
 };

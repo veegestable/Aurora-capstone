@@ -7,11 +7,10 @@ type MergedMoodLogRow = Awaited<
 >[number];
 
 /**
- * Loads whether the student allows counselors to see recent check-in summaries,
- * and if so, merged mood history in the counselor window (same sources as the student app:
- * legacy `mood_logs` plus v2 `moodLogs/{uid}/entries`).
+ * Loads whether the student allows counselors to see recent check-in summaries for directory signals,
+ * and if so, merged mood history in the counselor window (stress / energy triage — same as before).
  */
-export async function fetchStudentCheckInContextForCounselor(
+export async function fetchStudentCheckInSignalContextForCounselor(
   studentId: string,
 ): Promise<{
   sharingEnabled: boolean;
@@ -30,4 +29,37 @@ export async function fetchStudentCheckInContextForCounselor(
     end.toISOString(),
   );
   return { sharingEnabled: true, logs };
+}
+
+/**
+ * Detailed journals + same analytics surfaces as the student app — only when sharing is on AND
+ * the student granted access to this counselor via the first session-request confirmation flow.
+ */
+export async function fetchStudentCounselorDetailedContext(
+  studentId: string,
+  counselorId: string,
+): Promise<{
+  sharingEnabled: boolean;
+  journalAccessGranted: boolean;
+  logs: MergedMoodLogRow[];
+}> {
+  const settings = await getUserSettings(studentId);
+  const sharingEnabled = settings.shareCheckInsWithGuidance === true;
+  const journalAccessGranted =
+    settings.counselorJournalAccess?.[counselorId] === true;
+  if (!sharingEnabled || !journalAccessGranted) {
+    return {
+      sharingEnabled,
+      journalAccessGranted,
+      logs: [],
+    };
+  }
+  const start = counselorCheckInWindowStart();
+  const end = new Date();
+  const logs = await moodService.getMoodLogs(
+    studentId,
+    start.toISOString(),
+    end.toISOString(),
+  );
+  return { sharingEnabled: true, journalAccessGranted: true, logs };
 }

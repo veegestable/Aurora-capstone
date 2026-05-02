@@ -24,6 +24,11 @@ export interface UserSettingsDoc {
   enabledContextCategories?: ContextCategoryKey[];
   /** When true, counselors may see a short window of self-reported check-in summaries (see counselor-checkin-policy). */
   shareCheckInsWithGuidance?: boolean;
+  /**
+   * Per counselor: student granted detailed journal + analytics access by confirming the first
+   * session request to that counselor (“special population” consent).
+   */
+  counselorJournalAccess?: Record<string, boolean>;
   /** One-time in-app disclosure on the student dashboard (briefing modal). */
   checkInSharingBriefingSeen?: boolean;
   mealSchedule?: MealScheduleItem[];
@@ -164,6 +169,15 @@ export async function getUserSettings(
       typeof d.shareCheckInsWithGuidance === "boolean"
         ? d.shareCheckInsWithGuidance
         : false,
+    counselorJournalAccess: (() => {
+      const raw = d.counselorJournalAccess;
+      if (raw == null || typeof raw !== "object") return {};
+      const out: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof v === "boolean") out[k] = v;
+      }
+      return out;
+    })(),
     checkInSharingBriefingSeen:
       typeof d.checkInSharingBriefingSeen === "boolean"
         ? d.checkInSharingBriefingSeen
@@ -199,6 +213,7 @@ export async function updateUserSettings(
       | "academicContextEnabled"
       | "enabledContextCategories"
       | "shareCheckInsWithGuidance"
+      | "counselorJournalAccess"
       | "checkInSharingBriefingSeen"
       | "mealSchedule"
       | "usualWakeTime"
@@ -215,6 +230,37 @@ export async function updateUserSettings(
     },
     { merge: true },
   );
+}
+
+/** Student allows this counselor to view journals + detailed analytics after session-request consent. */
+export async function grantCounselorJournalAccess(
+  studentId: string,
+  counselorId: string,
+): Promise<void> {
+  const ref = doc(db, "userSettings", studentId);
+  const snap = await getDoc(ref);
+  const prev =
+    snap.exists() &&
+    snap.data()?.counselorJournalAccess != null &&
+    typeof snap.data()?.counselorJournalAccess === "object"
+      ? (snap.data()?.counselorJournalAccess as Record<string, boolean>)
+      : {};
+  await setDoc(
+    ref,
+    {
+      counselorJournalAccess: { ...prev, [counselorId]: true },
+      updatedAt: Timestamp.now(),
+    },
+    { merge: true },
+  );
+}
+
+export async function counselorHasJournalAccessForCounselor(
+  studentId: string,
+  counselorId: string,
+): Promise<boolean> {
+  const s = await getUserSettings(studentId);
+  return s.counselorJournalAccess?.[counselorId] === true;
 }
 
 export async function createMoodLogEntry(

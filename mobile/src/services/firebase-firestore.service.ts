@@ -685,7 +685,7 @@ export const firestoreService = {
             id: data.counselorId,
             conversationId: d.id,
             name: data.counselor_name ?? "Counselor",
-            preview: data.lastMessage ?? "No messages yet",
+            preview: sanitizeConversationPreview(data.lastMessage),
             time: data.lastMessageAt?.toDate
               ? formatMessageTime(data.lastMessageAt.toDate())
               : "Just now",
@@ -1846,6 +1846,7 @@ async function buildChatMessagesFromQuerySnapshot(
           preferredTime: req.preferredTime ?? "",
           note: req.note ?? "",
           status: req.status ?? "pending",
+          requestedAtMs: createdAt.getTime(),
         },
         time: formatMessageTime(createdAt),
       };

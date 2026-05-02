@@ -16,14 +16,13 @@ import { Bell, Search, ChevronDown } from 'lucide-react-native';
 import { AURORA } from '../../../src/constants/aurora-colors';
 import { LetterAvatar } from '../../../src/components/common/LetterAvatar';
 import { firestoreService } from '../../../src/services/firebase-firestore.service';
-import StudentProfileModal from '../../../src/components/counselor/StudentProfileModal';
 import {
     formatCounselorStudentSubtitle,
     normalizeStudentToProgramFilter,
     PROGRAM_FILTER_LABELS,
     type ProgramFilterCode,
 } from '../../../src/constants/ccs-student-programs';
-import { fetchStudentCheckInContextForCounselor } from '../../../src/services/counselor-checkin-context.service';
+import { fetchStudentCheckInSignalContextForCounselor } from '../../../src/services/counselor-checkin-context.service';
 import {
     type CounselorSignalPill,
     COUNSELOR_SIGNAL_LABEL,
@@ -31,7 +30,6 @@ import {
     counselorSignalFromLogs,
 } from '../../../src/constants/counselor-checkin-signals';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useAuth } from '../../../src/stores/AuthContext';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type ProgramFilter = 'All Students' | ProgramFilterCode;
@@ -78,7 +76,7 @@ function getSignalStyle(signal: CounselorSignalPill) {
 function signalChipLabel(signal: CounselorSignalPill): string {
     switch (signal) {
         case 'higher_self_report':
-            return 'High self-report';
+            return COUNSELOR_SIGNAL_LABEL.higher_self_report;
         case 'moderate_self_report':
             return 'Monitor';
         case 'typical_self_report':
@@ -203,7 +201,6 @@ function FilterChip({
 // ─── Main Screen ────────────────────────────────────────────────────────────────
 export default function CounselorStudentsScreen() {
     const router = useRouter();
-    const { user } = useAuth();
     const { openStudentId } = useLocalSearchParams<{ openStudentId?: string }>();
     const lastProcessedOpenId = useRef<string | null>(null);
 
@@ -211,25 +208,17 @@ export default function CounselorStudentsScreen() {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState<ProgramFilter>('All Students');
-    const [selectedStudent, setSelectedStudent] = useState<StudentEntry | null>(null);
 
     useEffect(() => {
         if (openStudentId == null || openStudentId === '') {
             lastProcessedOpenId.current = null;
             return;
         }
-        if (students.length === 0) return;
         if (lastProcessedOpenId.current === openStudentId) return;
-        const match = students.find((s) => s.id === openStudentId);
-        if (match) {
-            lastProcessedOpenId.current = openStudentId;
-            setSelectedStudent(match);
-            router.setParams({ openStudentId: undefined });
-        } else {
-            lastProcessedOpenId.current = openStudentId;
-            router.setParams({ openStudentId: undefined });
-        }
-    }, [openStudentId, students, router]);
+        lastProcessedOpenId.current = openStudentId;
+        router.push(`/(counselor)/students/${openStudentId}`);
+        router.setParams({ openStudentId: undefined });
+    }, [openStudentId, router]);
 
     useEffect(() => {
         const fetchStudents = async () => {
@@ -240,7 +229,7 @@ export default function CounselorStudentsScreen() {
                         let lastLog = 'No check-ins yet';
                         let signal: CounselorSignalPill = 'no_checkins';
                         try {
-                            const { sharingEnabled, logs } = await fetchStudentCheckInContextForCounselor(s.id);
+                            const { sharingEnabled, logs } = await fetchStudentCheckInSignalContextForCounselor(s.id);
                             signal = counselorSignalFromLogs(sharingEnabled, logs);
                             if (!sharingEnabled) {
                                 lastLog = 'Sharing off';
@@ -320,7 +309,7 @@ export default function CounselorStudentsScreen() {
                                 Student Directory
                             </Text>
                             <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 3 }}>
-                                Open a student to see optional check-ins or invite them to a session
+                                Open a student for journals & analytics after they request a session with you, or invite them to chat
                             </Text>
                         </View>
                         {/* <TouchableOpacity style={{
@@ -391,7 +380,7 @@ export default function CounselorStudentsScreen() {
                         renderItem={({ item }) => (
                             <StudentCard
                                 student={item}
-                                onPress={() => setSelectedStudent(item)}
+                                onPress={() => router.push(`/(counselor)/students/${item.id}`)}
                             />
                         )}
                         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 }}
@@ -406,15 +395,6 @@ export default function CounselorStudentsScreen() {
                     />
                 )}
 
-                <StudentProfileModal
-                    visible={!!selectedStudent}
-                    student={selectedStudent}
-                    onClose={() => setSelectedStudent(null)}
-                    counselorId={user?.id}
-                    counselorName={user?.full_name ?? undefined}
-                    counselorAvatar={user?.avatar_url ?? undefined}
-                    signalRiskLevel={selectedStudent?.signal}
-                />
             </SafeAreaView>
         </View>
     );

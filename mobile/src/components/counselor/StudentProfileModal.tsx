@@ -19,7 +19,7 @@ import { router } from 'expo-router';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
 import { formatCounselorStudentSubtitle } from '../../constants/ccs-student-programs';
-import { fetchStudentCheckInContextForCounselor } from '../../services/counselor-checkin-context.service';
+import { fetchStudentCounselorDetailedContext } from '../../services/counselor-checkin-context.service';
 import { COUNSELOR_CHECKIN_WINDOW_DAYS } from '../../constants/counselor-checkin-policy';
 import { firestoreService } from '../../services/firebase-firestore.service';
 import type { CounselorSignalPill } from '../../constants/counselor-checkin-signals';
@@ -340,13 +340,20 @@ export default function StudentProfileModal({
 
     useEffect(() => {
         if (!visible || !student) return;
+        if (!counselorId) {
+            setLoading(false);
+            setSharingEnabled(false);
+            setRawLogs([]);
+            return;
+        }
 
         setLoading(true);
         setRawLogs([]);
-        fetchStudentCheckInContextForCounselor(student.id)
-            .then(({ sharingEnabled: on, logs }) => {
-                setSharingEnabled(on);
-                if (!on) {
+        fetchStudentCounselorDetailedContext(student.id, counselorId)
+            .then(({ sharingEnabled: on, journalAccessGranted, logs }) => {
+                const allowed = on && journalAccessGranted;
+                setSharingEnabled(allowed);
+                if (!allowed) {
                     setRawLogs([]);
                     return;
                 }
@@ -361,7 +368,7 @@ export default function StudentProfileModal({
                 setRawLogs([]);
             })
             .finally(() => setLoading(false));
-    }, [visible, student?.id]);
+    }, [visible, student?.id, counselorId]);
 
     if (!student) return null;
 
@@ -376,7 +383,12 @@ export default function StudentProfileModal({
             Alert.alert('Sign in required', 'Please sign in again as a counselor to send an invite.');
             return;
         }
-        const { isAlerted, borderColor } = conversationStyleFromSignal(sharingEnabled, signalRiskLevel);
+        const sharingForSignal =
+            signalRiskLevel != null && signalRiskLevel !== 'sharing_off';
+        const { isAlerted, borderColor } = conversationStyleFromSignal(
+            sharingForSignal,
+            signalRiskLevel,
+        );
         setInviteBusy(true);
         try {
             await firestoreService.addConversation(
@@ -456,7 +468,7 @@ export default function StudentProfileModal({
                             ) : !sharingEnabled ? (
                                 <View style={[styles.chartBox, styles.messageBox]}>
                                     <Text style={styles.emptyText}>
-                                        This student has not enabled check-in sharing. Aurora does not show mood summaries without consent.
+                                        Detailed summaries appear only when the student enables sharing with guidance and grants access by requesting a session with you (first-time confirmation). Open Student Directory → student profile for the full journal view.
                                     </Text>
                                 </View>
                             ) : rawLogs.length === 0 ? (
@@ -475,7 +487,7 @@ export default function StudentProfileModal({
                         <Text style={styles.inviteHint}>
                             {sharingEnabled
                                 ? 'Figures above are self-reported summaries only — not a diagnosis.\nUse messages to coordinate a session respectfully.'
-                                : 'This student has not shared recent check-ins in Aurora. You can still invite them to a session: sharing only controls summaries here, not whether you may reach out through the app.'}
+                                : 'Without sharing plus session-request consent, Aurora does not show this student’s journals here. You can still invite them to chat.'}
                         </Text>
                     </ScrollView>
 

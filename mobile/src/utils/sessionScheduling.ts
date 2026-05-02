@@ -28,6 +28,28 @@ export const EXPIRED_SESSION_RETENTION_MS = 7 * ONE_DAY_MS;
 
 export type OverdueSchedulingState = "none" | "needs_rescheduling" | "expired";
 
+function normalizeSlotObject(raw: unknown): { date: string; time: string } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const date = o.date != null ? String(o.date).trim() : "";
+  if (!date) return null;
+  const time = o.time != null ? String(o.time).trim() : "";
+  return { date, time };
+}
+
+/**
+ * Locked agreed time only (after someone confirms `finalSlot` / `confirmedSlot`) — no proposed-slot fallback.
+ */
+export function getConfirmedFinalSlot(session: {
+  finalSlot?: unknown;
+  confirmedSlot?: unknown;
+}): { date: string; time: string } | null {
+  return (
+    normalizeSlotObject(session.finalSlot) ??
+    normalizeSlotObject(session.confirmedSlot)
+  );
+}
+
 /**
  * Agreed date/time (counselor + student). When set, this is the only basis for badges and overdue.
  */

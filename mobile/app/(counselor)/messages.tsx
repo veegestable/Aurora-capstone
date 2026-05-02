@@ -43,7 +43,7 @@ import { auditLogsService } from "../../src/services/audit-logs.service";
 import { AURORA } from "../../src/constants/aurora-colors";
 import { LetterAvatar } from "../../src/components/common/LetterAvatar";
 import { router, useLocalSearchParams } from "expo-router";
-import { isSessionTimeExpired } from "../../src/utils/dateHelpers";
+import { isOpenSessionRequestExpired } from "../../src/utils/dateHelpers";
 import { resolveSessionsDocIdForSessionCard } from "../../src/utils/sessionInviteIds";
 import SendSessionInviteModal, {
   type SessionInviteData,
@@ -90,6 +90,8 @@ interface SessionRequestChatMessage {
     preferredTime: string;
     note: string;
     status: string;
+    /** Message `createdAt` — used for 3-day request expiry when still unaccepted. */
+    requestedAtMs?: number;
   };
   time: string;
 }
@@ -100,6 +102,7 @@ type ChatMessage =
   | SessionRequestChatMessage;
 
 const AUTO_ACCEPTED_PREFIX = "__AUTO_ACCEPTED__";
+const SESSION_ACCEPT_NOTICE_TEXT = "Just accepted your request";
 
 // ─── Conversation Row ──────────────────────────────────────────────────────────
 function ConversationRow({
@@ -377,13 +380,20 @@ function ChatView({
   const handleAcceptSessionRequest = async (
     sessionId: string | null,
     preferredTime: string,
+    meta?: { requestedAtMs?: number; status?: string },
   ) => {
     if (!sessionId || !preferredTime || sending || !conversationId || !user?.id)
       return;
-    if (isSessionTimeExpired(preferredTime)) {
+    if (
+      isOpenSessionRequestExpired({
+        status: meta?.status ?? "requested",
+        preferredTime,
+        requestedAtMs: meta?.requestedAtMs,
+      })
+    ) {
       Alert.alert(
         "Request expired",
-        "This session request can no longer be accepted because the requested time has already passed.",
+        "This session request can no longer be accepted because it is more than three days old or the requested time has already passed.",
       );
       return;
     }
@@ -657,15 +667,20 @@ function ChatView({
                   const isMeForLayout = isSessionRequest ? false : isMe;
                   const senderLabel = isMeForLayout ? "You" : contact.name;
 
+                  const rawText = msg.type === "text" ? msg.text : "";
+                  const hasAcceptMarker =
+                    rawText.startsWith(AUTO_ACCEPTED_PREFIX);
                   const isAutoAccepted =
                     msg.type === "text" &&
-                    msg.text.startsWith(AUTO_ACCEPTED_PREFIX);
+                    (hasAcceptMarker ||
+                      rawText.trim() === SESSION_ACCEPT_NOTICE_TEXT);
                   const isDeletedPlaceholder =
-                    msg.type === "text" && msg.text.startsWith("[Deleted");
-                  const displayText = isAutoAccepted
-                    ? msg.text.replace(AUTO_ACCEPTED_PREFIX, "").trim()
-                    : msg.type === "text"
-                      ? msg.text
+                    msg.type === "text" && rawText.startsWith("[Deleted");
+                  const displayText =
+                    msg.type === "text"
+                      ? hasAcceptMarker
+                        ? rawText.slice(AUTO_ACCEPTED_PREFIX.length).trim()
+                        : rawText
                       : "";
 
                   const canDeleteText = isMe;
@@ -692,7 +707,7 @@ function ChatView({
                             buttons.push({
                               text: "Copy",
                               onPress: async () => {
-                                await handleCopyText(msg.text);
+                                await handleCopyText(displayText);
                                 Alert.alert(
                                   "Copied",
                                   "Message copied to clipboard.",
@@ -767,6 +782,11 @@ function ChatView({
                           const noteForCard = expanded
                             ? note
                             : shortenNote(note);
+                          const requestExpired = isOpenSessionRequestExpired({
+                            status: msg.sessionRequest.status,
+                            preferredTime: msg.sessionRequest.preferredTime,
+                            requestedAtMs: msg.sessionRequest.requestedAtMs,
+                          });
                           return (
                             <>
                               <SessionRequestReceivedCard
@@ -779,22 +799,21 @@ function ChatView({
                                     undefined,
                                   note: noteForCard,
                                   status: msg.sessionRequest.status,
-                                  isExpired: msg.sessionRequest.preferredTime
-                                    ? isSessionTimeExpired(
-                                        msg.sessionRequest.preferredTime,
-                                      )
-                                    : false,
+                                  isExpired: requestExpired,
                                 }}
                                 onAccept={
                                   msg.sessionRequest.sessionId &&
                                   msg.sessionRequest.preferredTime &&
-                                  !isSessionTimeExpired(
-                                    msg.sessionRequest.preferredTime,
-                                  )
+                                  !requestExpired
                                     ? () =>
                                         handleAcceptSessionRequest(
                                           msg.sessionRequest.sessionId!,
                                           msg.sessionRequest.preferredTime,
+                                          {
+                                            requestedAtMs:
+                                              msg.sessionRequest.requestedAtMs,
+                                            status: msg.sessionRequest.status,
+                                          },
                                         )
                                     : undefined
                                 }

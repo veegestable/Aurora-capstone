@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,13 @@ import {
   Image,
   Modal,
   Platform,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  Bell,
   TrendingUp,
   Lightbulb,
   Camera,
@@ -20,11 +23,17 @@ import {
   CalendarPlus,
   ScanFace,
   CircleHelp,
+  CalendarClock,
+  Trash2,
+  Info,
 } from "lucide-react-native";
+import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "../../stores/AuthContext";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { moodService } from "../../services/mood.service";
 import type { MoodData } from "../../services/firebase-firestore.service";
+import { firestoreService } from "../../services/firebase-firestore.service";
+import { db } from "../../services/firebase";
 import { AURORA } from "../../constants/aurora-colors";
 import { LetterAvatar } from "../../components/common/LetterAvatar";
 import { MoodCheckIn } from "../../components/MoodCheckIn";
@@ -56,6 +65,266 @@ import {
   type InfoGuideContent,
 } from "../../components/common/InfoGuideModal";
 import { COUNSELOR_CHECKIN_WINDOW_DAYS } from "../../constants/counselor-checkin-policy";
+import {
+  getConfirmedFinalSlot,
+} from "../../utils/sessionScheduling";
+import { parseSlotToDate } from "../../utils/dateHelpers";
+
+// ─── Student sessions overview (dashboard sheet) ─────────────────────────────
+const STUDENT_SESSION_CLOSED = new Set([
+  "completed",
+  "missed",
+  "cancelled",
+  "expired",
+]);
+
+type StudentSessionDashboardBucket =
+  | "agreed"
+  | "past_agreed"
+  | "action"
+  | "closed"
+  | "other";
+
+interface StudentSessionOverviewRow {
+  id: string;
+  counselorId: string;
+  counselorName: string;
+  status: string;
+  summaryLine: string;
+  chipLabel: string;
+  updatedAt: Date;
+  dashboardBucket: StudentSessionDashboardBucket;
+  /** For sorting agreed sessions (soonest appointment first). */
+  scheduledSortMs: number;
+}
+
+function firestoreTsToDateStudent(v: unknown): Date {
+  if (
+    v != null &&
+    typeof v === "object" &&
+    typeof (v as { toDate?: () => Date }).toDate === "function"
+  ) {
+    return (v as { toDate: () => Date }).toDate();
+  }
+  return new Date(0);
+}
+
+function isStaleStudentRequestedSession(updatedAt: Date, status: string): boolean {
+  if (status !== "requested") return false;
+  const startOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const daysElapsed =
+    (startOfDay(new Date()) - startOfDay(updatedAt)) / 86400000;
+  return daysElapsed >= 3;
+}
+
+/** Confirmed slot start is strictly after now → show under upcoming only. */
+function isConfirmedSlotInFuture(
+  slot: { date: string; time: string } | null,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!slot?.date) return false;
+  const parsed = parseSlotToDate({
+    date: slot.date,
+    time: slot.time ?? "",
+  });
+  if (!parsed || isNaN(parsed.getTime())) return false;
+  return parsed.getTime() > nowMs;
+}
+
+function studentSessionDashboardBucket(params: {
+  status: string;
+  lockedSlot: { date: string; time: string } | null;
+}): StudentSessionDashboardBucket {
+  const st = params.status.toLowerCase();
+  if (STUDENT_SESSION_CLOSED.has(st)) return "closed";
+  if (params.lockedSlot) {
+    return isConfirmedSlotInFuture(params.lockedSlot) ? "agreed" : "past_agreed";
+  }
+  if (["requested", "pending", "needs_rescheduling"].includes(st)) {
+    return "action";
+  }
+  return "other";
+}
+
+function studentSessionChipLabelForBucket(row: StudentSessionOverviewRow): string {
+  const st = row.status.toLowerCase();
+  switch (row.dashboardBucket) {
+    case "agreed":
+      return st === "rescheduled" ? "Rescheduled" : "Upcoming counseling";
+    case "past_agreed":
+      return "Past appointment";
+    case "action":
+      if (st === "pending") return "Counselor invite";
+      if (st === "requested") return "Awaiting counselor";
+      if (st === "needs_rescheduling") return "Reschedule needed";
+      return studentSessionChipLabel(st);
+    case "closed":
+    default:
+      return studentSessionChipLabel(st);
+  }
+}
+
+function studentSessionChipLabel(status: string): string {
+  switch (status.toLowerCase()) {
+    case "requested":
+      return "Awaiting counselor";
+    case "pending":
+      return "Pick a time";
+    case "needs_rescheduling":
+      return "Reschedule";
+    case "confirmed":
+      return "Confirmed";
+    case "rescheduled":
+      return "Rescheduled";
+    case "completed":
+      return "Completed";
+    case "missed":
+      return "Missed";
+    case "cancelled":
+      return "Cancelled";
+    case "expired":
+      return "Expired";
+    default:
+      return status || "Session";
+  }
+}
+
+function formatStudentSessionTimeAgo(date: Date): string {
+  const diffMs = Date.now() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${diffDays}d ago`;
+}
+
+const hiddenStudentSessionsStorageKey = (studentId: string) =>
+  `aurora.studentSessionsOverview.hidden:${studentId}`;
+
+async function loadHiddenStudentSessionIds(
+  studentId: string,
+): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(
+      hiddenStudentSessionsStorageKey(studentId),
+    );
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is string => typeof x === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveHiddenStudentSessionIds(
+  studentId: string,
+  ids: string[],
+): Promise<void> {
+  await AsyncStorage.setItem(
+    hiddenStudentSessionsStorageKey(studentId),
+    JSON.stringify(ids),
+  );
+}
+
+async function fetchStudentSessionsOverview(
+  studentId: string,
+): Promise<StudentSessionOverviewRow[]> {
+  const raw = await firestoreService.getSessionsForStudent(studentId);
+  const counselorIds = [
+    ...new Set(
+      raw
+        .map((s) => String((s as Record<string, unknown>).counselorId ?? ""))
+        .filter(Boolean),
+    ),
+  ];
+  const nameMap: Record<string, string> = {};
+  await Promise.all(
+    counselorIds.map(async (id) => {
+      try {
+        const snap = await getDoc(doc(db, "users", id));
+        const u = snap.data();
+        nameMap[id] = String(
+          u?.full_name ?? u?.preferred_name ?? u?.fullName ?? "Counselor",
+        );
+      } catch {
+        nameMap[id] = "Counselor";
+      }
+    }),
+  );
+
+  return raw
+    .flatMap((s) => {
+      const rec = s as Record<string, unknown> & { id: string };
+      const cid = String(rec.counselorId ?? "");
+      const status = String(rec.status ?? "").toLowerCase();
+      const updatedAt = firestoreTsToDateStudent(rec.updatedAt);
+
+      if (
+        status === "requested" &&
+        isStaleStudentRequestedSession(updatedAt, status)
+      ) {
+        return [];
+      }
+
+      const lockedSlot = getConfirmedFinalSlot(
+        rec as { finalSlot?: unknown; confirmedSlot?: unknown },
+      );
+
+      const proposedLen = Array.isArray(rec.proposedSlots)
+        ? rec.proposedSlots.length
+        : 0;
+
+      let summaryLine = "Open Messages for details";
+      if (lockedSlot?.date) {
+        summaryLine = `${lockedSlot.date}${lockedSlot.time ? ` · ${lockedSlot.time}` : ""}`;
+      } else if (status === "pending" && proposedLen > 0) {
+        summaryLine = `${proposedLen} proposed time${proposedLen === 1 ? "" : "s"} — confirm in Messages`;
+      } else if (
+        typeof rec.preferredTimeFromStudent === "string" &&
+        rec.preferredTimeFromStudent.trim()
+      ) {
+        summaryLine = rec.preferredTimeFromStudent.trim();
+      }
+
+      const dashboardBucket = studentSessionDashboardBucket({
+        status,
+        lockedSlot,
+      });
+
+      let scheduledSortMs = updatedAt.getTime();
+      if (lockedSlot) {
+        const parsed = parseSlotToDate({
+          date: lockedSlot.date,
+          time: lockedSlot.time ?? "",
+        });
+        scheduledSortMs =
+          parsed && !isNaN(parsed.getTime())
+            ? parsed.getTime()
+            : Number.MAX_SAFE_INTEGER;
+      }
+
+      const baseRow: StudentSessionOverviewRow = {
+        id: String(rec.id ?? ""),
+        counselorId: cid,
+        counselorName: nameMap[cid] ?? "Counselor",
+        status,
+        summaryLine,
+        chipLabel: "",
+        updatedAt,
+        dashboardBucket,
+        scheduledSortMs,
+      };
+      baseRow.chipLabel = studentSessionChipLabelForBucket(baseRow);
+      return [baseRow];
+    })
+    .filter((row) => row.id.length > 0 && row.counselorId.length > 0)
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+}
 
 // ─── Mood Emotion Data ──────────────────────────────────────────────────────
 const MOOD_EMOTIONS = [
@@ -361,6 +630,13 @@ export default function MoodLogScreen() {
   const [showLogModal, setShowLogModal] = useState(false);
   const [activeGuide, setActiveGuide] = useState<InfoGuideContent | null>(null);
   const [showSessionRequestModal, setShowSessionRequestModal] = useState(false);
+  const [sessionsSheetOpen, setSessionsSheetOpen] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [studentSessionsOverview, setStudentSessionsOverview] = useState<
+    StudentSessionOverviewRow[]
+  >([]);
+  /** Session doc ids hidden from My sessions only (device-local; Firestore unchanged). */
+  const [hiddenSessionIds, setHiddenSessionIds] = useState<string[]>([]);
   const [showCheckInSharingBriefing, setShowCheckInSharingBriefing] =
     useState(false);
   const [stats, setStats] = useState({
@@ -377,6 +653,36 @@ export default function MoodLogScreen() {
   useEffect(() => {
     loadStats();
   }, [user]);
+
+  const loadStudentSessionsOverview = useCallback(async () => {
+    if (!user?.id) return;
+    setSessionsLoading(true);
+    try {
+      const rows = await fetchStudentSessionsOverview(user.id);
+      setStudentSessionsOverview(rows);
+    } catch {
+      setStudentSessionsOverview([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadStudentSessionsOverview();
+    }, [loadStudentSessionsOverview]),
+  );
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    void loadHiddenStudentSessionIds(user.id).then((ids) => {
+      if (!cancelled) setHiddenSessionIds(ids);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -509,6 +815,234 @@ export default function MoodLogScreen() {
     });
   };
 
+  const hiddenSessionIdSet = useMemo(
+    () => new Set(hiddenSessionIds),
+    [hiddenSessionIds],
+  );
+
+  const visibleStudentSessions = useMemo(
+    () =>
+      studentSessionsOverview.filter((s) => !hiddenSessionIdSet.has(s.id)),
+    [studentSessionsOverview, hiddenSessionIdSet],
+  );
+
+  const sessionsRawCount = studentSessionsOverview.length;
+  const sessionsVisibleCount = visibleStudentSessions.length;
+
+  const hideSessionCardFromOverview = useCallback(
+    (sessionId: string) => {
+      Alert.alert(
+        "Hide from My sessions?",
+        "This only hides the card on this device. It does not cancel your session or remove anything from Messages.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Hide",
+            style: "destructive",
+            onPress: () => {
+              triggerHaptic("light");
+              setHiddenSessionIds((prev) => {
+                if (prev.includes(sessionId)) return prev;
+                const next = [...prev, sessionId];
+                if (user?.id) void saveHiddenStudentSessionIds(user.id, next);
+                return next;
+              });
+            },
+          },
+        ],
+      );
+    },
+    [user?.id],
+  );
+
+  const confirmRestoreHiddenSessionCards = useCallback(() => {
+    Alert.alert(
+      "Show hidden sessions?",
+      "Cards you hid will appear in this list again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Restore",
+          onPress: () => {
+            setHiddenSessionIds([]);
+            if (user?.id) void saveHiddenStudentSessionIds(user.id, []);
+          },
+        },
+      ],
+    );
+  }, [user?.id]);
+
+  const sessionsAgreedList = [...visibleStudentSessions]
+    .filter((s) => s.dashboardBucket === "agreed")
+    .sort((a, b) => a.scheduledSortMs - b.scheduledSortMs);
+
+  const sessionsPastAgreedList = [...visibleStudentSessions]
+    .filter((s) => s.dashboardBucket === "past_agreed")
+    .sort((a, b) => b.scheduledSortMs - a.scheduledSortMs);
+
+  const sessionsActionList = [...visibleStudentSessions]
+    .filter((s) => s.dashboardBucket === "action")
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+  const sessionsClosedList = visibleStudentSessions.filter(
+    (s) => s.dashboardBucket === "closed",
+  );
+
+  const sessionsOtherList = visibleStudentSessions.filter(
+    (s) => s.dashboardBucket === "other",
+  );
+
+  const pendingSessionsCount = sessionsActionList.length;
+
+  const openSessionsSheet = () => {
+    triggerHaptic("light");
+    setSessionsSheetOpen(true);
+    void loadStudentSessionsOverview();
+  };
+
+  const showMySessionsInfo = () => {
+    triggerHaptic("light");
+    setActiveGuide({
+      title: "My sessions",
+      body:
+        "Future confirmed appointments appear first, followed by counselor invites and anything else that still needs your action.\n\n" +
+        "Tap a row to open Messages with that counselor.\n\n" +
+        "The trash icon only hides a card on this device. It does not cancel your session or remove anything from the server.",
+    });
+  };
+
+  const renderSessionOverviewSection = (
+    title: string,
+    subtitle: string,
+    rows: StudentSessionOverviewRow[],
+    chipTone: "amber" | "green" | "muted",
+  ) => {
+    if (rows.length === 0) return null;
+    const chipPalette =
+      chipTone === "green"
+        ? { bg: "rgba(34,197,94,0.2)", text: AURORA.green }
+        : chipTone === "amber"
+          ? { bg: "rgba(254,189,3,0.18)", text: AURORA.amber }
+          : { bg: "rgba(148,163,184,0.15)", text: AURORA.textMuted };
+    return (
+      <View style={{ marginBottom: 18 }}>
+        <Text
+          style={{
+            color: UI_TEXT_MUTED,
+            fontSize: 11,
+            fontWeight: "700",
+            letterSpacing: 0.8,
+            marginBottom: 4,
+          }}
+        >
+          {title}
+        </Text>
+        {subtitle.trim() ? (
+          <Text
+            style={{
+              color: AURORA.textSec,
+              fontSize: 12,
+              marginBottom: 10,
+            }}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+        {rows.map((row) => (
+          <View
+            key={row.id}
+            style={{
+              backgroundColor: AURORA.cardDark,
+              borderRadius: 14,
+              marginBottom: 10,
+              borderWidth: 1,
+              borderColor: AURORA.border,
+              flexDirection: "row",
+              alignItems: "stretch",
+            }}
+          >
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => {
+                triggerHaptic("light");
+                setSessionsSheetOpen(false);
+                router.push({
+                  pathname: "/(student)/messages",
+                  params: { counselorId: row.counselorId },
+                } as any);
+              }}
+              style={{ flex: 1, padding: 14 }}
+            >
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 15,
+                  fontWeight: "700",
+                  marginBottom: 6,
+                }}
+                numberOfLines={1}
+              >
+                {row.counselorName}
+              </Text>
+              <View
+                style={{
+                  alignSelf: "flex-start",
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 8,
+                  backgroundColor: chipPalette.bg,
+                  marginBottom: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color: chipPalette.text,
+                    fontSize: 10,
+                    fontWeight: "700",
+                  }}
+                >
+                  {row.chipLabel}
+                </Text>
+              </View>
+              <Text
+                style={{
+                  color: UI_TEXT_SECONDARY,
+                  fontSize: 13,
+                  lineHeight: 18,
+                }}
+                numberOfLines={3}
+              >
+                {row.summaryLine}
+              </Text>
+              <Text
+                style={{
+                  color: AURORA.textMuted,
+                  fontSize: 11,
+                  marginTop: 8,
+                }}
+              >
+                Updated {formatStudentSessionTimeAgo(row.updatedAt)}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Hide session from this list"
+              onPress={() => hideSessionCardFromOverview(row.id)}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 14 }}
+              style={{
+                paddingHorizontal: 14,
+                justifyContent: "flex-start",
+                paddingTop: 12,
+              }}
+            >
+              <Trash2 size={18} color={AURORA.textMuted} />
+            </TouchableOpacity>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: AURORA.bg }}>
       <SafeAreaView style={{ flex: 1 }}>
@@ -554,20 +1088,51 @@ export default function MoodLogScreen() {
                 </Text>
               </View>
             </View>
-            {/* <TouchableOpacity
-                            onPress={() => triggerHaptic('light')}
-                            style={{
-                            width: 44, height: 44, borderRadius: 22,
-                            backgroundColor: AURORA.card, alignItems: 'center', justifyContent: 'center',
-                            borderWidth: 1, borderColor: AURORA.border,
-                        }}>
-                            <Bell size={20} color={AURORA.textSec} />
-                            <View style={{
-                                position: 'absolute', top: 8, right: 8,
-                                width: 8, height: 8, borderRadius: 4,
-                                backgroundColor: AURORA.red, borderWidth: 1.5, borderColor: AURORA.bg,
-                            }} />
-                        </TouchableOpacity> */}
+            <TouchableOpacity
+              onPress={openSessionsSheet}
+              accessibilityRole="button"
+              accessibilityLabel="View session requests and confirmed sessions"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: AURORA.card,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: AURORA.border,
+              }}
+            >
+              <CalendarClock size={21} color={AURORA.blue} />
+              {pendingSessionsCount > 0 ? (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    minWidth: 16,
+                    height: 16,
+                    paddingHorizontal: pendingSessionsCount > 9 ? 4 : 0,
+                    borderRadius: 8,
+                    backgroundColor: AURORA.amber,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 2,
+                    borderColor: AURORA.bg,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#0F172A",
+                      fontSize: 10,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {pendingSessionsCount > 99 ? "99+" : pendingSessionsCount}
+                  </Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
           </View>
 
           {/* ── How Are You Feeling Card ────────────────────────────── */}
@@ -815,8 +1380,6 @@ export default function MoodLogScreen() {
       <DashboardSessionRequestModal
         visible={showSessionRequestModal}
         studentId={user?.id ?? ""}
-        studentName={user?.full_name}
-        studentAvatar={user?.avatar_url}
         onClose={() => setShowSessionRequestModal(false)}
         onSuccess={({ counselorId }) =>
           router.push({
@@ -825,6 +1388,192 @@ export default function MoodLogScreen() {
           } as any)
         }
       />
+
+      <Modal
+        visible={sessionsSheetOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSessionsSheetOpen(false)}
+      >
+        <View style={sessionsSheetStyles.overlay}>
+          <TouchableOpacity
+            style={sessionsSheetStyles.backdrop}
+            activeOpacity={1}
+            onPress={() => setSessionsSheetOpen(false)}
+          />
+          <View style={sessionsSheetStyles.sheet}>
+            <View style={sessionsSheetStyles.handleBar} />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 12,
+              }}
+            >
+              <View
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  paddingRight: 8,
+                }}
+              >
+                <Text style={sessionsSheetStyles.sheetTitle}>My sessions</Text>
+                <TouchableOpacity
+                  onPress={showMySessionsInfo}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="How My sessions works"
+                  style={{ padding: 4 }}
+                >
+                  <Info size={20} color={AURORA.textSec} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSessionsSheetOpen(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{ padding: 6 }}
+              >
+                <X size={22} color={AURORA.textSec} />
+              </TouchableOpacity>
+            </View>
+
+            {sessionsLoading ? (
+              <View style={{ paddingVertical: 36 }}>
+                <ActivityIndicator color={AURORA.blue} />
+              </View>
+            ) : (
+              <ScrollView
+                style={{ flexGrow: 0 }}
+                contentContainerStyle={{ paddingBottom: 12 }}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {sessionsRawCount === 0 ? (
+                  <Text
+                    style={{
+                      color: AURORA.textSec,
+                      fontSize: 14,
+                      lineHeight: 20,
+                      marginTop: 8,
+                    }}
+                  >
+                    No sessions yet. Use Request a Session below to reach your
+                    counselor.
+                  </Text>
+                ) : sessionsVisibleCount === 0 ? (
+                  <View style={{ marginTop: 8 }}>
+                    <Text
+                      style={{
+                        color: AURORA.textSec,
+                        fontSize: 14,
+                        lineHeight: 20,
+                        marginBottom: 14,
+                      }}
+                    >
+                      You've hidden every session from this list. Nothing
+                      was removed from Messages or the server.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={confirmRestoreHiddenSessionCards}
+                      activeOpacity={0.85}
+                      style={{
+                        alignSelf: "flex-start",
+                        backgroundColor: "rgba(45,107,255,0.2)",
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: AURORA.blue,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: AURORA.blue,
+                          fontSize: 14,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Show hidden sessions again
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    {renderSessionOverviewSection(
+                      "Upcoming counseling",
+                      "Confirmed times that are still in the future (after you accept an invite or agree on a slot).",
+                      sessionsAgreedList,
+                      "green",
+                    )}
+                    {renderSessionOverviewSection(
+                      "Past appointments",
+                      "Agreed times that already passed — open Messages if you need a follow-up.",
+                      sessionsPastAgreedList,
+                      "muted",
+                    )}
+                    {renderSessionOverviewSection(
+                      "Needs your attention",
+                      "Counselor invites to confirm, reschedule requests, or other open steps.",
+                      sessionsActionList,
+                      "amber",
+                    )}
+                    {renderSessionOverviewSection(
+                      "Past & closed",
+                      "Completed, cancelled, or expired appointments.",
+                      sessionsClosedList,
+                      "muted",
+                    )}
+                    {sessionsOtherList.length > 0
+                      ? renderSessionOverviewSection(
+                          "Other",
+                          "",
+                          sessionsOtherList,
+                          "muted",
+                        )
+                      : null}
+                  </>
+                )}
+              </ScrollView>
+            )}
+
+            {!sessionsLoading &&
+            hiddenSessionIds.length > 0 &&
+            sessionsVisibleCount > 0 ? (
+              <TouchableOpacity
+                style={{ alignItems: "center", paddingBottom: 6 }}
+                onPress={confirmRestoreHiddenSessionCards}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={{
+                    color: AURORA.textMuted,
+                    fontSize: 13,
+                    fontWeight: "600",
+                  }}
+                >
+                  Restore hidden ({hiddenSessionIds.length})
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <TouchableOpacity
+              style={sessionsSheetStyles.secondaryBtn}
+              onPress={() => {
+                setSessionsSheetOpen(false);
+                router.push("/(student)/messages");
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={sessionsSheetStyles.secondaryBtnText}>
+                Open Messages
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Log Mood Modal ─────────────────────────────────────────────── */}
       <Modal
@@ -992,3 +1741,48 @@ export default function MoodLogScreen() {
     </View>
   );
 }
+
+const sessionsSheetStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  sheet: {
+    backgroundColor: AURORA.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: AURORA.border,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    maxHeight: "88%",
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: AURORA.border,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  secondaryBtn: {
+    alignItems: "center",
+    paddingVertical: 14,
+    marginTop: 4,
+  },
+  secondaryBtnText: {
+    color: AURORA.blue,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+});

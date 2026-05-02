@@ -1,7 +1,7 @@
 /**
- * DashboardSessionRequestModal - Student requests a session from dashboard
- * Simple form: pick counselor + note. Creates session with status 'requested'.
- * Counselor will propose time slots after reviewing.
+ * DashboardSessionRequestModal — pick counselor on Wellness/dashboard, then continue in Messages.
+ * Preferred time + note are collected only via StudentSessionRequestModal (same as Request session in chat)
+ * so only one session request message is created.
  */
 
 import React, { useState, useEffect } from "react";
@@ -10,17 +10,18 @@ import {
   View,
   Text,
   TouchableOpacity,
-  TextInput,
   ScrollView,
   StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
-import { X, Send } from "lucide-react-native";
+import { X, ArrowRight } from "lucide-react-native";
 import { AURORA } from "../../constants/aurora-colors";
 import { LetterAvatar } from "../common/LetterAvatar";
 import { firestoreService } from "../../services/firebase-firestore.service";
+import { counselorHasJournalAccessForCounselor } from "../../services/mood-firestore-v2.service";
 
 interface Counselor {
   id: string;
@@ -40,19 +41,14 @@ interface DashboardSessionRequestModalProps {
 export default function DashboardSessionRequestModal({
   visible,
   studentId,
-  studentName,
-  studentAvatar,
   onClose,
   onSuccess,
 }: DashboardSessionRequestModalProps) {
   const [counselors, setCounselors] = useState<Counselor[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [selectedCounselorId, setSelectedCounselorId] = useState<string | null>(
     null,
-  );
-  const [note, setNote] = useState(
-    "I've been feeling a bit overwhelmed and would like to talk to someone.",
   );
 
   useEffect(() => {
@@ -66,40 +62,47 @@ export default function DashboardSessionRequestModal({
     }
   }, [visible]);
 
-  const handleSend = async () => {
-    if (!selectedCounselorId || !note.trim() || sending) return;
-    const counselor = counselors.find((c) => c.id === selectedCounselorId);
-    setSending(true);
+  const navigateToMessagesSessionRequest = () => {
+    if (!selectedCounselorId || busy) return;
+    setBusy(true);
     try {
-      const sessionId = await firestoreService.createSessionRequest(
-        studentId,
-        selectedCounselorId,
-        note.trim(),
-      );
-      await firestoreService.addSessionRequestToConversation(
-        selectedCounselorId,
-        studentId,
-        sessionId,
-        note.trim(),
-        {
-          studentData:
-            studentName && studentAvatar
-              ? { name: studentName, avatar: studentAvatar }
-              : undefined,
-          counselorData: counselor
-            ? {
-                name: counselor.full_name ?? "Counselor",
-                avatar: counselor.avatar_url,
-              }
-            : undefined,
-        },
-      );
       onSuccess({ counselorId: selectedCounselorId });
       onClose();
-    } catch (e) {
-      console.error("Failed to create session request:", e);
     } finally {
-      setSending(false);
+      setBusy(false);
+    }
+  };
+
+  const handleContinuePress = async () => {
+    if (!selectedCounselorId || busy) return;
+    try {
+      const hasAccess = await counselorHasJournalAccessForCounselor(
+        studentId,
+        selectedCounselorId,
+      );
+      if (!hasAccess) {
+        const label =
+          counselors.find((c) => c.id === selectedCounselorId)?.full_name ??
+          "this counselor";
+        Alert.alert(
+          "Continue to session request",
+          `You'll choose your preferred time and a note next (same form as Messages → Request session). If you continue, ${label} may review your mood check-ins and journals in Aurora after you send the request. Only continue if you genuinely want help.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Continue",
+              onPress: () => navigateToMessagesSessionRequest(),
+            },
+          ],
+        );
+        return;
+      }
+      navigateToMessagesSessionRequest();
+    } catch (e) {
+      console.error("Session request check failed:", e);
+      const msg =
+        e instanceof Error ? e.message : "Please try again in a moment.";
+      Alert.alert("Something went wrong", msg);
     }
   };
 
@@ -124,94 +127,91 @@ export default function DashboardSessionRequestModal({
         />
         <View style={styles.sheet}>
           <View style={styles.handleBar} />
-          <View style={styles.header}>
-            <Text style={styles.title}>Request a Session</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12}>
-              <X size={24} color={AURORA.textSec} />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.hint}>
-            Choose a counselor and share why you'd like to talk. They'll review
-            your request and propose time slots.
-          </Text>
-
-          <Text style={styles.label}>Select Counselor</Text>
-          {loading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={AURORA.blue} />
-            </View>
-          ) : counselors.length === 0 ? (
-            <Text style={styles.emptyText}>No counselors available.</Text>
-          ) : (
-            <ScrollView
-              style={styles.counselorList}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
-              keyboardShouldPersistTaps="handled"
-            >
-              {counselors.map((c) => (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[
-                    styles.counselorRow,
-                    selectedCounselorId === c.id && styles.counselorRowSelected,
-                  ]}
-                  onPress={() => setSelectedCounselorId(c.id)}
-                  activeOpacity={0.8}
-                >
-                  <View style={{ marginRight: 12 }}>
-                    <LetterAvatar
-                      name={c.full_name ?? "Counselor"}
-                      size={44}
-                      avatarUrl={c.avatar_url}
-                    />
-                  </View>
-                  <View style={styles.counselorInfo}>
-                    <Text style={styles.counselorName}>
-                      {c.full_name || "Counselor"}
-                    </Text>
-                  </View>
-                  {selectedCounselorId === c.id && (
-                    <View style={styles.check}>
-                      <Text style={styles.checkText}>✓</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
-          <Text style={styles.label}>Your Note</Text>
-          <TextInput
-            style={styles.noteInput}
-            placeholder="Share what you'd like to discuss..."
-            placeholderTextColor={AURORA.textMuted}
-            value={note}
-            onChangeText={setNote}
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-          />
-
-          <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              (!selectedCounselorId || !note.trim()) && styles.sendBtnDisabled,
-            ]}
-            onPress={handleSend}
-            disabled={!selectedCounselorId || !note.trim() || sending}
-            activeOpacity={0.85}
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+            contentContainerStyle={{ paddingBottom: 8 }}
           >
-            {sending ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+            <View style={styles.header}>
+              <Text style={styles.title}>Request a Session</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={12}>
+                <X size={24} color={AURORA.textSec} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.hint}>
+              Choose your counselor here. Next you'll open Messages with the same
+              preferred time and note form used when you tap Request session in
+              chat — only one request is sent after you confirm there.
+            </Text>
+
+            <Text style={styles.label}>Select Counselor</Text>
+            {loading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={AURORA.blue} />
+              </View>
+            ) : counselors.length === 0 ? (
+              <Text style={styles.emptyText}>No counselors available.</Text>
             ) : (
-              <>
-                <Send size={18} color="#FFFFFF" />
-                <Text style={styles.sendBtnText}>Send Request</Text>
-              </>
+              <ScrollView
+                style={styles.counselorList}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                {counselors.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[
+                      styles.counselorRow,
+                      selectedCounselorId === c.id &&
+                        styles.counselorRowSelected,
+                    ]}
+                    onPress={() => setSelectedCounselorId(c.id)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ marginRight: 12 }}>
+                      <LetterAvatar
+                        name={c.full_name ?? "Counselor"}
+                        size={44}
+                        avatarUrl={c.avatar_url}
+                      />
+                    </View>
+                    <View style={styles.counselorInfo}>
+                      <Text style={styles.counselorName}>
+                        {c.full_name || "Counselor"}
+                      </Text>
+                    </View>
+                    {selectedCounselorId === c.id && (
+                      <View style={styles.check}>
+                        <Text style={styles.checkText}>✓</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             )}
-          </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.sendBtn,
+                !selectedCounselorId && styles.sendBtnDisabled,
+              ]}
+              onPress={() => void handleContinuePress()}
+              disabled={!selectedCounselorId || busy}
+              activeOpacity={0.85}
+            >
+              {busy ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <>
+                  <Text style={styles.sendBtnText}>Continue in Messages</Text>
+                  <ArrowRight size={18} color="#FFFFFF" />
+                </>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -277,8 +277,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   counselorList: {
-    maxHeight: 160,
-    marginBottom: 16,
+    maxHeight: 220,
+    marginBottom: 20,
   },
   counselorRow: {
     flexDirection: "row",
@@ -313,17 +313,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
-  },
-  noteInput: {
-    backgroundColor: AURORA.cardDark,
-    borderRadius: 12,
-    padding: 14,
-    color: "#FFFFFF",
-    fontSize: 14,
-    minHeight: 80,
-    borderWidth: 1,
-    borderColor: AURORA.border,
-    marginBottom: 20,
   },
   sendBtn: {
     flexDirection: "row",

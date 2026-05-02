@@ -194,3 +194,40 @@ export function isSessionTimeExpired(preferredTime: string): boolean {
   const date = parsePreferredTimeToDate(preferredTime);
   return date ? date.getTime() < Date.now() : false;
 }
+
+/** Counselor chat: still-actionable request shapes (not yet accepted / finalized). */
+const OPEN_SESSION_REQUEST_STATUSES: ReadonlySet<string> = new Set([
+  "requested",
+  "pending",
+  "needs_rescheduling",
+]);
+
+/**
+ * True when a session *request* card should show as expired: only for open requests
+ * (not accepted yet), if the preferred slot is in the past OR the message is at least
+ * three calendar days old (local midnight to midnight).
+ */
+export function isOpenSessionRequestExpired(params: {
+  status: string;
+  preferredTime?: string;
+  requestedAtMs?: number | null;
+  now?: Date;
+}): boolean {
+  const { status, preferredTime, requestedAtMs, now = new Date() } = params;
+  if (!OPEN_SESSION_REQUEST_STATUSES.has(status)) return false;
+
+  if (preferredTime?.trim() && isSessionTimeExpired(preferredTime)) return true;
+
+  if (requestedAtMs != null && Number.isFinite(requestedAtMs)) {
+    const requestedAt = new Date(requestedAtMs);
+    if (!isNaN(requestedAt.getTime())) {
+      const startOfLocalDay = (d: Date) =>
+        new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      const calendarDaysElapsed =
+        (startOfLocalDay(now) - startOfLocalDay(requestedAt)) / 86400000;
+      if (calendarDaysElapsed >= 3) return true;
+    }
+  }
+
+  return false;
+}

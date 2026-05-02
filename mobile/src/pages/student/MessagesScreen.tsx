@@ -47,6 +47,10 @@ import SessionRequestDetailsModal from "../../components/student/SessionRequestD
 import StudentSessionRequestModal, {
   type SessionRequestFormData,
 } from "../../components/student/StudentSessionRequestModal";
+import {
+  counselorHasJournalAccessForCounselor,
+  grantCounselorJournalAccess,
+} from "../../services/mood-firestore-v2.service";
 import SelectCounselorModal, {
   type Counselor,
 } from "../../components/student/SelectCounselorModal";
@@ -58,7 +62,9 @@ import * as Clipboard from "expo-clipboard";
 
 type TabType = "All messages" | "Unread";
 
+/** Matches counselor + Firestore preview sanitization (`firebase-firestore.service`). */
 const AUTO_ACCEPTED_PREFIX = "__AUTO_ACCEPTED__";
+const SESSION_ACCEPT_NOTICE_TEXT = "Just accepted your request";
 
 interface CounselorContact {
   id: string;
@@ -374,8 +380,15 @@ function DirectMessageView({
     }
   };
 
-  const handleSendSessionRequest = async (data: SessionRequestFormData) => {
-    if (!user?.id || !contact.conversationId || sending) return;
+  const executeSendSessionRequest = async (data: SessionRequestFormData) => {
+    if (!user?.id || sending) return;
+    if (!contact.conversationId) {
+      Alert.alert(
+        "Can't send request",
+        "This conversation isn't ready yet. Go back and open your counselor's chat again.",
+      );
+      return;
+    }
     setSending(true);
     try {
       const preferredTimeStr = data.preferredDate.toLocaleDateString("en-US", {
@@ -387,7 +400,6 @@ function DirectMessageView({
         hour12: true,
       });
 
-      // Edit flow: update the existing session request message card instead of creating a new one.
       if (editingSessionRequest?.id && editingSessionRequest.sessionId) {
         await firestoreService.updateSessionRequestSchedule(
           contact.conversationId,
@@ -407,13 +419,14 @@ function DirectMessageView({
         return;
       }
 
-      // New request flow: create a new session request card.
       await firestoreService.sendSessionRequest(
         contact.conversationId,
         user.id,
         data.preferredDate,
         data.note,
       );
+
+      await grantCounselorJournalAccess(user.id, contact.id);
 
       setShowSessionRequestModal(false);
       setTimeout(
@@ -422,8 +435,56 @@ function DirectMessageView({
       );
     } catch (e) {
       console.error("Failed to send session request:", e);
+      const msg =
+        e instanceof Error ? e.message : "Please try again in a moment.";
+      Alert.alert("Could not send request", msg);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleSendSessionRequest = async (data: SessionRequestFormData) => {
+    if (!user?.id || sending) return;
+    if (!contact.conversationId) {
+      Alert.alert(
+        "Can't send request",
+        "This conversation isn't ready yet. Go back and open your counselor's chat again.",
+      );
+      return;
+    }
+
+    if (editingSessionRequest?.id && editingSessionRequest.sessionId) {
+      await executeSendSessionRequest(data);
+      return;
+    }
+
+    try {
+      const hasAccess = await counselorHasJournalAccessForCounselor(
+        user.id,
+        contact.id,
+      );
+      if (!hasAccess) {
+        Alert.alert(
+          "Confirm session request",
+          `Are you sure you want to request a session with ${contact.name}? If you continue, they may review your mood check-ins and journals in Aurora so they can support you. Only continue if you genuinely want help.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Yes, send request",
+              onPress: () => {
+                void executeSendSessionRequest(data);
+              },
+            },
+          ],
+        );
+        return;
+      }
+      await executeSendSessionRequest(data);
+    } catch (e) {
+      console.error("Failed to verify journal consent:", e);
+      const msg =
+        e instanceof Error ? e.message : "Please try again in a moment.";
+      Alert.alert("Something went wrong", msg);
     }
   };
 
@@ -560,13 +621,18 @@ function DirectMessageView({
               ) : (
                 messages.map((msg) => {
                   const isMe = msg.senderId === "me";
+                  const rawText = msg.type === "text" ? msg.text : "";
+                  const hasAcceptMarker =
+                    rawText.startsWith(AUTO_ACCEPTED_PREFIX);
                   const isAutoAccepted =
                     msg.type === "text" &&
-                    msg.text.startsWith(AUTO_ACCEPTED_PREFIX);
-                  const displayText = isAutoAccepted
-                    ? msg.text.replace(AUTO_ACCEPTED_PREFIX, "").trim()
-                    : msg.type === "text"
-                      ? msg.text
+                    (hasAcceptMarker ||
+                      rawText.trim() === SESSION_ACCEPT_NOTICE_TEXT);
+                  const displayText =
+                    msg.type === "text"
+                      ? hasAcceptMarker
+                        ? rawText.slice(AUTO_ACCEPTED_PREFIX.length).trim()
+                        : rawText
                       : "";
                   const senderName = isMe ? "You" : contact.name;
                   const messageContent =
@@ -911,6 +977,9 @@ export default function MessagesScreen() {
     setAutoOpenSessionRequestForContact,
   ] = useState(false);
 
+  /** Avoid duplicate opens / Strict Mode double-invoke while dashboard deep-link runs */
+  const counselorDeepLinkHandledRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!user?.id) {
       setLoading(false);
@@ -986,61 +1055,93 @@ export default function MessagesScreen() {
 
   useEffect(() => {
     if (!user?.id) return;
-    const counselorId =
+    const counselorIdRaw =
       typeof params.counselorId === "string" ? params.counselorId : "";
+    const counselorId = counselorIdRaw.trim();
     const shouldOpenRequest = params.openSessionRequest === "1";
-    if (!counselorId) return;
+
+    if (!counselorId) {
+      counselorDeepLinkHandledRef.current = null;
+      return;
+    }
+
+    const linkKey = `${counselorId}:${shouldOpenRequest ? "1" : "0"}`;
+    if (counselorDeepLinkHandledRef.current === linkKey) return;
+    counselorDeepLinkHandledRef.current = linkKey;
+
+    let cancelled = false;
+
+    const clearCounselorRouteParams = () => {
+      router.setParams({
+        counselorId: undefined,
+        openSessionRequest: undefined,
+      });
+    };
 
     const openThreadFromParam = async () => {
-      const existing = contacts.find((c) => c.id === counselorId);
-      if (existing) {
-        setSelectedContact(existing);
-        setAutoOpenSessionRequestForContact(shouldOpenRequest);
-        router.replace("/(student)/messages");
-        return;
-      }
-
       try {
-        const users = await firestoreService.getUsersByRole("counselor");
-        const counselor = (users as Counselor[]).find(
-          (u) => u.id === counselorId,
+        const convos = await firestoreService.getConversationsForStudent(
+          user.id,
         );
-        if (!counselor) return;
+        if (cancelled) return;
 
-        await firestoreService.addConversation(
-          counselor.id,
-          {
-            id: user.id,
-            name: user.full_name ?? "Student",
-            avatar: user.avatar_url ?? "",
-          },
-          {
+        let contact = (convos as CounselorContact[]).find(
+          (c) => c.id === counselorId,
+        );
+
+        if (!contact) {
+          const users = await firestoreService.getUsersByRole("counselor");
+          if (cancelled) return;
+          const counselor = (users as Counselor[]).find(
+            (u) => u.id === counselorId,
+          );
+          if (!counselor) return;
+
+          await firestoreService.addConversation(
+            counselor.id,
+            {
+              id: user.id,
+              name: user.full_name ?? "Student",
+              avatar: user.avatar_url ?? "",
+            },
+            {
+              name: counselor.full_name ?? "Counselor",
+              avatar: counselor.avatar_url,
+            },
+          );
+          if (cancelled) return;
+
+          contact = {
+            id: counselor.id,
+            conversationId: `${counselor.id}_${user.id}`,
             name: counselor.full_name ?? "Counselor",
-            avatar: counselor.avatar_url,
-          },
-        );
+            preview: "No messages yet",
+            time: "Just now",
+            avatar: counselor.avatar_url ?? "",
+            isOnline: false,
+            isUnread: false,
+          };
+        }
 
-        const contact: CounselorContact = {
-          id: counselor.id,
-          conversationId: `${counselor.id}_${user.id}`,
-          name: counselor.full_name ?? "Counselor",
-          preview: "No messages yet",
-          time: "Just now",
-          avatar: counselor.avatar_url ?? "",
-          isOnline: false,
-          isUnread: false,
-        };
+        if (cancelled) return;
+
         setSelectedContact(contact);
         setAutoOpenSessionRequestForContact(shouldOpenRequest);
-        router.replace("/(student)/messages");
+        clearCounselorRouteParams();
         refreshConversations();
       } catch (e) {
         console.error("Failed opening counselor thread from params:", e);
+        counselorDeepLinkHandledRef.current = null;
       }
     };
 
     void openThreadFromParam();
-  }, [params.counselorId, params.openSessionRequest, contacts, user?.id]);
+
+    return () => {
+      cancelled = true;
+      counselorDeepLinkHandledRef.current = null;
+    };
+  }, [params.counselorId, params.openSessionRequest, user?.id, router]);
 
   if (selectedContact) {
     return (

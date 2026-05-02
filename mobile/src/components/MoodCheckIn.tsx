@@ -553,12 +553,13 @@ export function MoodCheckIn({
     return "very high";
   };
 
+  /** Intensity words placed before “stress” in summaries (avoids “high stress” / “… stressed stress”). */
   const describeStress = (value: number) => {
-    if (value <= 1) return "very calm";
-    if (value === 2) return "slightly tense";
-    if (value === 3) return "moderately stressed";
-    if (value === 4) return "highly stressed";
-    return "overwhelmed";
+    if (value <= 1) return "very low";
+    if (value === 2) return "low";
+    if (value === 3) return "moderate";
+    if (value === 4) return "elevated";
+    return "overwhelming";
   };
 
   const tagPhrase = (tags: string[], maxVisible = 5) => {
@@ -964,7 +965,7 @@ export function MoodCheckIn({
     }
     setActiveGuide({
       title: "Stress scale (1-5)",
-      body: "Rate how pressured or tense you feel right now.\n\n1 - Very calm\n2 - Slightly tense\n3 - Moderate stress\n4 - High stress\n5 - Overwhelmed",
+      body: "Rate how pressured or tense you feel right now.\n\n1 - Very calm\n2 - A little tense\n3 - Moderately tense\n4 - Very tense\n5 - Overwhelmed",
     });
   };
 
