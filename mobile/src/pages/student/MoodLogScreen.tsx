@@ -9,7 +9,6 @@ import {
   Platform,
   ActivityIndicator,
   StyleSheet,
-  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -831,46 +830,16 @@ export default function MoodLogScreen() {
 
   const hideSessionCardFromOverview = useCallback(
     (sessionId: string) => {
-      Alert.alert(
-        "Hide from My sessions?",
-        "This only hides the card on this device. It does not cancel your session or remove anything from Messages.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Hide",
-            style: "destructive",
-            onPress: () => {
-              triggerHaptic("light");
-              setHiddenSessionIds((prev) => {
-                if (prev.includes(sessionId)) return prev;
-                const next = [...prev, sessionId];
-                if (user?.id) void saveHiddenStudentSessionIds(user.id, next);
-                return next;
-              });
-            },
-          },
-        ],
-      );
+      triggerHaptic("light");
+      setHiddenSessionIds((prev) => {
+        if (prev.includes(sessionId)) return prev;
+        const next = [...prev, sessionId];
+        if (user?.id) void saveHiddenStudentSessionIds(user.id, next);
+        return next;
+      });
     },
     [user?.id],
   );
-
-  const confirmRestoreHiddenSessionCards = useCallback(() => {
-    Alert.alert(
-      "Show hidden sessions?",
-      "Cards you hid will appear in this list again.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Restore",
-          onPress: () => {
-            setHiddenSessionIds([]);
-            if (user?.id) void saveHiddenStudentSessionIds(user.id, []);
-          },
-        },
-      ],
-    );
-  }, [user?.id]);
 
   const sessionsAgreedList = [...visibleStudentSessions]
     .filter((s) => s.dashboardBucket === "agreed")
@@ -1464,42 +1433,17 @@ export default function MoodLogScreen() {
                     counselor.
                   </Text>
                 ) : sessionsVisibleCount === 0 ? (
-                  <View style={{ marginTop: 8 }}>
-                    <Text
-                      style={{
-                        color: AURORA.textSec,
-                        fontSize: 14,
-                        lineHeight: 20,
-                        marginBottom: 14,
-                      }}
-                    >
-                      You've hidden every session from this list. Nothing
-                      was removed from Messages or the server.
-                    </Text>
-                    <TouchableOpacity
-                      onPress={confirmRestoreHiddenSessionCards}
-                      activeOpacity={0.85}
-                      style={{
-                        alignSelf: "flex-start",
-                        backgroundColor: "rgba(45,107,255,0.2)",
-                        paddingHorizontal: 14,
-                        paddingVertical: 10,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: AURORA.blue,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: AURORA.blue,
-                          fontSize: 14,
-                          fontWeight: "700",
-                        }}
-                      >
-                        Show hidden sessions again
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                  <Text
+                    style={{
+                      color: AURORA.textSec,
+                      fontSize: 14,
+                      lineHeight: 20,
+                      marginTop: 8,
+                    }}
+                  >
+                    You've hidden every session from this list. Nothing was
+                    removed from Messages or the server.
+                  </Text>
                 ) : (
                   <>
                     {renderSessionOverviewSection(
@@ -1538,26 +1482,6 @@ export default function MoodLogScreen() {
                 )}
               </ScrollView>
             )}
-
-            {!sessionsLoading &&
-            hiddenSessionIds.length > 0 &&
-            sessionsVisibleCount > 0 ? (
-              <TouchableOpacity
-                style={{ alignItems: "center", paddingBottom: 6 }}
-                onPress={confirmRestoreHiddenSessionCards}
-                activeOpacity={0.85}
-              >
-                <Text
-                  style={{
-                    color: AURORA.textMuted,
-                    fontSize: 13,
-                    fontWeight: "600",
-                  }}
-                >
-                  Restore hidden ({hiddenSessionIds.length})
-                </Text>
-              </TouchableOpacity>
-            ) : null}
 
             <TouchableOpacity
               style={sessionsSheetStyles.secondaryBtn}
