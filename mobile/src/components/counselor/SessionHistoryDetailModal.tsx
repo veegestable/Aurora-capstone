@@ -18,6 +18,19 @@ import { LetterAvatar } from '../common/LetterAvatar';
 import type { SessionHistoryBadge } from '../../utils/sessionScheduling';
 import { formatCounselorStudentSubtitle } from '../../constants/ccs-student-programs';
 
+function formatSessionTimelineLine(d: Date): string {
+    if (!d || isNaN(d.getTime())) return '—';
+    return `${d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    })} · ${d.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    })}`;
+}
+
 const BADGE_CONFIG: Record<SessionHistoryBadge, { label: string; bg: string; text: string }> = {
     pending: { label: 'PENDING', bg: 'rgba(45,107,255,0.2)', text: AURORA.blue },
     today: { label: 'TODAY', bg: 'rgba(34,197,94,0.22)', text: '#86efac' },
@@ -49,6 +62,9 @@ export interface SessionHistoryDetailData {
     cancelReason?: string;
     dateDisplay?: string;
     timeDisplay?: string;
+    createdAt?: Date;
+    initiatedBy?: string;
+    slotConfirmedAt?: Date | null;
 }
 
 interface SessionHistoryDetailModalProps {
@@ -128,6 +144,42 @@ export default function SessionHistoryDetailModal({
                                 </View>
                                 <Text style={styles.sectionValue}>{timeStr}</Text>
                             </View>
+
+                            {data.createdAt ? (
+                                <View style={styles.section}>
+                                    <View style={styles.sectionHeader}>
+                                        <Clock size={18} color={AURORA.textSec} />
+                                        <Text style={styles.sectionLabel}>
+                                            {(data.initiatedBy ?? 'student') === 'counselor'
+                                                ? 'Invite sent'
+                                                : 'Requested'}
+                                        </Text>
+                                    </View>
+                                    <Text style={[styles.sectionValue, styles.timelineValue]}>
+                                        {formatSessionTimelineLine(
+                                            data.createdAt instanceof Date
+                                                ? data.createdAt
+                                                : new Date(data.createdAt as unknown as string),
+                                        )}
+                                    </Text>
+                                </View>
+                            ) : null}
+
+                            {data.slotConfirmedAt ? (
+                                <View style={styles.section}>
+                                    <View style={styles.sectionHeader}>
+                                        <Clock size={18} color={AURORA.green} />
+                                        <Text style={styles.sectionLabel}>Time agreed</Text>
+                                    </View>
+                                    <Text style={[styles.sectionValue, styles.timelineValue]}>
+                                        {formatSessionTimelineLine(
+                                            data.slotConfirmedAt instanceof Date
+                                                ? data.slotConfirmedAt
+                                                : new Date(data.slotConfirmedAt as unknown as string),
+                                        )}
+                                    </Text>
+                                </View>
+                            ) : null}
 
                             <View style={styles.section}>
                                 <View style={styles.sectionHeader}>
@@ -305,6 +357,12 @@ const styles = StyleSheet.create({
     sectionValue: {
         color: '#FFFFFF',
         fontSize: 15,
+        fontWeight: '500',
+        paddingLeft: 26,
+    },
+    timelineValue: {
+        color: AURORA.textSec,
+        fontSize: 14,
         fontWeight: '500',
         paddingLeft: 26,
     },

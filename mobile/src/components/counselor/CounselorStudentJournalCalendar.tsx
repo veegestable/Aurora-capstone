@@ -68,6 +68,9 @@ function sanitizeEntryForCounselorBaseline(entry: MoodEntry): MoodEntry {
     ...entry,
     emotions,
     notes: "",
+    /** Hide self-report scales from UI paths that still receive raw subscription payloads. */
+    stress_level: 1,
+    energy_level: 10,
     sleep_quality: undefined,
     journal_image_url: "",
     bath_taken: false,

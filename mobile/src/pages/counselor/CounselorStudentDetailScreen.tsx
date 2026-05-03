@@ -21,10 +21,7 @@ import { db } from "../../services/firebase";
 import { AURORA } from "../../constants/aurora-colors";
 import { LetterAvatar } from "../../components/common/LetterAvatar";
 import { formatCounselorStudentSubtitle } from "../../constants/ccs-student-programs";
-import {
-  fetchStudentCounselorDetailedContext,
-  fetchStudentCheckInSignalContextForCounselor,
-} from "../../services/counselor-checkin-context.service";
+import { fetchStudentCounselorDetailedContext } from "../../services/counselor-checkin-context.service";
 import { firestoreService } from "../../services/firebase-firestore.service";
 import { useAuth } from "../../stores/AuthContext";
 import type { CounselorSignalPill } from "../../constants/counselor-checkin-signals";
@@ -54,9 +51,6 @@ export default function CounselorStudentDetailScreen() {
   const [journalAccessGranted, setJournalAccessGranted] = useState(false);
   const [logs, setLogs] = useState<Awaited<
     ReturnType<typeof fetchStudentCounselorDetailedContext>
-  >["logs"]>([]);
-  const [signalLogs, setSignalLogs] = useState<Awaited<
-    ReturnType<typeof fetchStudentCheckInSignalContextForCounselor>
   >["logs"]>([]);
   const [inviteBusy, setInviteBusy] = useState(false);
 
@@ -112,16 +106,6 @@ export default function CounselorStudentDetailScreen() {
     void reloadContext();
   }, [reloadContext]);
 
-  useEffect(() => {
-    if (!id) {
-      setSignalLogs([]);
-      return;
-    }
-    void fetchStudentCheckInSignalContextForCounselor(id).then(({ logs: lg }) => {
-      setSignalLogs(lg);
-    });
-  }, [id]);
-
   const programLine =
     formatCounselorStudentSubtitle({
       department: student?.department,
@@ -129,8 +113,9 @@ export default function CounselorStudentDetailScreen() {
       year_level: student?.year_level,
     }) || "CCS";
 
-  const signalRiskLevel: CounselorSignalPill =
-    counselorSignalFromLogs(signalLogs);
+  const signalRiskLevel: CounselorSignalPill = journalAccessGranted
+    ? counselorSignalFromLogs(logs)
+    : "typical_self_report";
 
   const handleInviteToSession = async () => {
     if (!counselorId || !student?.id) {
@@ -138,12 +123,13 @@ export default function CounselorStudentDetailScreen() {
       return;
     }
     const isAlerted =
-      signalRiskLevel === "higher_self_report" ||
-      signalRiskLevel === "moderate_self_report";
+      journalAccessGranted &&
+      (signalRiskLevel === "higher_self_report" ||
+        signalRiskLevel === "moderate_self_report");
     const borderColor =
-      signalRiskLevel === "higher_self_report"
+      journalAccessGranted && signalRiskLevel === "higher_self_report"
         ? AURORA.red
-        : signalRiskLevel === "moderate_self_report"
+        : journalAccessGranted && signalRiskLevel === "moderate_self_report"
           ? AURORA.orange
           : undefined;
 
@@ -201,7 +187,7 @@ export default function CounselorStudentDetailScreen() {
           marginBottom: 10,
         }}
       >
-        Mood check-ins (all students)
+        Mood check-ins
       </Text>
       <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21 }}>
         You can see each check-in’s date, time, and mood label below — not notes, sleep, meals,
@@ -333,7 +319,7 @@ export default function CounselorStudentDetailScreen() {
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}>
-                  Invite to Session (opens chat)
+                  Invite to Session
                 </Text>
               )}
             </TouchableOpacity>

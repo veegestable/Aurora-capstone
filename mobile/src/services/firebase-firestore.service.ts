@@ -14,6 +14,7 @@ import {
   updateDoc,
   writeBatch,
   deleteDoc,
+  deleteField,
   onSnapshot,
   type QuerySnapshot,
 } from "firebase/firestore";
@@ -22,6 +23,7 @@ import {
   type SessionHistoryBadge,
   EXPIRED_SESSION_RETENTION_MS,
   computeSessionHistoryBadge,
+  getConfirmedFinalSlot,
   getOverdueSchedulingState,
   getSessionScheduledDate,
 } from "../utils/sessionScheduling";
@@ -1150,6 +1152,7 @@ export const firestoreService = {
   // sessions/{sessionId}: counselorId, studentId, riskFlagId, initiatedBy, studentRequestNote,
   //   finalSlot (agreed date+time — single source for history badges & overdue; set when either party confirms),
   //   proposedSlots, confirmedSlot (kept in sync with finalSlot when agreed), status, attendanceNote, cancelReason,
+  //   slotConfirmedAt (Timestamp when final/agreed time was last locked as confirmed),
   //   reminderSent, createdAt, updatedAt, expiredAt, schedulingOverdueAt, sessionHistoryBadge
   // status: requested | pending | confirmed | needs_rescheduling | expired | completed | missed | rescheduled | cancelled
 
@@ -1352,6 +1355,7 @@ export const firestoreService = {
         proposedSlots: slots,
         finalSlot: null,
         confirmedSlot: null,
+        slotConfirmedAt: deleteField(),
         status: "pending",
         updatedAt: Timestamp.now(),
         ...(opts?.proposalKind === "attendance_reschedule"
@@ -1390,6 +1394,7 @@ export const firestoreService = {
         finalSlot: slot,
         confirmedSlot: slot,
         status: "confirmed",
+        slotConfirmedAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
       if (session?.studentId) {
@@ -1450,6 +1455,7 @@ export const firestoreService = {
         finalSlot: slot,
         confirmedSlot: slot,
         status: "confirmed",
+        slotConfirmedAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
       if (data.studentId == null) {
@@ -1625,7 +1631,11 @@ export const firestoreService = {
         schedulingOverdueAt: null,
         sessionHistoryBadge: badge,
         ...(outcome === "rescheduled"
-          ? { finalSlot: null, confirmedSlot: null }
+          ? {
+              finalSlot: null,
+              confirmedSlot: null,
+              slotConfirmedAt: deleteField(),
+            }
           : {}),
       });
     } catch (error: any) {
@@ -1636,7 +1646,9 @@ export const firestoreService = {
 
   /**
    * Get session history for counselor with enriched student data (name, program).
-   * Only returns sessions with confirmedSlot (accepted) or completed/missed/rescheduled status.
+   * **Agreed sessions only:** rows must have a locked `finalSlot` / `confirmedSlot`, or a terminal
+   * attendance outcome (`completed`, `missed`, `rescheduled` — the last clears slots but stays listed).
+   * Excludes open student requests and invite/pending flows where no time is locked yet.
    */
   async getSessionHistoryForCounselor(counselorId: string): Promise<
     Array<{
@@ -1657,6 +1669,9 @@ export const firestoreService = {
       sessionHistoryBadge?: SessionHistoryBadge;
       updatedAt: Date;
       createdAt: Date;
+      initiatedBy?: string;
+      /** When the agreed slot was last confirmed (student or counselor path). */
+      slotConfirmedAt: Date | null;
     }>
   > {
     try {
@@ -1685,6 +1700,13 @@ export const firestoreService = {
         const confirmedSlot =
           normalizeFirestoreSessionSlot(data.confirmedSlot) ??
           looseSessionSlotFromRaw(data.confirmedSlot);
+        const slotConfirmedRaw = data.slotConfirmedAt;
+        const slotConfirmedAt =
+          slotConfirmedRaw != null &&
+          typeof (slotConfirmedRaw as { toDate?: () => Date }).toDate ===
+            "function"
+            ? (slotConfirmedRaw as { toDate: () => Date }).toDate()
+            : null;
         return {
           id: d.id,
           studentId:
@@ -1704,13 +1726,28 @@ export const firestoreService = {
             | undefined,
           updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
           createdAt: data.createdAt?.toDate?.() ?? new Date(),
+          initiatedBy:
+            typeof data.initiatedBy === "string" ? data.initiatedBy : undefined,
+          slotConfirmedAt,
         };
+      });
+
+      const sessionsAgreedOnly = sessions.filter((s) => {
+        const st = String(s.status ?? "").toLowerCase();
+        if (st === "completed" || st === "missed" || st === "rescheduled") {
+          return true;
+        }
+        return (
+          getConfirmedFinalSlot(
+            s as { finalSlot?: unknown; confirmedSlot?: unknown },
+          ) != null
+        );
       });
 
       // Enrich with student data
       const uniqueStudentIds = [
         ...new Set(
-          sessions
+          sessionsAgreedOnly
             .map((s) => s.studentId)
             .filter((id): id is string => typeof id === "string" && id.trim().length > 0),
         ),
@@ -1798,7 +1835,7 @@ export const firestoreService = {
       };
 
       const results = await Promise.all(
-        sessions.map(async (s) => {
+        sessionsAgreedOnly.map(async (s) => {
           const status = await syncSchedulingStatus(s);
           const merged = { ...s, status };
           const badge = computeSessionHistoryBadge(merged);

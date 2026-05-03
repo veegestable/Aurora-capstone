@@ -195,17 +195,66 @@ export function isSessionTimeExpired(preferredTime: string): boolean {
   return date ? date.getTime() < Date.now() : false;
 }
 
-/** Counselor chat: still-actionable request shapes (not yet accepted / finalized). */
-const OPEN_SESSION_REQUEST_STATUSES: ReadonlySet<string> = new Set([
+const TWENTY_FOUR_H_MS = 24 * 60 * 60 * 1000;
+
+/** Counselor/student chat: open request shapes where a 24h no-response rule applies. */
+const OPEN_SESSION_REQUEST_24H_STATUSES: ReadonlySet<string> = new Set([
   "requested",
   "pending",
-  "needs_rescheduling",
 ]);
 
+function firestoreLikeToMs(v: unknown): number {
+  if (v == null) return NaN;
+  if (typeof (v as { toMillis?: () => number }).toMillis === "function") {
+    const n = (v as { toMillis: () => number }).toMillis();
+    return typeof n === "number" && !isNaN(n) ? n : NaN;
+  }
+  if (typeof (v as { toDate?: () => Date }).toDate === "function") {
+    const d = (v as { toDate: () => Date }).toDate();
+    const t = d.getTime();
+    return isNaN(t) ? NaN : t;
+  }
+  if (v instanceof Date) {
+    const t = v.getTime();
+    return isNaN(t) ? NaN : t;
+  }
+  return NaN;
+}
+
 /**
- * True when a session *request* card should show as expired: only for open requests
- * (not accepted yet), if the preferred slot is in the past OR the message is at least
- * three calendar days old (local midnight to midnight).
+ * Open session doc (`requested` / `pending`) with no locked slot: expired if 24h passed since
+ * anchor time — `requested` uses `createdAt`; `pending` uses max(createdAt, updatedAt) so
+ * counselor proposals reset the student's response window.
+ */
+export function isSessionDocOpenRequestExpired24h(
+  params: {
+    status: string;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+    nowMs?: number;
+  },
+): boolean {
+  const st = params.status.toLowerCase();
+  if (!OPEN_SESSION_REQUEST_24H_STATUSES.has(st)) return false;
+  const nowMs = params.nowMs ?? Date.now();
+  const createdMs = firestoreLikeToMs(params.createdAt);
+  const updatedMs = firestoreLikeToMs(params.updatedAt);
+  const anchorMs =
+    st === "requested"
+      ? createdMs
+      : Math.max(
+          Number.isFinite(createdMs) ? createdMs : -Infinity,
+          Number.isFinite(updatedMs) ? updatedMs : -Infinity,
+        );
+  if (!Number.isFinite(anchorMs)) return false;
+  return nowMs - anchorMs >= TWENTY_FOUR_H_MS;
+}
+
+/**
+ * True when a session *request* chat card should show as an expired request: open
+ * `requested` / `pending` with no acceptance, if the preferred slot is in the past OR
+ * **24 hours** have passed since `requestedAtMs` (message time). `needs_rescheduling` only
+ * expires when the preferred time is already past (no 24h wall on that status).
  */
 export function isOpenSessionRequestExpired(params: {
   status: string;
@@ -214,19 +263,17 @@ export function isOpenSessionRequestExpired(params: {
   now?: Date;
 }): boolean {
   const { status, preferredTime, requestedAtMs, now = new Date() } = params;
-  if (!OPEN_SESSION_REQUEST_STATUSES.has(status)) return false;
+  const st = status.toLowerCase();
+  if (st === "needs_rescheduling") {
+    return !!(preferredTime?.trim() && isSessionTimeExpired(preferredTime));
+  }
+  if (!OPEN_SESSION_REQUEST_24H_STATUSES.has(st)) return false;
 
   if (preferredTime?.trim() && isSessionTimeExpired(preferredTime)) return true;
 
+  const nowMs = now.getTime();
   if (requestedAtMs != null && Number.isFinite(requestedAtMs)) {
-    const requestedAt = new Date(requestedAtMs);
-    if (!isNaN(requestedAt.getTime())) {
-      const startOfLocalDay = (d: Date) =>
-        new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-      const calendarDaysElapsed =
-        (startOfLocalDay(now) - startOfLocalDay(requestedAt)) / 86400000;
-      if (calendarDaysElapsed >= 3) return true;
-    }
+    if (nowMs - requestedAtMs >= TWENTY_FOUR_H_MS) return true;
   }
 
   return false;

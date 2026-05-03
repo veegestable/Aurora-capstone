@@ -24,6 +24,8 @@ export interface SessionRequestData {
 interface SessionRequestCardProps {
     data: SessionRequestData;
     isFromMe?: boolean;
+    /** Open request not accepted within 24h (or preferred time passed) — matches counselor chat UX. */
+    isExpired?: boolean;
     onViewDetails?: () => void;
     onEdit?: () => void;
 }
@@ -40,16 +42,25 @@ const COUNSELOR_SLOTS_STATUS = {
     text: AURORA.blueLight,
 } as const;
 
+const EXPIRED_STATUS = {
+    label: 'Expired request',
+    bg: 'rgba(255,255,255,0.08)',
+    text: AURORA.textMuted,
+} as const;
+
 export default function SessionRequestCard({
     data,
     isFromMe = true,
+    isExpired = false,
     onViewDetails,
     onEdit,
 }: SessionRequestCardProps) {
     const offered = !!data.counselorOfferedSlots;
-    const statusConfig = offered
-        ? COUNSELOR_SLOTS_STATUS
-        : STATUS_CONFIG[data.status] ?? STATUS_CONFIG.pending;
+    const statusConfig = isExpired
+        ? EXPIRED_STATUS
+        : offered
+          ? COUNSELOR_SLOTS_STATUS
+          : STATUS_CONFIG[data.status] ?? STATUS_CONFIG.pending;
 
     return (
         <View style={styles.wrapper}>
@@ -59,7 +70,7 @@ export default function SessionRequestCard({
                         <Calendar size={20} color={AURORA.blue} />
                     </View>
                     <View style={styles.headerText}>
-                        <Text style={styles.title}>
+                        <Text style={[styles.title, isExpired && styles.textMutedStrong]}>
                             {offered ? 'Your counselor sent new times' : 'Session request sent'}
                         </Text>
                         <View style={[styles.statusPill, { backgroundColor: statusConfig.bg }]}>
@@ -74,7 +85,10 @@ export default function SessionRequestCard({
                     <Clock size={14} color={AURORA.textSec} style={styles.rowIcon} />
                     <View style={styles.rowContent}>
                         <Text style={styles.rowLabel}>Preferred time</Text>
-                        <Text style={styles.rowValue} numberOfLines={2}>
+                        <Text
+                            style={[styles.rowValue, isExpired && styles.textMutedStrong]}
+                            numberOfLines={2}
+                        >
                             {data.preferredTime}
                         </Text>
                     </View>
@@ -84,7 +98,10 @@ export default function SessionRequestCard({
                     <FileText size={14} color={AURORA.textSec} style={styles.rowIcon} />
                     <View style={styles.noteContent}>
                         <Text style={styles.rowLabel}>Your note</Text>
-                        <Text style={styles.noteText} numberOfLines={2}>
+                        <Text
+                            style={[styles.noteText, isExpired && styles.textMutedStrong]}
+                            numberOfLines={2}
+                        >
                             {data.note || 'No note added'}
                         </Text>
                     </View>
@@ -101,14 +118,16 @@ export default function SessionRequestCard({
                         </Text>
                         <ChevronRight size={18} color="#FFFFFF" />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.secondaryBtn}
-                        onPress={onEdit}
-                        activeOpacity={0.85}
-                    >
-                        <Pencil size={16} color={AURORA.blue} />
-                        <Text style={styles.secondaryBtnText}>Edit</Text>
-                    </TouchableOpacity>
+                    {!isExpired && (
+                        <TouchableOpacity
+                            style={styles.secondaryBtn}
+                            onPress={onEdit}
+                            activeOpacity={0.85}
+                        >
+                            <Pencil size={16} color={AURORA.blue} />
+                            <Text style={styles.secondaryBtnText}>Edit</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
             {/* Bubble tail */}
@@ -191,6 +210,9 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
         marginBottom: 4,
+    },
+    textMutedStrong: {
+        color: AURORA.textMuted,
     },
     statusPill: {
         alignSelf: 'flex-start',

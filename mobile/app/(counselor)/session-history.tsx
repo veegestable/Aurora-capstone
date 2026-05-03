@@ -108,6 +108,9 @@ interface SessionHistoryItem {
   sessionHistoryBadge?: SessionHistoryBadge;
   updatedAt: Date;
   createdAt: Date;
+  initiatedBy?: string;
+  /** When the current agreed time was locked (Firestore); null on older docs. */
+  slotConfirmedAt?: Date | null;
 }
 
 function normalizeRouteSessionId(
@@ -118,6 +121,19 @@ function normalizeRouteSessionId(
     return raw[0].trim();
   }
   return undefined;
+}
+
+function formatSessionTimelineLine(d: Date): string {
+  if (!d || isNaN(d.getTime())) return "—";
+  return `${d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })} · ${d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })}`;
 }
 
 function formatDateHeader(date: Date): string {
@@ -861,6 +877,37 @@ function SessionHistoryCard({
               year_level: session.studentYear,
             }) || "CCS"}
           </Text>
+
+          <View style={{ marginBottom: 8 }}>
+            <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16 }}>
+              {(session.initiatedBy ?? "student") === "counselor"
+                ? "Invite sent"
+                : "Requested"}
+              :{" "}
+              {formatSessionTimelineLine(
+                session.createdAt instanceof Date
+                  ? session.createdAt
+                  : new Date(session.createdAt),
+              )}
+            </Text>
+            {session.slotConfirmedAt ? (
+              <Text
+                style={{
+                  color: AURORA.textMuted,
+                  fontSize: 11,
+                  lineHeight: 16,
+                  marginTop: 2,
+                }}
+              >
+                Time agreed:{" "}
+                {formatSessionTimelineLine(
+                  session.slotConfirmedAt instanceof Date
+                    ? session.slotConfirmedAt
+                    : new Date(session.slotConfirmedAt),
+                )}
+              </Text>
+            ) : null}
+          </View>
 
           {session.status === "completed" && (
             <>

@@ -2,8 +2,8 @@
  * Counselor Home Dashboard - index.tsx
  * ======================================
  * Route: /(counselor)/
- * Shows stats overview and recent student risk flags.
- * Data fetched from Firestore students + mood logs.
+ * Shows stats overview and a short student roster.
+ * Roster chips reflect session scheduling consent only (not whole-roster mood triage).
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -36,17 +36,22 @@ import { AnnouncementSection } from "../../src/components/announcements/Announce
 import { triggerHaptic } from "../../src/utils/haptics";
 import { formatCounselorStudentSubtitle } from "../../src/constants/ccs-student-programs";
 import {
+  getAgreedSessionSlot,
   getConfirmedFinalSlot,
   getSessionScheduledDate,
 } from "../../src/utils/sessionScheduling";
-import { parseSlotToDate } from "../../src/utils/dateHelpers";
-import { fetchStudentCheckInSignalContextForCounselor } from "../../src/services/counselor-checkin-context.service";
 import {
-  type CounselorSignalPill,
-  COUNSELOR_SIGNAL_LABEL,
-  COUNSELOR_SIGNAL_SORT,
-  counselorSignalFromLogs,
-} from "../../src/constants/counselor-checkin-signals";
+  isSameDay,
+  isSessionDocOpenRequestExpired24h,
+  parseSlotToDate,
+} from "../../src/utils/dateHelpers";
+import { fetchStudentCheckInSignalContextForCounselor } from "../../src/services/counselor-checkin-context.service";
+import { getUserSettings } from "../../src/services/mood-firestore-v2.service";
+import {
+  type CounselorStudentRosterPill,
+  COUNSELOR_ROSTER_PILL_LABEL,
+  COUNSELOR_ROSTER_PILL_SORT,
+} from "../../src/constants/counselor-student-roster-pills";
 import { db } from "../../src/services/firebase";
 
 const hiddenCounselorSessionsSheetStorageKey = (counselorId: string) =>
@@ -80,9 +85,15 @@ async function saveHiddenCounselorSheetSessionIds(
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-/** Rows shown in counselor header session sheet (not raw "pending request" spam). */
+/** Rows shown in counselor header session sheet. */
 type CounselorSessionOverviewCategory =
+  /** Student started scheduling; no locked time yet (approve request or wait on their pick). */
+  | "student_request_pending"
+  /** Counselor invite; student has not locked a time yet. */
+  | "counselor_invite_pending"
   | "upcoming"
+  /** Agreed time passed (or needs_rescheduling) but not completed / missed / expired — same rows Session History shows as Today / Reschedule. */
+  | "awaiting_action"
   | "completed"
   | "missed"
   | "expired";
@@ -118,7 +129,7 @@ interface FlagItem {
   name: string;
   program: string;
   time: string;
-  signal: CounselorSignalPill;
+  rosterPill: CounselorStudentRosterPill;
   avatar: string;
 }
 
@@ -134,31 +145,19 @@ function formatTimeAgo(date: Date): string {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-function getSignalStyle(signal: CounselorSignalPill) {
-  switch (signal) {
-    case "higher_self_report":
-      return {
-        border: AURORA.red,
-        badgeBg: "rgba(239,68,68,0.18)",
-        text: AURORA.red,
-      };
-    case "moderate_self_report":
-      return {
-        border: AURORA.orange,
-        badgeBg: "rgba(249,115,22,0.18)",
-        text: AURORA.orange,
-      };
-    case "typical_self_report":
+function getRosterPillStyle(pill: CounselorStudentRosterPill) {
+  switch (pill) {
+    case "session_started":
       return {
         border: AURORA.blue,
         badgeBg: "rgba(45,107,255,0.18)",
         text: AURORA.blue,
       };
-    case "no_checkins":
+    case "no_session_yet":
       return {
-        border: AURORA.amber,
-        badgeBg: "rgba(254,189,3,0.1)",
-        text: AURORA.amber,
+        border: "rgba(148,163,184,0.55)",
+        badgeBg: "rgba(148,163,184,0.12)",
+        text: AURORA.textSec,
       };
   }
 }
@@ -178,45 +177,97 @@ function counselorSessionOverviewCategory(
   s: Record<string, unknown>,
 ): CounselorSessionOverviewCategory | null {
   const st = String(s?.status ?? "").toLowerCase();
+  const initiatedBy = String(s?.initiatedBy ?? "").toLowerCase();
+  const fromCounselor = initiatedBy === "counselor";
+  const locked = getConfirmedFinalSlot(
+    s as { finalSlot?: unknown; confirmedSlot?: unknown },
+  );
+  const hasLocked = !!(locked?.date && String(locked.date).trim());
 
   if (st === "completed") return "completed";
   if (st === "missed") return "missed";
   if (st === "expired") return "expired";
 
-  if (st === "confirmed" || st === "rescheduled") {
-    const locked = getConfirmedFinalSlot(
-      s as { finalSlot?: unknown; confirmedSlot?: unknown },
-    );
-    if (!locked?.date) return null;
+  if (st === "needs_rescheduling") {
+    return "awaiting_action";
+  }
+
+  // Not yet agreed — show in dashboard sheet only here (Session History stays agreed-only).
+  if (!hasLocked) {
+    if (
+      isSessionDocOpenRequestExpired24h({
+        status: st,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      })
+    ) {
+      return "expired";
+    }
+    if (fromCounselor && st === "pending") {
+      return "counselor_invite_pending";
+    }
+    if (!fromCounselor && (st === "requested" || st === "pending")) {
+      return "student_request_pending";
+    }
+  }
+
+  if (st === "confirmed" || st === "rescheduled" || (st === "pending" && hasLocked)) {
+    if (!hasLocked) return null;
     const parsed = parseSlotToDate({
-      date: locked.date,
-      time: locked.time ?? "",
+      date: locked!.date,
+      time: locked!.time ?? "",
     });
     if (!parsed || isNaN(parsed.getTime())) return null;
     if (parsed.getTime() > Date.now()) return "upcoming";
-    return null;
+    return "awaiting_action";
   }
 
   return null;
 }
 
 const CATEGORY_SORT_ORDER: Record<CounselorSessionOverviewCategory, number> = {
-  upcoming: 0,
-  completed: 1,
-  missed: 2,
-  expired: 3,
+  student_request_pending: 0,
+  counselor_invite_pending: 1,
+  upcoming: 2,
+  awaiting_action: 3,
+  completed: 4,
+  missed: 5,
+  expired: 6,
 };
 
 const COUNSELOR_SESSIONS_SHEET_SECTION_ORDER: CounselorSessionOverviewCategory[] =
-  ["upcoming", "completed", "missed", "expired"];
+  [
+    "student_request_pending",
+    "counselor_invite_pending",
+    "upcoming",
+    "awaiting_action",
+    "completed",
+    "missed",
+    "expired",
+  ];
 
 const COUNSELOR_SESSIONS_SHEET_SECTION_COPY: Record<
   CounselorSessionOverviewCategory,
   { title: string; subtitle: string }
 > = {
+  student_request_pending: {
+    title: "Student requests",
+    subtitle:
+      "The student started this session — approve or propose times in Messages. Includes waiting on them to pick a slot you sent.",
+  },
+  counselor_invite_pending: {
+    title: "Your invites (awaiting student)",
+    subtitle:
+      "You sent this session — the student still needs to accept or choose a time in Messages.",
+  },
   upcoming: {
     title: "Upcoming counseling",
     subtitle: "Agreed times that are still in the future.",
+  },
+  awaiting_action: {
+    title: "Needs follow-up",
+    subtitle:
+      "Scheduled time has passed or the session needs rescheduling — same items as Session History (Today / Reschedule). Mark attendance there.",
   },
   completed: {
     title: "Completed",
@@ -227,8 +278,9 @@ const COUNSELOR_SESSIONS_SHEET_SECTION_COPY: Record<
     subtitle: "Sessions marked missed or no-show.",
   },
   expired: {
-    title: "Expired",
-    subtitle: "Requests or slots that expired without completing.",
+    title: "Expired requests",
+    subtitle:
+      "Open session requests that were not accepted within 24 hours (or the preferred time already passed).",
   },
 };
 
@@ -280,22 +332,34 @@ async function buildPendingSessionsList(
     const locked = getConfirmedFinalSlot(
       s as { finalSlot?: unknown; confirmedSlot?: unknown },
     );
+    const agreedForDisplay =
+      locked ??
+      getAgreedSessionSlot(
+        s as {
+          finalSlot?: { date: string; time: string } | null;
+          confirmedSlot?: { date: string; time: string } | null;
+          proposedSlots?: Array<{ date: string; time: string }>;
+        },
+      );
     const prefRaw =
       typeof s.preferredTimeFromStudent === "string"
         ? s.preferredTimeFromStudent.trim()
         : "";
     let scheduleSummary: string | undefined;
-    if (locked?.date) {
-      scheduleSummary = `Scheduled: ${locked.date}${locked.time ? ` · ${locked.time}` : ""}`;
+    if (agreedForDisplay?.date) {
+      scheduleSummary = `Scheduled: ${agreedForDisplay.date}${agreedForDisplay.time ? ` · ${agreedForDisplay.time}` : ""}`;
     } else if (prefRaw) {
       scheduleSummary = `Preferred: ${prefRaw}`;
     }
 
     let scheduledSortMs = firestoreTsToDate(s.updatedAt).getTime();
-    if (category === "upcoming" && locked?.date) {
+    if (
+      (category === "upcoming" || category === "awaiting_action") &&
+      agreedForDisplay?.date
+    ) {
       const parsed = parseSlotToDate({
-        date: locked.date,
-        time: locked.time ?? "",
+        date: agreedForDisplay.date,
+        time: agreedForDisplay.time ?? "",
       });
       if (parsed && !isNaN(parsed.getTime())) {
         scheduledSortMs = parsed.getTime();
@@ -350,8 +414,19 @@ async function buildPendingSessionsList(
     const tier =
       CATEGORY_SORT_ORDER[a.category] - CATEGORY_SORT_ORDER[b.category];
     if (tier !== 0) return tier;
-    if (a.category === "upcoming" && b.category === "upcoming") {
+    if (
+      (a.category === "upcoming" && b.category === "upcoming") ||
+      (a.category === "awaiting_action" && b.category === "awaiting_action")
+    ) {
       return a.scheduledSortMs - b.scheduledSortMs;
+    }
+    if (
+      (a.category === "student_request_pending" &&
+        b.category === "student_request_pending") ||
+      (a.category === "counselor_invite_pending" &&
+        b.category === "counselor_invite_pending")
+    ) {
+      return b.updatedAt.getTime() - a.updatedAt.getTime();
     }
     return b.updatedAt.getTime() - a.updatedAt.getTime();
   });
@@ -361,14 +436,20 @@ function pendingSessionStatusLabel(
   category: CounselorSessionOverviewCategory,
 ): string {
   switch (category) {
+    case "student_request_pending":
+      return "Student request";
+    case "counselor_invite_pending":
+      return "Awaiting student";
     case "upcoming":
       return "Upcoming";
+    case "awaiting_action":
+      return "Follow-up";
     case "completed":
       return "Completed";
     case "missed":
       return "Missed";
     case "expired":
-      return "Expired";
+      return "Expired request";
     default:
       return "";
   }
@@ -382,11 +463,29 @@ function pendingSessionCategoryStyle(
   text: string;
 } {
   switch (category) {
+    case "student_request_pending":
+      return {
+        bg: "rgba(45,107,255,0.2)",
+        border: "rgba(45,107,255,0.45)",
+        text: AURORA.blueLight,
+      };
+    case "counselor_invite_pending":
+      return {
+        bg: "rgba(168,85,247,0.18)",
+        border: "rgba(168,85,247,0.45)",
+        text: "#c4b5fd",
+      };
     case "upcoming":
       return {
         bg: "rgba(34,197,94,0.18)",
         border: "rgba(34,197,94,0.45)",
         text: AURORA.green,
+      };
+    case "awaiting_action":
+      return {
+        bg: "rgba(254,189,3,0.18)",
+        border: "rgba(254,189,3,0.45)",
+        text: AURORA.amber,
       };
     case "completed":
       return {
@@ -415,19 +514,8 @@ function pendingSessionCategoryStyle(
   }
 }
 
-function formatSignalChip(signal: CounselorSignalPill): string {
-  switch (signal) {
-    case "higher_self_report":
-      return COUNSELOR_SIGNAL_LABEL.higher_self_report;
-    case "moderate_self_report":
-      return "Monitor";
-    case "typical_self_report":
-      return "Typical";
-    case "no_checkins":
-      return "No recent check-in";
-    default:
-      return COUNSELOR_SIGNAL_LABEL[signal];
-  }
+function formatRosterPillChip(pill: CounselorStudentRosterPill): string {
+  return COUNSELOR_ROSTER_PILL_LABEL[pill];
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -471,7 +559,7 @@ function StatCard({ icon, count, label, cardBg }: StatCardProps) {
 }
 
 function FlagRow({ item }: { item: FlagItem }) {
-  const style = getSignalStyle(item.signal);
+  const style = getRosterPillStyle(item.rosterPill);
   return (
     <TouchableOpacity
       activeOpacity={0.8}
@@ -542,7 +630,7 @@ function FlagRow({ item }: { item: FlagItem }) {
           }}
           numberOfLines={2}
         >
-          {formatSignalChip(item.signal)}
+          {formatRosterPillChip(item.rosterPill)}
         </Text>
       </View>
       <View style={{ flexShrink: 0 }}>
@@ -563,7 +651,6 @@ export default function CounselorHomeScreen() {
   const [recentFlags, setRecentFlags] = useState<FlagItem[]>([]);
   const [upcomingAcceptedSessions, setUpcomingAcceptedSessions] =
     useState<number>(0);
-  const [needsFollowUpCount, setNeedsFollowUpCount] = useState<number>(0);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingSessions, setPendingSessions] = useState<PendingSessionItem[]>(
@@ -626,29 +713,39 @@ export default function CounselorHomeScreen() {
 
         setStudentCount(students.length);
 
-        // Fetch recent mood logs for students (limit to first 15 for performance)
+        const counselorId = user?.id;
         const limit = Math.min(15, students.length);
-        const studentsWithMood = await Promise.all(
+        const rosterRows = await Promise.all(
           students.slice(0, limit).map(async (s) => {
             try {
-              const { logs } =
-                await fetchStudentCheckInSignalContextForCounselor(s.id);
-              const latest = logs[0] as
-                | {
-                    log_date?: Date;
-                    stress_level?: number;
-                    energy_level?: number;
-                  }
-                | undefined;
+              let sessionStarted = false;
+              let lastLogDate: Date | undefined;
+              if (counselorId) {
+                const settings = await getUserSettings(s.id);
+                sessionStarted =
+                  settings.counselorJournalAccess?.[counselorId] === true;
+              }
+              if (sessionStarted) {
+                const { logs } =
+                  await fetchStudentCheckInSignalContextForCounselor(
+                    s.id,
+                    counselorId,
+                  );
+                const latest = logs[0] as { log_date?: Date } | undefined;
+                lastLogDate = latest?.log_date;
+              }
+              const rosterPill: CounselorStudentRosterPill = sessionStarted
+                ? "session_started"
+                : "no_session_yet";
               return {
                 student: s,
-                logs,
-                lastLogDate: latest?.log_date,
+                rosterPill,
+                lastLogDate,
               };
             } catch {
               return {
                 student: s,
-                logs: [] as { stress_level?: number; energy_level?: number }[],
+                rosterPill: "no_session_yet" as CounselorStudentRosterPill,
                 lastLogDate: undefined as Date | undefined,
               };
             }
@@ -657,40 +754,32 @@ export default function CounselorHomeScreen() {
 
         if (isCancelled?.()) return;
 
-        const flags: FlagItem[] = studentsWithMood
-          .map(({ student, logs, lastLogDate }) => {
-            const signal = counselorSignalFromLogs(logs);
-            return {
-              id: student.id,
-              name: student.full_name || "Student",
-              program:
-                formatCounselorStudentSubtitle({
-                  department: student.department,
-                  program: student.program,
-                  year_level: student.year_level,
-                }) || "CCS",
-              time: lastLogDate
-                ? formatTimeAgo(new Date(lastLogDate))
-                : "No check-ins yet",
-              signal,
-              avatar: (student as any).avatar_url ?? "",
-            };
-          })
+        const flags: FlagItem[] = rosterRows
+          .map(({ student, rosterPill, lastLogDate }) => ({
+            id: student.id,
+            name: student.full_name || "Student",
+            program:
+              formatCounselorStudentSubtitle({
+                department: student.department,
+                program: student.program,
+                year_level: student.year_level,
+              }) || "CCS",
+            time:
+              rosterPill === "session_started"
+                ? lastLogDate
+                  ? formatTimeAgo(new Date(lastLogDate))
+                  : "No Aurora entries yet"
+                : "No session with you yet",
+            rosterPill,
+            avatar: (student as any).avatar_url ?? "",
+          }))
           .sort(
             (a, b) =>
-              COUNSELOR_SIGNAL_SORT[a.signal] - COUNSELOR_SIGNAL_SORT[b.signal],
+              COUNSELOR_ROSTER_PILL_SORT[a.rosterPill] -
+              COUNSELOR_ROSTER_PILL_SORT[b.rosterPill],
           );
 
         setRecentFlags(flags);
-        setNeedsFollowUpCount(
-          flags.filter((f) =>
-            [
-              "higher_self_report",
-              "moderate_self_report",
-              "no_checkins",
-            ].includes(f.signal),
-          ).length,
-        );
 
         if (user?.id) {
           const sessions = await firestoreService.getSessionsForCounselor(
@@ -714,7 +803,10 @@ export default function CounselorHomeScreen() {
                     ? s.preferredTimeFromStudent
                     : undefined,
               });
-              return !!dt && dt.getTime() >= now;
+              if (!dt || isNaN(dt.getTime())) return false;
+              if (dt.getTime() > now) return true;
+              // Still today locally — matches Session History "TODAY" until the day rolls over.
+              return isSameDay(dt, new Date(now));
             },
           ).length;
           setUpcomingAcceptedSessions(upcoming);
@@ -736,7 +828,6 @@ export default function CounselorHomeScreen() {
         if (!isCancelled?.()) {
           setRecentFlags([]);
           setUpcomingAcceptedSessions(0);
-          setNeedsFollowUpCount(0);
           setPendingSessions([]);
         }
       } finally {
@@ -950,7 +1041,7 @@ export default function CounselorHomeScreen() {
                         </View>
                     </View> */}
 
-          {/* Recent Flags */}
+          {/* Student roster (session consent chips only) */}
           <View
             style={{
               flexDirection: "row",
@@ -960,7 +1051,7 @@ export default function CounselorHomeScreen() {
             }}
           >
             <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
-              Recent check-ins
+              Students
             </Text>
             <TouchableOpacity
               onPress={() => {
@@ -985,7 +1076,7 @@ export default function CounselorHomeScreen() {
               marginBottom: 10,
             }}
           >
-            Sorted by priority • Updated{" "}
+            Scheduling with you first • Updated{" "}
             {lastUpdatedAt ? formatTimeAgo(lastUpdatedAt) : "just now"}
           </Text>
 
@@ -1034,8 +1125,8 @@ export default function CounselorHomeScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={styles.pendingModalSubtitle}>
-                Upcoming agreed times, plus completed (showed up), missed, and
-                expired ({visiblePendingSessions.length})
+                Student requests, your invites, agreed sessions (upcoming and
+                follow-up), then completed, missed, and expired.
               </Text>
 
               {pendingSessions.length === 0 ? (
@@ -1043,8 +1134,7 @@ export default function CounselorHomeScreen() {
                   <CalendarClock size={40} color={AURORA.textMuted} />
                   <Text style={styles.pendingEmptyTitle}>All caught up</Text>
                   <Text style={styles.pendingEmptyBody}>
-                    No upcoming appointments or completed, missed, or expired
-                    sessions to show.
+                    No open requests or agreed sessions to show right now.
                   </Text>
                 </View>
               ) : visiblePendingSessions.length === 0 ? (
@@ -1052,8 +1142,8 @@ export default function CounselorHomeScreen() {
                   <CalendarClock size={40} color={AURORA.textMuted} />
                   <Text style={styles.pendingEmptyTitle}>Nothing visible</Text>
                   <Text style={styles.pendingEmptyBody}>
-                    Every session here is hidden from this overview only. Open
-                    Session History to see the full list.
+                    Every row here is hidden on this device only. Open Messages
+                    or Session History for the full picture.
                   </Text>
                 </View>
               ) : (
@@ -1097,6 +1187,16 @@ export default function CounselorHomeScreen() {
                           onPress={() => {
                             triggerHaptic("light");
                             setPendingSessionsModalVisible(false);
+                            if (
+                              item.category === "student_request_pending" ||
+                              item.category === "counselor_invite_pending"
+                            ) {
+                              router.push({
+                                pathname: "/(counselor)/messages",
+                                params: { studentId: item.studentId },
+                              });
+                              return;
+                            }
                             router.push({
                               pathname: "/(counselor)/session-history",
                               params: { sessionId: item.id },

@@ -67,7 +67,10 @@ import { COUNSELOR_CHECKIN_WINDOW_DAYS } from "../../constants/counselor-checkin
 import {
   getConfirmedFinalSlot,
 } from "../../utils/sessionScheduling";
-import { parseSlotToDate } from "../../utils/dateHelpers";
+import {
+  isSessionDocOpenRequestExpired24h,
+  parseSlotToDate,
+} from "../../utils/dateHelpers";
 
 // ─── Student sessions overview (dashboard sheet) ─────────────────────────────
 const STUDENT_SESSION_CLOSED = new Set([
@@ -108,15 +111,6 @@ function firestoreTsToDateStudent(v: unknown): Date {
     return (v as { toDate: () => Date }).toDate();
   }
   return new Date(0);
-}
-
-function isStaleStudentRequestedSession(updatedAt: Date, status: string): boolean {
-  if (status !== "requested") return false;
-  const startOfDay = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const daysElapsed =
-    (startOfDay(new Date()) - startOfDay(updatedAt)) / 86400000;
-  return daysElapsed >= 3;
 }
 
 /** How long after the agreed start we still treat the session as in progress (student "My sessions"). */
@@ -289,7 +283,11 @@ async function fetchStudentSessionsOverview(
 
       if (
         status === "requested" &&
-        isStaleStudentRequestedSession(updatedAt, status)
+        isSessionDocOpenRequestExpired24h({
+          status,
+          createdAt: rec.createdAt,
+          updatedAt: rec.updatedAt,
+        })
       ) {
         return [];
       }

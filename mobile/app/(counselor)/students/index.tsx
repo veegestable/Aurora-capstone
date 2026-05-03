@@ -2,7 +2,7 @@
  * Counselor Student Directory - students/index.tsx
  * =================================================
  * Route: /(counselor)/students
- * Shows all registered Aurora students with risk levels.
+ * Shows all registered Aurora students with session-consent roster chips.
  * Fetches real student data from Firestore.
  */
 
@@ -23,13 +23,14 @@ import {
     type ProgramFilterCode,
 } from '../../../src/constants/ccs-student-programs';
 import { fetchStudentCheckInSignalContextForCounselor } from '../../../src/services/counselor-checkin-context.service';
+import { getUserSettings } from '../../../src/services/mood-firestore-v2.service';
 import {
-    type CounselorSignalPill,
-    COUNSELOR_SIGNAL_LABEL,
-    COUNSELOR_SIGNAL_SORT,
-    counselorSignalFromLogs,
-} from '../../../src/constants/counselor-checkin-signals';
+    type CounselorStudentRosterPill,
+    COUNSELOR_ROSTER_PILL_LABEL,
+    COUNSELOR_ROSTER_PILL_SORT,
+} from '../../../src/constants/counselor-student-roster-pills';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useAuth } from '../../../src/stores/AuthContext';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type ProgramFilter = 'All Students' | ProgramFilterCode;
@@ -41,9 +42,9 @@ interface StudentEntry {
     program?: string;
     year_level?: string;
     avatar_url?: string;
-    /** Counselor-facing self-report signal (not clinical risk). */
-    signal: CounselorSignalPill;
-    lastLog: string;
+    rosterPill: CounselorStudentRosterPill;
+    /** Activity line (neutral wording; avoids whole-roster mood triage). */
+    activitySummary: string;
 }
 
 function formatTimeAgo(date: Date): string {
@@ -57,38 +58,26 @@ function formatTimeAgo(date: Date): string {
     return `${diffDays}d ago`;
 }
 
-// ─── Signal helpers (self-report framing) ─────────────────────────────────────
-function getSignalStyle(signal: CounselorSignalPill) {
-    switch (signal) {
-        case 'higher_self_report':
-            return { border: AURORA.red, badgeBg: 'rgba(239,68,68,0.15)', text: AURORA.red };
-        case 'moderate_self_report':
-            return { border: AURORA.orange, badgeBg: 'rgba(249,115,22,0.15)', text: AURORA.orange };
-        case 'typical_self_report':
+function getRosterPillStyle(pill: CounselorStudentRosterPill) {
+    switch (pill) {
+        case 'session_started':
             return { border: AURORA.blue, badgeBg: 'rgba(45,107,255,0.15)', text: AURORA.blue };
-        case 'no_checkins':
-            return { border: AURORA.amber, badgeBg: 'rgba(254,189,3,0.1)', text: AURORA.amber };
+        case 'no_session_yet':
+            return {
+                border: 'rgba(148,163,184,0.55)',
+                badgeBg: 'rgba(148,163,184,0.12)',
+                text: AURORA.textSec,
+            };
     }
 }
 
-function signalChipLabel(signal: CounselorSignalPill): string {
-    switch (signal) {
-        case 'higher_self_report':
-            return COUNSELOR_SIGNAL_LABEL.higher_self_report;
-        case 'moderate_self_report':
-            return 'Monitor';
-        case 'typical_self_report':
-            return 'Typical self-report';
-        case 'no_checkins':
-            return 'No check-ins';
-        default:
-            return COUNSELOR_SIGNAL_LABEL[signal];
-    }
+function rosterPillChipLabel(pill: CounselorStudentRosterPill): string {
+    return COUNSELOR_ROSTER_PILL_LABEL[pill];
 }
 
 // ─── Student Card ──────────────────────────────────────────────────────────────
 function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () => void }) {
-    const style = getSignalStyle(student.signal);
+    const style = getRosterPillStyle(student.rosterPill);
     const programText = formatCounselorStudentSubtitle({
         department: student.department,
         program: student.program,
@@ -106,7 +95,7 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
                 borderWidth: 1, borderColor: AURORA.border,
             }}
         >
-            {/* Left colored risk border */}
+            {/* Left accent by roster pill */}
             <View style={{ width: 4, backgroundColor: style.border, alignSelf: 'stretch' }} />
 
             {/* Avatar */}
@@ -137,7 +126,7 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
                         borderWidth: 1, borderColor: `${style.text}44`,
                     }}>
                         <Text style={{ color: style.text, fontSize: 10, fontWeight: '800', letterSpacing: 0.35 }} numberOfLines={2}>
-                            {signalChipLabel(student.signal)}
+                            {rosterPillChipLabel(student.rosterPill)}
                         </Text>
                     </View>
                     <Text
@@ -145,7 +134,7 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
                         numberOfLines={2}
                         ellipsizeMode="tail"
                     >
-                        {`Last check-in: ${student.lastLog}`}
+                        {student.activitySummary}
                     </Text>
                 </View>
             </View>
@@ -195,6 +184,7 @@ function FilterChip({
 // ─── Main Screen ────────────────────────────────────────────────────────────────
 export default function CounselorStudentsScreen() {
     const router = useRouter();
+    const { user } = useAuth();
     const { openStudentId } = useLocalSearchParams<{ openStudentId?: string }>();
     const lastProcessedOpenId = useRef<string | null>(null);
 
@@ -216,24 +206,37 @@ export default function CounselorStudentsScreen() {
 
     useEffect(() => {
         const fetchStudents = async () => {
+            const counselorId = user?.id;
             try {
                 const raw = await firestoreService.getUsersByRole('student');
                 const mapped: StudentEntry[] = await Promise.all(
                     raw.map(async (s) => {
-                        let lastLog = 'No check-ins yet';
-                        let signal: CounselorSignalPill = 'no_checkins';
+                        let rosterPill: CounselorStudentRosterPill = 'no_session_yet';
+                        let activitySummary = 'No session with you yet';
                         try {
-                            const { logs } = await fetchStudentCheckInSignalContextForCounselor(s.id);
-                            signal = counselorSignalFromLogs(logs);
-                            const latest = logs[0] as { log_date?: Date } | undefined;
-                            if (latest?.log_date) {
-                                lastLog = formatTimeAgo(new Date(latest.log_date));
-                            } else {
-                                lastLog = 'No check-ins yet';
+                            let sessionStarted = false;
+                            if (counselorId) {
+                                const settings = await getUserSettings(s.id);
+                                sessionStarted =
+                                    settings.counselorJournalAccess?.[counselorId] === true;
+                            }
+                            if (sessionStarted) {
+                                rosterPill = 'session_started';
+                                const { logs } =
+                                    await fetchStudentCheckInSignalContextForCounselor(
+                                        s.id,
+                                        counselorId,
+                                    );
+                                const latest = logs[0] as { log_date?: Date } | undefined;
+                                if (latest?.log_date) {
+                                    activitySummary = `Last in Aurora: ${formatTimeAgo(new Date(latest.log_date))}`;
+                                } else {
+                                    activitySummary = 'No Aurora entries in this window yet';
+                                }
                             }
                         } catch {
-                            signal = 'no_checkins';
-                            lastLog = '—';
+                            rosterPill = 'no_session_yet';
+                            activitySummary = '—';
                         }
                         return {
                             id: s.id,
@@ -242,8 +245,8 @@ export default function CounselorStudentsScreen() {
                             program: s.program,
                             year_level: s.year_level,
                             avatar_url: s.avatar_url,
-                            signal,
-                            lastLog,
+                            rosterPill,
+                            activitySummary,
                         };
                     })
                 );
@@ -254,8 +257,12 @@ export default function CounselorStudentsScreen() {
                 setLoading(false);
             }
         };
-        fetchStudents();
-    }, []);
+        if (!user?.id) {
+            setLoading(false);
+            return;
+        }
+        void fetchStudents();
+    }, [user?.id]);
 
     const FILTERS: ProgramFilter[] = ['All Students', 'BSCS', 'BSIT', 'BSIS', 'BSCA'];
 
@@ -282,7 +289,9 @@ export default function CounselorStudentsScreen() {
                 );
             });
         }
-        return [...list].sort((a, b) => COUNSELOR_SIGNAL_SORT[a.signal] - COUNSELOR_SIGNAL_SORT[b.signal]);
+        return [...list].sort(
+            (a, b) => COUNSELOR_ROSTER_PILL_SORT[a.rosterPill] - COUNSELOR_ROSTER_PILL_SORT[b.rosterPill],
+        );
     }, [students, activeFilter, searchQuery]);
 
     return (
@@ -398,8 +407,8 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS CS (Computer Science)',
         year_level: '4th',
-        signal: 'higher_self_report',
-        lastLog: '2h ago',
+        rosterPill: 'session_started',
+        activitySummary: 'Last in Aurora: 2h ago',
     },
     {
         id: 'm2',
@@ -407,8 +416,8 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS IS (Information Systems)',
         year_level: '2nd',
-        signal: 'no_checkins',
-        lastLog: 'No check-ins yet',
+        rosterPill: 'no_session_yet',
+        activitySummary: 'No session with you yet',
     },
     {
         id: 'm3',
@@ -416,8 +425,8 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS IT (Information Technology)',
         year_level: '3rd',
-        signal: 'typical_self_report',
-        lastLog: '1d ago',
+        rosterPill: 'session_started',
+        activitySummary: 'Last in Aurora: 1d ago',
     },
     {
         id: 'm4',
@@ -425,8 +434,8 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS CS (Computer Science)',
         year_level: '1st',
-        signal: 'typical_self_report',
-        lastLog: '3h ago',
+        rosterPill: 'session_started',
+        activitySummary: 'Last in Aurora: 3h ago',
     },
     {
         id: 'm5',
@@ -434,7 +443,7 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS CA (Computer Application)',
         year_level: '4th',
-        signal: 'moderate_self_report',
-        lastLog: '12h ago',
+        rosterPill: 'no_session_yet',
+        activitySummary: 'No session with you yet',
     },
 ];

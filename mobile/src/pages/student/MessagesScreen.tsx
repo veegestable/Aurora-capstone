@@ -54,7 +54,10 @@ import {
 import SelectCounselorModal, {
   type Counselor,
 } from "../../components/student/SelectCounselorModal";
-import { parsePreferredTimeToDate } from "../../utils/dateHelpers";
+import {
+  isOpenSessionRequestExpired,
+  parsePreferredTimeToDate,
+} from "../../utils/dateHelpers";
 import { auditLogsService } from "../../services/audit-logs.service";
 import { subscribeToUsersPresence } from "../../services/firebase-presence.service";
 import { usePeerPresence } from "../../hooks/usePeerPresence";
@@ -723,9 +726,17 @@ function DirectMessageView({
                         }}
                       >
                         <View>
+                          {(() => {
+                            const requestExpired = isOpenSessionRequestExpired({
+                              status: msg.sessionRequest.status,
+                              preferredTime: msg.sessionRequest.preferredTime,
+                              requestedAtMs: msg.sessionRequest.requestedAtMs,
+                            });
+                            return (
                           <SessionRequestCard
                             data={msg.sessionRequest}
                             isFromMe={isMe}
+                            isExpired={requestExpired}
                             onViewDetails={() => {
                               setSelectedSessionRequest(msg.sessionRequest);
                               setShowDetailsModal(true);
@@ -735,6 +746,8 @@ function DirectMessageView({
                               setShowSessionRequestModal(true);
                             }}
                           />
+                            );
+                          })()}
                           <Text
                             style={{
                               color: "rgba(255,255,255,0.6)",

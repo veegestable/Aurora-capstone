@@ -1,53 +1,88 @@
 import { getUserSettings } from "./mood-firestore-v2.service";
 import { counselorCheckInWindowStart } from "../constants/counselor-checkin-policy";
-import { moodService } from "./mood.service";
+import { moodService, type MergedMoodLog } from "./mood.service";
 
-type MergedMoodLogRow = Awaited<
-  ReturnType<typeof moodService.getMoodLogs>
->[number];
-
-/**
- * Recent mood logs for directory / triage signals. All students: counselors may use self-report
- * stress/energy for sorting; UI surfaces for students not in “special population” show only
- * date, time, and mood (see CounselorStudentJournalCalendar privacyMode).
- */
-export async function fetchStudentCheckInSignalContextForCounselor(
-  studentId: string,
-): Promise<{ logs: MergedMoodLogRow[] }> {
+async function loadMoodWindowForStudent(studentId: string): Promise<MergedMoodLog[]> {
   const start = counselorCheckInWindowStart();
   const end = new Date();
-  const logs = await moodService.getMoodLogs(
-    studentId,
-    start.toISOString(),
-    end.toISOString(),
-  );
-  return { logs };
+  return moodService.getMoodLogs(studentId, start.toISOString(), end.toISOString());
 }
 
 /**
- * Full journal + analytics (notes, sleep, meals, images, etc.) for this counselor only when the
- * student is in the special population: session request sent to this counselor, or student
- * accepted this counselor’s proposed session time (journal access flag; no revoke in-app yet).
+ * Per-student userSettings.counselorJournalAccess[counselorId] — only that counselor
+ * may see full self-report / journal-shaped fields. Everyone else gets mood-only.
+ */
+function journalAccessForCounselor(
+  settings: Awaited<ReturnType<typeof getUserSettings>>,
+  counselorId: string,
+): boolean {
+  return settings.counselorJournalAccess?.[counselorId] === true;
+}
+
+/**
+ * Mood-only row for counselors without journal consent from this student.
+ * Stress/energy are neutralized so triage helpers never infer state from another counselor’s caseload.
+ */
+export function sanitizeMergedMoodLogForCounselorWithoutJournalAccess(
+  row: MergedMoodLog,
+): MergedMoodLog {
+  return {
+    ...row,
+    notes: "",
+    stress_level: 1,
+    energy_level: 10,
+    sleep_quality: undefined,
+    classes_count: undefined,
+    exams_count: undefined,
+    deadlines_count: undefined,
+    event_tags: [],
+    event_categories: [],
+    journal_image_url: "",
+    bath_taken: false,
+    meal_responses: [],
+    duration_in_minutes: undefined,
+    emotional_volume: undefined,
+  };
+}
+
+/**
+ * Recent mood window for a counselor view: full rows only if this counselor has
+ * journal access for that student; otherwise mood/emotion + time only (sanitized).
+ */
+export async function fetchStudentCheckInSignalContextForCounselor(
+  studentId: string,
+  counselorId: string,
+): Promise<{ logs: MergedMoodLog[] }> {
+  const settings = await getUserSettings(studentId);
+  const raw = await loadMoodWindowForStudent(studentId);
+  if (journalAccessForCounselor(settings, counselorId)) {
+    return { logs: raw };
+  }
+  return {
+    logs: raw.map(sanitizeMergedMoodLogForCounselorWithoutJournalAccess),
+  };
+}
+
+/**
+ * Full journal + analytics only when this student granted access to this counselor
+ * (session request or accepted proposed time). Otherwise returns the same mood-only
+ * window as {@link fetchStudentCheckInSignalContextForCounselor}.
  */
 export async function fetchStudentCounselorDetailedContext(
   studentId: string,
   counselorId: string,
 ): Promise<{
   journalAccessGranted: boolean;
-  logs: MergedMoodLogRow[];
+  logs: MergedMoodLog[];
 }> {
   const settings = await getUserSettings(studentId);
-  const journalAccessGranted =
-    settings.counselorJournalAccess?.[counselorId] === true;
-  if (!journalAccessGranted) {
-    return { journalAccessGranted: false, logs: [] };
+  const journalAccessGranted = journalAccessForCounselor(settings, counselorId);
+  const raw = await loadMoodWindowForStudent(studentId);
+  if (journalAccessGranted) {
+    return { journalAccessGranted: true, logs: raw };
   }
-  const start = counselorCheckInWindowStart();
-  const end = new Date();
-  const logs = await moodService.getMoodLogs(
-    studentId,
-    start.toISOString(),
-    end.toISOString(),
-  );
-  return { journalAccessGranted: true, logs };
+  return {
+    journalAccessGranted: false,
+    logs: raw.map(sanitizeMergedMoodLogForCounselorWithoutJournalAccess),
+  };
 }

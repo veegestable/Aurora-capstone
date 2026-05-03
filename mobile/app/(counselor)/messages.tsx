@@ -405,8 +405,8 @@ function ChatView({
       })
     ) {
       Alert.alert(
-        "Request expired",
-        "This session request can no longer be accepted because it is more than three days old or the requested time has already passed.",
+        "Expired request",
+        "This session request can no longer be accepted because 24 hours have passed without a response, or the preferred time has already passed.",
       );
       return;
     }
@@ -863,7 +863,8 @@ function ChatView({
                                     : undefined
                                 }
                                 onProposeNewTime={
-                                  msg.sessionRequest.sessionId
+                                  msg.sessionRequest.sessionId &&
+                                  !requestExpired
                                     ? () =>
                                         handleProposeNewTime(
                                           msg.sessionRequest.sessionId,

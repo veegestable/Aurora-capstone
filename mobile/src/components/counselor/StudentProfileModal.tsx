@@ -19,10 +19,7 @@ import { router } from 'expo-router';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
 import { formatCounselorStudentSubtitle } from '../../constants/ccs-student-programs';
-import {
-    fetchStudentCounselorDetailedContext,
-    fetchStudentCheckInSignalContextForCounselor,
-} from '../../services/counselor-checkin-context.service';
+import { fetchStudentCounselorDetailedContext } from '../../services/counselor-checkin-context.service';
 import { COUNSELOR_CHECKIN_WINDOW_DAYS } from '../../constants/counselor-checkin-policy';
 import { firestoreService } from '../../services/firebase-firestore.service';
 import type { CounselorSignalPill } from '../../constants/counselor-checkin-signals';
@@ -421,22 +418,20 @@ export default function StudentProfileModal({
         setLoading(true);
         setFullLogs([]);
         setBaselineLogs([]);
-        Promise.all([
-            fetchStudentCounselorDetailedContext(student.id, counselorId),
-            fetchStudentCheckInSignalContextForCounselor(student.id),
-        ])
-            .then(([det, sig]) => {
+        fetchStudentCounselorDetailedContext(student.id, counselorId)
+            .then((det) => {
                 setJournalAccessGranted(det.journalAccessGranted);
-                const normFull = (det.logs || []).map((l: MergedMoodLog) => ({
+                const norm = (det.logs || []).map((l: MergedMoodLog) => ({
                     ...l,
                     log_date: l.log_date instanceof Date ? l.log_date : new Date(l.log_date as unknown as string),
                 }));
-                setFullLogs(det.journalAccessGranted ? normFull : []);
-                const normBase = (sig.logs || []).map((l: MergedMoodLog) => ({
-                    ...l,
-                    log_date: l.log_date instanceof Date ? l.log_date : new Date(l.log_date as unknown as string),
-                }));
-                setBaselineLogs(normBase);
+                if (det.journalAccessGranted) {
+                    setFullLogs(norm);
+                    setBaselineLogs([]);
+                } else {
+                    setFullLogs([]);
+                    setBaselineLogs(norm);
+                }
             })
             .catch(() => {
                 setJournalAccessGranted(false);
@@ -459,7 +454,9 @@ export default function StudentProfileModal({
             Alert.alert('Sign in required', 'Please sign in again as a counselor to send an invite.');
             return;
         }
-        const { isAlerted, borderColor } = conversationStyleFromSignal(signalRiskLevel);
+        const { isAlerted, borderColor } = conversationStyleFromSignal(
+            journalAccessGranted ? signalRiskLevel : undefined,
+        );
         setInviteBusy(true);
         try {
             await firestoreService.addConversation(

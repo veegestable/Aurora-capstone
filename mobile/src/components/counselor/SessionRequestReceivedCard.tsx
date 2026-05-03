@@ -42,7 +42,7 @@ export default function SessionRequestReceivedCard({
 
     const statusPillConfig: { label: string; bg: string; text: string } = (() => {
         if (isExpired)
-            return { label: 'REQUEST EXPIRED', bg: 'rgba(255,255,255,0.08)', text: AURORA.textMuted };
+            return { label: 'Expired request', bg: 'rgba(255,255,255,0.08)', text: AURORA.textMuted };
         if (status === 'cancelled') return { label: 'CANCELLED', bg: 'rgba(239,68,68,0.2)', text: AURORA.red };
         if (status === 'needs_rescheduling') return { label: 'NEEDS RESCHEDULING', bg: 'rgba(245,158,11,0.2)', text: AURORA.orange };
         if (isAccepted) return { label: 'ACCEPTED', bg: 'rgba(34,197,94,0.2)', text: AURORA.green };
