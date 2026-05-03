@@ -8,6 +8,10 @@ interface InputProps extends TextInputProps {
     error?: string;
     containerClassName?: string;
     variant?: 'default' | 'glass';
+    /** Tighter padding for compact layouts (e.g. login). */
+    dense?: boolean;
+    /** Glass labels only; use with centered form layouts. */
+    labelAlign?: 'left' | 'center';
 }
 
 export const Input = forwardRef<TextInput, InputProps>(({
@@ -17,15 +21,25 @@ export const Input = forwardRef<TextInput, InputProps>(({
     containerClassName,
     variant = 'default',
     placeholderTextColor,
+    dense = false,
+    labelAlign = 'left',
     ...props
 }, ref) => {
     const isGlass = variant === 'glass';
+    const labelCentered = isGlass && labelAlign === 'center';
     return (
         <View className={twMerge("space-y-1.5", containerClassName)}>
             {label && (
                 <Text
-                    className={twMerge("text-sm ml-1", !isGlass && "text-gray-700")}
-                    style={isGlass ? { color: '#FFFFFF', fontWeight: '600', marginBottom: 6 } : { fontWeight: '500' }}
+                    className={twMerge(
+                        dense ? "text-xs" : "text-sm",
+                        !labelCentered && "ml-1",
+                        !isGlass && "text-gray-700",
+                    )}
+                    style={[
+                        isGlass ? { color: '#FFFFFF', fontWeight: '600', marginBottom: dense ? 5 : 6 } : { fontWeight: '500' },
+                        labelCentered && { textAlign: 'center', width: '100%' },
+                    ]}
                 >
                     {label}
                 </Text>
@@ -37,10 +51,10 @@ export const Input = forwardRef<TextInput, InputProps>(({
                     backgroundColor: 'rgba(255, 255, 255, 0.22)',
                     borderWidth: 1,
                     borderColor: 'rgba(255, 255, 255, 0.4)',
-                    borderRadius: 12,
-                    paddingHorizontal: 16,
-                    paddingVertical: 14,
-                    fontSize: 16,
+                    borderRadius: dense ? 9 : 12,
+                    paddingHorizontal: dense ? 10 : 16,
+                    paddingVertical: dense ? 8 : 14,
+                    fontSize: dense ? 14 : 16,
                 } : undefined}
                 className={twMerge(
                     "text-base rounded-xl px-4 py-3 border",
