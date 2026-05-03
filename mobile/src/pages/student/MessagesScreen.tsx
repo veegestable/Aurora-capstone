@@ -287,6 +287,14 @@ function DirectMessageView({
         user.id,
         text,
       );
+      void auditLogsService.write({
+        performedBy: user.id,
+        performedByRole: user.role,
+        action: "message_sent",
+        targetType: "chat",
+        targetId: user.id,
+        metadata: { messageType: "text" },
+      });
       setMessage("");
       setTimeout(
         () => scrollViewRef.current?.scrollToEnd({ animated: true }),
@@ -327,9 +335,9 @@ function DirectMessageView({
               performedBy: user.id,
               performedByRole: user.role,
               action: "delete_chat_message",
-              targetType: "conversation_message",
-              targetId: messageId,
-              metadata: { conversationId: contact.conversationId, messageType },
+              targetType: "chat",
+              targetId: user.id,
+              metadata: { messageType },
             });
           },
         },
@@ -356,6 +364,8 @@ function DirectMessageView({
         conversationId: contact.conversationId,
         counselorId: contact.id,
       });
+
+      await grantCounselorJournalAccess(user.id, contact.id);
 
       // Automated green "Accepted" message for the thread.
       await firestoreService.sendTextMessage(

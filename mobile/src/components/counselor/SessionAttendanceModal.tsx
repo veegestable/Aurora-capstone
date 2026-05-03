@@ -47,19 +47,35 @@ export default function SessionAttendanceModal({
     onMarkLater,
     onMarkStatus,
 }: SessionAttendanceModalProps) {
-    const [resolvedAvatarUrl, setResolvedAvatarUrl] = useState(student.avatar ?? '');
+    const initialAvatar =
+        typeof student.avatar === 'string' && student.avatar.trim()
+            ? student.avatar.trim()
+            : '';
+    const [resolvedAvatarUrl, setResolvedAvatarUrl] = useState(initialAvatar);
 
     useEffect(() => {
         let cancelled = false;
-        setResolvedAvatarUrl(student.avatar ?? '');
+        const fromProps =
+            typeof student.avatar === 'string' && student.avatar.trim()
+                ? student.avatar.trim()
+                : '';
+        setResolvedAvatarUrl(fromProps);
 
+        const uid = String(student.id ?? '').trim();
         const loadAvatar = async () => {
-            if (!visible || !student.id) return;
+            if (!visible || !uid) return;
             try {
-                const snap = await getDoc(doc(db, 'users', student.id));
+                const snap = await getDoc(doc(db, 'users', uid));
                 if (cancelled || !snap.exists()) return;
-                const avatar = snap.data()?.avatar_url;
-                if (typeof avatar === 'string' && avatar.trim()) {
+                const d = snap.data() as Record<string, unknown> | undefined;
+                const pick = (v: unknown) =>
+                    typeof v === 'string' && v.trim().length > 0 ? v.trim() : '';
+                const avatar =
+                    pick(d?.avatar_url) ||
+                    pick(d?.avatarUrl) ||
+                    pick(d?.photoURL) ||
+                    pick(d?.photoUrl);
+                if (avatar) {
                     setResolvedAvatarUrl(avatar);
                 }
             } catch {
@@ -100,7 +116,12 @@ export default function SessionAttendanceModal({
                     {/* Student Card */}
                     <View style={styles.studentCard}>
                         <View style={styles.avatarWrap}>
-                            <LetterAvatar name={student.name} size={64} avatarUrl={resolvedAvatarUrl || undefined} />
+                            <LetterAvatar
+                                key={`${String(student.id)}-${resolvedAvatarUrl || 'letter'}`}
+                                name={student.name}
+                                size={64}
+                                avatarUrl={resolvedAvatarUrl || undefined}
+                            />
                             <View style={styles.onlineDot} />
                         </View>
                         <Text style={styles.studentName}>{student.name}</Text>

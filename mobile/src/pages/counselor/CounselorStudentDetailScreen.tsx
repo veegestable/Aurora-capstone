@@ -1,6 +1,7 @@
 /**
- * Full student view for counselors: journals + last-7-day analytics when the student
- * is in the “special population” (session request + consent) and sharing is on.
+ * Counselor student profile: all students see a baseline mood calendar (date, time, mood only).
+ * “Special population” (session request to this counselor, or student accepted counselor’s slot):
+ * full journal + last-7-day charts. Special access cannot be turned off in-app yet.
  */
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -50,12 +51,10 @@ export default function CounselorStudentDetailScreen() {
   );
   const [loadingStudent, setLoadingStudent] = useState(true);
   const [loadingCtx, setLoadingCtx] = useState(true);
-  const [sharingEnabled, setSharingEnabled] = useState(false);
   const [journalAccessGranted, setJournalAccessGranted] = useState(false);
   const [logs, setLogs] = useState<Awaited<
     ReturnType<typeof fetchStudentCounselorDetailedContext>
   >["logs"]>([]);
-  const [signalSharingEnabled, setSignalSharingEnabled] = useState(false);
   const [signalLogs, setSignalLogs] = useState<Awaited<
     ReturnType<typeof fetchStudentCheckInSignalContextForCounselor>
   >["logs"]>([]);
@@ -99,11 +98,9 @@ export default function CounselorStudentDetailScreen() {
     setLoadingCtx(true);
     try {
       const ctx = await fetchStudentCounselorDetailedContext(id, counselorId);
-      setSharingEnabled(ctx.sharingEnabled);
       setJournalAccessGranted(ctx.journalAccessGranted);
       setLogs(ctx.logs);
     } catch {
-      setSharingEnabled(false);
       setJournalAccessGranted(false);
       setLogs([]);
     } finally {
@@ -117,16 +114,12 @@ export default function CounselorStudentDetailScreen() {
 
   useEffect(() => {
     if (!id) {
-      setSignalSharingEnabled(false);
       setSignalLogs([]);
       return;
     }
-    void fetchStudentCheckInSignalContextForCounselor(id).then(
-      ({ sharingEnabled: sh, logs: lg }) => {
-        setSignalSharingEnabled(sh);
-        setSignalLogs(lg);
-      },
-    );
+    void fetchStudentCheckInSignalContextForCounselor(id).then(({ logs: lg }) => {
+      setSignalLogs(lg);
+    });
   }, [id]);
 
   const programLine =
@@ -136,10 +129,8 @@ export default function CounselorStudentDetailScreen() {
       year_level: student?.year_level,
     }) || "CCS";
 
-  const signalRiskLevel: CounselorSignalPill = counselorSignalFromLogs(
-    signalSharingEnabled,
-    signalLogs,
-  );
+  const signalRiskLevel: CounselorSignalPill =
+    counselorSignalFromLogs(signalLogs);
 
   const handleInviteToSession = async () => {
     if (!counselorId || !student?.id) {
@@ -191,36 +182,7 @@ export default function CounselorStudentDetailScreen() {
     );
   }
 
-  const lockedSpecialPopulation =
-    sharingEnabled && !journalAccessGranted ? (
-      <View
-        style={{
-          backgroundColor: AURORA.card,
-          borderRadius: 16,
-          padding: 20,
-          borderWidth: 1,
-          borderColor: AURORA.border,
-          marginBottom: 16,
-        }}
-      >
-        <Text
-          style={{
-            color: "#FFFFFF",
-            fontSize: 16,
-            fontWeight: "800",
-            marginBottom: 10,
-          }}
-        >
-          Special population access
-        </Text>
-        <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21 }}>
-          Detailed journals and analytics appear here after this student requests a session with you and confirms they want you to review their mood check-ins.
-          Directory summaries still use optional sharing settings only.
-        </Text>
-      </View>
-    ) : null;
-
-  const lockedSharingOff = !sharingEnabled ? (
+  const specialPopulationInfo = !journalAccessGranted ? (
     <View
       style={{
         backgroundColor: AURORA.card,
@@ -231,11 +193,50 @@ export default function CounselorStudentDetailScreen() {
         marginBottom: 16,
       }}
     >
+      <Text
+        style={{
+          color: "#FFFFFF",
+          fontSize: 16,
+          fontWeight: "800",
+          marginBottom: 10,
+        }}
+      >
+        Mood check-ins (all students)
+      </Text>
       <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21 }}>
-        This student has check-in sharing turned off in Aurora. Ask them to enable sharing with guidance if they want you to see mood context here.
+        You can see each check-in’s date, time, and mood label below — not notes, sleep, meals,
+        bath, or photos. Full journal and week charts unlock when this student is in your special
+        population (they sent you a session request, or they accepted a session time you proposed).
       </Text>
     </View>
-  ) : null;
+  ) : (
+    <View
+      style={{
+        backgroundColor: AURORA.card,
+        borderRadius: 16,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: AURORA.border,
+        marginBottom: 16,
+      }}
+    >
+      <Text
+        style={{
+          color: "#FFFFFF",
+          fontSize: 16,
+          fontWeight: "800",
+          marginBottom: 10,
+        }}
+      >
+        Special population — full journal
+      </Text>
+      <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21 }}>
+        This student unlocked full check-in detail for you. The calendar and charts below mirror
+        what they see in Aurora, including notes and wellness fields. There is no in-app way for
+        them to revoke this yet.
+      </Text>
+    </View>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
@@ -346,7 +347,8 @@ export default function CounselorStudentDetailScreen() {
                 lineHeight: 18,
               }}
             >
-              Journals and week charts mirror what the student sees, only after they request a session with you and confirm counselor review.
+              Baseline view for every student; full journal only for your special population after
+              session consent flows above.
             </Text>
 
             {loadingCtx ? (
@@ -355,15 +357,19 @@ export default function CounselorStudentDetailScreen() {
               </View>
             ) : (
               <>
-                {lockedSharingOff}
-                {lockedSpecialPopulation}
-                {sharingEnabled && journalAccessGranted && id ? (
-                  <>
-                    <CounselorStudentJournalCalendar
-                      studentId={id}
-                      analyticsSlot={<CounselorStudentLast7Charts logs={logs} />}
-                    />
-                  </>
+                {specialPopulationInfo}
+                {id ? (
+                  <CounselorStudentJournalCalendar
+                    studentId={id}
+                    privacyMode={
+                      journalAccessGranted ? "full" : "baseline"
+                    }
+                    analyticsSlot={
+                      journalAccessGranted ? (
+                        <CounselorStudentLast7Charts logs={logs} />
+                      ) : null
+                    }
+                  />
                 ) : null}
               </>
             )}

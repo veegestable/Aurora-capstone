@@ -53,8 +53,6 @@ function getSignalStyle(signal: CounselorSignalPill) {
       return { border: 'border-l-blue-500', badgeBg: 'bg-blue-500/10', badgeBorder: 'border-blue-500/25', text: 'text-blue-500' }
     case 'no_checkins':
       return { border: 'border-l-amber-400', badgeBg: 'bg-amber-400/10', badgeBorder: 'border-amber-400/25', text: 'text-amber-400' }
-    case 'sharing_off':
-      return { border: 'border-l-gray-400', badgeBg: 'bg-gray-400/10', badgeBorder: 'border-gray-400/25', text: 'text-gray-400' }
   }
 }
 
@@ -111,11 +109,11 @@ export default function CounselorDashboard() {
         const studentsWithContext = await Promise.all(
           students.slice(0, fetchLimit).map(async (s) => {
             try {
-              const { sharingEnabled, logs } = await counselorCheckInContextService.fetchStudentCheckInContext(s.id)
+              const { logs } = await counselorCheckInContextService.fetchStudentCheckInContext(s.id)
               const latestLog = logs[0]
-              return { student: s, sharingEnabled, logs, lastLogDate: latestLog?.log_date }
+              return { student: s, logs, lastLogDate: latestLog?.log_date }
             } catch {
-              return { student: s, sharingEnabled: false, logs: [] as Array<{ stress_level?: number; energy_level?: number }>, lastLogDate: undefined as Date | undefined }
+              return { student: s, logs: [] as Array<{ stress_level?: number; energy_level?: number }>, lastLogDate: undefined as Date | undefined }
             }
           })
         )
@@ -123,12 +121,12 @@ export default function CounselorDashboard() {
         if (cancelled) return
 
         const flags: FlagItem[] = studentsWithContext
-          .map(({ student, sharingEnabled, logs, lastLogDate }) => ({
+          .map(({ student, logs, lastLogDate }) => ({
             id: student.id,
             name: student.full_name || 'Student',
             program: student.email,
-            time: !sharingEnabled ? 'Sharing off' : (lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No check-ins yet'),
-            signal: counselorSignalFromLogs(sharingEnabled, logs),
+            time: lastLogDate ? formatTimeAgo(new Date(lastLogDate)) : 'No check-ins yet',
+            signal: counselorSignalFromLogs(logs),
           }))
           .sort((a, b) => COUNSELOR_SIGNAL_SORT[a.signal] - COUNSELOR_SIGNAL_SORT[b.signal])
 

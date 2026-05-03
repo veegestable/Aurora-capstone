@@ -7,20 +7,13 @@ type MergedMoodLogRow = Awaited<
 >[number];
 
 /**
- * Loads whether the student allows counselors to see recent check-in summaries for directory signals,
- * and if so, merged mood history in the counselor window (stress / energy triage — same as before).
+ * Recent mood logs for directory / triage signals. All students: counselors may use self-report
+ * stress/energy for sorting; UI surfaces for students not in “special population” show only
+ * date, time, and mood (see CounselorStudentJournalCalendar privacyMode).
  */
 export async function fetchStudentCheckInSignalContextForCounselor(
   studentId: string,
-): Promise<{
-  sharingEnabled: boolean;
-  logs: MergedMoodLogRow[];
-}> {
-  const settings = await getUserSettings(studentId);
-  const sharingEnabled = settings.shareCheckInsWithGuidance === true;
-  if (!sharingEnabled) {
-    return { sharingEnabled: false, logs: [] };
-  }
+): Promise<{ logs: MergedMoodLogRow[] }> {
   const start = counselorCheckInWindowStart();
   const end = new Date();
   const logs = await moodService.getMoodLogs(
@@ -28,31 +21,26 @@ export async function fetchStudentCheckInSignalContextForCounselor(
     start.toISOString(),
     end.toISOString(),
   );
-  return { sharingEnabled: true, logs };
+  return { logs };
 }
 
 /**
- * Detailed journals + same analytics surfaces as the student app — only when sharing is on AND
- * the student granted access to this counselor via the first session-request confirmation flow.
+ * Full journal + analytics (notes, sleep, meals, images, etc.) for this counselor only when the
+ * student is in the special population: session request sent to this counselor, or student
+ * accepted this counselor’s proposed session time (journal access flag; no revoke in-app yet).
  */
 export async function fetchStudentCounselorDetailedContext(
   studentId: string,
   counselorId: string,
 ): Promise<{
-  sharingEnabled: boolean;
   journalAccessGranted: boolean;
   logs: MergedMoodLogRow[];
 }> {
   const settings = await getUserSettings(studentId);
-  const sharingEnabled = settings.shareCheckInsWithGuidance === true;
   const journalAccessGranted =
     settings.counselorJournalAccess?.[counselorId] === true;
-  if (!sharingEnabled || !journalAccessGranted) {
-    return {
-      sharingEnabled,
-      journalAccessGranted,
-      logs: [],
-    };
+  if (!journalAccessGranted) {
+    return { journalAccessGranted: false, logs: [] };
   }
   const start = counselorCheckInWindowStart();
   const end = new Date();
@@ -61,5 +49,5 @@ export async function fetchStudentCounselorDetailedContext(
     start.toISOString(),
     end.toISOString(),
   );
-  return { sharingEnabled: true, journalAccessGranted: true, logs };
+  return { journalAccessGranted: true, logs };
 }

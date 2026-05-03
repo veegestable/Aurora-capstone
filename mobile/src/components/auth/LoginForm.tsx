@@ -25,6 +25,7 @@ export default function LoginForm() {
     email: "",
     password: "",
     fullName: "",
+    contactNumber: "",
     role: "student" as "student" | "counselor",
   });
 
@@ -43,6 +44,19 @@ export default function LoginForm() {
       return;
     }
 
+    if (isSignUp && !formData.contactNumber.trim()) {
+      Alert.alert("Error", "Please enter your contact number (mobile phone).");
+      return;
+    }
+
+    if (isSignUp && formData.contactNumber.trim().length < 7) {
+      Alert.alert(
+        "Error",
+        "Please enter a valid contact number (at least 7 digits).",
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -52,12 +66,17 @@ export default function LoginForm() {
           formData.password,
           formData.fullName,
           formData.role,
+          formData.contactNumber.trim(),
         );
         if (result.success) {
           Alert.alert("Success", result.message, [
             { text: "OK", onPress: () => setIsSignUp(false) },
           ]);
-          setFormData((prev) => ({ ...prev, password: "" }));
+          setFormData((prev) => ({
+            ...prev,
+            password: "",
+            contactNumber: "",
+          }));
         } else {
           Alert.alert("Registration Failed", result.message);
         }
@@ -92,6 +111,14 @@ export default function LoginForm() {
               value={formData.fullName}
               onChangeText={(text) => updateFormData("fullName", text)}
               autoCapitalize="words"
+            />
+            <Input
+              variant="glass"
+              label="Contact number"
+              placeholder="Mobile number (e.g. 09XXXXXXXXX)"
+              value={formData.contactNumber}
+              onChangeText={(text) => updateFormData("contactNumber", text)}
+              keyboardType="phone-pad"
             />
             <View>
               <Text style={styles.roleLabel}>Sign up as</Text>

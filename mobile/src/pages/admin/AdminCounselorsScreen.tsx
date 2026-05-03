@@ -15,6 +15,10 @@ import { firestoreService } from '../../services/firebase-firestore.service';
 import { authService } from '../../services/firebase-auth.service';
 import { AURORA } from '../../constants/aurora-colors';
 import type { CounselorApprovalStatus } from '../../services/firebase-auth.service';
+import {
+    counselorApprovalBadgeStatus,
+    isCounselorPendingApproval,
+} from '../../utils/counselorApprovalForAdmin';
 
 interface CounselorUser {
     id: string;
@@ -23,14 +27,13 @@ interface CounselorUser {
     approval_status?: CounselorApprovalStatus;
 }
 
-function StatusBadge({ status }: { status?: CounselorApprovalStatus }) {
+function StatusBadge({ status }: { status: CounselorApprovalStatus }) {
     const config: Record<string, { label: string; bg: string; color: string }> = {
         pending: { label: 'Pending', bg: 'rgba(245, 158, 11, 0.2)', color: '#F59E0B' },
         approved: { label: 'Approved', bg: 'rgba(34, 197, 94, 0.2)', color: '#22C55E' },
         rejected: { label: 'Rejected', bg: 'rgba(239, 68, 68, 0.2)', color: '#EF4444' },
     };
-    const s = status || 'pending';
-    const { label, bg, color } = config[s] || config.pending;
+    const { label, bg, color } = config[status] || config.approved;
     return (
         <View style={{ backgroundColor: bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
             <Text style={{ color, fontSize: 12, fontWeight: '600' }}>{label}</Text>
@@ -102,7 +105,9 @@ export default function AdminCounselorsScreen() {
         ]);
     };
 
-    const pendingCount = counselors.filter(c => c.approval_status === 'pending').length;
+    const pendingCount = counselors.filter((c) =>
+        isCounselorPendingApproval(c as unknown as Record<string, unknown>),
+    ).length;
 
     return (
         <View style={{ flex: 1, backgroundColor: AURORA.bg }}>
@@ -168,9 +173,15 @@ export default function AdminCounselorsScreen() {
                                             <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>{c.full_name || 'Unknown'}</Text>
                                             <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 2 }}>{c.email}</Text>
                                         </View>
-                                        <StatusBadge status={c.approval_status} />
+                                        <StatusBadge
+                                            status={counselorApprovalBadgeStatus(
+                                                c as unknown as Record<string, unknown>,
+                                            )}
+                                        />
                                     </View>
-                                    {c.approval_status === 'pending' && (
+                                    {isCounselorPendingApproval(
+                                        c as unknown as Record<string, unknown>,
+                                    ) && (
                                         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                                             <TouchableOpacity
                                                 onPress={() => handleApprove(c)}

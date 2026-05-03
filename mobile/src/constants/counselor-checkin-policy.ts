@@ -3,7 +3,7 @@
  * Counselors see self-reported data only — not a clinical assessment.
  */
 
-/** How many calendar days of mood_logs counselors may review when a student opts in. */
+/** How many calendar days of mood data counselors review on student-facing surfaces. */
 export const COUNSELOR_CHECKIN_WINDOW_DAYS = 7;
 
 export function counselorCheckInWindowStart(): Date {
@@ -14,10 +14,8 @@ export function counselorCheckInWindowStart(): Date {
 }
 
 /**
- * What “share check-ins” exposes to guidance (high level, for UI copy).
- * Implementation: last N days of `mood_logs` — stress_level, energy_level, log_date,
- * optional dominant emotion from the emotions array. Notes / journal text are excluded
- * from counselor surfaces built on this policy.
+ * What guidance sees for every student by default (student profile copy).
+ * Special population (after session consent) unlocks full journal fields for that counselor.
  */
 export const COUNSELOR_VISIBLE_CHECKIN_SUMMARY =
-    'Only your self-reported stress and energy from recent check-ins, the time of each check-in, and a simple mood label if you logged one. Your private notes stay on your device and are not shown to guidance in Aurora.';
+    'Counselors can see each check-in’s date, time, and mood label from recent history. Notes, sleep, meals, bath, and photos are not shown unless you are in that counselor’s special population (session request or accepting their proposed time).';

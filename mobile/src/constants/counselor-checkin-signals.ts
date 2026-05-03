@@ -3,14 +3,12 @@
  */
 
 export type CounselorSignalPill =
-    | 'sharing_off'
     | 'no_checkins'
     | 'higher_self_report'
     | 'moderate_self_report'
     | 'typical_self_report';
 
 export const COUNSELOR_SIGNAL_LABEL: Record<CounselorSignalPill, string> = {
-    sharing_off: 'Sharing off',
     no_checkins: 'No check-ins',
     /** Counselor triage — supportive wording; avoids labeling students as "high stress". */
     higher_self_report: 'Follow-up suggested',
@@ -18,23 +16,21 @@ export const COUNSELOR_SIGNAL_LABEL: Record<CounselorSignalPill, string> = {
     typical_self_report: 'Typical self-report',
 };
 
-/** Sort: stronger self-reports first; empty window then sharing-off last. */
+/** Sort: stronger self-reports first; empty window last. */
 export const COUNSELOR_SIGNAL_SORT: Record<CounselorSignalPill, number> = {
     higher_self_report: 0,
     moderate_self_report: 1,
     typical_self_report: 2,
     no_checkins: 10,
-    sharing_off: 99,
 };
 
 type LogLike = { stress_level?: number; energy_level?: number };
 
 /**
- * When sharing is off, never infer mood from logs. When sharing is on but the time window is empty,
- * return `no_checkins` — do not use default stress/energy (that incorrectly showed "medium").
+ * Empty window → no_checkins. Do not use default stress/energy when there are no logs
+ * (that incorrectly showed "medium").
  */
-export function counselorSignalFromLogs(sharingEnabled: boolean, logs: LogLike[]): CounselorSignalPill {
-    if (!sharingEnabled) return 'sharing_off';
+export function counselorSignalFromLogs(logs: LogLike[]): CounselorSignalPill {
     if (!logs?.length) return 'no_checkins';
     const latest = logs[0];
     const stress = typeof latest.stress_level === 'number' ? latest.stress_level : 5;

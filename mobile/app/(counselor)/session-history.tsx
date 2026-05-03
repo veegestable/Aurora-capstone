@@ -421,8 +421,21 @@ export default function SessionHistoryScreen() {
 
     setRescheduleBusy(true);
     try {
-      await firestoreService.proposeSlots(selectedSession.id, timeSlots);
       const conversationId = `${user.id}_${selectedSession.studentId}`;
+      const priorRaw =
+        getAgreedSessionSlot(selectedSession) ??
+        selectedSession.proposedSlots?.[0];
+      const priorFmt = formatSlotForDisplay(priorRaw);
+      const priorDisp = priorFmt
+        ? `${priorFmt.date} at ${priorFmt.time}`
+        : (selectedSession.preferredTimeFromStudent?.trim() ||
+            "the time we had planned");
+      const firstName = selectedSession.studentName.split(" ")[0] || "there";
+      const lead = `Hi ${firstName}, I need to reschedule the session we had for ${priorDisp}. Please choose a new time using the options on my session card below.`;
+      await firestoreService.sendTextMessage(conversationId, user.id, lead);
+      await firestoreService.proposeSlots(selectedSession.id, timeSlots, {
+        proposalKind: "attendance_reschedule",
+      });
       const headline = timeSlots[0];
 
       await firestoreService.updateSessionInviteMessageScheduleForSession(
@@ -432,12 +445,12 @@ export default function SessionHistoryScreen() {
         {
           id: selectedSession.id,
           type: "invite",
-          title: "Academic Guidance",
+          title: "Choose a new time",
           counselorName: user.full_name || "Counselor",
           date: headline.date,
           time: headline.time,
           location: "Guidance Office, West Wing",
-          note: data.note,
+          note: data.note.trim(),
           timeSlots,
         },
       );
@@ -754,6 +767,7 @@ export default function SessionHistoryScreen() {
       {selectedSession && (
         <SendSessionInviteModal
           visible={showRescheduleInviteModal}
+          mode="reschedule"
           student={{
             id: selectedSession.studentId,
             name: selectedSession.studentName,

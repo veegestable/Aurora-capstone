@@ -68,8 +68,6 @@ function getSignalStyle(signal: CounselorSignalPill) {
             return { border: AURORA.blue, badgeBg: 'rgba(45,107,255,0.15)', text: AURORA.blue };
         case 'no_checkins':
             return { border: AURORA.amber, badgeBg: 'rgba(254,189,3,0.1)', text: AURORA.amber };
-        case 'sharing_off':
-            return { border: AURORA.textMuted, badgeBg: 'rgba(148,163,184,0.12)', text: AURORA.textMuted };
     }
 }
 
@@ -83,8 +81,6 @@ function signalChipLabel(signal: CounselorSignalPill): string {
             return 'Typical self-report';
         case 'no_checkins':
             return 'No check-ins';
-        case 'sharing_off':
-            return 'Sharing off';
         default:
             return COUNSELOR_SIGNAL_LABEL[signal];
     }
@@ -149,9 +145,7 @@ function StudentCard({ student, onPress }: { student: StudentEntry; onPress: () 
                         numberOfLines={2}
                         ellipsizeMode="tail"
                     >
-                        {student.signal === 'sharing_off'
-                            ? 'Check-in sharing: Off'
-                            : `Last check-in: ${student.lastLog}`}
+                        {`Last check-in: ${student.lastLog}`}
                     </Text>
                 </View>
             </View>
@@ -229,20 +223,16 @@ export default function CounselorStudentsScreen() {
                         let lastLog = 'No check-ins yet';
                         let signal: CounselorSignalPill = 'no_checkins';
                         try {
-                            const { sharingEnabled, logs } = await fetchStudentCheckInSignalContextForCounselor(s.id);
-                            signal = counselorSignalFromLogs(sharingEnabled, logs);
-                            if (!sharingEnabled) {
-                                lastLog = 'Sharing off';
+                            const { logs } = await fetchStudentCheckInSignalContextForCounselor(s.id);
+                            signal = counselorSignalFromLogs(logs);
+                            const latest = logs[0] as { log_date?: Date } | undefined;
+                            if (latest?.log_date) {
+                                lastLog = formatTimeAgo(new Date(latest.log_date));
                             } else {
-                                const latest = logs[0] as any;
-                                if (latest?.log_date) {
-                                    lastLog = formatTimeAgo(new Date(latest.log_date));
-                                } else {
-                                    lastLog = 'No check-ins yet';
-                                }
+                                lastLog = 'No check-ins yet';
                             }
                         } catch {
-                            signal = 'sharing_off';
+                            signal = 'no_checkins';
                             lastLog = '—';
                         }
                         return {
@@ -417,8 +407,8 @@ const MOCK_STUDENTS: StudentEntry[] = [
         department: 'CCS',
         program: 'BS IS (Information Systems)',
         year_level: '2nd',
-        signal: 'sharing_off',
-        lastLog: 'Sharing off',
+        signal: 'no_checkins',
+        lastLog: 'No check-ins yet',
     },
     {
         id: 'm3',

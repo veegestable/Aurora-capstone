@@ -61,6 +61,23 @@ interface MoodEntry {
   }>;
 }
 
+/** Counselor baseline policy: date, time, mood only — strip fields not shown in UI. */
+function sanitizeEntryForCounselorBaseline(entry: MoodEntry): MoodEntry {
+  const emotions = Array.isArray(entry.emotions) ? entry.emotions : [];
+  return {
+    ...entry,
+    emotions,
+    notes: "",
+    sleep_quality: undefined,
+    journal_image_url: "",
+    bath_taken: false,
+    meal_responses: [],
+    duration_in_minutes: undefined,
+    event_tags: [],
+    event_categories: [],
+  };
+}
+
 interface CalendarDay {
   date: Date;
   logs: MoodLog[];
@@ -216,9 +233,11 @@ function CalendarDayCell({
 function CounselorDayDetailCard({
   dateLabel,
   entries,
+  privacyMode = "full",
 }: {
   dateLabel: string;
   entries: MoodEntry[];
+  privacyMode?: "baseline" | "full";
 }) {
   const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null);
 
@@ -278,20 +297,23 @@ function CounselorDayDetailCard({
               <TouchableOpacity
                 key={groupKey}
                 activeOpacity={0.88}
-                onPress={() =>
+                onPress={() => {
+                  if (privacyMode !== "full") return;
                   setExpandedEntryId((prev) =>
                     prev === groupKey ? null : groupKey,
-                  )
-                }
+                  );
+                }}
                 style={styles.entryBlock}
               >
                 <View style={styles.entryHeader}>
                   <Text style={styles.entryTime}>
                     {formatTime(entry.created_at || entry.log_date)}
                   </Text>
-                  <Text style={styles.entryHint}>
-                    {expanded ? "Hide details" : "Tap for details"}
-                  </Text>
+                  {privacyMode === "full" ? (
+                    <Text style={styles.entryHint}>
+                      {expanded ? "Hide details" : "Tap for details"}
+                    </Text>
+                  ) : null}
                 </View>
 
                 <View style={styles.chipsRow}>
@@ -309,27 +331,29 @@ function CounselorDayDetailCard({
                       >
                         {log.mood}
                       </Text>
-                      <View style={styles.intensityRow}>
-                        {[1, 2, 3, 4, 5].map((dot) => (
-                          <View
-                            key={dot}
-                            style={[
-                              styles.intensityDot,
-                              {
-                                backgroundColor:
-                                  dot <= log.intensity
-                                    ? MOOD_COLORS[log.mood]
-                                    : "#ffffff15",
-                              },
-                            ]}
-                          />
-                        ))}
-                      </View>
+                      {privacyMode === "full" ? (
+                        <View style={styles.intensityRow}>
+                          {[1, 2, 3, 4, 5].map((dot) => (
+                            <View
+                              key={dot}
+                              style={[
+                                styles.intensityDot,
+                                {
+                                  backgroundColor:
+                                    dot <= log.intensity
+                                      ? MOOD_COLORS[log.mood]
+                                      : "#ffffff15",
+                                },
+                              ]}
+                            />
+                          ))}
+                        </View>
+                      ) : null}
                     </View>
                   ))}
                 </View>
 
-                {expanded ? (
+                {expanded && privacyMode === "full" ? (
                   <>
                     <View style={styles.detailsBlock}>
                       <Text style={styles.detailsTitle}>Wellness</Text>
@@ -402,9 +426,11 @@ function CounselorDayDetailCard({
               </TouchableOpacity>
             );
           })}
-          <View style={styles.explanationBox}>
-            <Text style={styles.explanationText}>{explanation}</Text>
-          </View>
+          {privacyMode === "full" ? (
+            <View style={styles.explanationBox}>
+              <Text style={styles.explanationText}>{explanation}</Text>
+            </View>
+          ) : null}
         </>
       )}
     </View>
@@ -416,13 +442,18 @@ type Tab = "calendar" | "analytics";
 interface Props {
   studentId: string;
   analyticsSlot: React.ReactNode;
+  /** baseline = date, time, mood only; full = notes, sleep, meals, charts tab, etc. */
+  privacyMode?: "baseline" | "full";
 }
 
 export function CounselorStudentJournalCalendar({
   studentId,
   analyticsSlot,
+  privacyMode = "full",
 }: Props) {
   const reduceMotion = useReducedMotion();
+  const showAnalyticsTab =
+    privacyMode === "full" && analyticsSlot != null;
   const [tab, setTab] = useState<Tab>("calendar");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [moodData, setMoodData] = useState<MoodEntry[]>([]);
@@ -443,7 +474,13 @@ export function CounselorStudentJournalCalendar({
   }));
 
   useEffect(() => {
-    if (trackW <= 0) return;
+    if (!showAnalyticsTab) {
+      setTab("calendar");
+    }
+  }, [showAnalyticsTab]);
+
+  useEffect(() => {
+    if (trackW <= 0 || !showAnalyticsTab) return;
     const inner = trackW - JOURNAL_TOGGLE_PAD * 2;
     const seg = inner / 2;
     const idx = tab === "calendar" ? 0 : 1;
@@ -451,7 +488,7 @@ export function CounselorStudentJournalCalendar({
     const easing = Easing.out(Easing.cubic);
     thumbX.value = withTiming(idx * seg, { duration: dur, easing });
     thumbW.value = withTiming(seg, { duration: dur, easing });
-  }, [tab, trackW, reduceMotion, thumbX, thumbW]);
+  }, [tab, trackW, reduceMotion, thumbX, thumbW, showAnalyticsTab]);
 
   useEffect(() => {
     if (!studentId) {
@@ -474,7 +511,12 @@ export function CounselorStudentJournalCalendar({
     const unsub = moodService.subscribeMoodLogs(
       studentId,
       (data) => {
-        setMoodData(Array.isArray(data) ? (data as MoodEntry[]) : []);
+        const arr = Array.isArray(data) ? (data as MoodEntry[]) : [];
+        setMoodData(
+          privacyMode === "baseline"
+            ? arr.map(sanitizeEntryForCounselorBaseline)
+            : arr,
+        );
         setLoading(false);
       },
       start.toISOString(),
@@ -485,7 +527,7 @@ export function CounselorStudentJournalCalendar({
       },
     );
     return unsub;
-  }, [currentDate, studentId]);
+  }, [currentDate, studentId, privacyMode]);
 
   const calendarDays = useMemo(() => {
     const year = currentDate.getFullYear();
@@ -533,6 +575,7 @@ export function CounselorStudentJournalCalendar({
 
   return (
     <View>
+      {showAnalyticsTab ? (
       <View
         style={{
           backgroundColor: AURORA.cardAlt,
@@ -602,8 +645,9 @@ export function CounselorStudentJournalCalendar({
           </TouchableOpacity>
         </View>
       </View>
+      ) : null}
 
-      {tab === "analytics" ? (
+      {tab === "analytics" && showAnalyticsTab ? (
         analyticsSlot
       ) : loading ? (
         <View style={styles.loaderBox}>
@@ -710,11 +754,14 @@ export function CounselorStudentJournalCalendar({
                 year: "numeric",
               })}
               entries={dayDetailsEntries}
+              privacyMode={privacyMode}
             />
           ) : (
             <View style={styles.hintBox}>
               <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 14 }}>
-                Tap a colored day to see journal entries for that date.
+                {privacyMode === "baseline"
+                  ? "Tap a colored day to see time and mood for each check-in on that date."
+                  : "Tap a colored day to see journal entries for that date."}
               </Text>
             </View>
           )}

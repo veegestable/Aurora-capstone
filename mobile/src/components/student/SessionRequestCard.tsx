@@ -17,6 +17,8 @@ export interface SessionRequestData {
     status: string;
     /** Chat message createdAt ms when loaded from Firestore (counselor expiry UX). */
     requestedAtMs?: number;
+    /** Live session is pending with proposed slots — counselor offered times (not a new student request). */
+    counselorOfferedSlots?: boolean;
 }
 
 interface SessionRequestCardProps {
@@ -32,13 +34,22 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }>
     declined: { label: 'Declined', bg: 'rgba(239,68,68,0.2)', text: AURORA.red },
 };
 
+const COUNSELOR_SLOTS_STATUS = {
+    label: 'Choose a time',
+    bg: 'rgba(59,130,246,0.2)',
+    text: AURORA.blueLight,
+} as const;
+
 export default function SessionRequestCard({
     data,
     isFromMe = true,
     onViewDetails,
     onEdit,
 }: SessionRequestCardProps) {
-    const statusConfig = STATUS_CONFIG[data.status] ?? STATUS_CONFIG.pending;
+    const offered = !!data.counselorOfferedSlots;
+    const statusConfig = offered
+        ? COUNSELOR_SLOTS_STATUS
+        : STATUS_CONFIG[data.status] ?? STATUS_CONFIG.pending;
 
     return (
         <View style={styles.wrapper}>
@@ -48,7 +59,9 @@ export default function SessionRequestCard({
                         <Calendar size={20} color={AURORA.blue} />
                     </View>
                     <View style={styles.headerText}>
-                        <Text style={styles.title}>Session request sent</Text>
+                        <Text style={styles.title}>
+                            {offered ? 'Your counselor sent new times' : 'Session request sent'}
+                        </Text>
                         <View style={[styles.statusPill, { backgroundColor: statusConfig.bg }]}>
                             <Text style={[styles.statusText, { color: statusConfig.text }]}>
                                 {statusConfig.label}
@@ -83,7 +96,9 @@ export default function SessionRequestCard({
                         onPress={onViewDetails}
                         activeOpacity={0.85}
                     >
-                        <Text style={styles.primaryBtnText}>View details</Text>
+                        <Text style={styles.primaryBtnText}>
+                            {offered ? 'See counselor message' : 'View details'}
+                        </Text>
                         <ChevronRight size={18} color="#FFFFFF" />
                     </TouchableOpacity>
                     <TouchableOpacity

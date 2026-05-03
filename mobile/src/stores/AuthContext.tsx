@@ -12,6 +12,11 @@ import {
   setMyPresenceOfflineNow,
   startMyPresence,
 } from "../services/firebase-presence.service";
+import {
+  logUserLogin,
+  logUserLogoutCounselorOrStudent,
+  clearActivityThrottleForUser,
+} from "../services/user-activity.service";
 
 export type CounselorApprovalStatus = "pending" | "approved" | "rejected";
 
@@ -26,6 +31,7 @@ interface User {
   program?: string;
   year_level?: string;
   student_number?: string;
+  contact_number?: string;
   /** male | female. Used for future features. */
   sex?: "male" | "female";
   bio?: string;
@@ -42,6 +48,7 @@ interface AuthContextType {
     password: string,
     fullName: string,
     role: "admin" | "counselor" | "student",
+    contactNumber: string,
   ) => Promise<{ success: boolean; message: string }>;
   signOut: () => void;
   updateUser: (data: {
@@ -51,6 +58,7 @@ interface AuthContextType {
     program?: string;
     year_level?: string;
     student_number?: string;
+    contact_number?: string;
     sex?: "male" | "female";
     bio?: string;
     avatar_url?: string;
@@ -74,6 +82,7 @@ const convertUserProfile = (userProfile: UserProfile): User => {
     program: userProfile.program,
     year_level: userProfile.year_level,
     student_number: userProfile.student_number,
+    contact_number: userProfile.contact_number,
     sex: userProfile.sex,
     bio: userProfile.bio,
     avatar_url: userProfile.avatar_url,
@@ -139,6 +148,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userProfile = await authService.signIn({ email, password });
 
       setUser(convertUserProfile(userProfile));
+      logUserLogin({
+        userId: userProfile.uid,
+        role: userProfile.role,
+        displayName: userProfile.full_name ?? "",
+        email: userProfile.email ?? "",
+      });
       console.log("✅ Sign in successful:", userProfile.email);
     } catch (error) {
       console.error("❌ Sign in error:", error);
@@ -151,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     fullName: string,
     role: "admin" | "counselor" | "student",
+    contactNumber: string,
   ) => {
     try {
       console.log("🔥 Signing up user:", email);
@@ -159,6 +175,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         fullName,
         role,
+        contactNumber:
+          role === "counselor" || role === "student"
+            ? contactNumber.trim()
+            : undefined,
       });
 
       // Don't set user - they need to log in manually
@@ -181,6 +201,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       const uid = auth.currentUser?.uid;
+      if (uid && user && (user.role === "counselor" || user.role === "student")) {
+        await logUserLogoutCounselorOrStudent({
+          userId: uid,
+          role: user.role,
+          displayName: user.full_name ?? "",
+          email: user.email ?? "",
+        });
+      }
       if (uid) {
         try {
           await setMyPresenceOfflineNow(uid);
@@ -188,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn("[presence] Could not set offline before sign out:", e);
         }
       }
+      if (uid) clearActivityThrottleForUser(uid);
       await authService.signOut();
       setUser(null);
       console.log("✅ Sign out successful");
@@ -203,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     program?: string;
     year_level?: string;
     student_number?: string;
+    contact_number?: string;
     sex?: "male" | "female";
     bio?: string;
     avatar_url?: string;

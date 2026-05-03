@@ -3,7 +3,7 @@
  * Matches Aurora design: student profile, proposed time slots, supportive note
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Modal,
     View,
@@ -44,6 +44,8 @@ interface StudentInfo {
 
 interface SendSessionInviteModalProps {
     visible: boolean;
+    /** `reschedule` = counselor-led new times (no generic “check in” intro). */
+    mode?: 'invite' | 'reschedule';
     student: StudentInfo;
     counselorName?: string;
     onClose: () => void;
@@ -60,8 +62,12 @@ function formatDateTime(date: Date): string {
     })}`;
 }
 
+const DEFAULT_INVITE_NOTE = (firstName: string) =>
+    `Hi ${firstName}, I'd like to check in with you regarding your recent academic progress and see how you're settling into the new semester.`;
+
 export default function SendSessionInviteModal({
     visible,
+    mode = 'invite',
     student,
     counselorName = 'Counselor',
     onClose,
@@ -70,11 +76,19 @@ export default function SendSessionInviteModal({
     const [primaryDate, setPrimaryDate] = useState<Date | null>(null);
     const [alternativeDate, setAlternativeDate] = useState<Date | null>(null);
     const [finalDate, setFinalDate] = useState<Date | null>(null);
-    const [note, setNote] = useState(
-        `Hi ${student.name.split(' ')[0]}, I'd like to check in with you regarding your recent academic progress and see how you're settling into the new semester.`,
-    );
+    const firstName = student.name.split(' ')[0] || 'there';
+    const [note, setNote] = useState(() => DEFAULT_INVITE_NOTE(firstName));
     const [pickingSlot, setPickingSlot] = useState<'primary' | 'alternative' | 'final' | null>(null);
     const [tempDate, setTempDate] = useState(new Date());
+
+    useEffect(() => {
+        if (!visible) return;
+        const fn = student.name.split(' ')[0] || 'there';
+        setPrimaryDate(null);
+        setAlternativeDate(null);
+        setFinalDate(null);
+        setNote(mode === 'reschedule' ? '' : DEFAULT_INVITE_NOTE(fn));
+    }, [visible, mode, student.id, student.name]);
 
     const handleDateChange = (_: any, selectedDate?: Date) => {
         if (Platform.OS === 'android') setPickingSlot(null);
@@ -110,9 +124,25 @@ export default function SendSessionInviteModal({
         setPrimaryDate(null);
         setAlternativeDate(null);
         setFinalDate(null);
-        setNote(`Hi ${student.name.split(' ')[0]}, I'd like to check in with you regarding your recent academic progress and see how you're settling into the new semester.`);
+        setNote(mode === 'reschedule' ? '' : DEFAULT_INVITE_NOTE(firstName));
         onClose();
     };
+
+    const purposeText =
+        mode === 'reschedule'
+            ? 'Pick new times for the student to confirm in chat.'
+            : 'Invite to a supportive counseling session';
+    const noteSectionTitle =
+        mode === 'reschedule' ? 'OPTIONAL NOTE (ON SESSION CARD)' : 'INCLUDE A SUPPORTIVE NOTE';
+    const notePlaceholder =
+        mode === 'reschedule'
+            ? 'Add context for the reschedule (optional)...'
+            : 'Type your message...';
+    const noteInfoText =
+        mode === 'reschedule'
+            ? 'Shown on the session card the student sees under your new time options.'
+            : 'This message will be sent along with your invitation.';
+    const sendBtnText = mode === 'reschedule' ? 'Send new times' : 'Send Session Invite';
 
     const canSend = primaryDate !== null;
 
@@ -132,14 +162,18 @@ export default function SendSessionInviteModal({
                     {/* Student Profile */}
                     <View style={styles.profileSection}>
                         <View style={styles.avatarWrap}>
-                            <LetterAvatar name={student.name} size={80} />
+                            <LetterAvatar
+                                name={student.name}
+                                size={80}
+                                avatarUrl={student.avatar?.trim() ? student.avatar.trim() : undefined}
+                            />
                             <View style={styles.onlineDot} />
                         </View>
                         <Text style={styles.studentName}>{student.name}</Text>
                         <Text style={styles.program}>
                             {student.program || 'BSCS 3rd Year'} • Student ID: {student.studentId || student.id.slice(0, 8)}
                         </Text>
-                        <Text style={styles.purpose}>Invite to a supportive counseling session</Text>
+                        <Text style={styles.purpose}>{purposeText}</Text>
                     </View>
 
                     <ScrollView
@@ -173,10 +207,10 @@ export default function SendSessionInviteModal({
                         })}
 
                         {/* Supportive Note */}
-                        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>INCLUDE A SUPPORTIVE NOTE</Text>
+                        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>{noteSectionTitle}</Text>
                         <TextInput
                             style={styles.noteInput}
-                            placeholder="Type your message..."
+                            placeholder={notePlaceholder}
                             placeholderTextColor={AURORA.textMuted}
                             value={note}
                             onChangeText={setNote}
@@ -186,7 +220,7 @@ export default function SendSessionInviteModal({
                         />
                         <View style={styles.infoRow}>
                             <Info size={14} color={AURORA.textMuted} />
-                            <Text style={styles.infoText}>This message will be sent along with your invitation.</Text>
+                            <Text style={styles.infoText}>{noteInfoText}</Text>
                         </View>
                     </ScrollView>
 
@@ -198,7 +232,7 @@ export default function SendSessionInviteModal({
                         activeOpacity={0.85}
                     >
                         <Send size={18} color="#FFFFFF" />
-                        <Text style={styles.sendBtnText}>Send Session Invite</Text>
+                        <Text style={styles.sendBtnText}>{sendBtnText}</Text>
                     </TouchableOpacity>
 
                     {pickingSlot && (

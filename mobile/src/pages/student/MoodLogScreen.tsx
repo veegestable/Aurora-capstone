@@ -93,6 +93,8 @@ interface StudentSessionOverviewRow {
   chipLabel: string;
   updatedAt: Date;
   dashboardBucket: StudentSessionDashboardBucket;
+  /** Agreed slot when set — used for "right now" vs past chip. */
+  lockedSlot: { date: string; time: string } | null;
   /** For sorting agreed sessions (soonest appointment first). */
   scheduledSortMs: number;
 }
@@ -117,18 +119,31 @@ function isStaleStudentRequestedSession(updatedAt: Date, status: string): boolea
   return daysElapsed >= 3;
 }
 
-/** Confirmed slot start is strictly after now → show under upcoming only. */
-function isConfirmedSlotInFuture(
+/** How long after the agreed start we still treat the session as in progress (student "My sessions"). */
+const STUDENT_SESSION_ACTIVE_WINDOW_MS = 90 * 60 * 1000;
+
+function lockedAgreedSlotStartMs(
   slot: { date: string; time: string } | null,
-  nowMs: number = Date.now(),
-): boolean {
-  if (!slot?.date) return false;
+): number | null {
+  if (!slot?.date) return null;
   const parsed = parseSlotToDate({
     date: slot.date,
     time: slot.time ?? "",
   });
-  if (!parsed || isNaN(parsed.getTime())) return false;
-  return parsed.getTime() > nowMs;
+  if (!parsed || isNaN(parsed.getTime())) return null;
+  return parsed.getTime();
+}
+
+/** Start time has passed but we are still within the session window → not a "past" appointment yet. */
+function isStudentSessionSlotActiveNow(
+  slot: { date: string; time: string } | null,
+  nowMs: number = Date.now(),
+): boolean {
+  const startMs = lockedAgreedSlotStartMs(slot);
+  if (startMs == null) return false;
+  return (
+    nowMs >= startMs && nowMs < startMs + STUDENT_SESSION_ACTIVE_WINDOW_MS
+  );
 }
 
 function studentSessionDashboardBucket(params: {
@@ -138,7 +153,12 @@ function studentSessionDashboardBucket(params: {
   const st = params.status.toLowerCase();
   if (STUDENT_SESSION_CLOSED.has(st)) return "closed";
   if (params.lockedSlot) {
-    return isConfirmedSlotInFuture(params.lockedSlot) ? "agreed" : "past_agreed";
+    const startMs = lockedAgreedSlotStartMs(params.lockedSlot);
+    if (startMs == null) return "past_agreed";
+    const now = Date.now();
+    if (startMs > now) return "agreed";
+    if (isStudentSessionSlotActiveNow(params.lockedSlot, now)) return "agreed";
+    return "past_agreed";
   }
   if (["requested", "pending", "needs_rescheduling"].includes(st)) {
     return "action";
@@ -150,7 +170,11 @@ function studentSessionChipLabelForBucket(row: StudentSessionOverviewRow): strin
   const st = row.status.toLowerCase();
   switch (row.dashboardBucket) {
     case "agreed":
-      return st === "rescheduled" ? "Rescheduled" : "Upcoming counseling";
+      if (st === "rescheduled") return "Rescheduled";
+      if (row.lockedSlot && isStudentSessionSlotActiveNow(row.lockedSlot)) {
+        return "Today";
+      }
+      return "Upcoming counseling";
     case "past_agreed":
       return "Past appointment";
     case "action":
@@ -316,6 +340,7 @@ async function fetchStudentSessionsOverview(
         chipLabel: "",
         updatedAt,
         dashboardBucket,
+        lockedSlot,
         scheduledSortMs,
       };
       baseRow.chipLabel = studentSessionChipLabelForBucket(baseRow);
@@ -1448,7 +1473,7 @@ export default function MoodLogScreen() {
                   <>
                     {renderSessionOverviewSection(
                       "Upcoming counseling",
-                      "Confirmed times that are still in the future (after you accept an invite or agree on a slot).",
+                      "Confirmed times still ahead, or your session time with a (right now) badge for about 90 minutes after start.",
                       sessionsAgreedList,
                       "green",
                     )}
@@ -1541,10 +1566,11 @@ export default function MoodLogScreen() {
                 marginBottom: 8,
               }}
             >
-              If you turn on sharing in Settings, counselors can see a brief
-              summary from your last {COUNSELOR_CHECKIN_WINDOW_DAYS} days of
-              self-reported stress and energy — not your private notes, and not
-              a diagnosis.
+              Counselors can see each check-in’s date, time, and mood from your
+              last {COUNSELOR_CHECKIN_WINDOW_DAYS} days. Notes, sleep, meals,
+              bath, and photos stay hidden until you are in that counselor’s
+              special population (session request or accepting their proposed
+              time). Full analytics for them are not a diagnosis.
             </Text>
             <Text
               style={{
@@ -1554,7 +1580,7 @@ export default function MoodLogScreen() {
                 marginBottom: 18,
               }}
             >
-              Default is off; you stay in control.
+              Read the full wording under Privacy transparency in Profile.
             </Text>
             <TouchableOpacity
               onPress={async () => {
@@ -1601,7 +1627,7 @@ export default function MoodLogScreen() {
               <Text
                 style={{ color: AURORA.blue, fontSize: 14, fontWeight: "700" }}
               >
-                Open Settings
+                Open Profile
               </Text>
             </TouchableOpacity>
           </View>

@@ -15,6 +15,8 @@ export interface SignUpData {
   password: string;
   fullName: string;
   role: "admin" | "counselor" | "student";
+  /** Mobile / phone contact (counselor & student registration). */
+  contactNumber?: string;
 }
 
 export interface SignInData {
@@ -40,6 +42,8 @@ export interface UserProfile {
   program?: string;
   year_level?: string;
   student_number?: string;
+  /** Mobile or landline for reach-out (counselors & students). */
+  contact_number?: string;
   /** Student profile: male | female. Used for future features. */
   sex?: Sex;
   bio?: string;
@@ -69,6 +73,7 @@ export const authService = {
       });
 
       // Create user profile in Firestore (omit optional fields instead of undefined — Firestore rejects undefined)
+      const contactTrim = data.contactNumber?.trim() ?? "";
       const userProfile: UserProfile = {
         uid: user.uid,
         email: data.email,
@@ -77,6 +82,7 @@ export const authService = {
         ...(data.role === "counselor"
           ? { approval_status: "pending" as const }
           : {}),
+        ...(contactTrim ? { contact_number: contactTrim } : {}),
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -156,6 +162,8 @@ export const authService = {
       if (data.year_level !== undefined) updates.year_level = data.year_level;
       if (data.student_number !== undefined)
         updates.student_number = data.student_number;
+      if (data.contact_number !== undefined)
+        updates.contact_number = data.contact_number;
       if (data.sex !== undefined) updates.sex = data.sex;
       if (data.bio !== undefined) updates.bio = data.bio;
       if (data.avatar_url !== undefined) updates.avatar_url = data.avatar_url;

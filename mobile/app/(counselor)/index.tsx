@@ -160,12 +160,6 @@ function getSignalStyle(signal: CounselorSignalPill) {
         badgeBg: "rgba(254,189,3,0.1)",
         text: AURORA.amber,
       };
-    case "sharing_off":
-      return {
-        border: AURORA.textMuted,
-        badgeBg: "rgba(148,163,184,0.12)",
-        text: AURORA.textMuted,
-      };
   }
 }
 
@@ -431,8 +425,6 @@ function formatSignalChip(signal: CounselorSignalPill): string {
       return "Typical";
     case "no_checkins":
       return "No recent check-in";
-    case "sharing_off":
-      return "Sharing off";
     default:
       return COUNSELOR_SIGNAL_LABEL[signal];
   }
@@ -639,7 +631,7 @@ export default function CounselorHomeScreen() {
         const studentsWithMood = await Promise.all(
           students.slice(0, limit).map(async (s) => {
             try {
-              const { sharingEnabled, logs } =
+              const { logs } =
                 await fetchStudentCheckInSignalContextForCounselor(s.id);
               const latest = logs[0] as
                 | {
@@ -650,14 +642,12 @@ export default function CounselorHomeScreen() {
                 | undefined;
               return {
                 student: s,
-                sharingEnabled,
                 logs,
                 lastLogDate: latest?.log_date,
               };
             } catch {
               return {
                 student: s,
-                sharingEnabled: false,
                 logs: [] as { stress_level?: number; energy_level?: number }[],
                 lastLogDate: undefined as Date | undefined,
               };
@@ -668,8 +658,8 @@ export default function CounselorHomeScreen() {
         if (isCancelled?.()) return;
 
         const flags: FlagItem[] = studentsWithMood
-          .map(({ student, sharingEnabled, logs, lastLogDate }) => {
-            const signal = counselorSignalFromLogs(sharingEnabled, logs);
+          .map(({ student, logs, lastLogDate }) => {
+            const signal = counselorSignalFromLogs(logs);
             return {
               id: student.id,
               name: student.full_name || "Student",
@@ -679,11 +669,9 @@ export default function CounselorHomeScreen() {
                   program: student.program,
                   year_level: student.year_level,
                 }) || "CCS",
-              time: !sharingEnabled
-                ? "Sharing off"
-                : lastLogDate
-                  ? formatTimeAgo(new Date(lastLogDate))
-                  : "No check-ins yet",
+              time: lastLogDate
+                ? formatTimeAgo(new Date(lastLogDate))
+                : "No check-ins yet",
               signal,
               avatar: (student as any).avatar_url ?? "",
             };

@@ -17,6 +17,8 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -163,12 +165,14 @@ function EditProfileModal({
     full_name?: string;
     sex?: "male" | "female";
     student_number?: string;
+    contact_number?: string;
     avatar_url?: string | null;
   } | null;
   onSave: (data: {
     fullName: string;
     sex?: SexOption;
     counselorNumber: string;
+    contactNumber: string;
   }) => Promise<void>;
   onPickAvatar: (imageUri: string) => Promise<void>;
 }) {
@@ -176,6 +180,9 @@ function EditProfileModal({
   const [sex, setSex] = useState<SexOption | undefined>(user?.sex);
   const [counselorNumber, setCounselorNumber] = useState(
     user?.student_number || "",
+  );
+  const [contactNumber, setContactNumber] = useState(
+    user?.contact_number || "",
   );
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -185,6 +192,7 @@ function EditProfileModal({
       setName(user.full_name || "");
       setSex(user.sex ?? undefined);
       setCounselorNumber(user.student_number || "");
+      setContactNumber(user.contact_number || "");
     }
   }, [visible, user]);
 
@@ -220,9 +228,21 @@ function EditProfileModal({
 
   const handleSave = async () => {
     const numTrim = counselorNumber.trim();
+    const contactTrim = contactNumber.trim();
 
     if (!numTrim) {
       Alert.alert("Required field", "Please enter your counselor number.");
+      return;
+    }
+    if (!contactTrim) {
+      Alert.alert("Required field", "Please enter your contact number.");
+      return;
+    }
+    if (contactTrim.length < 7) {
+      Alert.alert(
+        "Invalid number",
+        "Contact number should be at least 7 digits.",
+      );
       return;
     }
     setSaving(true);
@@ -231,6 +251,7 @@ function EditProfileModal({
         fullName: name.trim() || user?.full_name || "Counselor",
         sex,
         counselorNumber: numTrim,
+        contactNumber: contactTrim,
       });
       onClose();
     } catch {
@@ -286,7 +307,16 @@ function EditProfileModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: 24 }}>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 56 : 0}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
+            >
             <View style={{ alignItems: "center", marginBottom: 24 }}>
               <View style={{ position: "relative" }}>
                 <LetterAvatar
@@ -464,6 +494,43 @@ function EditProfileModal({
               />
             </View>
 
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontSize: 14,
+                fontWeight: "600",
+                marginBottom: 8,
+              }}
+            >
+              Contact number <Text style={{ color: AURORA.red }}>*</Text>
+            </Text>
+            <View
+              style={{
+                backgroundColor: AURORA.card,
+                borderRadius: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 14,
+                marginBottom: 24,
+                borderWidth: 1,
+                borderColor: AURORA.border,
+              }}
+            >
+              <TextInput
+                style={{
+                  flex: 1,
+                  color: "#FFFFFF",
+                  fontSize: 15,
+                  paddingVertical: 14,
+                }}
+                value={contactNumber}
+                onChangeText={setContactNumber}
+                placeholder="Mobile phone for reach-out"
+                placeholderTextColor={AURORA.textMuted}
+                keyboardType="phone-pad"
+              />
+            </View>
+
             <TouchableOpacity
               onPress={handleSave}
               disabled={saving}
@@ -481,6 +548,7 @@ function EditProfileModal({
               </Text>
             </TouchableOpacity>
           </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
     </Modal>
@@ -678,6 +746,10 @@ export default function CounselorProfileScreen() {
               label="Counselor Number"
               value={user?.student_number || "Not set"}
             />
+            <InfoRow
+              label="Contact number"
+              value={user?.contact_number || "Not set"}
+            />
           </View>
 
           {/* ── Account Settings ──────────────────────────────── */}
@@ -871,6 +943,7 @@ export default function CounselorProfileScreen() {
               full_name: data.fullName,
               sex: data.sex,
               student_number: data.counselorNumber,
+              contact_number: data.contactNumber,
             });
           }}
           onPickAvatar={async (uri) => {
