@@ -1,5 +1,5 @@
-import { Redirect } from 'expo-router';
+import { Redirect } from "expo-router";
 
 export default function DeprecatedDashboardAnalytics() {
-    return <Redirect href="/(student)/history" />;
+  return <Redirect href="/(student)/history" />;
 }

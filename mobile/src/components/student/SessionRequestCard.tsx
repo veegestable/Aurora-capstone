@@ -15,6 +15,8 @@ export interface SessionRequestData {
     preferredTime: string;
     note: string;
     status: string;
+    /** Chat message createdAt ms when loaded from Firestore (counselor expiry UX). */
+    requestedAtMs?: number;
 }
 
 interface SessionRequestCardProps {

@@ -1,1 +1,1 @@
-export { moodService as moodLogsService } from './mood.service';
+export { moodService as moodLogsService } from "./mood.service";

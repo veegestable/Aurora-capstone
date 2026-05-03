@@ -77,7 +77,6 @@ export default function StudentSessionRequestModal({
 
     const handleSend = () => {
         onSend({ preferredDate, note: note.trim() });
-        onClose();
     };
 
     if (!visible) return null;

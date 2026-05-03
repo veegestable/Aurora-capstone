@@ -1,8 +1,21 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useAuth } from './AuthContext';
-import { getUserSettings, updateUserSettings } from '../services/mood-firestore-v2.service';
-import { defaultUserTimezone } from '../utils/dayKey';
-import type { ContextCategoryKey } from '../services/mood-firestore-v2.service';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { useAuth } from "./AuthContext";
+import {
+  getUserSettings,
+  normalizeSettingsHHmm,
+  updateUserSettings,
+} from "../services/mood-firestore-v2.service";
+import { defaultUserTimezone } from "../utils/dayKey";
+import type { ContextCategoryKey } from "../services/mood-firestore-v2.service";
+import type { MealScheduleItem } from "../services/mood-firestore-v2.service";
 
 export interface UserDaySettingsValue {
   dayResetHour: number;
@@ -11,6 +24,10 @@ export interface UserDaySettingsValue {
   remindersEnabled: boolean;
   academicContextEnabled: boolean;
   enabledContextCategories: ContextCategoryKey[];
+  mealSchedule: MealScheduleItem[];
+  /** `HH:mm` or empty when unset; used for smart check-in prompts. */
+  usualWakeTime: string;
+  usualBathTime: string;
   loading: boolean;
   refresh: () => Promise<void>;
   setDayResetHour: (hour: number) => Promise<void>;
@@ -18,10 +35,18 @@ export interface UserDaySettingsValue {
   setReminderHour: (hour: number) => Promise<void>;
   setRemindersEnabled: (enabled: boolean) => Promise<void>;
   setAcademicContextEnabled: (enabled: boolean) => Promise<void>;
-  setCategoryEnabled: (category: ContextCategoryKey, enabled: boolean) => Promise<void>;
+  setCategoryEnabled: (
+    category: ContextCategoryKey,
+    enabled: boolean,
+  ) => Promise<void>;
+  setMealSchedule: (schedule: MealScheduleItem[]) => Promise<void>;
+  setUsualWakeTime: (hhmm: string) => Promise<void>;
+  setUsualBathTime: (hhmm: string) => Promise<void>;
 }
 
-const UserDaySettingsContext = createContext<UserDaySettingsValue | undefined>(undefined);
+const UserDaySettingsContext = createContext<UserDaySettingsValue | undefined>(
+  undefined,
+);
 
 export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -29,14 +54,14 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
   const [timezone, setTimezoneState] = useState(defaultUserTimezone());
   const [reminderHour, setReminderHourState] = useState(7);
   const [remindersEnabled, setRemindersEnabledState] = useState(true);
-  const [academicContextEnabled, setAcademicContextEnabledState] = useState(true);
-  const [enabledContextCategories, setEnabledContextCategoriesState] = useState<ContextCategoryKey[]>([
-    'school',
-    'health',
-    'social',
-    'fun',
-    'productivity',
-  ]);
+  const [academicContextEnabled, setAcademicContextEnabledState] =
+    useState(true);
+  const [enabledContextCategories, setEnabledContextCategoriesState] = useState<
+    ContextCategoryKey[]
+  >(["school", "health", "social", "fun", "productivity"]);
+  const [mealSchedule, setMealScheduleState] = useState<MealScheduleItem[]>([]);
+  const [usualWakeTime, setUsualWakeTimeState] = useState("");
+  const [usualBathTime, setUsualBathTimeState] = useState("");
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -46,7 +71,16 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       setReminderHourState(7);
       setRemindersEnabledState(true);
       setAcademicContextEnabledState(true);
-      setEnabledContextCategoriesState(['school', 'health', 'social', 'fun', 'productivity']);
+      setEnabledContextCategoriesState([
+        "school",
+        "health",
+        "social",
+        "fun",
+        "productivity",
+      ]);
+      setMealScheduleState([]);
+      setUsualWakeTimeState("");
+      setUsualBathTimeState("");
       setLoading(false);
       return;
     }
@@ -55,12 +89,21 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       const s = await getUserSettings(user.id);
       setDayResetHourState(s.dayResetHour);
       setTimezoneState(s.timezone || defaultUserTimezone());
-      setReminderHourState(typeof s.reminderHour === 'number' ? s.reminderHour : 7);
-      setRemindersEnabledState(typeof s.remindersEnabled === 'boolean' ? s.remindersEnabled : true);
+      setReminderHourState(
+        typeof s.reminderHour === "number" ? s.reminderHour : 7,
+      );
+      setRemindersEnabledState(
+        typeof s.remindersEnabled === "boolean" ? s.remindersEnabled : true,
+      );
       setAcademicContextEnabledState(s.academicContextEnabled ?? true);
       setEnabledContextCategoriesState(
-        s.enabledContextCategories?.length ? s.enabledContextCategories : ['school', 'health', 'social', 'fun', 'productivity']
+        s.enabledContextCategories?.length
+          ? s.enabledContextCategories
+          : ["school", "health", "social", "fun", "productivity"],
       );
+      setMealScheduleState(Array.isArray(s.mealSchedule) ? s.mealSchedule : []);
+      setUsualWakeTimeState(s.usualWakeTime ?? "");
+      setUsualBathTimeState(s.usualBathTime ?? "");
     } finally {
       setLoading(false);
     }
@@ -77,7 +120,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       await updateUserSettings(user.id, { dayResetHour: h });
       setDayResetHourState(h);
     },
-    [user?.id]
+    [user?.id],
   );
 
   const setTimezone = useCallback(
@@ -87,7 +130,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       await updateUserSettings(user.id, { timezone: t });
       setTimezoneState(t);
     },
-    [user?.id]
+    [user?.id],
   );
 
   const setReminderHour = useCallback(
@@ -97,7 +140,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       await updateUserSettings(user.id, { reminderHour: h });
       setReminderHourState(h);
     },
-    [user?.id]
+    [user?.id],
   );
 
   const setRemindersEnabled = useCallback(
@@ -106,7 +149,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       await updateUserSettings(user.id, { remindersEnabled: enabled });
       setRemindersEnabledState(enabled);
     },
-    [user?.id]
+    [user?.id],
   );
 
   const setAcademicContextEnabled = useCallback(
@@ -115,7 +158,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       await updateUserSettings(user.id, { academicContextEnabled: enabled });
       setAcademicContextEnabledState(enabled);
     },
-    [user?.id]
+    [user?.id],
   );
 
   const setCategoryEnabled = useCallback(
@@ -127,7 +170,36 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       await updateUserSettings(user.id, { enabledContextCategories: next });
       setEnabledContextCategoriesState(next);
     },
-    [enabledContextCategories, user?.id]
+    [enabledContextCategories, user?.id],
+  );
+
+  const setMealSchedule = useCallback(
+    async (schedule: MealScheduleItem[]) => {
+      if (!user?.id) return;
+      await updateUserSettings(user.id, { mealSchedule: schedule });
+      setMealScheduleState(schedule);
+    },
+    [user?.id],
+  );
+
+  const setUsualWakeTime = useCallback(
+    async (hhmm: string) => {
+      if (!user?.id) return;
+      const normalized = normalizeSettingsHHmm(hhmm);
+      await updateUserSettings(user.id, { usualWakeTime: normalized });
+      setUsualWakeTimeState(normalized);
+    },
+    [user?.id],
+  );
+
+  const setUsualBathTime = useCallback(
+    async (hhmm: string) => {
+      if (!user?.id) return;
+      const normalized = normalizeSettingsHHmm(hhmm);
+      await updateUserSettings(user.id, { usualBathTime: normalized });
+      setUsualBathTimeState(normalized);
+    },
+    [user?.id],
   );
 
   const value = useMemo(
@@ -138,6 +210,9 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       remindersEnabled,
       academicContextEnabled,
       enabledContextCategories,
+      mealSchedule,
+      usualWakeTime,
+      usualBathTime,
       loading,
       refresh,
       setDayResetHour,
@@ -146,6 +221,9 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       setRemindersEnabled,
       setAcademicContextEnabled,
       setCategoryEnabled,
+      setMealSchedule,
+      setUsualWakeTime,
+      setUsualBathTime,
     }),
     [
       dayResetHour,
@@ -154,6 +232,9 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       remindersEnabled,
       academicContextEnabled,
       enabledContextCategories,
+      mealSchedule,
+      usualWakeTime,
+      usualBathTime,
       loading,
       refresh,
       setDayResetHour,
@@ -162,16 +243,25 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       setRemindersEnabled,
       setAcademicContextEnabled,
       setCategoryEnabled,
-    ]
+      setMealSchedule,
+      setUsualWakeTime,
+      setUsualBathTime,
+    ],
   );
 
-  return <UserDaySettingsContext.Provider value={value}>{children}</UserDaySettingsContext.Provider>;
+  return (
+    <UserDaySettingsContext.Provider value={value}>
+      {children}
+    </UserDaySettingsContext.Provider>
+  );
 }
 
 export function useUserDaySettings(): UserDaySettingsValue {
   const ctx = useContext(UserDaySettingsContext);
   if (!ctx) {
-    throw new Error('useUserDaySettings must be used within UserDaySettingsProvider');
+    throw new Error(
+      "useUserDaySettings must be used within UserDaySettingsProvider",
+    );
   }
   return ctx;
 }

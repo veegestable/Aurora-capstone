@@ -1,16 +1,25 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../services/firebase';
-import { authService, UserProfile } from '../services/firebase-auth.service';
-import { setMyPresenceOfflineNow, startMyPresence } from '../services/firebase-presence.service';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../services/firebase";
+import { authService, UserProfile } from "../services/firebase-auth.service";
+import {
+  setMyPresenceOfflineNow,
+  startMyPresence,
+} from "../services/firebase-presence.service";
 
-export type CounselorApprovalStatus = 'pending' | 'approved' | 'rejected';
+export type CounselorApprovalStatus = "pending" | "approved" | "rejected";
 
 interface User {
   id: string;
   full_name: string;
   email: string;
-  role: 'admin' | 'counselor' | 'student';
+  role: "admin" | "counselor" | "student";
   approval_status?: CounselorApprovalStatus;
   preferred_name?: string;
   department?: string;
@@ -18,7 +27,7 @@ interface User {
   year_level?: string;
   student_number?: string;
   /** male | female. Used for future features. */
-  sex?: 'male' | 'female';
+  sex?: "male" | "female";
   bio?: string;
   avatar_url?: string;
   session_push_notifications_enabled?: boolean;
@@ -28,9 +37,25 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string, role: 'admin' | 'counselor' | 'student') => Promise<{ success: boolean; message: string }>;
+  signUp: (
+    email: string,
+    password: string,
+    fullName: string,
+    role: "admin" | "counselor" | "student",
+  ) => Promise<{ success: boolean; message: string }>;
   signOut: () => void;
-  updateUser: (data: { full_name?: string; preferred_name?: string; department?: string; program?: string; year_level?: string; student_number?: string; sex?: 'male' | 'female'; bio?: string; avatar_url?: string; session_push_notifications_enabled?: boolean }) => Promise<void>;
+  updateUser: (data: {
+    full_name?: string;
+    preferred_name?: string;
+    department?: string;
+    program?: string;
+    year_level?: string;
+    student_number?: string;
+    sex?: "male" | "female";
+    bio?: string;
+    avatar_url?: string;
+    session_push_notifications_enabled?: boolean;
+  }) => Promise<void>;
   uploadAvatar: (imageUri: string) => Promise<string>;
 }
 
@@ -52,7 +77,8 @@ const convertUserProfile = (userProfile: UserProfile): User => {
     sex: userProfile.sex,
     bio: userProfile.bio,
     avatar_url: userProfile.avatar_url,
-    session_push_notifications_enabled: userProfile.session_push_notifications_enabled
+    session_push_notifications_enabled:
+      userProfile.session_push_notifications_enabled,
   };
 };
 
@@ -61,12 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('🔥 Setting up Firebase auth listener...');
+    console.log("🔥 Setting up Firebase auth listener...");
 
     let stopPresence: (() => void) | undefined;
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log('🔥 Auth state changed:', firebaseUser?.email);
+      console.log("🔥 Auth state changed:", firebaseUser?.email);
 
       stopPresence?.();
       stopPresence = undefined;
@@ -82,18 +108,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const userProfile = await authService.getCurrentUser();
           if (userProfile) {
             setUser(convertUserProfile(userProfile));
-            console.log('✅ User authenticated:', userProfile.email);
+            console.log("✅ User authenticated:", userProfile.email);
           } else {
             setUser(null);
-            console.warn('⚠️ Signed in to Auth but no Firestore user profile — check users/{uid}');
+            console.warn(
+              "⚠️ Signed in to Auth but no Firestore user profile — check users/{uid}",
+            );
           }
         } catch (error) {
-          console.error('❌ Error getting user profile:', error);
+          console.error("❌ Error getting user profile:", error);
           setUser(null);
         }
       } else {
         setUser(null);
-        console.log('🔐 User signed out');
+        console.log("🔐 User signed out");
       }
 
       setLoading(false);
@@ -107,39 +135,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      console.log('🔥 Signing in user:', email);
+      console.log("🔥 Signing in user:", email);
       const userProfile = await authService.signIn({ email, password });
 
       setUser(convertUserProfile(userProfile));
-      console.log('✅ Sign in successful:', userProfile.email);
+      console.log("✅ Sign in successful:", userProfile.email);
     } catch (error) {
-      console.error('❌ Sign in error:', error);
+      console.error("❌ Sign in error:", error);
       throw error;
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, role: 'admin' | 'counselor' | 'student') => {
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    role: "admin" | "counselor" | "student",
+  ) => {
     try {
-      console.log('🔥 Signing up user:', email);
+      console.log("🔥 Signing up user:", email);
       await authService.signUp({
         email,
         password,
         fullName,
-        role
+        role,
       });
 
       // Don't set user - they need to log in manually
-      console.log('✅ Sign up successful - account created for:', email);
+      console.log("✅ Sign up successful - account created for:", email);
 
       return {
         success: true,
-        message: 'Account created successfully! Please log in with your credentials.'
+        message:
+          "Account created successfully! Please log in with your credentials.",
       };
     } catch (error) {
-      console.error('❌ Sign up error:', error);
+      console.error("❌ Sign up error:", error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Sign up failed'
+        message: error instanceof Error ? error.message : "Sign up failed",
       };
     }
   };
@@ -151,33 +185,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await setMyPresenceOfflineNow(uid);
         } catch (e) {
-          console.warn('[presence] Could not set offline before sign out:', e);
+          console.warn("[presence] Could not set offline before sign out:", e);
         }
       }
       await authService.signOut();
       setUser(null);
-      console.log('✅ Sign out successful');
+      console.log("✅ Sign out successful");
     } catch (error) {
-      console.error('❌ Sign out error:', error);
+      console.error("❌ Sign out error:", error);
     }
   };
 
-  const updateUser = async (data: { full_name?: string; preferred_name?: string; department?: string; program?: string; year_level?: string; student_number?: string; sex?: 'male' | 'female'; bio?: string; avatar_url?: string; session_push_notifications_enabled?: boolean }) => {
+  const updateUser = async (data: {
+    full_name?: string;
+    preferred_name?: string;
+    department?: string;
+    program?: string;
+    year_level?: string;
+    student_number?: string;
+    sex?: "male" | "female";
+    bio?: string;
+    avatar_url?: string;
+    session_push_notifications_enabled?: boolean;
+  }) => {
     if (!user) return;
     try {
       await authService.updateProfile(user.id, data);
-      setUser(prev => prev ? { ...prev, ...data } : null);
-      console.log('✅ User updated locally');
+      setUser((prev) => (prev ? { ...prev, ...data } : null));
+      console.log("✅ User updated locally");
     } catch (error) {
-      console.error('❌ Update user error:', error);
+      console.error("❌ Update user error:", error);
       throw error;
     }
   };
 
   const uploadAvatar = async (imageUri: string): Promise<string> => {
-    if (!user) throw new Error('Not authenticated');
+    if (!user) throw new Error("Not authenticated");
     const url = await authService.uploadAvatar(user.id, imageUri);
-    setUser(prev => prev ? { ...prev, avatar_url: url } : null);
+    setUser((prev) => (prev ? { ...prev, avatar_url: url } : null));
     return url;
   };
 
@@ -188,20 +233,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     signOut,
     updateUser,
-    uploadAvatar
+    uploadAvatar,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
