@@ -5,7 +5,6 @@ import {
   Calendar, User, LogOut,
   Settings as SettingsIcon
 } from 'lucide-react'
-import logoLight from '../assets/logos/logo light.png'
 
 const PRIMARY_NAV = [
   { path: '/', label: 'Home', icon: Home },
@@ -33,7 +32,7 @@ export default function CounselorLayout() {
           <div className="flex justify-between items-center h-14 sm:h-16">
             <NavLink to="/" className="flex items-center space-x-3">
               <img
-                src={logoLight}
+                src="/images/logos/logo light.png"
                 alt="Aurora Mental Health Platform"
                 className="h-6 sm:h-8 w-auto"
               />

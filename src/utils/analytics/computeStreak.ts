@@ -6,12 +6,12 @@ function calendarDayKey(d: Date): string {
 }
 
 export function computeStreak(
-  logs: { log_date: Date | string }[],
+  logs: { timestamp: Date | string }[],
   fromDate = new Date()
 ): number {
   const keys = new Set(
     logs.map((l) => {
-      const d = l.log_date instanceof Date ? l.log_date : new Date(l.log_date)
+      const d = l.timestamp instanceof Date ? l.timestamp : new Date(l.timestamp)
       return calendarDayKey(d)
     })
   )

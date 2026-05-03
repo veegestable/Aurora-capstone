@@ -2,14 +2,16 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import { auditLogsService } from '../../services/audit-logs'
+import { sessionsService } from '../../services/sessions'
 import { LetterAvatar } from '../LetterAvatar'
 import { ChatBubble } from './ChatBubble'
-import { ArrowLeft, Send, Info } from 'lucide-react'
-import type { CounselorContact, ChatMessage } from '../../types/message.types'
+import { SendSessionInviteModal } from '../counselor/SendSessionInviteModal'
+import { Calendar, ArrowLeft, Send, Info } from 'lucide-react'
+import type { CounselorContact, StudentContact, ChatMessage } from '../../types/message.types'
 import { usePeerPresence } from '../../hooks/usePeerPresence'
 
 interface DirectMessageViewProps {
-  contact: CounselorContact
+  contact: CounselorContact | StudentContact
   onBack: () => void
 }
 
@@ -19,6 +21,7 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingMessages, setIsLoadingMessages] = useState(true)
   const [isSending, setIsSending] = useState(false)
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const peerOnline = usePeerPresence(contact.id)
   const isOnline = peerOnline || contact.isOnline
@@ -30,6 +33,7 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
     }
 
     let isCancelled = false
+    messagesService.markConversationAsRead(contact.conversationId, user.id)
     messagesService
       .getMessagesForStudent(contact.conversationId, user.id)
       .then((msgs) => {
@@ -87,6 +91,61 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
     }
   }
 
+  const handleConfirmSession = async (
+    sessionId: string,
+    slot: {
+      date: string
+      time: string
+    }
+  ) => {
+    if (!user?.id || !contact.conversationId || isSending) return
+    if (!sessionId || sessionId.startsWith('session_')) {
+      alert('This invite is missing a valid session link.')
+      return
+    }
+
+    setIsSending(true)
+    try {
+      // 1. Confirm slot in Firestore
+      await sessionsService.studentConfirmFinalSlot(
+        sessionId, 
+        user.id, 
+        slot, 
+        {
+          conversationId: contact.conversationId,
+          counselorId: contact.id
+        }
+      )
+
+      // 2. Update Local React State so the Green Banner appears immediately
+      setMessages((prev) => {
+        return prev.map(m => {
+          if (m.type === 'session' && m.session.id === sessionId) {
+            return {
+              ...m,
+              session: {
+                ...m.session,
+                sessionStatus: 'confirmed',
+                agreedSlot: slot
+              }
+            }
+          }
+          return m
+        })
+      })
+
+      // Ensure we stay scrolled to the bottom
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+      }, 100)
+    } catch (e: any) {
+      console.error('Failed to confirm session time:', e)
+      alert('Could not confirm session: ' + (e.message || 'Please try again.'))
+    } finally {
+      setIsSending(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] -mx-3 sm:-mx-4 lg:-mx-6 xl:-mx-8 -my-3 sm:-my-4 lg:-my-6">
       {/* Chat Header */}
@@ -101,7 +160,7 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
 
         <div className="flex items-center gap-3">
           <div className="relative">
-            <LetterAvatar name={contact.name} size={36} />
+            <LetterAvatar name={contact.name} size={36} avatarUrl={contact.avatar} />
             {isOnline && (
               <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-aurora-accent-green border-2 border-white" />
             )}
@@ -155,6 +214,10 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
               message={msg}
               contactName={contact.name}
               userName={user?.full_name ?? 'You'}
+              contactAvatarUrl={contact.avatar || undefined}
+              userAvatarUrl={user?.avatar_url ?? undefined}
+              onConfirmSession={handleConfirmSession}
+              isConfirming={isSending}
             />
           ))
         )}
@@ -163,6 +226,16 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
       {/* Input Bar */}
       <div className="shrink-0 border-t border-aurora-gray-200 px-4 py-3">
         <div className="flex items-center gap-3">
+          {user?.role === 'counselor' && (
+            <button
+              onClick={() => setIsInviteModalOpen(true)}
+              className="w-10 h-10 rounded-full bg-aurora-gray-100 flex items-center justify-center shrink-0 hover:bg-aurora-gray-200 transition-colors cursor-pointer"
+              title="Send Session Invite"
+            >
+              <Calendar className="w-5 h-5 text-aurora-secondary-blue" />
+            </button>
+          )}
+
           <input
             type="text"
             value={message}
@@ -185,6 +258,25 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
           Messages are encrypted and shared only with your counselor.
         </p>
       </div>
+
+      {user?.role === 'counselor' && (
+        <SendSessionInviteModal
+          visible={isInviteModalOpen}
+          student={{
+            id: contact.id,
+            name: contact.name,
+            avatar: contact.avatar
+          }}
+          counselorId={user.id}
+          onClose={() => setIsInviteModalOpen(false)}
+          onSuccess={() => setTimeout(() => {
+            scrollRef.current?.scrollTo({
+              top: scrollRef.current.scrollHeight,
+              behavior: 'smooth'
+            })
+          }, 500)}
+        />
+      )}
     </div>
   )
 }

@@ -1,5 +1,3 @@
-import logoLight from '../assets/logos/logo light.png'
-
 const STARS = [
   { top: '10%', left: '15%', delay: '0s', size: '2px' },
   { top: '20%', left: '70%', delay: '1.5s', size: '1.5px' },
@@ -81,7 +79,7 @@ export default function LoadingScreen() {
         <div className="relative bg-aurora-card/80 backdrop-blur-2xl rounded-2xl sm:rounded-3xl shadow-aurora-lg p-6 sm:p-8 lg:p-10 border border-white/10">
           <div className="mb-4 sm:mb-6 lg:mb-8">
             <img
-              src={logoLight}
+              src="/images/logos/logo light.png"
               alt="Aurora"
               className="h-16 sm:h-20 lg:h-24 w-auto mx-auto filter drop-shadow-lg sm:drop-shadow-xl transition-all duration-700 hover:scale-105 sm:hover:scale-110 animate-aurora-glow"
             />

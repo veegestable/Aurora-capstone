@@ -1,15 +1,14 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  Home, CalendarDays, MessageSquare, BookOpen,
-  User, Heart, BarChart3, Calendar,
-  Bell, LogOut, Settings as SettingsIcon
+  Home, MessageSquare, BookOpen, User, 
+  Heart, Calendar, Bell, LogOut, 
+  Settings as SettingsIcon, 
 } from 'lucide-react'
-import logoLight from '../assets/logos/logo light.png'
 
 const PRIMARY_NAV = [
   { path: '/', label: 'Home', icon: Home },
-  { path: '/student/history', label: 'History', icon: CalendarDays },
+  { path: '/student/journal', label: 'Journal', icon: BookOpen },
   { path: '/student/messages', label: 'Messages', icon: MessageSquare },
   { path: '/student/resources', label: 'Resources', icon: BookOpen },
   { path: '/student/profile', label: 'Profile', icon: User },
@@ -17,7 +16,6 @@ const PRIMARY_NAV = [
 
 const SECONDARY_NAV = [
   { path: '/mood', label: 'Mood Check-in', icon: Heart },
-  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
   { path: '/schedule', label: 'Schedule', icon: Calendar },
   { path: '/notifications', label: 'Notifications', icon: Bell },
   { path: '/settings', label: 'Settings', icon: SettingsIcon },
@@ -67,7 +65,7 @@ export default function StudentLayout() {
           <div className="flex justify-between items-center h-14 sm:h-16">
             <NavLink to="/" className="flex items-center space-x-3 group">
               <img
-                src={logoLight}
+                src="/images/logos/logo light.png"
                 alt="Aurora Mental Health Platform"
                 className="h-6 sm:h-8 w-auto transition-transform duration-300 group-hover:scale-105"
               />

@@ -1,27 +1,27 @@
-import { firestoreService } from '../../firebase-firestore'
-import { auth } from '../../../config/firebase'
-import { MoodDataInput } from '../types'
+import { collection, addDoc, Timestamp } from 'firebase/firestore'
+import { db } from '../../../config/firebase'
+import type { MoodLogEntryDoc } from '../types'
 
-export const createMoodLog = async (moodData: MoodDataInput) => {
-  try {
-    const user = auth.currentUser
-    if (!user) throw new Error('User not authenticated')
-        
-    console.log('🔥 Creating mood log for user:', user.uid)
-
-    const moodLog = await firestoreService.createMoodLog({
-      emotions: moodData.emotions,
-      notes: moodData.notes || '',
-      log_date: typeof moodData.log_date === 'string' ? new Date(moodData.log_date) : moodData.log_date,
-      energy_level: moodData.energy_level || 5,
-      stress_level: moodData.stress_level || 3,
-      detection_method: moodData.detection_method || 'manual'
-    }, user.uid)
-
-    console.log('✅ Mood log created successfully')
-    return moodLog
-  } catch (error) {
-    console.error('❌ Get today mood log error:', error)
-    throw error
+export const createMoodLog = async (
+  userId: string,
+  entry: Omit<MoodLogEntryDoc, 'timestamp'> & { timestamp: Date }
+) => {
+  const col = collection(db, 'moodLogs', userId, 'entries')
+  const payload: MoodLogEntryDoc = {
+    mood: entry.mood,
+    intensity: entry.intensity,
+    stress: entry.stress,
+    energy: entry.energy,
+    sleepQuality: entry.sleepQuality,
+    color: entry.color,
+    dayKey: entry.dayKey,
+    eventCategories: entry.eventCategories ?? [],
+    eventTags: entry.eventTags ?? [],
+    notes: entry.notes ?? '',
+    journalSource: entry.journalSource ?? 'auto',
+    timestamp: Timestamp.fromDate(entry.timestamp),
   }
+
+  const docRef = await addDoc(col, payload)
+  return { id: docRef.id, ...entry }
 }

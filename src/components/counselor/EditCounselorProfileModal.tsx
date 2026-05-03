@@ -94,18 +94,11 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
           {/* Avatar */}
           <div className="flex flex-col items-center mb-2">
             <div className="relative">
-              {user?.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt="Profile"
-                  className="w-[90px] h-[90px] rounded-full object-cover"
-                />
-              ) : (
-                <LetterAvatar
-                  name={name || user?.full_name || 'Counselor'}
-                  size={90}
-                />
-              )}
+              <LetterAvatar
+                name={name || user?.full_name || 'Counselor'}
+                size={90}
+                avatarUrl={user?.avatar_url ?? undefined}
+              />
               <input
                 ref={fileInputRef}
                 type="file"

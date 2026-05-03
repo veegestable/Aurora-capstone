@@ -65,7 +65,7 @@ function FlagRow({ item }: { item: FlagItem }) {
       aria-label={`View check-in details for ${item.name}`}
     >
       <div className="p-3 pl-4">
-        <LetterAvatar name={item.name} size={44} />
+        <LetterAvatar name={item.name} size={44} avatarUrl={(item as any).avatar_url || undefined} />
       </div>
       <div className="flex-1 py-3">
         <p className="font-bold text-aurora-primary-dark text-sm">{item.name}</p>
