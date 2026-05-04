@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { sessionsService } from '../../services/sessions'
 import { counselorService } from '../../services/counselor'
 import { SessionCard } from '../../components/sessions/SessionCard'
+import { SessionHistoryDetailModal } from '../../components/sessions/SessionHistoryDetailModal'
 import type { Session, SessionStatus } from '../../types/session.types'
 import type { StudentInfo } from '../../services/counselor'
 import { Search, Loader2 } from 'lucide-react'
@@ -21,29 +22,33 @@ export default function SessionHistory() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | SessionStatus>('all')
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+
+  const loadData = async () => {
+    if (!user) return
+    setLoading(true)
+
+    try {
+      const [fetchedSessions, fetchedStudents] = await Promise.all([
+        sessionsService.getSessionsForCounselor(user.id),
+        counselorService.getStudents()
+      ])
+      setSessions(fetchedSessions)
+      
+      const map: Record<string, StudentInfo> = {}
+      fetchedStudents.forEach(s => {
+        map[s.id] = s
+      })
+      setStudentsMap(map)
+    } catch (error) {
+      console.error('Failed to load session history:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    if (!user) return
-    const loadData = async () => {
-      try {
-        const [fetchedSessions, fetchedStudents] = await Promise.all([
-          sessionsService.getSessionsForCounselor(user.id),
-          counselorService.getStudents()
-        ])
-        setSessions(fetchedSessions)
-        
-        const map: Record<string, StudentInfo> = {}
-        fetchedStudents.forEach(s => {
-          map[s.id] = s
-        })
-        setStudentsMap(map)
-      } catch (error) {
-        console.error('Failed to load session history:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadData()
+    void loadData()
   }, [user])
 
   const filteredSessions = useMemo(() => {
@@ -117,10 +122,24 @@ export default function SessionHistory() {
               key={session.id}
               session={session}
               peerName={studentsMap[session.studentId]?.full_name || 'Unknown Student'}
+              onAction={() => setSelectedSession(session)}
+              actionLabel="View Details"
             />
           ))}
         </div>
       )}
+
+      <SessionHistoryDetailModal
+        isOpen={!!selectedSession}
+        session={selectedSession}
+        peerName={selectedSession ? studentsMap[selectedSession.studentId]?.full_name || 'Unknown Student' : ''}
+        counselorId={user?.id || ''}
+        onClose={() => setSelectedSession(null)}
+        onSaved={async () => {
+          setSelectedSession(null)
+          await loadData()
+        }}
+      />
     </div>
   )
 }
