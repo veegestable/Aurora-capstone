@@ -1380,7 +1380,7 @@ export default function CounselorMessagesScreen() {
               onPress={() => router.push("/(counselor)/session-history")}
               activeOpacity={0.85}
             >
-              <View
+              {/* <View
                 style={{
                   width: 20,
                   height: 20,
@@ -1391,7 +1391,7 @@ export default function CounselorMessagesScreen() {
                 }}
               >
                 <RotateCcw size={12} color="#FFFFFF" />
-              </View>
+              </View> */}
               <Text
                 style={{
                   color: "#FFFFFF",

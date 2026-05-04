@@ -1339,6 +1339,41 @@ export const firestoreService = {
     }
   },
 
+  /**
+   * Counts `sessions` with this student and counselor where `status` is terminal
+   * `completed` or `missed` (same semantics as Session History).
+   * Single query on `studentId` + in-memory filter on `counselorId` (no extra composite index).
+   */
+  async getSessionOutcomeCountsForCounselorStudent(
+    counselorId: string,
+    studentId: string,
+  ): Promise<{ completed: number; missed: number }> {
+    try {
+      const q = query(
+        collection(db, "sessions"),
+        where("studentId", "==", String(studentId)),
+      );
+      const snapshot = await getDocs(q);
+      const cid = String(counselorId);
+      let completed = 0;
+      let missed = 0;
+      for (const d of snapshot.docs) {
+        const data = d.data() as Record<string, unknown>;
+        if (String(data.counselorId ?? "") !== cid) continue;
+        const st = String(data.status ?? "");
+        if (st === "completed") completed += 1;
+        else if (st === "missed") missed += 1;
+      }
+      return { completed, missed };
+    } catch (error: any) {
+      console.error(
+        "❌ Error counting session outcomes for counselor/student:",
+        error,
+      );
+      return { completed: 0, missed: 0 };
+    }
+  },
+
   async proposeSlots(
     sessionId: string,
     slots: Array<{ date: string; time: string }>,

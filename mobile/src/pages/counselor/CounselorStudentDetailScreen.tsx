@@ -53,6 +53,10 @@ export default function CounselorStudentDetailScreen() {
     ReturnType<typeof fetchStudentCounselorDetailedContext>
   >["logs"]>([]);
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [sessionOutcomeCounts, setSessionOutcomeCounts] = useState<{
+    completed: number;
+    missed: number;
+  }>({ completed: 0, missed: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -87,6 +91,7 @@ export default function CounselorStudentDetailScreen() {
     if (!id || !counselorId) {
       setLoadingCtx(false);
       setLogs([]);
+      setSessionOutcomeCounts({ completed: 0, missed: 0 });
       return;
     }
     setLoadingCtx(true);
@@ -94,9 +99,20 @@ export default function CounselorStudentDetailScreen() {
       const ctx = await fetchStudentCounselorDetailedContext(id, counselorId);
       setJournalAccessGranted(ctx.journalAccessGranted);
       setLogs(ctx.logs);
+      if (ctx.journalAccessGranted) {
+        const counts =
+          await firestoreService.getSessionOutcomeCountsForCounselorStudent(
+            counselorId,
+            id,
+          );
+        setSessionOutcomeCounts(counts);
+      } else {
+        setSessionOutcomeCounts({ completed: 0, missed: 0 });
+      }
     } catch {
       setJournalAccessGranted(false);
       setLogs([]);
+      setSessionOutcomeCounts({ completed: 0, missed: 0 });
     } finally {
       setLoadingCtx(false);
     }
@@ -221,6 +237,67 @@ export default function CounselorStudentDetailScreen() {
         what they see in Aurora, including notes and wellness fields. There is no in-app way for
         them to revoke this yet.
       </Text>
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 12,
+          marginTop: 16,
+          paddingTop: 16,
+          borderTopWidth: 1,
+          borderTopColor: AURORA.border,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              color: AURORA.textMuted,
+              fontSize: 10,
+              fontWeight: "800",
+              letterSpacing: 0.6,
+              marginBottom: 6,
+            }}
+          >
+            COMPLETED SESSIONS
+          </Text>
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 26,
+              fontWeight: "900",
+            }}
+          >
+            {sessionOutcomeCounts.completed}
+          </Text>
+          <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 4 }}>
+            Marked completed in Session History
+          </Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              color: AURORA.textMuted,
+              fontSize: 10,
+              fontWeight: "800",
+              letterSpacing: 0.6,
+              marginBottom: 6,
+            }}
+          >
+            MISSED SESSIONS
+          </Text>
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 26,
+              fontWeight: "900",
+            }}
+          >
+            {sessionOutcomeCounts.missed}
+          </Text>
+          <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 4 }}>
+            No-show or marked missed
+          </Text>
+        </View>
+      </View>
     </View>
   );
 
