@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { counselorService } from '../../services/counselor'
 import { counselorCheckInContextService } from '../../services/counselor-checkin-context'
 import { Search } from 'lucide-react'
@@ -77,6 +78,7 @@ function StudentRow({ student, onClick }: { student: StudentEntry, onClick: () =
 }
 
 export default function Students() {
+  const navigate = useNavigate()
   const [students, setStudents] = useState<StudentEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -245,6 +247,10 @@ export default function Students() {
         isOpen={!!selectedStudent}
         onClose={() => setSelectedStudent(null)}
         student={selectedStudent}
+        onOpenWorkspace={(id) => {
+          setSelectedStudent(null)
+          navigate(`/counselor/students/${id}`)
+        }}
       />
     </div>
   )
