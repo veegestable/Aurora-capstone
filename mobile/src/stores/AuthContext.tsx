@@ -50,6 +50,10 @@ interface AuthContextType {
     role: "admin" | "counselor" | "student",
     contactNumber: string,
   ) => Promise<{ success: boolean; message: string }>;
+  resendRegistrationVerificationEmail: (
+    email: string,
+    password: string,
+  ) => Promise<{ success: boolean; message: string }>;
   signOut: () => void;
   updateUser: (data: {
     full_name?: string;
@@ -187,13 +191,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return {
         success: true,
         message:
-          "Account created successfully! Please log in with your credentials.",
+          "Account created. Check your email for the verification link, then sign in.",
       };
     } catch (error) {
       console.error("❌ Sign up error:", error);
       return {
         success: false,
         message: error instanceof Error ? error.message : "Sign up failed",
+      };
+    }
+  };
+
+  const resendRegistrationVerificationEmail = async (
+    email: string,
+    password: string,
+  ) => {
+    try {
+      await authService.resendRegistrationVerificationEmail({
+        email: email.trim(),
+        password,
+      });
+      return {
+        success: true,
+        message: "Verification email sent again. Check your inbox.",
+      };
+    } catch (error) {
+      console.error("❌ Resend verification email error:", error);
+      return {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not resend verification email",
       };
     }
   };
@@ -261,6 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signIn,
     signUp,
+    resendRegistrationVerificationEmail,
     signOut,
     updateUser,
     uploadAvatar,

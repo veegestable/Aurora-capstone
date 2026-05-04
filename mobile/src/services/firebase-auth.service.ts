@@ -2,6 +2,7 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendEmailVerification,
   signOut,
   updateProfile,
   User,
@@ -9,6 +10,7 @@ import {
 import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "./firebase";
+import { isEmailVerificationRequiredForSignIn } from "../utils/signupEmailPolicy";
 
 export interface SignUpData {
   email: string;
@@ -89,6 +91,8 @@ export const authService = {
 
       await setDoc(doc(db, "users", user.uid), userProfile);
 
+      await sendEmailVerification(user);
+
       // Sign out user immediately to require manual login
       await auth.signOut();
 
@@ -98,6 +102,19 @@ export const authService = {
       console.error("❌ Signup error:", error.message);
       throw new Error(error.message);
     }
+  },
+
+  /**
+   * Resend Firebase verification email (link in inbox). Briefly signs in then out.
+   */
+  async resendRegistrationVerificationEmail(data: SignInData): Promise<void> {
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      data.email,
+      data.password,
+    );
+    await sendEmailVerification(userCredential.user);
+    await signOut(auth);
   },
 
   // Sign in existing user
@@ -112,11 +129,24 @@ export const authService = {
       );
 
       const user = userCredential.user;
+      await user.reload();
+
+      const emailForPolicy = (user.email ?? data.email).trim();
+      if (
+        isEmailVerificationRequiredForSignIn(emailForPolicy) &&
+        !user.emailVerified
+      ) {
+        await signOut(auth);
+        throw new Error(
+          "Verify your email before signing in. Open the link we sent you, then try again. You can resend the email from this screen if needed.",
+        );
+      }
 
       // Get user profile from Firestore
       const userDoc = await getDoc(doc(db, "users", user.uid));
 
       if (!userDoc.exists()) {
+        await signOut(auth);
         throw new Error("User profile not found");
       }
 

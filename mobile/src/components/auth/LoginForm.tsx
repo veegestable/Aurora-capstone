@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -14,15 +14,33 @@ import { router } from "expo-router";
 import { Button } from "../common/Button";
 import { Input } from "../common/Input";
 import { triggerHaptic } from "../../utils/haptics";
+import {
+  getSignupEmailRejectionMessage,
+  isMsuiitInstitutionalEmail,
+} from "../../utils/signupEmailPolicy";
 
 /** Same width as native header + feature row; slightly under full bleed for side margins */
 export const LOGIN_AUTH_COLUMN_MAX = 288;
 
+const REGISTRATION_RESEND_COOLDOWN_SEC = 60;
+const SIGN_IN_RESEND_COOLDOWN_SEC = 60;
+
 export default function LoginForm() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resendRegistrationVerificationEmail } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
+  const [signUpPhase, setSignUpPhase] = useState<"form" | "verifyEmail">(
+    "form",
+  );
+  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [signInResendCooldownSeconds, setSignInResendCooldownSeconds] =
+    useState(0);
+  const [signInResendLoading, setSignInResendLoading] = useState(false);
+  /** Sign-in resend row: only after MSU-IIT registration flow, or failed sign-in (unverified). */
+  const [showMsuiitSignInResendOption, setShowMsuiitSignInResendOption] =
+    useState(false);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -34,6 +52,83 @@ export default function LoginForm() {
 
   const updateFormData = (key: string, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const showRegistrationVerifyStep =
+    isSignUp && signUpPhase === "verifyEmail";
+
+  useEffect(() => {
+    if (!showRegistrationVerifyStep) {
+      setResendCooldownSeconds(0);
+      return;
+    }
+    setResendCooldownSeconds(REGISTRATION_RESEND_COOLDOWN_SEC);
+    const id = setInterval(() => {
+      setResendCooldownSeconds((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [showRegistrationVerifyStep]);
+
+  useEffect(() => {
+    if (signInResendCooldownSeconds <= 0) return;
+    const id = setInterval(() => {
+      setSignInResendCooldownSeconds((p) => (p <= 1 ? 0 : p - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [signInResendCooldownSeconds]);
+
+  const handleResendVerificationFromSignIn = async () => {
+    if (signInResendCooldownSeconds > 0 || signInResendLoading) return;
+    if (!formData.email.trim() || !formData.password) {
+      Alert.alert("Required", "Enter your email and password first.");
+      return;
+    }
+    setSignInResendLoading(true);
+    try {
+      const result = await resendRegistrationVerificationEmail(
+        formData.email,
+        formData.password,
+      );
+      if (result.success) {
+        setSignInResendCooldownSeconds(SIGN_IN_RESEND_COOLDOWN_SEC);
+        Alert.alert("Sent", "Check your inbox for a new verification link.");
+      } else {
+        Alert.alert("Could not resend", result.message);
+      }
+    } finally {
+      setSignInResendLoading(false);
+    }
+  };
+
+  const handleResendVerificationEmail = async () => {
+    if (resendCooldownSeconds > 0 || resendLoading) return;
+    setResendLoading(true);
+    try {
+      const result = await resendRegistrationVerificationEmail(
+        formData.email,
+        formData.password,
+      );
+      if (result.success) {
+        setResendCooldownSeconds(REGISTRATION_RESEND_COOLDOWN_SEC);
+      } else {
+        Alert.alert("Could not resend", result.message);
+      }
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  const handleContinueAfterRegistrationEmail = () => {
+    setShowMsuiitSignInResendOption(
+      isMsuiitInstitutionalEmail(formData.email),
+    );
+    setSignUpPhase("form");
+    setIsSignUp(false);
+    setFormData((prev) => ({
+      ...prev,
+      password: "",
+      contactNumber: "",
+    }));
   };
 
   const handleSubmit = async () => {
@@ -60,6 +155,14 @@ export default function LoginForm() {
       return;
     }
 
+    if (isSignUp) {
+      const policyError = getSignupEmailRejectionMessage(formData.email);
+      if (policyError) {
+        Alert.alert("Email not allowed", policyError);
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -72,14 +175,7 @@ export default function LoginForm() {
           formData.contactNumber.trim(),
         );
         if (result.success) {
-          Alert.alert("Success", result.message, [
-            { text: "OK", onPress: () => setIsSignUp(false) },
-          ]);
-          setFormData((prev) => ({
-            ...prev,
-            password: "",
-            contactNumber: "",
-          }));
+          setSignUpPhase("verifyEmail");
         } else {
           Alert.alert("Registration Failed", result.message);
         }
@@ -88,7 +184,16 @@ export default function LoginForm() {
         router.replace("/");
       }
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Authentication failed");
+      const msg = err?.message || "Authentication failed";
+      if (
+        !isSignUp &&
+        isMsuiitInstitutionalEmail(formData.email) &&
+        typeof msg === "string" &&
+        msg.includes("Verify your email before signing in")
+      ) {
+        setShowMsuiitSignInResendOption(true);
+      }
+      Alert.alert("Error", msg);
     } finally {
       setLoading(false);
     }
@@ -102,156 +207,250 @@ export default function LoginForm() {
       <Text
         className={`font-bold text-white text-center ${compact ? "text-lg mb-1.5" : "text-2xl mb-2"}`}
       >
-        {isSignUp ? "Create Account" : "Welcome Back"}
+        {showRegistrationVerifyStep
+          ? "Verify your email"
+          : isSignUp
+            ? "Create Account"
+            : "Welcome Back"}
       </Text>
       <Text
         style={{ color: "#E2E8F0" }}
         className={`text-center ${compact ? "mb-4 text-xs" : "mb-6 text-base"}`}
       >
-        {isSignUp ? "Join Aurora today" : "Sign in to continue"}
+        {showRegistrationVerifyStep
+          ? `We sent a message to ${formData.email.trim()}`
+          : isSignUp
+            ? "Join Aurora today"
+            : "Sign in to continue"}
       </Text>
 
       <View
         style={[
           styles.formFields,
           compact && styles.formFieldsCompact,
-          compact && isSignUp && styles.formFieldsSignUpCompact,
+          compact && isSignUp && !showRegistrationVerifyStep && styles.formFieldsSignUpCompact,
         ]}
       >
-        {isSignUp && (
+        {showRegistrationVerifyStep ? (
           <>
-            <Input
-              variant="glass"
-              dense={compact}
-              label="Full Name"
-              placeholder="Enter your full name"
-              value={formData.fullName}
-              onChangeText={(text) => updateFormData("fullName", text)}
-              autoCapitalize="words"
-            />
-            <Input
-              variant="glass"
-              dense={compact}
-              label="Contact number"
-              placeholder="Mobile number (e.g. 09XXXXXXXXX)"
-              value={formData.contactNumber}
-              onChangeText={(text) => updateFormData("contactNumber", text)}
-              keyboardType="phone-pad"
-            />
-            <View>
-              <Text style={[styles.roleLabel, compact && styles.roleLabelCompact]}>
-                Sign up as
-              </Text>
-              <View style={[styles.roleRow, compact && styles.roleRowCompact]}>
-                <TouchableOpacity
-                  onPress={() => {
-                    triggerHaptic("light");
-                    updateFormData("role", "student");
-                  }}
-                  style={[
-                    styles.roleBtn,
-                    compact && styles.roleBtnCompact,
-                    formData.role === "student" && styles.roleBtnActive,
-                  ]}
-                >
+            <Text
+              style={[styles.verifyBody, compact && styles.verifyBodyCompact]}
+            >
+              Open that email and tap the verification link. That confirms this
+              inbox can receive mail from Aurora. You must complete this step
+              before you can sign in.
+            </Text>
+            <Text
+              style={[
+                styles.verifyCooldown,
+                compact && styles.verifyCooldownCompact,
+              ]}
+            >
+              {resendCooldownSeconds > 0
+                ? `Send again in ${resendCooldownSeconds}s`
+                : "You can send the verification email again."}
+            </Text>
+            <Button
+              onPress={handleResendVerificationEmail}
+              loading={resendLoading}
+              disabled={resendCooldownSeconds > 0}
+              variant="outline"
+              size={compact ? "sm" : "md"}
+              className={compact ? "mt-1 py-3" : "mt-2"}
+            >
+              Send verification email again
+            </Button>
+            <Button
+              onPress={handleContinueAfterRegistrationEmail}
+              disabled={resendLoading}
+              size={compact ? "sm" : "md"}
+              className={compact ? "mt-2 py-3" : "mt-2"}
+            >
+              Continue to sign in
+            </Button>
+          </>
+        ) : (
+          <>
+            {isSignUp && (
+              <>
+                <Input
+                  variant="glass"
+                  dense={compact}
+                  label="Full Name"
+                  placeholder="Enter your full name"
+                  value={formData.fullName}
+                  onChangeText={(text) => updateFormData("fullName", text)}
+                  autoCapitalize="words"
+                />
+                <Input
+                  variant="glass"
+                  dense={compact}
+                  label="Contact number"
+                  placeholder="Mobile number (e.g. 09XXXXXXXXX)"
+                  value={formData.contactNumber}
+                  onChangeText={(text) => updateFormData("contactNumber", text)}
+                  keyboardType="phone-pad"
+                />
+                <View>
                   <Text
-                    style={[
-                      styles.roleBtnText,
-                      compact && styles.roleBtnTextCompact,
-                      formData.role === "student" && styles.roleBtnTextActive,
-                    ]}
+                    style={[styles.roleLabel, compact && styles.roleLabelCompact]}
                   >
-                    Student
+                    Sign up as
                   </Text>
-                </TouchableOpacity>
+                  <View
+                    style={[styles.roleRow, compact && styles.roleRowCompact]}
+                  >
+                    <TouchableOpacity
+                      onPress={() => {
+                        triggerHaptic("light");
+                        updateFormData("role", "student");
+                      }}
+                      style={[
+                        styles.roleBtn,
+                        compact && styles.roleBtnCompact,
+                        formData.role === "student" && styles.roleBtnActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.roleBtnText,
+                          compact && styles.roleBtnTextCompact,
+                          formData.role === "student" && styles.roleBtnTextActive,
+                        ]}
+                      >
+                        Student
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        triggerHaptic("light");
+                        updateFormData("role", "counselor");
+                      }}
+                      style={[
+                        styles.roleBtn,
+                        compact && styles.roleBtnCompact,
+                        formData.role === "counselor" && styles.roleBtnActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.roleBtnText,
+                          compact && styles.roleBtnTextCompact,
+                          formData.role === "counselor" && styles.roleBtnTextActive,
+                        ]}
+                      >
+                        Counselor
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {formData.role === "counselor" && (
+                    <Text
+                      className={`text-amber-300 ${compact ? "mt-0.5 text-[10px] leading-[14px]" : "text-xs mt-1"}`}
+                    >
+                      {compact
+                        ? "Counselor accounts require admin approval."
+                        : "Your account will need admin approval before you can access the counselor dashboard."}
+                    </Text>
+                  )}
+                </View>
+              </>
+            )}
+
+            <Input
+              variant="glass"
+              dense={compact}
+              label="Email"
+              placeholder="Enter your email"
+              value={formData.email}
+              onChangeText={(text) => updateFormData("email", text)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <View className="relative">
+              <Input
+                variant="glass"
+                dense={compact}
+                label="Password"
+                placeholder="Enter your password"
+                value={formData.password}
+                onChangeText={(text) => updateFormData("password", text)}
+                secureTextEntry={!isPasswordVisible}
+              />
+              <TouchableOpacity
+                style={[styles.passwordToggle, { top: compact ? 32 : 40 }]}
+                onPress={() => {
+                  triggerHaptic("light");
+                  setIsPasswordVisible(!isPasswordVisible);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isPasswordVisible ? "Hide password" : "Show password"
+                }
+              >
+                {isPasswordVisible ? (
+                  <EyeOff size={compact ? 18 : 20} color="#CBD5E1" />
+                ) : (
+                  <Eye size={compact ? 18 : 20} color="#CBD5E1" />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {!isSignUp && showMsuiitSignInResendOption && (
+              <View style={styles.signInResendWrap}>
+                <Text
+                  style={[
+                    styles.signInResendHint,
+                    compact && styles.signInResendHintCompact,
+                  ]}
+                >
+                  {signInResendCooldownSeconds > 0
+                    ? `Resend verification email in ${signInResendCooldownSeconds}s`
+                    : "Need a new verification link?"}
+                </Text>
                 <TouchableOpacity
                   onPress={() => {
                     triggerHaptic("light");
-                    updateFormData("role", "counselor");
+                    void handleResendVerificationFromSignIn();
                   }}
-                  style={[
-                    styles.roleBtn,
-                    compact && styles.roleBtnCompact,
-                    formData.role === "counselor" && styles.roleBtnActive,
-                  ]}
+                  disabled={
+                    signInResendCooldownSeconds > 0 || signInResendLoading
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Resend verification email"
                 >
                   <Text
                     style={[
-                      styles.roleBtnText,
-                      compact && styles.roleBtnTextCompact,
-                      formData.role === "counselor" && styles.roleBtnTextActive,
+                      styles.signInResendLink,
+                      (signInResendCooldownSeconds > 0 || signInResendLoading) &&
+                        styles.signInResendLinkDisabled,
                     ]}
                   >
-                    Counselor
+                    {signInResendLoading
+                      ? "Sending…"
+                      : "Resend verification email"}
                   </Text>
                 </TouchableOpacity>
               </View>
-              {formData.role === "counselor" && (
-                <Text
-                  className={`text-amber-300 ${compact ? "mt-0.5 text-[10px] leading-[14px]" : "text-xs mt-1"}`}
-                >
-                  {compact
-                    ? "Counselor accounts require admin approval."
-                    : "Your account will need admin approval before you can access the counselor dashboard."}
-                </Text>
-              )}
-            </View>
+            )}
+
+            <Button
+              onPress={handleSubmit}
+              loading={loading}
+              size={compact ? "sm" : "md"}
+              className={compact ? "mt-3 py-3" : "mt-2"}
+            >
+              {isSignUp ? "Create Account" : "Sign In"}
+            </Button>
           </>
         )}
-
-        <Input
-          variant="glass"
-          dense={compact}
-          label="Email"
-          placeholder="Enter your email"
-          value={formData.email}
-          onChangeText={(text) => updateFormData("email", text)}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-        <View className="relative">
-          <Input
-            variant="glass"
-            dense={compact}
-            label="Password"
-            placeholder="Enter your password"
-            value={formData.password}
-            onChangeText={(text) => updateFormData("password", text)}
-            secureTextEntry={!isPasswordVisible}
-          />
-          <TouchableOpacity
-            style={[styles.passwordToggle, { top: compact ? 32 : 40 }]}
-            onPress={() => {
-              triggerHaptic("light");
-              setIsPasswordVisible(!isPasswordVisible);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={
-              isPasswordVisible ? "Hide password" : "Show password"
-            }
-          >
-            {isPasswordVisible ? (
-              <EyeOff size={compact ? 18 : 20} color="#CBD5E1" />
-            ) : (
-              <Eye size={compact ? 18 : 20} color="#CBD5E1" />
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <Button
-          onPress={handleSubmit}
-          loading={loading}
-          size={compact ? "sm" : "md"}
-          className={compact ? "mt-3 py-3" : "mt-2"}
-        >
-          {isSignUp ? "Create Account" : "Sign In"}
-        </Button>
       </View>
 
       <TouchableOpacity
         onPress={() => {
           triggerHaptic("light");
+          setSignUpPhase("form");
+          setShowMsuiitSignInResendOption(false);
           setIsSignUp(!isSignUp);
         }}
         activeOpacity={0.75}
@@ -275,7 +474,7 @@ export default function LoginForm() {
       </TouchableOpacity>
 
       {/* Omit on native sign-up so the taller form fits; keep on sign-in */}
-      {!(compact && isSignUp) && (
+      {!(compact && isSignUp) && !showRegistrationVerifyStep && (
         <View style={[styles.trustSection, compact && styles.trustSectionCompact]}>
           {["Students", "Support", "Care"].map((text, i) => (
             <View key={i} style={styles.trustItem}>
@@ -417,5 +616,45 @@ const styles = StyleSheet.create({
   },
   roleBtnTextCompact: {
     fontSize: 12,
+  },
+  verifyBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#E2E8F0",
+  },
+  verifyBodyCompact: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  verifyCooldown: {
+    fontSize: 13,
+    color: "#93C5FD",
+    fontWeight: "600",
+  },
+  verifyCooldownCompact: {
+    fontSize: 11,
+  },
+  signInResendWrap: {
+    marginTop: 4,
+    alignItems: "center",
+    gap: 4,
+  },
+  signInResendHint: {
+    fontSize: 12,
+    color: "#94A3B8",
+    textAlign: "center",
+  },
+  signInResendHintCompact: {
+    fontSize: 10,
+  },
+  signInResendLink: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#93C5FD",
+    textDecorationLine: "underline",
+  },
+  signInResendLinkDisabled: {
+    color: "#64748B",
+    textDecorationLine: "none",
   },
 });
