@@ -447,14 +447,12 @@ function MoodBubble({
 function QuickActionTile({
   label,
   icon,
-  bgColor,
   wide,
   badge,
   onPress,
 }: {
   label: string;
   icon: React.ReactNode;
-  bgColor: string;
   wide?: boolean;
   badge?: React.ReactNode;
   onPress?: () => void;
@@ -481,10 +479,10 @@ function QuickActionTile({
     >
       <View
         style={{
-          backgroundColor: bgColor,
-          borderRadius: 12,
-          padding: 10,
           marginBottom: 4,
+          alignItems: "center",
+          justifyContent: "center",
+          paddingVertical: 2,
         }}
       >
         {icon}
@@ -549,19 +547,7 @@ function StreakCard({ streak }: { streak: number }) {
                     <Text style={{ color: '#FDBA74', fontSize: 9, fontWeight: '700' }}>Active</Text>
                 </View> */}
       </View>
-      <View
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 10,
-          backgroundColor: "rgba(249,115,22,0.2)",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: 8,
-        }}
-      >
-        <Text style={{ fontSize: 16 }}>🔥</Text>
-      </View>
+      <Text style={{ fontSize: 22, marginBottom: 8 }}>🔥</Text>
       <Text
         style={{
           color: "#FFFFFF",
@@ -612,18 +598,7 @@ function AIInsightCard({ insight }: { insight: string }) {
         marginBottom: 16,
       }}
     >
-      <View
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 22,
-          backgroundColor: "rgba(124,58,237,0.25)",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Lightbulb size={22} color={AURORA.purple} />
-      </View>
+      <Lightbulb size={24} color="#C4B5FD" style={{ marginTop: 1 }} />
       <View style={{ flex: 1 }}>
         <Text
           style={{
@@ -1185,27 +1160,23 @@ export default function MoodLogScreen() {
           >
             <QuickActionTile
               label="Request a Session"
-              icon={<CalendarPlus size={20} color="#FFFFFF" />}
-              bgColor={AURORA.blue}
+              icon={<CalendarPlus size={22} color={AURORA.blue} />}
               wide
               onPress={() => setShowSessionRequestModal(true)}
             />
             {/* <QuickActionTile
                             label="Log Mood"
-                            icon={<Camera size={18} color="#FFFFFF" />}
-                            bgColor={AURORA.purple}
+                            icon={<Camera size={20} color={AURORA.purple} />}
                             onPress={() => setShowLogModal(true)}
                         /> */}
             <QuickActionTile
               label="Messages"
-              icon={<MessageSquare size={18} color="#FFFFFF" />}
-              bgColor="#7C3AED"
+              icon={<MessageSquare size={20} color="#A78BFA" />}
               onPress={() => router.push("/(student)/messages")}
             />
             <QuickActionTile
-              label="Resources"
-              icon={<BookOpen size={18} color="#FFFFFF" />}
-              bgColor="#1A6B5A"
+              label="Zen"
+              icon={<BookOpen size={20} color="#34D399" />}
               onPress={() => router.push("/(student)/resources")}
             />
           </View>
@@ -1263,18 +1234,8 @@ export default function MoodLogScreen() {
                                     <Text style={{ color: AURORA.blue, fontSize: 9, fontWeight: '700' }}>Live</Text>
                                 </View> */}
               </View>
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
-                  backgroundColor: "rgba(45,107,255,0.2)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <TrendingUp size={16} color={AURORA.blue} />
+              <View style={{ marginBottom: 8 }}>
+                <TrendingUp size={20} color={AURORA.blue} />
               </View>
               <Text
                 style={{

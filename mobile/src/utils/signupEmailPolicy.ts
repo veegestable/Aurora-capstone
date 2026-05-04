@@ -5,11 +5,24 @@ export function isMsuiitInstitutionalEmail(email: string): boolean {
   return email.trim().toLowerCase().endsWith(MSUIIT_SUFFIX);
 }
 
+function stripQuotes(s: string): string {
+  const t = s.trim();
+  if (
+    (t.startsWith('"') && t.endsWith('"')) ||
+    (t.startsWith("'") && t.endsWith("'"))
+  ) {
+    return t.slice(1, -1).trim();
+  }
+  return t;
+}
+
+/** Comma/semicolon/newline-separated list; trims; lowercases; strips wrapping quotes per token. */
 export function parseSignupEmailAllowlist(raw: string | undefined): string[] {
   if (!raw || typeof raw !== "string") return [];
-  return raw
-    .split(/[,;\s]+/)
-    .map((s) => s.trim().toLowerCase())
+  const outer = stripQuotes(raw);
+  return outer
+    .split(/[,;\n]+/)
+    .map((s) => stripQuotes(s).toLowerCase())
     .filter(Boolean);
 }
 
