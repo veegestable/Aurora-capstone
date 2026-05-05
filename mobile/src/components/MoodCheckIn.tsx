@@ -3137,7 +3137,7 @@ export function MoodCheckIn({
                     >
                       <Text
                         style={{
-                          color: AURORA.textSec,
+                          color: AURORA.textMuted,
                           fontSize: 13,
                           lineHeight: 18,
                         }}
