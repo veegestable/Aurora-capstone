@@ -1979,14 +1979,15 @@ export function MoodCheckIn({
                               style={{
                                 width: "100%",
                                 minHeight: manualEmotionItemWidth + 18,
-                                borderRadius: 16,
-                                borderWidth: selected ? 2 : 1,
+                                borderRadius: 24,
+                                borderWidth: selected ? 1 : 0.5,
                                 borderColor: selected
                                   ? emotion.color
                                   : AURORA.borderLight,
                                 backgroundColor: selected
                                   ? `${emotion.color}20`
-                                  : "rgba(255,255,255,0.03)",
+                                  : "transparent",
+                                  // : "rgba(255,255,255,0.03)",
                                 alignItems: "center",
                                 justifyContent: "center",
                               }}
