@@ -86,6 +86,44 @@ isProject: false
 | **Student resources data** | [Resources.tsx](src/pages/student/Resources.tsx) uses `MOOCK_RESOURCES`; there is **no** [src/services/resources/](src/services/resources/) tree (workflow still lists porting `resources.service.ts`). |
 | **Admin school analytics** | [AdminAnalytics.tsx](src/pages/admin/Analytics.tsx) uses static stat tiles (`1,248`, etc.). Mobile has `SchoolMoodChart`, `ThresholdConfigCard` — likely richer or data-backed. |
 
+## Mobile parity verification (Round 3 scope)
+
+- **`counselor-student-route` — `mobile-implemented`**
+  - Mobile files:
+    - `mobile/app/(counselor)/students/[id]/index.tsx`
+    - `mobile/src/pages/counselor/CounselorStudentDetailScreen.tsx`
+    - `mobile/app/(counselor)/students/_layout.tsx`
+  - Notes: Mobile has a real per-student detail screen and nested students stack.
+
+- **`counselor-notes-service` — `mobile-scaffold`**
+  - Mobile files:
+    - `mobile/src/services/counselor-notes.service.ts`
+    - `mobile/app/(counselor)/students/[id]/notes.tsx`
+  - Notes: Service exists but currently returns empty list; notes route exists but is placeholder UI.
+
+- **`session-detail-flow` — `mixed` (`mobile-implemented` + `mobile-scaffold`)**
+  - Mobile files:
+    - `mobile/app/(counselor)/session-history.tsx`
+    - `mobile/src/components/counselor/SessionHistoryDetailModal.tsx`
+    - `mobile/src/components/counselor/SessionAttendanceModal.tsx`
+    - `mobile/src/components/counselor/SessionNoteForm.tsx`
+    - `mobile/app/(counselor)/messages.tsx` (attendance modal usage)
+  - Notes: Session history + detail + attendance are implemented; `SessionNoteForm` is still placeholder scaffold.
+
+- **`resources-firestore` — `mobile-scaffold`**
+  - Mobile files:
+    - `mobile/app/(student)/resources.tsx`
+    - `mobile/src/pages/student/ResourcesScreen.tsx`
+    - `mobile/src/services/resources.service.ts`
+  - Notes: Student resources screen is implemented (Zen/breathing flow), but `resources.service.ts` is scaffold (`listPublished()` returns empty array).
+
+- **`admin-analytics-thresholds` — `mobile-scaffold`**
+  - Mobile files:
+    - `mobile/app/(admin)/(tabs)/analytics.tsx`
+    - `mobile/src/components/admin/ThresholdConfigCard.tsx`
+    - `mobile/src/components/admin/SchoolMoodChart.tsx`
+  - Notes: Admin analytics route and threshold card are placeholders; `SchoolMoodChart.tsx` currently re-exports student analytics component.
+
 ## Recommended implementation order
 
 ### 1) Counselor student workspace (highest user value)
