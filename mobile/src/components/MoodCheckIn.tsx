@@ -382,6 +382,13 @@ export function MoodCheckIn({
       { scaleY: interpolate(floatingProgress.value, [0, 1], [1, 0.75]) },
     ],
   }));
+  const floatingGlowStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(floatingProgress.value, [0, 1], [0.14, 0.28]),
+    transform: [
+      { scale: interpolate(floatingProgress.value, [0, 1], [0.9, 1.08]) },
+      { translateY: interpolate(floatingProgress.value, [0, 1], [2, -3]) },
+    ],
+  }));
 
   const renderMoodVisual = (
     emotion: (typeof MANUAL_EMOTIONS)[0],
@@ -2029,16 +2036,38 @@ export function MoodCheckIn({
                           paddingVertical: 18,
                           marginBottom: 12,
                           backgroundColor: `${selectedManualEmotion.color}16`,
-                          borderWidth: 1.5,
-                          borderColor: `${selectedManualEmotion.color}55`,
+                          borderWidth: 1,
+                          // borderColor: `${selectedManualEmotion.color}55`,
                         }}
                       >
                         <Animated.View
                           style={[
-                            { alignItems: "center", justifyContent: "center" },
+                            {
+                              alignItems: "center",
+                              justifyContent: "center",
+                              position: "relative",
+                            },
                             floatingMoodStyle,
                           ]}
                         >
+                          <Animated.View
+                            pointerEvents="none"
+                            style={[
+                              {
+                                position: "absolute",
+                                width: 116,
+                                height: 116,
+                                borderRadius: 20,
+                                backgroundColor: `${selectedManualEmotion.color}24`,
+                                shadowColor: selectedManualEmotion.color,
+                                shadowOpacity: 0.45,
+                                shadowRadius: 16,
+                                shadowOffset: { width: 0, height: 0 },
+                                elevation: 8,
+                              },
+                              floatingGlowStyle,
+                            ]}
+                          />
                           {renderMoodVisual(selectedManualEmotion, 132)}
                         </Animated.View>
                         <Animated.View
