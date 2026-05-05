@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   StyleSheet,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,7 +25,6 @@ import {
   CircleHelp,
   CalendarClock,
   Trash2,
-  Info,
 } from "lucide-react-native";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "../../stores/AuthContext";
@@ -91,6 +91,7 @@ interface StudentSessionOverviewRow {
   id: string;
   counselorId: string;
   counselorName: string;
+  counselorAvatarUrl?: string;
   status: string;
   summaryLine: string;
   chipLabel: string;
@@ -260,6 +261,7 @@ async function fetchStudentSessionsOverview(
     ),
   ];
   const nameMap: Record<string, string> = {};
+  const avatarMap: Record<string, string> = {};
   await Promise.all(
     counselorIds.map(async (id) => {
       try {
@@ -268,8 +270,11 @@ async function fetchStudentSessionsOverview(
         nameMap[id] = String(
           u?.full_name ?? u?.preferred_name ?? u?.fullName ?? "Counselor",
         );
+        avatarMap[id] =
+          typeof u?.avatar_url === "string" ? u.avatar_url.trim() : "";
       } catch {
         nameMap[id] = "Counselor";
+        avatarMap[id] = "";
       }
     }),
   );
@@ -333,6 +338,7 @@ async function fetchStudentSessionsOverview(
         id: String(rec.id ?? ""),
         counselorId: cid,
         counselorName: nameMap[cid] ?? "Counselor",
+        counselorAvatarUrl: avatarMap[cid] ?? "",
         status,
         summaryLine,
         chipLabel: "",
@@ -867,22 +873,12 @@ export default function MoodLogScreen() {
     void loadStudentSessionsOverview();
   };
 
-  const showMySessionsInfo = () => {
-    triggerHaptic("light");
-    setActiveGuide({
-      title: "My sessions",
-      body:
-        "Future confirmed appointments appear first, followed by counselor invites and anything else that still needs your action.\n\n" +
-        "Tap a row to open Messages with that counselor.\n\n" +
-        "The trash icon only hides a card on this device. It does not cancel your session or remove anything from the server.",
-    });
-  };
-
   const renderSessionOverviewSection = (
     title: string,
     subtitle: string,
     rows: StudentSessionOverviewRow[],
     chipTone: "amber" | "green" | "muted",
+    infoBody?: string,
   ) => {
     if (rows.length === 0) return null;
     const chipPalette =
@@ -891,20 +887,43 @@ export default function MoodLogScreen() {
         : chipTone === "amber"
           ? { bg: "rgba(254,189,3,0.18)", text: AURORA.amber }
           : { bg: "rgba(148,163,184,0.15)", text: AURORA.textMuted };
+    const normalizedInfoBody = (infoBody || "").trim();
     return (
       <View style={{ marginBottom: 18 }}>
-        <Text
+        <View
           style={{
-            color: UI_TEXT_MUTED,
-            fontSize: 11,
-            fontWeight: "700",
-            letterSpacing: 0.8,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
             marginBottom: 4,
           }}
         >
-          {title}
-        </Text>
-        {subtitle.trim() ? (
+          <Text
+            style={{
+              color: UI_TEXT_MUTED,
+              fontSize: 11,
+              fontWeight: "700",
+              letterSpacing: 0.8,
+            }}
+          >
+            {title}
+          </Text>
+          {normalizedInfoBody ? (
+            <TouchableOpacity
+              onPress={() => {
+                triggerHaptic("light");
+                Alert.alert(title, normalizedInfoBody);
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel={`${title} info`}
+              style={{ padding: 4 }}
+            >
+              <CircleHelp size={16} color={UI_TEXT_MUTED} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        {!normalizedInfoBody && subtitle.trim() ? (
           <Text
             style={{
               color: AURORA.textSec,
@@ -940,17 +959,31 @@ export default function MoodLogScreen() {
               }}
               style={{ flex: 1, padding: 14 }}
             >
-              <Text
+              <View
                 style={{
-                  color: "#FFFFFF",
-                  fontSize: 15,
-                  fontWeight: "700",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
                   marginBottom: 6,
                 }}
-                numberOfLines={1}
               >
-                {row.counselorName}
-              </Text>
+                <LetterAvatar
+                  name={row.counselorName}
+                  avatarUrl={row.counselorAvatarUrl}
+                  size={32}
+                />
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 15,
+                    fontWeight: "700",
+                    flex: 1,
+                  }}
+                  numberOfLines={1}
+                >
+                  {row.counselorName}
+                </Text>
+              </View>
               <View
                 style={{
                   alignSelf: "flex-start",
@@ -1359,7 +1392,7 @@ export default function MoodLogScreen() {
             <View
               style={{
                 flexDirection: "row",
-                alignItems: "center",
+                alignItems: "flex-start",
                 justifyContent: "space-between",
                 marginBottom: 12,
               }}
@@ -1367,22 +1400,15 @@ export default function MoodLogScreen() {
               <View
                 style={{
                   flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
                   paddingRight: 8,
                 }}
               >
                 <Text style={sessionsSheetStyles.sheetTitle}>My sessions</Text>
-                <TouchableOpacity
-                  onPress={showMySessionsInfo}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  accessibilityRole="button"
-                  accessibilityLabel="How My sessions works"
-                  style={{ padding: 4 }}
-                >
-                  <Info size={20} color={AURORA.textSec} />
-                </TouchableOpacity>
+                <Text style={sessionsSheetStyles.pendingModalSubtitle}>
+                  Future confirmed appointments appear first, followed by
+                  counselor invites and anything else that still needs your
+                  action.
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => setSessionsSheetOpen(false)}
@@ -1435,24 +1461,28 @@ export default function MoodLogScreen() {
                       "Confirmed times still ahead, or your session time with a (right now) badge for about 90 minutes after start.",
                       sessionsAgreedList,
                       "green",
+                      "Confirmed times still ahead, or your session time with a (right now) badge for about 90 minutes after start.",
                     )}
                     {renderSessionOverviewSection(
                       "Past appointments",
                       "Agreed times that already passed — open Messages if you need a follow-up.",
                       sessionsPastAgreedList,
                       "muted",
+                      "Agreed times that already passed - open Messages if you need a follow-up.",
                     )}
                     {renderSessionOverviewSection(
                       "Needs your attention",
                       "Counselor invites to confirm, reschedule requests, or other open steps.",
                       sessionsActionList,
                       "amber",
+                      "Counselor invites to confirm, reschedule requests, or other open steps.",
                     )}
                     {renderSessionOverviewSection(
                       "Past & closed",
                       "Completed, cancelled, or expired appointments.",
                       sessionsClosedList,
                       "muted",
+                      "Completed, cancelled, or expired appointments.",
                     )}
                     {sessionsOtherList.length > 0
                       ? renderSessionOverviewSection(
@@ -1683,6 +1713,12 @@ const sessionsSheetStyles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 20,
     fontWeight: "700",
+  },
+  pendingModalSubtitle: {
+    color: AURORA.textSec,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 6,
   },
   secondaryBtn: {
     alignItems: "center",
