@@ -19,6 +19,9 @@ import { Asset } from "expo-asset";
 import * as Animatable from "react-native-animatable";
 import Animated, {
   Easing,
+  FadeInDown,
+  FadeOutUp,
+  Layout,
   ReduceMotion,
   cancelAnimation,
   interpolate,
@@ -31,6 +34,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Briefcase,
+  Camera,
   Check,
   Clock3,
   GraduationCap,
@@ -43,6 +47,10 @@ import {
   Zap,
   MessageSquare,
   CircleHelp,
+  Droplets,
+  UtensilsCrossed,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react-native";
 import { moodService } from "../services/mood.service";
 import { AURORA } from "../constants/aurora-colors";
@@ -1024,7 +1032,7 @@ export function MoodCheckIn({
   const showSleepGuide = () => {
     setActiveGuide({
       title: "Sleep quality (once per day)",
-      body: "Log this once per day based on your main/night sleep, not short naps.\n\nUse:\n- Poor: you woke up tired or unrested\n- Fair: okay sleep, but not fully refreshed\n- Good: restful sleep and you feel recovered",
+      body: "Log this once per day based on your main/night sleep, not short naps.\n\nIf you set a wake-up schedule in your Profile, Sleep quality becomes available once that wake-up time is reached. Before then, sleep is still counted as part of your previous day.\n\nUse:\n- Poor: you woke up tired or unrested\n- Fair: your sleep was okay, but you did not feel fully refreshed\n- Good: your sleep felt restful and you woke up recovered",
     });
   };
 
@@ -1038,7 +1046,14 @@ export function MoodCheckIn({
   const showBathGuide = () => {
     setActiveGuide({
       title: "Bath check-in guide",
-      body: "Mark this once daily to log your hygiene routine for today.\n\n- Yes: you already took a bath today.\n- Not yet: you have not taken a bath yet.",
+      body: "Mark this once per cycle to log your hygiene routine for today.\n\nYour Bath schedule in Profile controls when this check-in opens. Before your usual bath time, bath check-ins still count toward the previous cycle. After the usual bath time is reached, you can set whether you took a bath for the current cycle.\n\n- Yes: you already took a bath in the current cycle.\n- Not yet: you have not taken a bath in the current cycle yet.",
+    });
+  };
+
+  const showJournalDraftGuide = () => {
+    setActiveGuide({
+      title: "Automatic journal draft",
+      body: "Aurora can generate a short draft for your journal note to help you start quickly.\n\nIf you selected context tags, the draft is generated from those tags. When you see it as “Auto-draft”, you can edit the text freely before saving. If you make changes, it becomes “Edited”.\n\nYour final saved note is always what you leave in the journal editor.",
     });
   };
 
@@ -2218,11 +2233,18 @@ export function MoodCheckIn({
                 <MoonStar size={16} color={AURORA.blue} />
                 <Text style={{ color: AURORA.textPrimary, fontWeight: "700" }}>
                   Sleep quality{" "}
-                  {sleepLockedBeforeWake
-                    ? "(opens after wake time)"
-                    : sleepCapturedToday
-                      ? "(already set today)"
-                      : "(set once daily)"}
+                  <Text
+                    style={{
+                      color: AURORA.textMuted,
+                      fontWeight: "500",
+                    }}
+                  >
+                    {sleepLockedBeforeWake
+                      ? "(opens after wake time)"
+                      : sleepCapturedToday
+                        ? "(already set today)"
+                        : "(set once daily)"}
+                  </Text>
                 </Text>
                 <TouchableOpacity
                   onPress={showSleepGuide}
@@ -2232,7 +2254,7 @@ export function MoodCheckIn({
                   <CircleHelp size={16} color={AURORA.textMuted} />
                 </TouchableOpacity>
               </View>
-              <Text
+              {/* <Text
                 style={{
                   color: AURORA.textMuted,
                   fontSize: 12,
@@ -2244,7 +2266,7 @@ export function MoodCheckIn({
                   : sleepCapturedToday
                     ? "You already logged sleep quality today. You can continue without changing it."
                     : "Set this once daily based on your main/night sleep (not naps)."}
-              </Text>
+              </Text> */}
               <View
                 style={{
                   position: "relative",
@@ -2350,9 +2372,11 @@ export function MoodCheckIn({
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
+                    gap: 8,
                     marginBottom: 8,
                   }}
                 >
+                  <UtensilsCrossed size={16} color={AURORA.blue} />
                   <Text
                     style={{ color: AURORA.textPrimary, fontWeight: "700" }}
                   >
@@ -2366,7 +2390,7 @@ export function MoodCheckIn({
                     <CircleHelp size={16} color={AURORA.textMuted} />
                   </TouchableOpacity>
                 </View>
-                <Text
+                {/* <Text
                   style={{
                     color: AURORA.textMuted,
                     fontSize: 12,
@@ -2374,7 +2398,7 @@ export function MoodCheckIn({
                   }}
                 >
                   Based on your schedule from Profile settings.
-                </Text>
+                </Text> */}
                 {mealSchedule.length === 0 ? (
                   <Text style={{ color: AURORA.textMuted, fontSize: 12 }}>
                     No meal schedule set yet. Add it in your profile settings.
@@ -2388,7 +2412,7 @@ export function MoodCheckIn({
                       <View key={meal.id} style={{ marginBottom: 10 }}>
                         <Text
                           style={{
-                            color: AURORA.textPrimary,
+                            color: AURORA.textSec,
                             fontSize: 12,
                             fontWeight: "700",
                             marginBottom: 6,
@@ -2533,18 +2557,27 @@ export function MoodCheckIn({
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
+                    gap: 8,
                     marginBottom: 6,
                   }}
                 >
+                  <Droplets size={16} color={AURORA.blue} />
                   <Text
                     style={{ color: AURORA.textPrimary, fontWeight: "700" }}
                   >
                     Bath today{" "}
-                    {bathLockedBeforeBath
-                      ? "(opens after bath time)"
-                      : bathTakenToday
-                        ? "(already set today)"
-                        : "(once daily)"}
+                    <Text
+                      style={{
+                        color: AURORA.textMuted,
+                        fontWeight: "500",
+                      }}
+                    >
+                      {bathLockedBeforeBath
+                        ? "(opens after bath time)"
+                        : bathTakenToday
+                          ? "(already set today)"
+                          : "(once daily)"}
+                    </Text>
                   </Text>
                   <TouchableOpacity
                     onPress={showBathGuide}
@@ -2554,19 +2587,19 @@ export function MoodCheckIn({
                     <CircleHelp size={16} color={AURORA.textMuted} />
                   </TouchableOpacity>
                 </View>
-                {bathTrimLive.length > 0 && (
-                  <Text
-                    style={{
-                      color: AURORA.textMuted,
-                      fontSize: 12,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {bathLockedBeforeBath
-                      ? `Before ${usualBathTimeLabel}, bath check-in stays on the previous cycle.`
-                      : "Log once per cycle based on your usual bath time in Profile."}
-                  </Text>
-                )}
+                {/* {bathTrimLive.length > 0 && (
+                  // <Text
+                  //   style={{
+                  //     color: AURORA.textMuted,
+                  //     fontSize: 12,
+                  //     marginBottom: 8,
+                  //   }}
+                  // >
+                  //   {bathLockedBeforeBath
+                  //     ? `Before ${usualBathTimeLabel}, bath check-in stays on the previous cycle.`
+                  //     : "Log once per cycle based on your usual bath time in Profile."}
+                  // </Text>
+                )} */}
                 <View
                   style={{
                     position: "relative",
@@ -2779,32 +2812,55 @@ export function MoodCheckIn({
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        gap: 8,
+                        justifyContent: "space-between",
                         marginBottom: 8,
                       }}
                     >
-                      {category.icon}
-                      <View>
-                        <Text
-                          style={{
-                            color: AURORA.textPrimary,
-                            fontWeight: "700",
-                          }}
-                        >
-                          {category.title}
-                        </Text>
-                        <Text style={{ color: AURORA.textMuted, fontSize: 12 }}>
-                          {category.helper}
-                        </Text>
+                      <View
+                        style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                      >
+                        {category.icon}
+                        <View>
+                          <Text
+                            style={{
+                              color: AURORA.textPrimary,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {category.title}
+                          </Text>
+                          <Text style={{ color: AURORA.textMuted, fontSize: 12 }}>
+                            {category.helper}
+                          </Text>
+                        </View>
                       </View>
+                      {category.tags.length > 0 ? (
+                        <TouchableOpacity
+                          onPress={() =>
+                            setExpandedTagGroups((prev) => ({
+                              ...prev,
+                              [category.key]: !prev[category.key],
+                            }))
+                          }
+                          style={{ padding: 4 }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          {expandedTagGroups[category.key] ? (
+                            <ChevronUp size={18} color={AURORA.blue} />
+                          ) : (
+                            <ChevronDown size={18} color={AURORA.blue} />
+                          )}
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
-                    <View
-                      style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
-                    >
-                      {(expandedTagGroups[category.key]
-                        ? category.tags
-                        : category.tags.slice(0, 5)
-                      ).map((tag) => {
+                    {expandedTagGroups[category.key] ? (
+                      <Animated.View
+                        entering={FadeInDown.duration(320)}
+                        exiting={FadeOutUp.duration(260)}
+                        layout={Layout.springify().damping(18).stiffness(180)}
+                        style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
+                      >
+                        {category.tags.map((tag) => {
                         const selected = selectedTags.includes(tag);
                         return (
                           <TouchableOpacity
@@ -2834,30 +2890,8 @@ export function MoodCheckIn({
                             </Text>
                           </TouchableOpacity>
                         );
-                      })}
-                    </View>
-                    {category.tags.length > 5 ? (
-                      <TouchableOpacity
-                        onPress={() =>
-                          setExpandedTagGroups((prev) => ({
-                            ...prev,
-                            [category.key]: !prev[category.key],
-                          }))
-                        }
-                        style={{ alignSelf: "flex-start", marginTop: 10 }}
-                      >
-                        <Text
-                          style={{
-                            color: AURORA.blue,
-                            fontSize: 12,
-                            fontWeight: "700",
-                          }}
-                        >
-                          {expandedTagGroups[category.key]
-                            ? "Show less"
-                            : `Show ${category.tags.length - 5} more`}
-                        </Text>
-                      </TouchableOpacity>
+                        })}
+                      </Animated.View>
                     ) : null}
                   </Animatable.View>
                 ))
@@ -2879,16 +2913,38 @@ export function MoodCheckIn({
                     marginBottom: 8,
                   }}
                 >
-                  <Text
-                    style={{ color: AURORA.textPrimary, fontWeight: "700" }}
+                  <View
+                    style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
                   >
-                    Journal (optional)
-                  </Text>
-                  <Text style={{ color: AURORA.textMuted, fontSize: 11 }}>
-                    {journalEdited ? "Edited" : "Auto-draft"}
-                  </Text>
+                    <MessageSquare size={16} color={AURORA.blue} />
+                    <Text
+                      style={{ color: AURORA.textPrimary, fontWeight: "700" }}
+                    >
+                      Quick Note{" "}
+                      <Text
+                        style={{
+                          color: AURORA.textSec,
+                          fontWeight: "500",
+                        }}
+                      >
+                        (optional)
+                      </Text>
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Text style={{ color: AURORA.textMuted, fontSize: 11 }}>
+                      {journalEdited ? "Edited" : "Auto-draft"}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={showJournalDraftGuide}
+                      style={{ padding: 4, marginLeft: 8 }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <CircleHelp size={14} color={AURORA.textMuted} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <Text
+                {/* <Text
                   style={{
                     color: AURORA.textMuted,
                     fontSize: 12,
@@ -2898,7 +2954,7 @@ export function MoodCheckIn({
                   {selectedTags.length > 0
                     ? "A short reflection is generated from your selected context tags. You can edit before saving."
                     : "You can write your own reflection even without selecting context tags."}
-                </Text>
+                </Text> */}
                 {!showJournalEditor ? (
                   <>
                     <View
@@ -3034,16 +3090,33 @@ export function MoodCheckIn({
                     borderTopColor: AURORA.border,
                   }}
                 >
-                  <Text
+                  <View
                     style={{
-                      color: AURORA.textPrimary,
-                      fontWeight: "700",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
                       marginBottom: 8,
                     }}
                   >
-                    Journal selfie (optional)
-                  </Text>
-                  <Text
+                    <Camera size={16} color={AURORA.blue} />
+                    <Text
+                      style={{
+                        color: AURORA.textPrimary,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Photo{" "}
+                      <Text
+                        style={{
+                          color: AURORA.textSec,
+                          fontWeight: "500",
+                        }}
+                      >
+                        (optional)
+                      </Text>
+                    </Text>
+                  </View>
+                  {/* <Text
                     style={{
                       color: AURORA.textMuted,
                       fontSize: 12,
@@ -3052,7 +3125,7 @@ export function MoodCheckIn({
                   >
                     This is saved as journal media only, separate from selfie AI
                     mood detection.
-                  </Text>
+                  </Text> */}
                   <TouchableOpacity
                     onPress={() => {
                       void pickJournalImage();

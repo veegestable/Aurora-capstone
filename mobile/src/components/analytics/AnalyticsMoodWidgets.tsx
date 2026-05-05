@@ -405,8 +405,8 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
       >
         <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: "700" }}>
           {metric === "stress"
-            ? "Stress Trend (Bar Chart)"
-            : "Energy Trend (Bar Chart)"}
+            ? "Stress Trend"
+            : "Energy Trend"}
         </Text>
         <TouchableOpacity
           onPress={showMetricGuide}
