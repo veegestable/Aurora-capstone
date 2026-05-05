@@ -289,6 +289,7 @@ export function MoodCheckIn({
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const scrollRef = useRef<ScrollView | null>(null);
   const durationInputYRef = useRef(0);
+  const [moodToggleWidth, setMoodToggleWidth] = useState(0);
   const [expandedTagGroups, setExpandedTagGroups] = useState<
     Record<string, boolean>
   >({});
@@ -318,6 +319,29 @@ export function MoodCheckIn({
   }, [currentStep]);
 
   const floatingProgress = useSharedValue(0);
+  const moodToggleProgress = useSharedValue(moodInputMode === "selfie" ? 1 : 0);
+
+  useEffect(() => {
+    moodToggleProgress.value = withTiming(
+      moodInputMode === "selfie" ? 1 : 0,
+      {
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
+      },
+    );
+  }, [moodInputMode, moodToggleProgress]);
+
+  const moodToggleThumbStyle = useAnimatedStyle(() => {
+    const travel = Math.max(0, (moodToggleWidth - 8) / 2);
+    return {
+      transform: [
+        {
+          translateX: interpolate(moodToggleProgress.value, [0, 1], [0, travel]),
+        },
+      ],
+    };
+  }, [moodToggleWidth]);
+
   useEffect(() => {
     floatingProgress.value = withRepeat(
       withTiming(1, {
@@ -693,12 +717,24 @@ export function MoodCheckIn({
   ]);
 
   const handleNext = () => {
-    if (currentStep === 1 && selectedEmotions.length === 0) {
-      Alert.alert(
-        "Please select a mood",
-        "Pick your current emotion before continuing.",
-      );
-      return;
+    if (currentStep === 1) {
+      if (
+        moodInputMode === "selfie" &&
+        (selectedEmotions.length === 0 || detectionMethod !== "selfie_ai")
+      ) {
+        Alert.alert(
+          "Selfie check-in required",
+          "Please take or upload a selfie, then use the analyzed mood before continuing.",
+        );
+        return;
+      }
+      if (selectedEmotions.length === 0) {
+        Alert.alert(
+          "Please select a mood",
+          "Pick your current emotion before continuing.",
+        );
+        return;
+      }
     }
     if (
       currentStep === 2 &&
@@ -957,7 +993,7 @@ export function MoodCheckIn({
 
   const showSelfiePrivacyGuide = () => {
     setActiveGuide({
-      title: "Selfie check-in privacy",
+      title: "Selfie check-in",
       body: "Aurora analyzes visible facial expression to suggest a mood. You can retake, switch to manual check-in, or choose whether to use the analyzed mood before continuing.",
     });
   };
@@ -1557,12 +1593,21 @@ export function MoodCheckIn({
     isBeforeUsualHHmmToday(scheduleNow, usualBathTime);
   const usualWakeTimeLabel = wakeTrimLive ? formatMealTime(usualWakeTime) : "";
   const usualBathTimeLabel = bathTrimLive ? formatMealTime(usualBathTime) : "";
+  const canContinueMoodStep =
+    moodInputMode === "selfie"
+      ? selectedEmotions.length > 0 && detectionMethod === "selfie_ai"
+      : selectedEmotions.length > 0;
   const canContinueCurrentStep =
-    (isMoodStep && selectedEmotions.length > 0) ||
+    (isMoodStep && canContinueMoodStep) ||
     (isVitalityStep &&
       (sleepCapturedToday || !!sleepQuality || sleepLockedBeforeWake)) ||
     isContextStep;
   const isPrimaryActionDisabled = isSubmitting || !canContinueCurrentStep;
+  const shouldShowPrimaryActionButton = !(
+    isMoodStep &&
+    moodInputMode === "selfie" &&
+    !canContinueMoodStep
+  );
 
   return (
     <KeyboardAvoidingView
@@ -1730,118 +1775,118 @@ export function MoodCheckIn({
                   padding: 6,
                 }}
               >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    backgroundColor: AURORA.cardAlt,
-                    borderRadius: 12,
-                    padding: 4,
-                  }}
-                >
-                  <TouchableOpacity
-                    onPress={() => setMoodInputMode("manual")}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View
+                    onLayout={(e) => setMoodToggleWidth(e.nativeEvent.layout.width)}
                     style={{
                       flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 10,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor:
-                        moodInputMode === "manual"
-                          ? AURORA.blue
-                          : "transparent",
+                      flexDirection: "row",
+                      backgroundColor: AURORA.cardAlt,
+                      borderRadius: 12,
+                      borderWidth: 0.5,
+                      borderColor: AURORA.border,
+                      padding: 4,
+                      position: "relative",
+                      overflow: "hidden",
                     }}
                   >
-                    <Text
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[
+                        {
+                          position: "absolute",
+                          left: 4,
+                          top: 4,
+                          bottom: 4,
+                          width: Math.max(0, (moodToggleWidth - 8) / 2),
+                          borderRadius: 10,
+                          backgroundColor: AURORA.purple,
+                        },
+                        moodToggleThumbStyle,
+                      ]}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setMoodInputMode("manual")}
                       style={{
-                        color:
-                          moodInputMode === "manual"
-                            ? AURORA.textPrimary
-                            : AURORA.textSec,
-                        fontWeight: "700",
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 10,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: "transparent",
                       }}
                     >
-                      Manual Check-in
-                    </Text>
-                  </TouchableOpacity>
+                      <Text
+                        style={{
+                          color:
+                            moodInputMode === "manual"
+                              ? AURORA.textPrimary
+                              : AURORA.textSec,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Manual Check-in
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setMoodInputMode("selfie")}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 10,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: "transparent",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color:
+                            moodInputMode === "selfie"
+                              ? AURORA.textPrimary
+                              : AURORA.textSec,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Selfie Check-in
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                   <TouchableOpacity
-                    onPress={() => setMoodInputMode("selfie")}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 10,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor:
-                        moodInputMode === "selfie"
-                          ? AURORA.blue
-                          : "transparent",
-                    }}
+                    onPress={
+                      moodInputMode === "selfie"
+                        ? showSelfiePrivacyGuide
+                        : showManualMoodGuide
+                    }
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    style={{ padding: 4 }}
                   >
-                    <Text
-                      style={{
-                        color:
-                          moodInputMode === "selfie"
-                            ? AURORA.textPrimary
-                            : AURORA.textSec,
-                        fontWeight: "700",
-                      }}
-                    >
-                      Selfie Check-in
-                    </Text>
+                    <CircleHelp size={14} color={AURORA.textMuted} />
                   </TouchableOpacity>
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    marginTop: 10,
-                    paddingHorizontal: 6,
-                    paddingBottom: 6,
-                  }}
-                >
-                  <Sparkles size={14} color={AURORA.amber} />
-                  <Text
-                    style={{ color: AURORA.textMuted, fontSize: 12, flex: 1 }}
-                  >
-                    {moodInputMode === "selfie"
-                      ? "Selfie check-in suggests mood from facial expression. You can use AI mood or retake before continuing."
-                      : "Manual mode gives full control when selecting your mood and intensity."}
-                  </Text>
-                  {moodInputMode === "selfie" ? (
-                    <TouchableOpacity
-                      onPress={showSelfiePrivacyGuide}
-                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                    >
-                      <CircleHelp size={14} color={AURORA.textMuted} />
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={showManualMoodGuide}
-                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                    >
-                      <CircleHelp size={14} color={AURORA.textMuted} />
-                    </TouchableOpacity>
-                  )}
                 </View>
               </View>
-              {moodInputMode === "selfie" ? (
-                <EmotionDetection
-                  title="Selfie Check-in"
-                  helperText="Aurora estimates your mood from visible facial expression only. You can choose the analyzed mood and continue, or retake another selfie."
-                  onEmotionDetected={(emotions) => {
-                    if (emotions.length > 0) {
-                      setSelectedEmotions([emotions[0]]);
-                    }
-                  }}
-                  onUseAnalyzedMood={applyAnalyzedMood}
-                  saveActionLabel="Use this mood"
-                  showSaveSuccessAlert={false}
-                />
-              ) : null}
-              {moodInputMode === "manual" ? (
-                <>
+              <Animatable.View
+                key={`mood-mode-${moodInputMode}`}
+                animation="fadeInUp"
+                duration={280}
+                useNativeDriver
+              >
+                {moodInputMode === "selfie" ? (
+                  <EmotionDetection
+                    // title="Selfie Check-in"
+                    // helperText="Aurora estimates your mood from visible facial expression only. You can choose the analyzed mood and continue, or retake another selfie."
+                    onEmotionDetected={(emotions) => {
+                      if (emotions.length > 0) {
+                        setSelectedEmotions([emotions[0]]);
+                      }
+                    }}
+                    onUseAnalyzedMood={applyAnalyzedMood}
+                    saveActionLabel="Use this mood"
+                    showSaveSuccessAlert={false}
+                  />
+                ) : null}
+                {moodInputMode === "manual" ? (
+                  <>
                   <View
                     style={{
                       backgroundColor: AURORA.card,
@@ -1849,6 +1894,7 @@ export function MoodCheckIn({
                       borderColor: AURORA.border,
                       borderRadius: 18,
                       padding: 16,
+                      marginBottom: 16,
                     }}
                   >
                     <Text
@@ -2127,8 +2173,9 @@ export function MoodCheckIn({
                       </View>
                     </View>
                   )}
-                </>
-              ) : null}
+                  </>
+                ) : null}
+              </Animatable.View>
             </Animatable.View>
           )}
 
@@ -3244,43 +3291,45 @@ export function MoodCheckIn({
                 </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              onPress={currentStep === totalSteps ? handleSubmit : handleNext}
-              disabled={isPrimaryActionDisabled}
-              style={{
-                flex: 1,
-                backgroundColor: isPrimaryActionDisabled
-                  ? AURORA.textMuted
-                  : AURORA.blue,
-                borderRadius: 12,
-                paddingVertical: 14,
-                alignItems: "center",
-                justifyContent: "center",
-                flexDirection: "row",
-                gap: 6,
-                opacity: isPrimaryActionDisabled ? 0.7 : 1,
-              }}
-            >
-              <Text
+            {shouldShowPrimaryActionButton ? (
+              <TouchableOpacity
+                onPress={currentStep === totalSteps ? handleSubmit : handleNext}
+                disabled={isPrimaryActionDisabled}
                 style={{
-                  color: AURORA.textPrimary,
-                  fontWeight: "700",
-                  opacity: isPrimaryActionDisabled ? 0.88 : 1,
+                  flex: 1,
+                  backgroundColor: isPrimaryActionDisabled
+                    ? AURORA.textMuted
+                    : AURORA.blue,
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  gap: 6,
+                  opacity: isPrimaryActionDisabled ? 0.7 : 1,
                 }}
               >
-                {isSubmitting || uploadingJournalImage
-                  ? "Saving..."
-                  : currentStep === totalSteps
-                    ? "Save check-in"
-                    : "Continue"}
-              </Text>
-              {!isPrimaryActionDisabled && currentStep < totalSteps && (
-                <ArrowRight size={16} color={AURORA.textPrimary} />
-              )}
-              {!isPrimaryActionDisabled && currentStep === totalSteps && (
-                <Check size={16} color={AURORA.textPrimary} />
-              )}
-            </TouchableOpacity>
+                <Text
+                  style={{
+                    color: AURORA.textPrimary,
+                    fontWeight: "700",
+                    opacity: isPrimaryActionDisabled ? 0.88 : 1,
+                  }}
+                >
+                  {isSubmitting || uploadingJournalImage
+                    ? "Saving..."
+                    : currentStep === totalSteps
+                      ? "Save check-in"
+                      : "Continue"}
+                </Text>
+                {!isPrimaryActionDisabled && currentStep < totalSteps && (
+                  <ArrowRight size={16} color={AURORA.textPrimary} />
+                )}
+                {!isPrimaryActionDisabled && currentStep === totalSteps && (
+                  <Check size={16} color={AURORA.textPrimary} />
+                )}
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </ScrollView>

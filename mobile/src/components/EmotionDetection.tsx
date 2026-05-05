@@ -78,6 +78,7 @@ export function EmotionDetection({
   const [selectedDetectedEmotion, setSelectedDetectedEmotion] = useState<
     string | null
   >(null);
+  const hasDetectedResults = detectedEmotions.length > 0;
 
   const normalizeEmotionName = (emotion: string): string => {
     const key = emotion.toLowerCase().trim();
@@ -248,23 +249,35 @@ export function EmotionDetection({
   return (
     <View
       style={{
-        backgroundColor: AURORA.card,
+        // backgroundColor: AURORA.card,
         borderRadius: 16,
         padding: 16,
-        borderWidth: 1,
-        borderColor: AURORA.border,
+        // borderWidth: 1,
+        // borderColor: AURORA.border,
       }}
     >
-      <Text
+      {/* <Text
+        style={{
+          fontSize: 12,
+          color: AURORA.textSec,
+          textAlign: "center",
+          marginBottom: 8,
+          fontWeight: "500",
+        }}
+      >
+        Step 1 of 2
+      </Text> */}
+      {/* <Text
         style={{
           fontSize: 20,
           fontWeight: "600",
           color: AURORA.textPrimary,
-          marginBottom: 16,
+          marginBottom: helperText ? 16 : 6,
+          textAlign: "center",
         }}
       >
         {title}
-      </Text>
+      </Text> */}
       {helperText ? (
         <Text
           style={{
@@ -273,29 +286,50 @@ export function EmotionDetection({
             marginTop: -8,
             marginBottom: 14,
             lineHeight: 18,
+            textAlign: "center",
           }}
         >
           {helperText}
         </Text>
       ) : null}
+      {!helperText ? (
+        <Text
+          style={{
+            color: AURORA.textSec,
+            fontSize: 13,
+            marginBottom: 14,
+            lineHeight: 18,
+            textAlign: "center",
+          }}
+        >
+          Estimate your mood from facial expression, then confirm and continue.
+        </Text>
+      ) : null}
 
       {!capturedImage ? (
-        <View style={{ flexDirection: "row", gap: 16 }}>
+        <View style={{ gap: 12 }}>
           <TouchableOpacity
             onPress={startCamera}
             style={{
-              flex: 1,
-              backgroundColor: "rgba(45, 107, 255, 0.15)",
+              backgroundColor: "rgba(45, 107, 255, 0.14)",
               padding: 16,
               borderRadius: 16,
+              minHeight: 72,
+              flexDirection: "row",
               alignItems: "center",
+              justifyContent: "center",
               borderWidth: 1,
-              borderColor: "rgba(45, 107, 255, 0.3)",
+              borderColor: "rgba(45, 107, 255, 0.35)",
             }}
           >
             <Camera size={24} color={AURORA.blue} />
             <Text
-              style={{ color: AURORA.blue, fontWeight: "500", marginTop: 8 }}
+              style={{
+                color: AURORA.blue,
+                fontWeight: "600",
+                marginLeft: 10,
+                fontSize: 15,
+              }}
             >
               Take Selfie
             </Text>
@@ -304,22 +338,40 @@ export function EmotionDetection({
           <TouchableOpacity
             onPress={uploadPhoto}
             style={{
-              flex: 1,
-              backgroundColor: "rgba(124, 58, 237, 0.15)",
+              backgroundColor: "transparent",
               padding: 16,
               borderRadius: 16,
+              minHeight: 72,
+              flexDirection: "row",
               alignItems: "center",
+              justifyContent: "center",
               borderWidth: 1,
-              borderColor: "rgba(124, 58, 237, 0.3)",
+              borderColor: "rgba(124, 58, 237, 0.35)",
             }}
           >
             <Upload size={24} color={AURORA.purple} />
             <Text
-              style={{ color: AURORA.purple, fontWeight: "500", marginTop: 8 }}
+              style={{
+                color: AURORA.purple,
+                fontWeight: "600",
+                marginLeft: 10,
+                fontSize: 15,
+              }}
             >
               Upload Photo
             </Text>
           </TouchableOpacity>
+          {/* <Text
+            style={{
+              color: AURORA.textSec,
+              fontSize: 12,
+              lineHeight: 18,
+              textAlign: "center",
+              marginTop: 2,
+            }}
+          >
+            Selfie is used only for mood estimation. You can retake anytime.
+          </Text> */}
         </View>
       ) : (
         <View style={{ alignItems: "center", width: "100%" }}>
@@ -359,11 +411,24 @@ export function EmotionDetection({
                 }}
               >
                 <Text style={{ color: AURORA.textPrimary, fontWeight: "500" }}>
-                  Analyzing...
+                  Analyzing mood...
                 </Text>
               </View>
             )}
           </View>
+          <Text
+            style={{
+              color: AURORA.textSec,
+              fontSize: 12,
+              marginTop: -4,
+              marginBottom: 12,
+              textAlign: "center",
+            }}
+          >
+            {isAnalyzing
+              ? "Checking facial expression and confidence..."
+              : "Review the detected mood below, or retake your selfie."}
+          </Text>
 
           {detectedEmotions.length > 0 && (
             <View style={{ width: "100%", marginBottom: 16 }}>
@@ -488,38 +553,63 @@ export function EmotionDetection({
               }}
             >
               <Text style={{ color: AURORA.textSec, fontWeight: "600" }}>
-                Take Another
+                Retake Photo
               </Text>
             </TouchableOpacity>
-            {detectedEmotions.length > 0 && (
-              <TouchableOpacity
-                onPress={() => {
-                  const selected =
-                    detectedEmotions.find(
-                      (emotion) => emotion.emotion === selectedDetectedEmotion,
-                    ) || detectedEmotions[0];
-                  onUseAnalyzedMood?.(selected);
-                  if (showSaveSuccessAlert !== false) {
-                    Alert.alert("Success", "Emotions captured!");
-                  }
-                  setCapturedImage(null);
-                  setDetectedEmotions([]);
-                  setSelectedDetectedEmotion(null);
-                }}
+            <TouchableOpacity
+              onPress={() => {
+                const selected =
+                  detectedEmotions.find(
+                    (emotion) => emotion.emotion === selectedDetectedEmotion,
+                  ) || detectedEmotions[0];
+                onUseAnalyzedMood?.(selected);
+                if (showSaveSuccessAlert !== false) {
+                  Alert.alert("Success", "Emotions captured!");
+                }
+                setCapturedImage(null);
+                setDetectedEmotions([]);
+                setSelectedDetectedEmotion(null);
+              }}
+              disabled={!hasDetectedResults || isAnalyzing}
+              style={{
+                flex: 1,
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: "center",
+                backgroundColor:
+                  !hasDetectedResults || isAnalyzing
+                    ? AURORA.cardAlt
+                    : AURORA.green,
+                opacity: !hasDetectedResults || isAnalyzing ? 0.7 : 1,
+              }}
+            >
+              <Text
                 style={{
-                  flex: 1,
-                  paddingVertical: 14,
-                  borderRadius: 12,
-                  alignItems: "center",
-                  backgroundColor: AURORA.green,
+                  color:
+                    !hasDetectedResults || isAnalyzing
+                      ? AURORA.textSec
+                      : AURORA.textPrimary,
+                  fontWeight: "600",
                 }}
               >
-                <Text style={{ color: AURORA.textPrimary, fontWeight: "600" }}>
-                  {saveActionLabel || "Save"}
-                </Text>
-              </TouchableOpacity>
-            )}
+                {isAnalyzing
+                  ? "Analyzing..."
+                  : saveActionLabel || "Analyze & Continue"}
+              </Text>
+            </TouchableOpacity>
           </View>
+          {!hasDetectedResults && !isAnalyzing ? (
+            <Text
+              style={{
+                color: AURORA.textSec,
+                fontSize: 12,
+                marginTop: 8,
+                textAlign: "center",
+              }}
+            >
+              Take or upload a selfie to continue.
+            </Text>
+          ) : null}
         </View>
       )}
 
