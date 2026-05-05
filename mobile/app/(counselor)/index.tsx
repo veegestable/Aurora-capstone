@@ -15,6 +15,7 @@ import {
   Modal,
   SectionList,
   StyleSheet,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,6 +28,7 @@ import {
   CalendarClock,
   Trash2,
   X,
+  CircleHelp,
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "../../src/stores/AuthContext";
@@ -1206,8 +1208,7 @@ export default function CounselorHomeScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={styles.pendingModalSubtitle}>
-                Student requests, your invites, agreed sessions (upcoming and
-                follow-up), then completed, missed, and expired.
+                Student requests, invites, scheduled, and outcomes.
               </Text>
 
               {pendingSessions.length === 0 ? (
@@ -1244,14 +1245,24 @@ export default function CounselorHomeScreen() {
                         paddingTop: section.sectionIndex === 0 ? 0 : 14,
                       }}
                     >
-                      <Text style={styles.pendingSectionTitle}>
-                        {section.title}
-                      </Text>
-                      {section.subtitle.trim() ? (
-                        <Text style={styles.pendingSectionSubtitle}>
-                          {section.subtitle}
+                      <View style={styles.pendingSectionHeaderRow}>
+                        <Text style={styles.pendingSectionTitle}>
+                          {section.title}
                         </Text>
-                      ) : null}
+                        {section.subtitle.trim() ? (
+                          <TouchableOpacity
+                            onPress={() =>
+                              Alert.alert(section.title, section.subtitle)
+                            }
+                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                            style={{ padding: 2 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${section.title} info`}
+                          >
+                            <CircleHelp size={14} color={AURORA.textSec} />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
                     </View>
                   )}
                   renderItem={({ item }) => {
@@ -1422,6 +1433,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.8,
+    marginBottom: 0,
+  },
+  pendingSectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     marginBottom: 4,
   },
   pendingSectionSubtitle: {
