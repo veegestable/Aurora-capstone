@@ -344,29 +344,42 @@ export function MoodCheckIn({
   }, [moodToggleWidth]);
 
   useEffect(() => {
+    const shouldAnimateFloat =
+      moodInputMode === "manual" && selectedEmotions.length > 0;
+
+    cancelAnimation(floatingProgress);
+    floatingProgress.value = 0;
+
+    if (!shouldAnimateFloat) {
+      return;
+    }
+
     floatingProgress.value = withRepeat(
       withTiming(1, {
-        duration: 1400,
+        duration: 1800,
         easing: Easing.inOut(Easing.sin),
         reduceMotion: ReduceMotion.Never,
       }),
       -1,
       true,
     );
+
     return () => cancelAnimation(floatingProgress);
-  }, [floatingProgress]);
+  }, [floatingProgress, moodInputMode, selectedEmotions.length]);
 
   const floatingMoodStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateY: interpolate(floatingProgress.value, [0, 1], [0, -10]) },
-      { scale: interpolate(floatingProgress.value, [0, 1], [1, 1.02]) },
+      { translateY: interpolate(floatingProgress.value, [0, 1], [0, -12]) },
+      { translateX: interpolate(floatingProgress.value, [0, 1], [-4, 4]) },
+      { scale: interpolate(floatingProgress.value, [0, 1], [0.99, 1.025]) },
     ],
   }));
   const floatingShadowStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(floatingProgress.value, [0, 1], [0.24, 0.12]),
+    opacity: interpolate(floatingProgress.value, [0, 1], [0.26, 0.12]),
     transform: [
-      { scaleX: interpolate(floatingProgress.value, [0, 1], [1, 0.86]) },
-      { scaleY: interpolate(floatingProgress.value, [0, 1], [1, 0.86]) },
+      { translateX: interpolate(floatingProgress.value, [0, 1], [2, -2]) },
+      { scaleX: interpolate(floatingProgress.value, [0, 1], [1, 0.8]) },
+      { scaleY: interpolate(floatingProgress.value, [0, 1], [1, 0.75]) },
     ],
   }));
 
