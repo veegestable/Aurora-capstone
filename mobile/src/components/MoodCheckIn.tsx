@@ -278,6 +278,7 @@ export function MoodCheckIn({
   const [showJournalEditor, setShowJournalEditor] = useState(false);
   const [journalImageUri, setJournalImageUri] = useState<string | null>(null);
   const [uploadingJournalImage, setUploadingJournalImage] = useState(false);
+  const [manualEmotionRowWidth, setManualEmotionRowWidth] = useState(0);
 
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1608,6 +1609,17 @@ export function MoodCheckIn({
     moodInputMode === "selfie" &&
     !canContinueMoodStep
   );
+  const manualEmotionGap = 6;
+  const manualEmotionItemWidth =
+    manualEmotionRowWidth > 0
+      ? (manualEmotionRowWidth - manualEmotionGap * (MANUAL_EMOTIONS.length - 1)) /
+        MANUAL_EMOTIONS.length
+      : 64;
+  const manualEmotionVisualSize = Math.max(
+    24,
+    Math.min(36, Math.round(manualEmotionItemWidth * 0.45)),
+  );
+  const manualEmotionLabelSize = manualEmotionItemWidth < 52 ? 11 : 12;
 
   return (
     <KeyboardAvoidingView
@@ -1889,7 +1901,7 @@ export function MoodCheckIn({
                   <>
                   <View
                     style={{
-                      backgroundColor: AURORA.card,
+                      // backgroundColor: AURORA.card,
                       // borderWidth: 1,
                       borderColor: AURORA.border,
                       borderRadius: 18,
@@ -1908,11 +1920,14 @@ export function MoodCheckIn({
                       Select emotion
                     </Text>
                     <View
+                      onLayout={(event) => {
+                        setManualEmotionRowWidth(event.nativeEvent.layout.width);
+                      }}
                       style={{
                         flexDirection: "row",
-                        flexWrap: "wrap",
+                        flexWrap: "nowrap",
                         justifyContent: "center",
-                        gap: 8,
+                        gap: manualEmotionGap,
                       }}
                     >
                       {MANUAL_EMOTIONS.map((emotion) => {
@@ -1920,50 +1935,64 @@ export function MoodCheckIn({
                           (x) => x.emotion === emotion.name,
                         );
                         return (
-                          <TouchableOpacity
+                          <Animatable.View
                             key={emotion.name}
-                            onPress={() => {
-                              triggerHaptic("light");
-                              setSelectedEmotions([
-                                {
-                                  emotion: emotion.name,
-                                  confidence: intensityTen / 10,
-                                  color: emotion.color,
-                                },
-                              ]);
-                              setDetectionMethod("manual");
-                            }}
-                            activeOpacity={0.85}
+                            animation={selected ? "bounceIn" : undefined}
+                            duration={260}
+                            useNativeDriver
                             style={{
-                              width: 72,
-                              minHeight: 88,
-                              borderRadius: 16,
-                              borderWidth: selected ? 1.5 : 1,
-                              borderColor: selected
-                                ? emotion.color
-                                : AURORA.border,
-                              backgroundColor: selected
-                                ? `${emotion.color}24`
-                                : AURORA.cardAlt,
-                              alignItems: "center",
-                              justifyContent: "center",
-                              transform: [{ scale: selected ? 1.02 : 1 }],
+                              width: manualEmotionItemWidth,
+                              transform: [{ scale: selected ? 1.06 : 0.95 }],
+                              shadowColor: selected ? emotion.color : "transparent",
+                              shadowOpacity: selected ? 0.32 : 0,
+                              shadowRadius: selected ? 10 : 0,
+                              shadowOffset: { width: 0, height: selected ? 4 : 0 },
+                              elevation: selected ? 7 : 0,
                             }}
                           >
-                            {renderMoodVisual(emotion, 36)}
-                            <Text
+                            <TouchableOpacity
+                              onPress={() => {
+                                triggerHaptic("light");
+                                setSelectedEmotions([
+                                  {
+                                    emotion: emotion.name,
+                                    confidence: intensityTen / 10,
+                                    color: emotion.color,
+                                  },
+                                ]);
+                                setDetectionMethod("manual");
+                              }}
+                              activeOpacity={0.85}
                               style={{
-                                marginTop: 5,
-                                fontSize: 12,
-                                color: selected
+                                width: "100%",
+                                minHeight: manualEmotionItemWidth + 18,
+                                borderRadius: 16,
+                                borderWidth: selected ? 2 : 1,
+                                borderColor: selected
                                   ? emotion.color
-                                  : AURORA.textSec,
-                                fontWeight: "700",
+                                  : AURORA.borderLight,
+                                backgroundColor: selected
+                                  ? `${emotion.color}20`
+                                  : "rgba(255,255,255,0.03)",
+                                alignItems: "center",
+                                justifyContent: "center",
                               }}
                             >
-                              {emotion.label}
-                            </Text>
-                          </TouchableOpacity>
+                              {renderMoodVisual(emotion, manualEmotionVisualSize)}
+                              <Text
+                                style={{
+                                  marginTop: 5,
+                                  fontSize: manualEmotionLabelSize,
+                                  color: selected
+                                    ? emotion.color
+                                    : "#A6B4E8",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {emotion.label}
+                              </Text>
+                            </TouchableOpacity>
+                          </Animatable.View>
                         );
                       })}
                     </View>
