@@ -13,6 +13,7 @@ import {
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Asset } from "expo-asset";
@@ -1705,7 +1706,12 @@ export function MoodCheckIn({
           </View>
 
           {isMoodStep && (
-            <View style={{ gap: 16 }}>
+            <Animatable.View
+              animation="fadeInUp"
+              duration={340}
+              useNativeDriver
+              style={{ gap: 16 }}
+            >
               <View
                 style={{
                   backgroundColor: AURORA.card,
@@ -2114,15 +2120,17 @@ export function MoodCheckIn({
                   )}
                 </>
               ) : null}
-            </View>
+            </Animatable.View>
           )}
 
           {isVitalityStep && (
-            <View
+            <Animatable.View
+              animation="fadeInUp"
+              duration={340}
+              useNativeDriver
               style={{
                 backgroundColor: AURORA.card,
                 borderWidth: 1,
-                borderColor: AURORA.border,
                 borderRadius: 18,
                 padding: 16,
               }}
@@ -2327,17 +2335,19 @@ export function MoodCheckIn({
                   )}
                 </View>
                 {sleepLockedBeforeWake && (
-                  <View
+                  <BlurView
                     pointerEvents="none"
+                    tint="dark"
+                    intensity={42}
                     style={{
                       position: "absolute",
                       left: 0,
                       right: 0,
                       top: 0,
                       bottom: 0,
-                      backgroundColor: "rgba(8, 12, 42, 0.84)",
-                      borderWidth: 1,
-                      borderColor: "rgba(148, 163, 184, 0.35)",
+                      backgroundColor: "rgba(8, 12, 42, 0.26)",
+                      // borderWidth: 1,
+                      // borderColor: "rgba(148, 163, 184, 0.35)",
                       borderRadius: 12,
                       alignItems: "center",
                       justifyContent: "center",
@@ -2364,7 +2374,7 @@ export function MoodCheckIn({
                     >
                       Opens at {usualWakeTimeLabel}
                     </Text>
-                  </View>
+                  </BlurView>
                 )}
               </View>
               <View
@@ -2507,17 +2517,19 @@ export function MoodCheckIn({
                             </Text>
                           </TouchableOpacity>
                           {!mealAvailable && (
-                            <View
+                            <BlurView
                               pointerEvents="none"
+                              tint="dark"
+                              intensity={42}
                               style={{
                                 position: "absolute",
                                 left: 0,
                                 right: 0,
                                 top: 0,
                                 bottom: 0,
-                                backgroundColor: "rgba(8, 12, 42, 0.84)",
-                                borderWidth: 1,
-                                borderColor: "rgba(148, 163, 184, 0.35)",
+                                backgroundColor: "rgba(8, 12, 42, 0.26)",
+                                // borderWidth: 1,
+                                // borderColor: "rgba(148, 163, 184, 0.35)",
                                 borderRadius: 10,
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -2544,7 +2556,7 @@ export function MoodCheckIn({
                               >
                                 Opens at {mealTimeLabel}
                               </Text>
-                            </View>
+                            </BlurView>
                           )}
                         </View>
                       </View>
@@ -2685,17 +2697,19 @@ export function MoodCheckIn({
                     </TouchableOpacity>
                   </View>
                   {bathLockedBeforeBath && (
-                    <View
+                    <BlurView
                       pointerEvents="none"
+                      tint="dark"
+                      intensity={42}
                       style={{
                         position: "absolute",
                         left: 0,
                         right: 0,
                         top: 0,
                         bottom: 0,
-                        backgroundColor: "rgba(8, 12, 42, 0.84)",
-                        borderWidth: 1,
-                        borderColor: "rgba(148, 163, 184, 0.35)",
+                        backgroundColor: "rgba(8, 12, 42, 0.26)",
+                        // borderWidth: 1,
+                        // borderColor: "rgba(148, 163, 184, 0.35)",
                         borderRadius: 10,
                         alignItems: "center",
                         justifyContent: "center",
@@ -2722,11 +2736,11 @@ export function MoodCheckIn({
                       >
                         Opens at {usualBathTimeLabel}
                       </Text>
-                    </View>
+                    </BlurView>
                   )}
                 </View>
               </View>
-            </View>
+            </Animatable.View>
           )}
 
           {isContextStep && (
