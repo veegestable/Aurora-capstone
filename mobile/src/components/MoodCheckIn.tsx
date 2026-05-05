@@ -3091,7 +3091,7 @@ export function MoodCheckIn({
                       Quick Note{" "}
                       <Text
                         style={{
-                          color: AURORA.textSec,
+                          color: AURORA.textMuted,
                           fontWeight: "500",
                         }}
                       >
@@ -3145,7 +3145,7 @@ export function MoodCheckIn({
                         {journalText ||
                           (selectedTags.length > 0
                             ? buildJournalDraft()
-                            : "Add your reflection here. This can help you and your counselor track patterns over time.")}
+                            : "Add your reflection here...")}
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -3276,7 +3276,7 @@ export function MoodCheckIn({
                       Photo{" "}
                       <Text
                         style={{
-                          color: AURORA.textSec,
+                          color: AURORA.textMuted,
                           fontWeight: "500",
                         }}
                       >

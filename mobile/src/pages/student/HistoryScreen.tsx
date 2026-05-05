@@ -15,6 +15,12 @@ import {
   BarChart3,
   BookMarked,
   CircleHelp,
+  Timer,
+  Bath,
+  UtensilsCrossed,
+  Tags,
+  NotebookPen,
+  Image as ImageIcon,
 } from "lucide-react-native";
 import * as Animatable from "react-native-animatable";
 import Animated, {
@@ -41,6 +47,7 @@ import {
 
 const UI_TEXT_SECONDARY = "#C1CEE9";
 const UI_TEXT_MUTED = "#9AA9C8";
+const DETAILS_ICON_COLOR = "#93C5FD";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MoodEntry {
@@ -535,6 +542,28 @@ function DayDetailsCard({
                     entry.duration_in_minutes > 0
                       ? Math.round(entry.duration_in_minutes)
                       : undefined;
+                  const energyLevelRaw =
+                    typeof entry.energy_level === "number" &&
+                    Number.isFinite(entry.energy_level)
+                      ? entry.energy_level
+                      : null;
+                  const stressLevelRaw =
+                    typeof entry.stress_level === "number" &&
+                    Number.isFinite(entry.stress_level)
+                      ? entry.stress_level
+                      : null;
+                  const energyLevel =
+                    energyLevelRaw === null
+                      ? null
+                      : energyLevelRaw > 5
+                        ? Math.round(energyLevelRaw / 2)
+                        : energyLevelRaw;
+                  const stressLevel =
+                    stressLevelRaw === null
+                      ? null
+                      : stressLevelRaw > 5
+                        ? Math.round(stressLevelRaw / 2)
+                        : stressLevelRaw;
                   const journalImageUrl =
                     typeof entry.journal_image_url === "string"
                       ? entry.journal_image_url.trim()
@@ -628,140 +657,61 @@ function DayDetailsCard({
 
                       {expanded ? (
                         <View style={styles.detailsBlock}>
-                          <Text style={styles.detailsTitle}>Context</Text>
-                          <Text
-                            style={[
-                              styles.detailsLine,
-                              { marginBottom: tags.length > 0 ? 6 : 0 },
-                            ]}
-                          >
-                            Events:
-                            {tags.length === 0 ? (
-                              <Text style={styles.inlineNone}> None</Text>
-                            ) : null}
-                          </Text>
-                          {tags.length > 0 ? (
-                            <View style={styles.eventPillRow}>
-                              {tags.map((tag) => {
-                                const category =
-                                  EVENT_CATEGORY_BY_TAG[tag] || "social";
-                                const colorStyle =
-                                  EVENT_CATEGORY_STYLE[category];
-                                return (
-                                  <View
-                                    key={`${groupKey}-${tag}`}
-                                    style={[
-                                      styles.eventPill,
-                                      {
-                                        backgroundColor: colorStyle.bg,
-                                        borderColor: colorStyle.border,
-                                      },
-                                    ]}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.eventPillText,
-                                        { color: colorStyle.text },
-                                      ]}
-                                    >
-                                      {formatTagLabel(tag)}
-                                    </Text>
-                                  </View>
-                                );
-                              })}
+                          <View style={styles.detailsSection}>
+                            <View style={styles.detailsSectionHeader}>
+                              <Timer size={14} color={DETAILS_ICON_COLOR} />
+                              <Text style={styles.noteLabel}>Mood duration</Text>
                             </View>
-                          ) : null}
-                          <Text
-                            style={[
-                              styles.detailsLine,
-                              {
-                                marginTop: 10,
-                                marginBottom: categories.length > 0 ? 6 : 0,
-                              },
-                            ]}
-                          >
-                            Categories:
-                            {categories.length === 0 ? (
-                              <Text style={styles.inlineNone}> None</Text>
-                            ) : null}
-                          </Text>
-                          {categories.length > 0 ? (
-                            <View style={styles.eventPillRow}>
-                              {categories.map((category) => {
-                                const normalized =
-                                  category === "school" ||
-                                  category === "health" ||
-                                  category === "social" ||
-                                  category === "fun" ||
-                                  category === "productivity"
-                                    ? category
-                                    : "social";
-                                const colorStyle =
-                                  EVENT_CATEGORY_STYLE[normalized];
-                                return (
-                                  <View
-                                    key={`${groupKey}-category-${category}`}
-                                    style={[
-                                      styles.eventPill,
-                                      {
-                                        backgroundColor: colorStyle.bg,
-                                        borderColor: colorStyle.border,
-                                      },
-                                    ]}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.eventPillText,
-                                        { color: colorStyle.text },
-                                      ]}
-                                    >
-                                      {formatCategoryLabel(category)}
-                                    </Text>
-                                  </View>
-                                );
-                              })}
+                            <View style={styles.detailsAnswerWrap}>
+                              <Text style={styles.detailsLine}>
+                                <Text style={styles.healthValue}>
+                                  {formatDurationShort(durationMinutes)}
+                                </Text>
+                              </Text>
                             </View>
-                          ) : null}
-                          <Text style={[styles.detailsLine, { marginTop: 10 }]}>
-                            Mood duration:{" "}
-                            <Text style={styles.healthValue}>
-                              {formatDurationShort(durationMinutes)}
-                            </Text>
-                          </Text>
-                          <View style={styles.noteBlock}>
-                            <Text style={styles.noteLabel}>Note</Text>
-                            <Text
-                              style={
-                                noteText
-                                  ? styles.noteBody
-                                  : styles.noteBodyEmpty
-                              }
-                            >
-                              {noteText || "No notes"}
-                            </Text>
                           </View>
-                          {journalImageUrl ? (
-                            <View style={styles.journalImageBlock}>
-                              <Text style={styles.noteLabel}>
-                                Journal selfie
-                              </Text>
-                              <Image
-                                source={{ uri: journalImageUrl }}
-                                style={styles.journalImage}
-                                resizeMode="cover"
-                              />
+                          <View style={styles.detailsSection}>
+                            <View style={styles.detailsSectionHeader}>
+                              <BarChart3 size={14} color={DETAILS_ICON_COLOR} />
+                              <Text style={styles.noteLabel}>Energy & stress</Text>
                             </View>
-                          ) : null}
-                          <View style={styles.healthChecksBlock}>
-                            <Text style={styles.noteLabel}>Health checks</Text>
-                            <Text style={styles.detailsLine}>
-                              Bath:{" "}
-                              <Text style={styles.healthValue}>
-                                {bathTaken ? "Taken" : "Not yet"}
+                            <View style={styles.detailsAnswerWrap}>
+                              <Text style={styles.detailsLine}>
+                                Energy level:{" "}
+                                <Text style={styles.detailValueAccent}>
+                                  {energyLevel === null ? "--" : `${energyLevel}/5`}
+                                </Text>
                               </Text>
-                            </Text>
+                              <Text style={styles.detailsLine}>
+                                Stress level:{" "}
+                                <Text style={styles.detailValueAccent}>
+                                  {stressLevel === null ? "--" : `${stressLevel}/5`}
+                                </Text>
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.detailsSection}>
+                            <View style={styles.detailsSectionHeader}>
+                              <Bath size={14} color={DETAILS_ICON_COLOR} />
+                              <Text style={styles.noteLabel}>Bath</Text>
+                            </View>
+                            <View style={styles.detailsAnswerWrap}>
+                              <Text style={styles.detailsLine}>
+                                <Text style={styles.healthValue}>
+                                  {bathTaken ? "Taken" : "Not yet"}
+                                </Text>
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.detailsSection}>
+                            <View style={styles.detailsSectionHeader}>
+                              <UtensilsCrossed size={14} color={DETAILS_ICON_COLOR} />
+                              <Text style={styles.noteLabel}>
+                                Meal x{mealResponses.length}
+                              </Text>
+                            </View>
                             {mealResponses.length > 0 ? (
-                              <View style={{ marginTop: 6, gap: 4 }}>
+                              <View style={[styles.detailsAnswerWrap, { gap: 3 }]}>
                                 {mealResponses.map((meal, mealIdx) => (
                                   <Text
                                     key={`${groupKey}-meal-${mealIdx}`}
@@ -776,14 +726,146 @@ function DayDetailsCard({
                                 ))}
                               </View>
                             ) : (
-                              <Text style={styles.detailsLine}>
-                                Meals:{" "}
-                                <Text style={styles.inlineNone}>
-                                  No meal schedule response
+                              <View style={styles.detailsAnswerWrap}>
+                                <Text style={styles.detailsLine}>
+                                  <Text style={styles.inlineNone}>
+                                    No meal schedule response
+                                  </Text>
                                 </Text>
-                              </Text>
+                              </View>
                             )}
                           </View>
+                          <View style={styles.detailsSection}>
+                            <View style={styles.detailsSectionHeader}>
+                              <Tags size={14} color={DETAILS_ICON_COLOR} />
+                              <Text style={styles.noteLabel}>Context</Text>
+                            </View>
+                            <View style={styles.detailsAnswerWrap}>
+                              <Text
+                                style={[
+                                  styles.detailsLine,
+                                  { marginBottom: tags.length > 0 ? 4 : 0 },
+                                ]}
+                              >
+                                Events:
+                                {tags.length === 0 ? (
+                                  <Text style={styles.inlineNone}> None</Text>
+                                ) : null}
+                              </Text>
+                              {tags.length > 0 ? (
+                                <View style={styles.eventPillRow}>
+                                  {tags.map((tag) => {
+                                    const category =
+                                      EVENT_CATEGORY_BY_TAG[tag] || "social";
+                                    const colorStyle =
+                                      EVENT_CATEGORY_STYLE[category];
+                                    return (
+                                      <View
+                                        key={`${groupKey}-${tag}`}
+                                        style={[
+                                          styles.eventPill,
+                                          {
+                                            backgroundColor: colorStyle.bg,
+                                            borderColor: colorStyle.border,
+                                          },
+                                        ]}
+                                      >
+                                        <Text
+                                          style={[
+                                            styles.eventPillText,
+                                            { color: colorStyle.text },
+                                          ]}
+                                        >
+                                          {formatTagLabel(tag)}
+                                        </Text>
+                                      </View>
+                                    );
+                                  })}
+                                </View>
+                              ) : null}
+                              <Text
+                                style={[
+                                  styles.detailsLine,
+                                  {
+                                    marginTop: 8,
+                                    marginBottom: categories.length > 0 ? 4 : 0,
+                                  },
+                                ]}
+                              >
+                                Categories:
+                                {categories.length === 0 ? (
+                                  <Text style={styles.inlineNone}> None</Text>
+                                ) : null}
+                              </Text>
+                              {categories.length > 0 ? (
+                                <View style={styles.eventPillRow}>
+                                  {categories.map((category) => {
+                                    const normalized =
+                                      category === "school" ||
+                                      category === "health" ||
+                                      category === "social" ||
+                                      category === "fun" ||
+                                      category === "productivity"
+                                        ? category
+                                        : "social";
+                                    const colorStyle =
+                                      EVENT_CATEGORY_STYLE[normalized];
+                                    return (
+                                      <View
+                                        key={`${groupKey}-category-${category}`}
+                                        style={[
+                                          styles.eventPill,
+                                          {
+                                            backgroundColor: colorStyle.bg,
+                                            borderColor: colorStyle.border,
+                                          },
+                                        ]}
+                                      >
+                                        <Text
+                                          style={[
+                                            styles.eventPillText,
+                                            { color: colorStyle.text },
+                                          ]}
+                                        >
+                                          {formatCategoryLabel(category)}
+                                        </Text>
+                                      </View>
+                                    );
+                                  })}
+                                </View>
+                              ) : null}
+                            </View>
+                          </View>
+                          <View style={styles.detailsSection}>
+                            <View style={styles.detailsSectionHeader}>
+                              <NotebookPen size={14} color={DETAILS_ICON_COLOR} />
+                              <Text style={styles.noteLabel}>Note</Text>
+                            </View>
+                            <View style={styles.detailsAnswerWrap}>
+                              <Text
+                                style={
+                                  noteText
+                                    ? styles.noteBody
+                                    : styles.noteBodyEmpty
+                                }
+                              >
+                                {noteText || "No notes"}
+                              </Text>
+                            </View>
+                          </View>
+                          {journalImageUrl ? (
+                            <View style={styles.journalImageBlock}>
+                              <View style={styles.detailsSectionHeader}>
+                                <ImageIcon size={14} color={DETAILS_ICON_COLOR} />
+                                <Text style={styles.noteLabel}>Photo</Text>
+                              </View>
+                              <Image
+                                source={{ uri: journalImageUrl }}
+                                style={styles.journalImage}
+                                resizeMode="cover"
+                              />
+                            </View>
+                          ) : null}
                           {schoolInsight ? (
                             <View style={styles.schoolInsightBlock}>
                               <Text style={styles.schoolInsightLabel}>
@@ -958,21 +1040,40 @@ const styles = StyleSheet.create({
     borderColor: AURORA.blue,
   },
   detailsBlock: {
-    marginTop: 10,
+    marginTop: 8,
     borderTopWidth: 1,
     borderTopColor: "rgba(148,163,184,0.2)",
-    paddingTop: 10,
+    paddingTop: 8,
+  },
+  detailsSection: {
+    marginTop: 8,
+  },
+  detailsSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 3,
+  },
+  detailsAnswerWrap: {
+    marginLeft: 20,
+    marginTop: 2,
+    paddingLeft: 8,
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(147,197,253,0.22)",
   },
   detailsTitle: {
     color: "#cbd5e1",
     fontSize: 12,
     fontWeight: "700",
-    marginBottom: 4,
   },
   detailsLine: {
     color: "#94a3b8",
     fontSize: 12,
     lineHeight: 18,
+  },
+  detailValueAccent: {
+    color: "#bbf7d0",
+    fontWeight: "700",
   },
   inlineNone: {
     color: "#94a3b8",
@@ -999,10 +1100,13 @@ const styles = StyleSheet.create({
   noteLabel: {
     color: AURORA.blue,
     fontSize: 11,
+    lineHeight: 12,
     fontWeight: "800",
     letterSpacing: 1.2,
     textTransform: "uppercase",
-    marginBottom: 6,
+    marginBottom: 0,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   noteBody: {
     color: "#e2e8f0",
@@ -1048,15 +1152,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: AURORA.border,
     backgroundColor: "rgba(15,23,42,0.6)",
-  },
-  healthChecksBlock: {
-    marginTop: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(16,185,129,0.28)",
-    backgroundColor: "rgba(16,185,129,0.10)",
   },
   healthValue: {
     color: "#BBF7D0",
