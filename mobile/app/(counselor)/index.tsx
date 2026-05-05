@@ -20,6 +20,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { doc, getDoc } from "firebase/firestore";
 import {
+  ChevronLeft,
   ChevronRight,
   Users,
   Calendar,
@@ -56,6 +57,7 @@ import { db } from "../../src/services/firebase";
 
 const hiddenCounselorSessionsSheetStorageKey = (counselorId: string) =>
   `aurora.counselorSessionsSheet.hidden:${counselorId}`;
+const STUDENTS_PAGE_SIZE = 5;
 
 async function loadHiddenCounselorSheetSessionIds(
   counselorId: string,
@@ -145,18 +147,20 @@ function formatTimeAgo(date: Date): string {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-function getRosterPillStyle(pill: CounselorStudentRosterPill) {
+function getRosterPillStyle(
+  pill: CounselorStudentRosterPill,
+): { badgeBg: string; border: string; text: string } {
   switch (pill) {
     case "session_started":
       return {
-        border: AURORA.blue,
         badgeBg: "rgba(45,107,255,0.18)",
+        border: "rgba(45,107,255,0.45)",
         text: AURORA.blue,
       };
     case "no_session_yet":
       return {
-        border: "rgba(148,163,184,0.55)",
         badgeBg: "rgba(148,163,184,0.12)",
+        border: "rgba(148,163,184,0.35)",
         text: AURORA.textSec,
       };
   }
@@ -211,7 +215,11 @@ function counselorSessionOverviewCategory(
     }
   }
 
-  if (st === "confirmed" || st === "rescheduled" || (st === "pending" && hasLocked)) {
+  if (
+    st === "confirmed" ||
+    st === "rescheduled" ||
+    (st === "pending" && hasLocked)
+  ) {
     if (!hasLocked) return null;
     const parsed = parseSlotToDate({
       date: locked!.date,
@@ -660,6 +668,7 @@ export default function CounselorHomeScreen() {
     useState(false);
   const [hiddenCounselorSheetSessionIds, setHiddenCounselorSheetSessionIds] =
     useState<string[]>([]);
+  const [studentsPage, setStudentsPage] = useState(1);
   const firstName = user?.full_name?.split(" ")[0] || "Counselor";
 
   useEffect(() => {
@@ -691,6 +700,18 @@ export default function CounselorHomeScreen() {
     () => buildCounselorSessionsSheetSections(visiblePendingSessions),
     [visiblePendingSessions],
   );
+  const totalStudentPages = Math.max(
+    1,
+    Math.ceil(recentFlags.length / STUDENTS_PAGE_SIZE),
+  );
+  const paginatedRecentFlags = useMemo(() => {
+    const start = (studentsPage - 1) * STUDENTS_PAGE_SIZE;
+    return recentFlags.slice(start, start + STUDENTS_PAGE_SIZE);
+  }, [recentFlags, studentsPage]);
+
+  useEffect(() => {
+    setStudentsPage((prev) => Math.min(prev, totalStudentPages));
+  }, [totalStudentPages]);
 
   const hideCounselorSheetSessionCard = useCallback(
     (sessionId: string) => {
@@ -725,7 +746,7 @@ export default function CounselorHomeScreen() {
                 sessionStarted =
                   settings.counselorJournalAccess?.[counselorId] === true;
               }
-              if (sessionStarted) {
+              if (sessionStarted && counselorId) {
                 const { logs } =
                   await fetchStudentCheckInSignalContextForCounselor(
                     s.id,
@@ -983,8 +1004,6 @@ export default function CounselorHomeScreen() {
                   style={{
                     width: 38,
                     height: 38,
-                    borderRadius: 19,
-                    backgroundColor: "rgba(45,107,255,0.15)",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
@@ -1001,8 +1020,6 @@ export default function CounselorHomeScreen() {
                   style={{
                     width: 38,
                     height: 38,
-                    borderRadius: 19,
-                    backgroundColor: "rgba(16,185,129,0.2)",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
@@ -1068,7 +1085,7 @@ export default function CounselorHomeScreen() {
               <ChevronRight size={14} color={AURORA.blue} />
             </TouchableOpacity>
           </View>
-          <Text
+          {/* <Text
             style={{
               color: AURORA.textMuted,
               fontSize: 11,
@@ -1078,7 +1095,7 @@ export default function CounselorHomeScreen() {
           >
             Scheduling with you first • Updated{" "}
             {lastUpdatedAt ? formatTimeAgo(lastUpdatedAt) : "just now"}
-          </Text>
+          </Text> */}
 
           {loading ? (
             <View style={{ paddingVertical: 24, alignItems: "center" }}>
@@ -1093,7 +1110,71 @@ export default function CounselorHomeScreen() {
               </Text>
             </View>
           ) : (
-            recentFlags.map((item) => <FlagRow key={item.id} item={item} />)
+            <>
+              {paginatedRecentFlags.map((item) => (
+                <FlagRow key={item.id} item={item} />
+              ))}
+              {totalStudentPages > 1 ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginTop: 6,
+                    marginBottom: 4,
+                    gap: 8,
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() =>
+                      setStudentsPage((prev) => Math.max(1, prev - 1))
+                    }
+                    disabled={studentsPage === 1}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
+                      backgroundColor: AURORA.card,
+                      opacity: studentsPage === 1 ? 0.5 : 1,
+                    }}
+                  >
+                    <ChevronLeft size={16} color={AURORA.textSec} />
+                  </TouchableOpacity>
+                  <Text
+                    style={{
+                      color: AURORA.textMuted,
+                      fontSize: 12,
+                      fontWeight: "700",
+                      minWidth: 86,
+                      textAlign: "center",
+                    }}
+                  >
+                    Page {studentsPage} of {totalStudentPages}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setStudentsPage((prev) =>
+                        Math.min(totalStudentPages, prev + 1),
+                      )
+                    }
+                    disabled={studentsPage === totalStudentPages}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
+                      backgroundColor: AURORA.card,
+                      opacity: studentsPage === totalStudentPages ? 0.5 : 1,
+                    }}
+                  >
+                    <ChevronRight size={16} color={AURORA.textSec} />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </>
           )}
 
           {/* ── Announcements (dynamic, from admin/counselor) ───────── */}
