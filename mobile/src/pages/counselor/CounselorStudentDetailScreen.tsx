@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Mail, Phone } from "lucide-react-native";
 import { db } from "../../services/firebase";
 import { AURORA } from "../../constants/aurora-colors";
 import { LetterAvatar } from "../../components/common/LetterAvatar";
@@ -31,6 +31,8 @@ import { CounselorStudentLast7Charts } from "../../components/counselor/Counselo
 
 type StudentDoc = {
   full_name?: string;
+  email?: string;
+  contact_number?: string;
   department?: string;
   program?: string;
   year_level?: string;
@@ -377,6 +379,46 @@ export default function CounselorStudentDetailScreen() {
                 >
                   {programLine}
                 </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 6,
+                    gap: 6,
+                  }}
+                >
+                  <Mail size={13} color="#BFD2FF" />
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: "#C9D8FF",
+                      fontSize: 12,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {student.email?.trim() || "No email provided"}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 4,
+                    gap: 6,
+                  }}
+                >
+                  <Phone size={13} color="#BFD2FF" />
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: "#C9D8FF",
+                      fontSize: 12,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {student.contact_number?.trim() || "No contact number"}
+                  </Text>
+                </View>
               </View>
             </View>
 
