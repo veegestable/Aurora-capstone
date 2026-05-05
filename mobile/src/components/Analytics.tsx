@@ -2099,7 +2099,7 @@ export default function Analytics() {
                         marginBottom: 10,
                       }}
                     >
-                      Total merged retrospective minutes per mood.
+                      Total minutes spent in each mood.
                     </Text>
                     {todayDurationBars.length === 0 ? (
                       <Text style={{ color: AURORA.textSec, fontSize: 12 }}>

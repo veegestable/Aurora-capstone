@@ -256,7 +256,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         <Text
           style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 10 }}
         >
-          Total merged retrospective minutes per mood (last 7 days).
+          Total minutes spent in each mood.
         </Text>
         {durationBars.length === 0 ? (
           <Text style={{ color: AURORA.textSec, fontSize: 12 }}>

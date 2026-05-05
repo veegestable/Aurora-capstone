@@ -853,19 +853,23 @@ function DayDetailsCard({
                               </Text>
                             </View>
                           </View>
-                          {journalImageUrl ? (
-                            <View style={styles.journalImageBlock}>
-                              <View style={styles.detailsSectionHeader}>
-                                <ImageIcon size={14} color={DETAILS_ICON_COLOR} />
-                                <Text style={styles.noteLabel}>Photo</Text>
-                              </View>
+                          <View style={styles.journalImageBlock}>
+                            <View style={styles.detailsSectionHeader}>
+                              <ImageIcon size={14} color={DETAILS_ICON_COLOR} />
+                              <Text style={styles.noteLabel}>Photo</Text>
+                            </View>
+                            {journalImageUrl ? (
                               <Image
                                 source={{ uri: journalImageUrl }}
                                 style={styles.journalImage}
                                 resizeMode="cover"
                               />
-                            </View>
-                          ) : null}
+                            ) : (
+                              <View style={styles.detailsAnswerWrap}>
+                                <Text style={styles.noteBodyEmpty}>No photo</Text>
+                              </View>
+                            )}
+                          </View>
                           {schoolInsight ? (
                             <View style={styles.schoolInsightBlock}>
                               <Text style={styles.schoolInsightLabel}>
