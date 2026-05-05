@@ -13,7 +13,9 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -880,9 +882,9 @@ function EditProfileModal({
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-function formatResetHourLabel(h: number): string {
+function formatResetHourLabel(h: number, m = 0): string {
   const d = new Date();
-  d.setHours(h, 0, 0, 0);
+  d.setHours(h, m, 0, 0);
   return d.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -913,8 +915,9 @@ export default function ProfileScreen() {
   const { user, signOut, updateUser, uploadAvatar } = useAuth();
   const {
     reminderHour,
+    reminderMinute,
     remindersEnabled,
-    setReminderHour,
+    setReminderTime,
     setRemindersEnabled,
     mealSchedule,
     setMealSchedule,
@@ -970,9 +973,9 @@ export default function ProfileScreen() {
 
   const pickerValue = useMemo(() => {
     const d = new Date();
-    d.setHours(reminderHour, 0, 0, 0);
+    d.setHours(reminderHour, reminderMinute, 0, 0);
     return d;
-  }, [reminderHour]);
+  }, [reminderHour, reminderMinute]);
   const mealTimePickerValue = useMemo(() => {
     const meal = activeMealIndex != null ? mealDraft[activeMealIndex] : null;
     const [hRaw, mRaw] = (meal?.time || "07:00").split(":");
@@ -1012,6 +1015,22 @@ export default function ProfileScreen() {
     const period = clampedHour >= 12 ? "PM" : "AM";
     const hour12 = clampedHour % 12 || 12;
     return `${hour12}:${String(clampedMinute).padStart(2, "0")} ${period}`;
+  };
+
+  const openAndroidTimePicker = (
+    value: Date,
+    onSelect: (selected: Date) => void,
+  ) => {
+    DateTimePickerAndroid.open({
+      value,
+      mode: "time",
+      is24Hour: false,
+      onChange: (event, selectedDate) => {
+        if (event.type === "set" && selectedDate) {
+          onSelect(selectedDate);
+        }
+      },
+    });
   };
 
   const normalizeMealCount = (count: number, base: MealScheduleItem[]) => {
@@ -1076,6 +1095,13 @@ export default function ProfileScreen() {
   };
 
   const openMealTimePicker = (idx: number) => {
+    if (Platform.OS === "android") {
+      const meal = mealDraft[idx];
+      openAndroidTimePicker(hhmmToDate(meal?.time || "", "07:00"), (selected) => {
+        updateMealTime(idx, selected.getHours(), selected.getMinutes());
+      });
+      return;
+    }
     setActiveMealIndex(idx);
   };
 
@@ -1101,7 +1127,7 @@ export default function ProfileScreen() {
         await clearDailyCheckInReminder();
         return;
       }
-      const ok = await scheduleDailyCheckInReminder(reminderHour);
+      const ok = await scheduleDailyCheckInReminder(reminderHour, reminderMinute);
       if (!ok) {
         Alert.alert(
           "Notifications disabled",
@@ -1110,7 +1136,7 @@ export default function ProfileScreen() {
       }
     };
     void run();
-  }, [remindersEnabled, reminderHour, settingsLoading]);
+  }, [remindersEnabled, reminderHour, reminderMinute, settingsLoading]);
 
   useEffect(() => {
     if (!user) return;
@@ -1447,7 +1473,18 @@ export default function ProfileScreen() {
                             onValueChange={setAiCamera}
                         /> */}
             <TouchableOpacity
-              onPress={() => setShowReminderTimePicker(true)}
+              onPress={() => {
+                if (Platform.OS === "android") {
+                  openAndroidTimePicker(pickerValue, (selected) => {
+                    void setReminderTime(
+                      selected.getHours(),
+                      selected.getMinutes(),
+                    );
+                  });
+                  return;
+                }
+                setShowReminderTimePicker(true);
+              }}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
@@ -1469,7 +1506,7 @@ export default function ProfileScreen() {
               <Text
                 style={{ color: AURORA.blue, fontSize: 14, fontWeight: "700" }}
               >
-                {formatResetHourLabel(reminderHour)}
+                {formatResetHourLabel(reminderHour, reminderMinute)}
               </Text>
               <ChevronRight
                 size={16}
@@ -1539,42 +1576,44 @@ export default function ProfileScreen() {
                         </TouchableOpacity> */}
           </View>
 
-          <Modal
-            visible={showReminderTimePicker}
-            transparent
-            animationType="slide"
-          >
-            <TouchableOpacity
-              style={{
-                flex: 1,
-                justifyContent: "flex-end",
-                backgroundColor: "rgba(0,0,0,0.45)",
-              }}
-              activeOpacity={1}
-              onPress={() => setShowReminderTimePicker(false)}
+          {Platform.OS === "ios" ? (
+            <Modal
+              visible={showReminderTimePicker}
+              transparent
+              animationType="slide"
             >
-              <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-                <View
-                  style={{
-                    backgroundColor: AURORA.card,
-                    padding: 16,
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
-                    borderWidth: 1,
-                    borderColor: AURORA.border,
-                  }}
-                >
-                  <DateTimePicker
-                    value={pickerValue}
-                    mode="time"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={async (_e, date) => {
-                      if (Platform.OS === "android")
-                        setShowReminderTimePicker(false);
-                      if (date) await setReminderHour(date.getHours());
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  justifyContent: "flex-end",
+                  backgroundColor: "rgba(0,0,0,0.45)",
+                }}
+                activeOpacity={1}
+                onPress={() => setShowReminderTimePicker(false)}
+              >
+                <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+                  <View
+                    style={{
+                      backgroundColor: AURORA.card,
+                      padding: 16,
+                      borderTopLeftRadius: 16,
+                      borderTopRightRadius: 16,
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
                     }}
-                  />
-                  {Platform.OS === "ios" ? (
+                  >
+                    <DateTimePicker
+                      value={pickerValue}
+                      mode="time"
+                      display="spinner"
+                      onChange={(_e, date) => {
+                        if (date)
+                          void setReminderTime(
+                            date.getHours(),
+                            date.getMinutes(),
+                          );
+                      }}
+                    />
                     <TouchableOpacity
                       onPress={() => setShowReminderTimePicker(false)}
                       style={{
@@ -1589,11 +1628,11 @@ export default function ProfileScreen() {
                         Done
                       </Text>
                     </TouchableOpacity>
-                  ) : null}
-                </View>
+                  </View>
+                </TouchableOpacity>
               </TouchableOpacity>
-            </TouchableOpacity>
-          </Modal>
+            </Modal>
+          ) : null}
           <Modal visible={showMeal} transparent animationType="slide">
             <View
               style={{
@@ -1849,7 +1888,7 @@ export default function ProfileScreen() {
                     <DateTimePicker
                       value={mealTimePickerValue}
                       mode="time"
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                    display="spinner"
                       onChange={(_e, date) => {
                         if (date && activeMealIndex != null) {
                           updateMealTime(
@@ -2008,14 +2047,42 @@ export default function ProfileScreen() {
                     Your usual wake time helps Aurora ask sleep and routine
                     questions at sensible moments (similar to meal times).
                   </Text>
-                  <DateTimePicker
-                    value={wakePickDate}
-                    mode="time"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={(_e, date) => {
-                      if (date) setWakePickDate(date);
-                    }}
-                  />
+                  {Platform.OS === "ios" ? (
+                    <DateTimePicker
+                      value={wakePickDate}
+                      mode="time"
+                      display="spinner"
+                      onChange={(_e, date) => {
+                        if (date) setWakePickDate(date);
+                      }}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() =>
+                        openAndroidTimePicker(wakePickDate, setWakePickDate)
+                      }
+                      style={{
+                        marginTop: 4,
+                        paddingVertical: 12,
+                        paddingHorizontal: 14,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: AURORA.border,
+                        backgroundColor: AURORA.cardAlt,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#FFFFFF",
+                          fontSize: 16,
+                          fontWeight: "700",
+                          textAlign: "center",
+                        }}
+                      >
+                        {toFriendlyMealTime(dateToHHmm(wakePickDate))}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                     <TouchableOpacity
                       onPress={() => {
@@ -2153,14 +2220,42 @@ export default function ProfileScreen() {
                     Your usual bath time helps Aurora prompt bath check-ins
                     around when you normally take one.
                   </Text>
-                  <DateTimePicker
-                    value={bathPickDate}
-                    mode="time"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={(_e, date) => {
-                      if (date) setBathPickDate(date);
-                    }}
-                  />
+                  {Platform.OS === "ios" ? (
+                    <DateTimePicker
+                      value={bathPickDate}
+                      mode="time"
+                      display="spinner"
+                      onChange={(_e, date) => {
+                        if (date) setBathPickDate(date);
+                      }}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() =>
+                        openAndroidTimePicker(bathPickDate, setBathPickDate)
+                      }
+                      style={{
+                        marginTop: 4,
+                        paddingVertical: 12,
+                        paddingHorizontal: 14,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: AURORA.border,
+                        backgroundColor: AURORA.cardAlt,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#FFFFFF",
+                          fontSize: 16,
+                          fontWeight: "700",
+                          textAlign: "center",
+                        }}
+                      >
+                        {toFriendlyMealTime(dateToHHmm(bathPickDate))}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                     <TouchableOpacity
                       onPress={() => {
