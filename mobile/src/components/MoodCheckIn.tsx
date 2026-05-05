@@ -312,6 +312,13 @@ export function MoodCheckIn({
   const firstName = user?.full_name ? user.full_name.split(" ")[0] : "there";
   const totalSteps = 3;
 
+  useEffect(() => {
+    const id = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }, 0);
+    return () => clearTimeout(id);
+  }, [currentStep]);
+
   const floatingProgress = useSharedValue(0);
   useEffect(() => {
     floatingProgress.value = withRepeat(
@@ -2896,7 +2903,11 @@ export function MoodCheckIn({
                   </Animatable.View>
                 ))
               )}
-              <View
+              <Animatable.View
+                animation="fadeInUp"
+                duration={360}
+                delay={Math.max(160, categoryConfigs.length * 80 + 80)}
+                useNativeDriver
                 style={{
                   backgroundColor: AURORA.card,
                   borderWidth: 1,
@@ -3166,7 +3177,7 @@ export function MoodCheckIn({
                     />
                   ) : null}
                 </View>
-              </View>
+              </Animatable.View>
             </View>
           )}
         </View>
