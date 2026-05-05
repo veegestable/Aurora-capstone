@@ -2247,8 +2247,8 @@ export function MoodCheckIn({
               >
                 <MoonStar size={16} color={AURORA.blue} />
                 <Text style={{ color: AURORA.textPrimary, fontWeight: "700" }}>
-                  Sleep quality{" "}
-                  <Text
+                  Sleep Quality{" "}
+                  {/* <Text
                     style={{
                       color: AURORA.textMuted,
                       fontWeight: "500",
@@ -2259,7 +2259,7 @@ export function MoodCheckIn({
                       : sleepCapturedToday
                         ? "(already set today)"
                         : "(set once daily)"}
-                  </Text>
+                  </Text> */}
                 </Text>
                 <TouchableOpacity
                   onPress={showSleepGuide}
@@ -2397,7 +2397,7 @@ export function MoodCheckIn({
                   <Text
                     style={{ color: AURORA.textPrimary, fontWeight: "700" }}
                   >
-                    Meal check-in
+                    Meal Check-in
                   </Text>
                   <TouchableOpacity
                     onPress={showMealGuide}
@@ -2584,8 +2584,8 @@ export function MoodCheckIn({
                   <Text
                     style={{ color: AURORA.textPrimary, fontWeight: "700" }}
                   >
-                    Bath today{" "}
-                    <Text
+                    Bath Check-in{" "}
+                    {/* <Text
                       style={{
                         color: AURORA.textMuted,
                         fontWeight: "500",
@@ -2596,7 +2596,7 @@ export function MoodCheckIn({
                         : bathTakenToday
                           ? "(already set today)"
                           : "(once daily)"}
-                    </Text>
+                    </Text> */}
                   </Text>
                   <TouchableOpacity
                     onPress={showBathGuide}
