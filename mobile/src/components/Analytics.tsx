@@ -28,6 +28,7 @@ import Animated, {
 import { Sparkles, TrendingUp, CircleHelp } from "lucide-react-native";
 import { useAuth } from "../stores/AuthContext";
 import { moodService } from "../services/mood.service";
+import { auth } from "../services/firebase";
 import {
   buildWeekSummaryInput,
   generateWeeklySummary,
@@ -78,6 +79,18 @@ const ANALYTICS_VIEW_TOGGLE_PAD = 4;
 const UI_TEXT_SECONDARY = "#C1CEE9";
 const UI_TEXT_MUTED = "#9AA9C8";
 const UI_SECTION_GAP = 12;
+
+function isPermissionDeniedError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const maybe = error as { code?: unknown; message?: unknown };
+  const code =
+    typeof maybe.code === "string" ? maybe.code.toLowerCase() : "";
+  const message =
+    typeof maybe.message === "string" ? maybe.message.toLowerCase() : "";
+  return code.includes("permission-denied") || code.includes("permission_denied")
+    ? true
+    : message.includes("missing or insufficient permissions");
+}
 
 /** Staggered fade-in-up for analytics panels (skipped when reduce motion is on). */
 function analyticsPanelEnter(reduceMotion: boolean, delayMs: number) {
@@ -691,7 +704,13 @@ export default function Analytics() {
         setLastUpdatedAt(new Date());
         return list;
       } catch (e) {
-        console.error("Analytics logs refresh failed", e);
+        const signedOutOrSwitchedUser =
+          !auth.currentUser || auth.currentUser.uid !== user.id;
+        const shouldSuppress =
+          signedOutOrSwitchedUser && isPermissionDeniedError(e);
+        if (!shouldSuppress) {
+          console.error("Analytics logs refresh failed", e);
+        }
         if (shouldSetBusyState) setLogs([]);
         return [];
       } finally {
