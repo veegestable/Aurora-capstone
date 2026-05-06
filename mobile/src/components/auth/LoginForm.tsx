@@ -20,7 +20,7 @@ import {
 } from "../../utils/signupEmailPolicy";
 
 /** Same width as native header + feature row; slightly under full bleed for side margins */
-export const LOGIN_AUTH_COLUMN_MAX = 288;
+export const LOGIN_AUTH_COLUMN_MAX = 320;
 
 const REGISTRATION_RESEND_COOLDOWN_SEC = 60;
 const SIGN_IN_RESEND_COOLDOWN_SEC = 60;
@@ -278,6 +278,7 @@ export default function LoginForm() {
                   dense={compact}
                   label="Full Name"
                   placeholder="Enter your full name"
+                  className="pl-4"
                   value={formData.fullName}
                   onChangeText={(text) => updateFormData("fullName", text)}
                   autoCapitalize="words"
@@ -286,7 +287,8 @@ export default function LoginForm() {
                   variant="glass"
                   dense={compact}
                   label="Contact number"
-                  placeholder="Mobile number (e.g. 09XXXXXXXXX)"
+                  placeholder="Enter your contact number"
+                  className="pl-4"
                   value={formData.contactNumber}
                   onChangeText={(text) => updateFormData("contactNumber", text)}
                   keyboardType="phone-pad"
@@ -361,6 +363,7 @@ export default function LoginForm() {
               dense={compact}
               label="Email"
               placeholder="Enter your email"
+              className="pl-4"
               value={formData.email}
               onChangeText={(text) => updateFormData("email", text)}
               keyboardType="email-address"
@@ -373,6 +376,7 @@ export default function LoginForm() {
                 dense={compact}
                 label="Password"
                 placeholder="Enter your password"
+                className="pl-4"
                 value={formData.password}
                 onChangeText={(text) => updateFormData("password", text)}
                 secureTextEntry={!isPasswordVisible}
@@ -517,13 +521,12 @@ const styles = StyleSheet.create({
   passwordToggle: {
     position: "absolute",
     right: 16,
-    padding: 6,
     zIndex: 2,
   },
   glass: {
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderWidth: 0.5,
+    // borderColor: "rgba(255,255,255,0.18)",
     overflow: "hidden",
     position: "relative",
   },

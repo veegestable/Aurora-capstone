@@ -48,16 +48,20 @@ export const Input = forwardRef<TextInput, InputProps>(({
                 ref={ref}
                 style={isGlass ? {
                     color: '#FFFFFF',
-                    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(255, 255, 255, 0.4)',
-                    borderRadius: dense ? 9 : 12,
-                    paddingHorizontal: dense ? 10 : 16,
-                    paddingVertical: dense ? 8 : 14,
-                    fontSize: dense ? 14 : 16,
+                    backgroundColor: 'rgba(166, 166, 166, 0.22)',
+                    borderWidth: 0.5,
+                    // borderColor: 'rgba(255, 255, 255, 0.4)',
+                    borderRadius: dense ? 14 : 16,
+                    paddingHorizontal: dense ? 8 : 16,
+                    paddingVertical: 0,
+                    height: dense ? 40 : 48,
+                    fontSize: dense ? 12 : 16,
+                    lineHeight: dense ? 16 : 20,
+                    textAlignVertical: 'center',
+                    includeFontPadding: false,
                 } : undefined}
                 className={twMerge(
-                    "text-base rounded-xl px-4 py-3 border",
+                    isGlass ? "text-base" : "text-base rounded-xl px-4 py-3 border",
                     !isGlass && "bg-white border-gray-200 text-gray-900",
                     error ? "border-red-500" : !isGlass && "focus:border-blue-500",
                     className

@@ -185,8 +185,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 14,
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    // borderColor: "rgba(255,255,255,0.12)",
     overflow: "hidden",
     position: "relative",
   },
@@ -206,7 +205,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   featureIconNative: {
-    marginBottom: 2,
+    marginBottom: 8,
   },
   featureLabel: {
     fontSize: 10,
