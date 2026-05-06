@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  Dimensions,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-} from "react-native";
+import { View, Dimensions, StyleSheet, Image, TouchableOpacity } from "react-native";
 import Carousel, { Pagination } from "react-native-reanimated-carousel";
 import { useSharedValue } from "react-native-reanimated";
 import type { Announcement } from "../../services/announcements.service";
@@ -14,6 +7,7 @@ import { announcementsService } from "../../services/announcements.service";
 import { AURORA } from "../../constants/aurora-colors";
 import { Megaphone } from "lucide-react-native";
 import { triggerHaptic } from "../../utils/haptics";
+import { AppText as Text } from "../common/AppText";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 48;

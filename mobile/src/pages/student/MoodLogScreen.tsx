@@ -1,21 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  Modal,
-  Platform,
-  ActivityIndicator,
-  StyleSheet,
-  Alert,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, Image, Modal, Platform, ActivityIndicator, StyleSheet, Alert } from "react-native";
+import { AppText as Text } from "../../components/common/AppText";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   TrendingUp,
   Lightbulb,
+  Flame,
   Camera,
   MessageSquare,
   BookOpen,
@@ -553,7 +544,7 @@ function StreakCard({ streak }: { streak: number }) {
                     <Text style={{ color: '#FDBA74', fontSize: 9, fontWeight: '700' }}>Active</Text>
                 </View> */}
       </View>
-      <Text style={{ fontSize: 22, marginBottom: 8 }}>🔥</Text>
+      <Flame size={22} color="#FB923C" style={{ marginBottom: 8 }} />
       <Text
         style={{
           color: "#FFFFFF",
@@ -574,7 +565,7 @@ function StreakCard({ streak }: { streak: number }) {
       >
         Days
       </Text>
-      <Text
+      {/* <Text
         style={{
           color: UI_TEXT_SECONDARY,
           fontSize: 10,
@@ -583,7 +574,7 @@ function StreakCard({ streak }: { streak: number }) {
         }}
       >
         Keep checking in daily to grow this streak.
-      </Text>
+      </Text> */}
     </View>
   );
 }
@@ -1274,7 +1265,7 @@ export default function MoodLogScreen() {
                 style={{
                   color: "#FFFFFF",
                   fontSize: 24,
-                  fontWeight: "900",
+                  fontWeight: "700",
                   lineHeight: 26,
                 }}
               >
@@ -1290,7 +1281,7 @@ export default function MoodLogScreen() {
               >
                 Mood Stability
               </Text>
-              <Text
+              {/* <Text
                 style={{
                   color: UI_TEXT_SECONDARY,
                   fontSize: 10,
@@ -1303,7 +1294,7 @@ export default function MoodLogScreen() {
                   : stats.todayCount === 1
                     ? "Add one more check-in"
                     : "Ups and downs today (e.g., higher stress or lower energy in some check-ins)"}
-              </Text>
+              </Text> */}
             </View>
           </View>
 

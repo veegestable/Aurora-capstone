@@ -1,19 +1,10 @@
+import { AppText as Text } from "../common/AppText";
 /**
  * StudentProfileModal — counselor view: optional check-in summary (last N days) + invite.
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-    Modal,
-    View,
-    Text,
-    TouchableOpacity,
-    ActivityIndicator,
-    StyleSheet,
-    Alert,
-    ScrollView,
-    useWindowDimensions,
-} from 'react-native';
+import { Modal, View, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, ScrollView, useWindowDimensions } from "react-native";
 import { X, ChevronDown, Heart, Zap, Smile, Activity, Hash } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { AURORA } from '../../constants/aurora-colors';

@@ -1,3 +1,4 @@
+import { AppText as Text } from "../../components/common/AppText";
 /**
  * Counselor student profile: all students see a baseline mood calendar (date, time, mood only).
  * “Special population” (session request to this counselor, or student accepted counselor’s slot):
@@ -5,14 +6,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-  Alert,
-} from "react-native";
+import { View, TouchableOpacity, ActivityIndicator, ScrollView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";

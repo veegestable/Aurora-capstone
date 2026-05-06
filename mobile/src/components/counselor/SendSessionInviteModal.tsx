@@ -1,20 +1,12 @@
+import { AppText as Text } from "../common/AppText";
+import { AppTextInput as TextInput } from "../common/AppTextInput";
 /**
  * SendSessionInviteModal - Bottom sheet for counselor to invite student to a session
  * Matches Aurora design: student profile, proposed time slots, supportive note
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-    Modal,
-    View,
-    Text,
-    TouchableOpacity,
-    TextInput,
-    ScrollView,
-    StyleSheet,
-    Platform,
-    KeyboardAvoidingView,
-} from 'react-native';
+import { Modal, View, TouchableOpacity, ScrollView, StyleSheet, Platform, KeyboardAvoidingView } from "react-native";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { X, Send, Calendar, Pencil, Info } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';

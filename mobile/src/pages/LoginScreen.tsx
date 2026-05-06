@@ -1,18 +1,11 @@
 import React from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-} from "react-native";
+import { View, ScrollView, Image, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
 import { Heart, Brain, Users } from "lucide-react-native";
 import { Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LoginForm, { LOGIN_AUTH_COLUMN_MAX } from "../components/auth/LoginForm";
+import { AppText as Text } from "../components/common/AppText";
 
 const FEATURES = [
   { icon: Brain, label: "Mood tracking", color: "#34D399" },

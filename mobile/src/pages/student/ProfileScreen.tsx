@@ -1,18 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Switch,
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, Switch, Alert, Image, Modal, Platform, ActivityIndicator, KeyboardAvoidingView } from "react-native";
+import { AppText as Text } from "../../components/common/AppText";
+import { AppTextInput as TextInput } from "../../components/common/AppTextInput";
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
@@ -1375,7 +1364,7 @@ export default function ProfileScreen() {
               label="Contact number"
               value={user?.contact_number || "Not set"}
             />
-            <Text
+            {/* <Text
               style={{
                 color: AURORA.textMuted,
                 fontSize: 11,
@@ -1386,7 +1375,7 @@ export default function ProfileScreen() {
             >
               Student number is used for school identity verification. Contact
               number is for scheduling and urgent reach-out only.
-            </Text>
+            </Text> */}
           </View>
 
           {/* ── Privacy Transparency ─────────────────────────────── */}
@@ -1394,7 +1383,7 @@ export default function ProfileScreen() {
             icon={<Lock size={14} color={AURORA.blue} />}
             title="PRIVACY TRANSPARENCY"
           />
-          <Text
+          {/* <Text
             style={{
               color: AURORA.textMuted,
               fontSize: 12,
@@ -1403,7 +1392,7 @@ export default function ProfileScreen() {
             }}
           >
             How guidance can use your check-ins in Aurora (no toggle — policy is fixed for now).
-          </Text>
+          </Text> */}
           <View
             style={{
               backgroundColor: AURORA.card,
@@ -1514,7 +1503,7 @@ export default function ProfileScreen() {
                 style={{ marginLeft: 8 }}
               />
             </TouchableOpacity>
-            <Text
+            {/* <Text
               style={{
                 color: "#95A8D4",
                 fontSize: 11,
@@ -1535,7 +1524,7 @@ export default function ProfileScreen() {
               }}
             >
               Session update notifications are best-effort on this app build.
-            </Text>
+            </Text> */}
             {sessionPushEnabled && devicePermissionGranted === false ? (
               <Text
                 style={{

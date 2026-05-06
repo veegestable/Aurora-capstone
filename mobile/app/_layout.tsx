@@ -2,6 +2,12 @@ import "../global.css";
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import * as Notifications from "expo-notifications";
+import {
+  useFonts,
+  NunitoSans_400Regular,
+  NunitoSans_600SemiBold,
+  NunitoSans_700Bold,
+} from "@expo-google-fonts/nunito-sans";
 import { AuthProvider } from "../src/stores/AuthContext";
 import { UserActivityLogger } from "../src/components/UserActivityLogger";
 import { UserDaySettingsProvider } from "../src/stores/UserDaySettingsContext";
@@ -162,6 +168,14 @@ function SessionNotificationBridge() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    NunitoSans_400Regular,
+    NunitoSans_600SemiBold,
+    NunitoSans_700Bold,
+  });
+
+  if (!fontsLoaded) return null;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>

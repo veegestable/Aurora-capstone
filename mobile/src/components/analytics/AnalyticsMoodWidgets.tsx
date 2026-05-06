@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   View,
-  Text,
   ScrollView,
   TouchableOpacity,
   LayoutChangeEvent,
@@ -10,6 +9,7 @@ import {
   Animated,
   Easing,
 } from "react-native";
+import { AppText as Text } from "../common/AppText";
 import { Battery, CircleHelp, Flame, Sparkles } from "lucide-react-native";
 import type { MoodData } from "../../services/firebase-firestore.service";
 import { calendarDayKeyLocal } from "../../utils/dayKey";
@@ -378,7 +378,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
         }}
       >
         <Text
-          style={{ fontSize: 42, fontWeight: "900", color: stability.blended }}
+          style={{ fontSize: 42, fontWeight: "700", color: stability.blended }}
         >
           {stability.score}%
         </Text>
@@ -522,11 +522,11 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           
         </View>
       </View>
-      <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 8 }}>
+      {/* <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 8 }}>
         {period === "week"
           ? "Average daily level across the last 7 days."
           : "Average daily level across the last 30 days."}
-      </Text>
+      </Text> */}
 
       <View
         style={{

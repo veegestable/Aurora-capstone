@@ -1,23 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Image,
-  Modal,
-  PanResponder,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { Alert, Image, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Asset } from "expo-asset";
 import * as Animatable from "react-native-animatable";
+import { AppText as Text } from "./common/AppText";
+import { AppTextInput as TextInput } from "./common/AppTextInput";
 import Animated, {
   Easing,
   FadeInDown,

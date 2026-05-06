@@ -1,16 +1,10 @@
+import { AppText as Text } from "../../../src/components/common/AppText";
 /**
  * Admin Dashboard - Route: /(admin)
  * Parity with web `src/pages/admin/Dashboard.tsx`: overview stats + quick actions.
  */
 import React, { useCallback, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  ActivityIndicator,
-  RefreshControl,
-  StyleSheet,
-} from "react-native";
+import { View, ScrollView, ActivityIndicator, RefreshControl, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import {

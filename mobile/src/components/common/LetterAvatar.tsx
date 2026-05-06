@@ -3,7 +3,8 @@
  */
 
 import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Image, StyleSheet } from 'react-native';
+import { AppText as Text } from './AppText';
 import { AURORA } from '../../constants/aurora-colors';
 
 interface LetterAvatarProps {

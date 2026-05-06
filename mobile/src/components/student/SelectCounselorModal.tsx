@@ -1,18 +1,11 @@
+import { AppText as Text } from "../common/AppText";
 /**
  * SelectCounselorModal - Student picks a counselor to start a conversation
  * Opens from FAB on Messages screen.
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-    Modal,
-    View,
-    Text,
-    TouchableOpacity,
-    ScrollView,
-    StyleSheet,
-    ActivityIndicator,
-} from 'react-native';
+import { Modal, View, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import { X } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, TouchableOpacity, StyleSheet } from "react-native";
+import { AppText as Text } from "../common/AppText";
 import { Plus } from "lucide-react-native";
 import { useAuth } from "../../stores/AuthContext";
 import { AnnouncementCarousel } from "./AnnouncementCarousel";

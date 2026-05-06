@@ -3,7 +3,8 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, TouchableOpacity } from "react-native";
+import { AppText as Text } from "../common/AppText";
 import { Battery, CircleHelp, Flame } from "lucide-react-native";
 import type { MoodData } from "../../services/firebase-firestore.service";
 import type { MergedMoodLog } from "../../services/mood.service";
@@ -303,7 +304,7 @@ export function CounselorStressEnergyTrendChart({ logs }: Props) {
         </TouchableOpacity>
       </View>
 
-      <Text
+      {/* <Text
         style={{
           color: AURORA.textSec,
           fontSize: 12,
@@ -312,7 +313,7 @@ export function CounselorStressEnergyTrendChart({ logs }: Props) {
         }}
       >
         Average daily level across the last 7 days.
-      </Text>
+      </Text> */}
 
       <View
         style={{

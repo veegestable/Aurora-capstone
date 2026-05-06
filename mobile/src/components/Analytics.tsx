@@ -1,21 +1,10 @@
+import { AppText as Text } from "./common/AppText";
 /**
  * Student "Your week" analytics — ethics-first copy, consistent Mood / Stress Index terms,
  * stagger + count-up animations (respects Reduce Motion).
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  ActivityIndicator,
-  RefreshControl,
-  TouchableOpacity,
-  AppState,
-  useWindowDimensions,
-  type AppStateStatus,
-  type LayoutChangeEvent,
-} from "react-native";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"; import {   View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, AppState, useWindowDimensions, type AppStateStatus, type LayoutChangeEvent } from "react-native";
 import * as Animatable from "react-native-animatable";
 import Animated, {
   Easing,
@@ -1644,23 +1633,23 @@ export default function Analytics() {
                         >
                           <View
                             style={{
-                              width: 12,
-                              height: 12,
-                              borderRadius: 6,
+                              width: 16,
+                              height: 16,
+                              borderRadius: 2,
                               backgroundColor: todayBlended,
                             }}
                           />
                           <Text
                             style={{
                               color: AURORA.textPrimary,
-                              fontSize: 16,
-                              fontWeight: "700",
+                              fontSize: 26,
+                              fontWeight: "800",
                             }}
                           >
                             {getEmotionLabel(todayMoodAgg.dominantMood)}
                           </Text>
                         </View>
-                        <Text
+                        {/* <Text
                           style={{
                             color: UI_TEXT_SECONDARY,
                             fontSize: 12,
@@ -1669,7 +1658,7 @@ export default function Analytics() {
                         >
                           Avg intensity {todayMoodAgg.avgIntensity.toFixed(1)}
                           /10
-                        </Text>
+                        </Text> */}
                       </View>
                       <View
                         style={{
@@ -1758,7 +1747,7 @@ export default function Analytics() {
                           style={{
                             color: todayBlended,
                             fontSize: 30,
-                            fontWeight: "900",
+                            fontWeight: "700",
                           }}
                         >
                           {todayStability}%
@@ -1842,8 +1831,8 @@ export default function Analytics() {
                         <Text
                           style={{
                             color: AURORA.textSec,
-                            fontSize: 14,
-                            fontWeight: "700",
+                            fontSize: 13,
+                            fontWeight: "900",
                             marginTop: 4,
                           }}
                         >
@@ -2140,7 +2129,7 @@ export default function Analytics() {
                           <CircleHelp size={16} color={AURORA.textMuted} />
                         </TouchableOpacity>
                       </View>
-                      <Text
+                      {/* <Text
                         style={{
                           color: AURORA.textSec,
                           fontSize: 12,
@@ -2148,7 +2137,7 @@ export default function Analytics() {
                         }}
                       >
                         Share of today&apos;s check-ins by mood.
-                      </Text>
+                      </Text> */}
                       <MoodDistributionDonut
                         title=""
                         caption=""
@@ -2220,7 +2209,7 @@ export default function Analytics() {
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
-                          marginBottom: 4,
+                          marginBottom: 10,
                           gap: 6,
                         }}
                       >
@@ -2244,7 +2233,7 @@ export default function Analytics() {
                           <CircleHelp size={16} color={AURORA.textMuted} />
                         </TouchableOpacity>
                       </View>
-                      <Text
+                      {/* <Text
                         style={{
                           color: AURORA.textSec,
                           fontSize: isCompactWidth ? 11 : 12,
@@ -2252,7 +2241,7 @@ export default function Analytics() {
                         }}
                       >
                         Total minutes spent in each mood.
-                      </Text>
+                      </Text> */}
                       {todayDurationBars.length === 0 ? (
                         <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
                           No duration entries yet for today.
@@ -2342,7 +2331,7 @@ export default function Analytics() {
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
-                          marginBottom: 4,
+                          marginBottom: 10,
                           gap: 6,
                         }}
                       >
@@ -2366,7 +2355,7 @@ export default function Analytics() {
                           <CircleHelp size={16} color={AURORA.textMuted} />
                         </TouchableOpacity>
                       </View>
-                      <Text
+                      {/* <Text
                         style={{
                           color: AURORA.textSec,
                           fontSize: isCompactWidth ? 11 : 12,
@@ -2375,7 +2364,7 @@ export default function Analytics() {
                       >
                         Compare which moods had higher or lower average
                         intensity today.
-                      </Text>
+                      </Text> */}
                       {todayIntensityBars.length === 0 ? (
                         <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
                           No intensity entries yet for today.
@@ -3112,13 +3101,13 @@ export default function Analytics() {
                     <TrendingUp size={22} color={weekAverageMoodColor} />
                     <Text
                       style={{
-                        color: AURORA.textMuted,
+                        color: AURORA.textPrimary,
                         fontSize: 11,
                         fontWeight: "800",
                         letterSpacing: 0.6,
                       }}
                     >
-                      AVERAGE MOOD (7 DAYS)
+                      AVERAGE MOOD
                     </Text>
                   </View>
                   <View
@@ -3140,7 +3129,7 @@ export default function Analytics() {
                     </Text>
                   </View>
                 </View>
-                <Text
+                {/* <Text
                   style={{
                     color: AURORA.textMuted,
                     fontSize: 10,
@@ -3149,7 +3138,7 @@ export default function Analytics() {
                   }}
                 >
                   Weekly trend
-                </Text>
+                </Text> */}
                 <Text
                   style={{
                     color: AURORA.textPrimary,
@@ -3160,7 +3149,7 @@ export default function Analytics() {
                 >
                   {`Mood trend: ${weekMoodMeta.label}`}
                 </Text>
-                <Text
+                {/* <Text
                   style={{
                     color: weekAverageMoodColor,
                     fontSize: 15,
@@ -3169,8 +3158,8 @@ export default function Analytics() {
                     lineHeight: 20,
                   }}
                 >
-                  {`Most common mood: ${weekWellnessStats.emotionLabel}`}
-                </Text>
+                  {`average mood: ${weekWellnessStats.emotionLabel}`}
+                </Text> */}
                 {/* <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 10, lineHeight: 19 }}>
                         {averageMoodPlainLine(displayWeekAvgMood)}
                     </Text> */}
@@ -3221,7 +3210,7 @@ export default function Analytics() {
                       <CircleHelp size={16} color={AURORA.textMuted} />
                     </TouchableOpacity>
                   </View>
-                  <Text
+                  {/* <Text
                     style={{
                       color: AURORA.textSec,
                       fontSize: 12,
@@ -3229,7 +3218,7 @@ export default function Analytics() {
                     }}
                   >
                     Share of your last 7 days check-ins by mood.
-                  </Text>
+                  </Text> */}
                   <MoodDistributionDonut
                     title=""
                     caption=""
@@ -3301,6 +3290,7 @@ export default function Analytics() {
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 6,
+                      marginBottom: 10,
                     }}
                   >
                     <Clock3 size={14} color="#F59E0B" />
@@ -3309,6 +3299,7 @@ export default function Analytics() {
                         color: AURORA.textPrimary,
                         fontSize: 16,
                         fontWeight: "700",
+                        
                       }}
                     >
                       MOOD DURATION
@@ -3323,7 +3314,7 @@ export default function Analytics() {
                       <CircleHelp size={16} color={AURORA.textMuted} />
                     </TouchableOpacity>
                   </View>
-                  <Text
+                  {/* <Text
                     style={{
                       color: AURORA.textSec,
                       fontSize: isCompactWidth ? 11 : 12,
@@ -3331,7 +3322,7 @@ export default function Analytics() {
                     }}
                   >
                     Total minutes spent in each mood in the last 7 days.
-                  </Text>
+                  </Text> */}
                   {weekDurationBars.length === 0 ? (
                     <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
                       No duration entries yet for the last 7 days.
@@ -3420,6 +3411,7 @@ export default function Analytics() {
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 6,
+                      marginBottom: 10,
                     }}
                   >
                     <BarChart3 size={14} color="#F59E0B" />
@@ -3442,7 +3434,7 @@ export default function Analytics() {
                       <CircleHelp size={16} color={AURORA.textMuted} />
                     </TouchableOpacity>
                   </View>
-                  <Text
+                  {/* <Text
                     style={{
                       color: AURORA.textSec,
                       fontSize: isCompactWidth ? 11 : 12,
@@ -3451,7 +3443,7 @@ export default function Analytics() {
                   >
                     Compare which moods had higher or lower average intensity in
                     the last 7 days.
-                  </Text>
+                  </Text> */}
                   {weekIntensityBars.length === 0 ? (
                     <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
                       No intensity entries yet for the last 7 days.

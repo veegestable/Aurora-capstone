@@ -1,16 +1,11 @@
+import { AppText as Text } from "../common/AppText";
 /**
  * SessionAttendanceModal - Post-session verification for counselor
  * Did the student show up? Showed Up / Did Not Show Up / Needs Rescheduling
  */
 
 import React, { useEffect, useState } from 'react';
-import {
-    Modal,
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-} from 'react-native';
+import { Modal, View, TouchableOpacity, StyleSheet } from "react-native";
 import { doc, getDoc } from 'firebase/firestore';
 import { Check, X, RotateCcw, ChevronRight } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';

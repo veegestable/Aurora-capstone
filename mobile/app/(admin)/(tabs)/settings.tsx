@@ -2,7 +2,8 @@
  * Admin Settings - Route: /(admin)/settings
  */
 import React from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { View, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { AppText as Text } from "../../../src/components/common/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LogOut, Shield } from "lucide-react-native";
 import { useAuth } from "../../../src/stores/AuthContext";

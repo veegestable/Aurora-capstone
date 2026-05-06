@@ -1,3 +1,4 @@
+import { AppText as Text } from "../../src/components/common/AppText";
 /**
  * Counselor Home Dashboard - index.tsx
  * ======================================
@@ -7,16 +8,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  SectionList,
-  StyleSheet,
-  Alert,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, Modal, SectionList, StyleSheet, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { doc, getDoc } from "firebase/firestore";

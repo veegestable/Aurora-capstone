@@ -1,12 +1,6 @@
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Alert,
-  Platform,
-  StyleSheet,
-} from "react-native";
+import { View, TouchableOpacity, Alert, Platform, StyleSheet } from "react-native";
+import { AppText as Text } from "../common/AppText";
 import { BlurView } from "expo-blur";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useAuth } from "../../stores/AuthContext";

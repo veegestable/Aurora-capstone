@@ -1,5 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, TouchableOpacityProps, View } from 'react-native';
+import { TouchableOpacity, ActivityIndicator, TouchableOpacityProps, View } from 'react-native';
+import { AppText as Text } from './AppText';
 import { triggerHaptic } from '../../utils/haptics';
 
 // Fix for React 19 type mismatch

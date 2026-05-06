@@ -1,5 +1,7 @@
 import React, { forwardRef } from 'react';
-import { TextInput, View, Text, TextInputProps } from 'react-native';
+import { View, TextInputProps, type TextInput as RNTextInput } from 'react-native';
+import { AppText as Text } from './AppText';
+import { AppTextInput as TextInput } from './AppTextInput';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -14,7 +16,7 @@ interface InputProps extends TextInputProps {
     labelAlign?: 'left' | 'center';
 }
 
-export const Input = forwardRef<TextInput, InputProps>(({
+export const Input = forwardRef<RNTextInput, InputProps>(({
     label,
     error,
     className,

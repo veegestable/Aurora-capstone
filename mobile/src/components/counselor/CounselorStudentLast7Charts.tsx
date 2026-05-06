@@ -4,7 +4,8 @@
  */
 
 import React, { useMemo, useState } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, TouchableOpacity } from "react-native";
+import { AppText as Text } from "../common/AppText";
 import { CircleHelp, PieChart, Clock3, BarChart3 } from "lucide-react-native";
 import type { MoodData } from "../../services/firebase-firestore.service";
 import type { MergedMoodLog } from "../../services/mood.service";
@@ -258,11 +259,11 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
             })
           }
         />
-        <Text
+        {/* <Text
           style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 10 }}
         >
           Total minutes spent in each mood.
-        </Text>
+        </Text> */}
         {durationBars.length === 0 ? (
           <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
             No duration values in this window.

@@ -1,13 +1,8 @@
 import React from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  type ViewStyle,
-} from "react-native";
+import { View, TouchableOpacity, StyleSheet, type ViewStyle } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 import { AURORA } from "../../constants/aurora-colors";
+import { AppText as Text } from "../common/AppText";
 
 type AdminQuickActionRowProps = {
   title: string;

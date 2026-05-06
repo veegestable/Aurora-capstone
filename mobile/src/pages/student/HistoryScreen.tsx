@@ -1,12 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image } from "react-native";
+import { AppText as Text } from "../../components/common/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ChevronLeft,

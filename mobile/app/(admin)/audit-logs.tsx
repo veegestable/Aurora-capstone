@@ -1,17 +1,10 @@
+import { AppText as Text } from "../../src/components/common/AppText";
 /**
  * Admin Activity / Audit timeline - Route: /(admin)/audit-logs
  * Shows sign-ins, app usage (foreground), and admin actions.
  */
 import React, { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";

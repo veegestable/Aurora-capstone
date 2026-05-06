@@ -1,13 +1,11 @@
+import { AppText as Text } from "../../components/common/AppText";
 /**
  * Admin Counselors Screen
  * Lists all counselors and allows admin to approve/reject pending signups.
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-    View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-    Alert, RefreshControl,
-} from 'react-native';
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Users, Check, X } from 'lucide-react-native';
