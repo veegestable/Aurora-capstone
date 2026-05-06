@@ -176,8 +176,8 @@ export function CounselorStressEnergyTrendChart({ logs }: Props) {
 
   const title =
     mode === "stress"
-      ? "Stress Trend"
-      : "Energy Trend";
+      ? "STRESS TREND"
+      : "ENERGY TREND";
 
   return (
     <View
@@ -336,8 +336,7 @@ export function CounselorStressEnergyTrendChart({ logs }: Props) {
               activeOpacity={0.85}
               onPress={() => {
                 const agg = dailyAggregates.get(dayKey);
-                const has = Boolean(agg && agg.entryCount > 0);
-                if (!has) {
+                if (!agg || agg.entryCount <= 0) {
                   setTip({
                     label: formatDayKeyWeekday(dayKey),
                     text: "No data",

@@ -29,6 +29,9 @@ import {
   Trash2,
   X,
   CircleHelp,
+  LayoutDashboard,
+  GraduationCap,
+  Megaphone,
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "../../src/stores/AuthContext";
@@ -993,9 +996,12 @@ export default function CounselorHomeScreen() {
               marginBottom: 14,
             }}
           >
-            <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
-              Dashboard Overview
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <LayoutDashboard size={18} color="#F59E0B" />
+              <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
+                Dashboard Overview
+              </Text>
+            </View>
           </View>
 
           {/* Stat Cards Row 1 */}
@@ -1069,9 +1075,12 @@ export default function CounselorHomeScreen() {
               marginBottom: 14,
             }}
           >
-            <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
-              Students
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <GraduationCap size={18} color="#F59E0B" />
+              <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
+                Students
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={() => {
                 triggerHaptic("light");
@@ -1180,7 +1189,11 @@ export default function CounselorHomeScreen() {
           )}
 
           {/* ── Announcements (dynamic, from admin/counselor) ───────── */}
-          <AnnouncementSection role="counselor" showAddButton />
+          <AnnouncementSection
+            role="counselor"
+            showAddButton
+            titleIcon={<Megaphone size={18} color="#F59E0B" />}
+          />
         </ScrollView>
 
         <Modal
