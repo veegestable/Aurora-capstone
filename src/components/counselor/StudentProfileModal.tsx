@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import type { CounselorSignalPill } from '../../constants/counselor/counselor-checkin-signals'
 import { COUNSELOR_SIGNAL_LABEL } from '../../constants/counselor/counselor-checkin-signals'
+import { CounselorLast7MoodBars } from './CounselorLast7MoodBars'
 
 export interface CheckInStats {
   count: number
@@ -125,6 +126,9 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                   <div className="col-span-2">
                     <StatTile label="Stability" value={`${student.stats!.stabilityScore}%`} subtext="Based on mood intensity variance between check-ins" />
                   </div>
+                </div>
+                <div className="pt-2 border-t border-aurora-border">
+                  <CounselorLast7MoodBars studentId={student.id} />
                 </div>
               </div>
             ) : (

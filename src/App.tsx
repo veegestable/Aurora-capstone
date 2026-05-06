@@ -13,6 +13,7 @@ import StudentProfile from './pages/student/Profile'
 import StudentResources from './pages/student/Resources'
 import StudentDailySelfie from './pages/student/DailySelfie'
 import StudentSettings from './pages/student/Settings'
+import StudentHistory from './pages/student/History'
 import CounselorLayout from './layouts/CounselorLayout'
 import CounselorDashboard from './pages/CounselorDashboard'
 import CounselorStudents from './pages/counselor/Students'
@@ -73,6 +74,7 @@ function AppContent() {
             <Route path="mood" element={<MoodCheckIn />} />
             <Route path="schedule" element={<ScheduleManager />} />
             <Route path="notifications" element={<NotificationPanel />} />
+            <Route path="student/history" element={<StudentHistory />} />
             <Route path="student/journal" element={<StudentJournal />} />
             <Route path="student/messages" element={<StudentMessages />} />
             <Route path="student/profile" element={<StudentProfile />} />
