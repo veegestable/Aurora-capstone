@@ -218,7 +218,7 @@ export default function CounselorStudentDetailScreen() {
           flexDirection: "row",
           alignItems: "center",
           gap: 8,
-          marginBottom: 10,
+        
         }}
       >
         <Text
@@ -257,7 +257,7 @@ export default function CounselorStudentDetailScreen() {
           flexDirection: "row",
           alignItems: "center",
           gap: 8,
-          marginBottom: 10,
+          
         }}
       >
         <Text
@@ -311,7 +311,7 @@ export default function CounselorStudentDetailScreen() {
             {sessionOutcomeCounts.completed}
           </Text>
           <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 4 }}>
-            Marked completed in Session History
+            Marked completed
           </Text>
         </View>
         <View style={{ flex: 1 }}>
