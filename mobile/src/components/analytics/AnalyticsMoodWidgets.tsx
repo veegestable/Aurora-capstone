@@ -10,7 +10,7 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import { Battery, CircleHelp, Flame } from "lucide-react-native";
+import { Battery, CircleHelp, Flame, Sparkles } from "lucide-react-native";
 import type { MoodData } from "../../services/firebase-firestore.service";
 import { calendarDayKeyLocal } from "../../utils/dayKey";
 import { moodLogsToMoodEntries } from "../../utils/moodEntryNormalize";
@@ -266,14 +266,15 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
             paddingRight: 10,
           }}
         >
+          <Sparkles size={14} color="#F59E0B" />
           <Text
             style={{
               color: AURORA.textPrimary,
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: "700",
             }}
           >
-            Mood stability
+            MOOD STABILITY
           </Text>
           <TouchableOpacity
             onPress={showStabilityGuide}
@@ -363,9 +364,9 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           </View>
         </View>
       </View>
-      <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 8 }}>
+      {/* <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 8 }}>
         Stability score chart for the selected time range.
-      </Text>
+      </Text> */}
       <View
         style={{
           backgroundColor: AURORA.card,
@@ -391,7 +392,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
         >
           Stability score
         </Text>
-        <Text
+        {/* <Text
           style={{
             color: AURORA.textSec,
             fontSize: 13,
@@ -400,7 +401,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           }}
         >
           {stabilityCopy(stability.score)}
-        </Text>
+        </Text> */}
       </View>
 
       {/* Widget B */}
@@ -412,10 +413,10 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           marginBottom: 8,
         }}
       >
-        <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: "700" }}>
+        <Text style={{ color: AURORA.textPrimary, fontSize: 16, fontWeight: "700" }}>
           {metric === "stress"
-            ? "Stress Trend"
-            : "Energy Trend"}
+            ? "STRESS TREND"
+            : "ENERGY TREND"}
         </Text>
         <TouchableOpacity
           onPress={showMetricGuide}

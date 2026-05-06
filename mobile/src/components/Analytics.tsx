@@ -25,7 +25,14 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { Sparkles, TrendingUp, CircleHelp } from "lucide-react-native";
+import {
+  Sparkles,
+  TrendingUp,
+  CircleHelp,
+  PieChart,
+  Clock3,
+  BarChart3,
+} from "lucide-react-native";
 import { useAuth } from "../stores/AuthContext";
 import { moodService } from "../services/mood.service";
 import { auth } from "../services/firebase";
@@ -1719,6 +1726,7 @@ export default function Analytics() {
                           gap: 6,
                         }}
                       >
+                        <Sparkles size={12} color="#F59E0B" />
                         <Text
                           style={{
                             color: AURORA.textMuted,
@@ -1789,6 +1797,7 @@ export default function Analytics() {
                             marginBottom: 6,
                           }}
                         >
+                          <TrendingUp size={14} color="#F59E0B" />
                           <Text
                             style={{
                               color: AURORA.textPrimary,
@@ -1884,7 +1893,7 @@ export default function Analytics() {
                         </Text> */}
                         {todaySchoolAnalysis.topSchoolEvents.length > 0 ? (
                           <View style={{ marginTop: 8, gap: 6 }}>
-                            <Text
+                            {/* <Text
                               style={{
                                 color: UI_TEXT_MUTED,
                                 fontSize: 10,
@@ -1894,7 +1903,7 @@ export default function Analytics() {
                               }}
                             >
                               TOP STRESSORS
-                            </Text>
+                            </Text> */}
                             {todaySchoolAnalysis.topSchoolEvents.map((item) => {
                               const maxCount = Math.max(
                                 1,
@@ -2111,6 +2120,7 @@ export default function Analytics() {
                           gap: 6,
                         }}
                       >
+                        <PieChart size={14} color="#F59E0B" />
                         <Text
                           style={{
                             color: AURORA.textPrimary,
@@ -2214,6 +2224,7 @@ export default function Analytics() {
                           gap: 6,
                         }}
                       >
+                        <Clock3 size={14} color="#F59E0B" />
                         <Text
                           style={{
                             color: AURORA.textPrimary,
@@ -2335,6 +2346,7 @@ export default function Analytics() {
                           gap: 6,
                         }}
                       >
+                        <BarChart3 size={14} color="#F59E0B" />
                         <Text
                           style={{
                             color: AURORA.textPrimary,
@@ -2411,7 +2423,7 @@ export default function Analytics() {
                                   >
                                     <Text
                                       style={{
-                                        color: AURORA.textMuted,
+                                        color: AURORA.textSec,
                                         fontSize: 10,
                                         fontWeight: "700",
                                       }}
@@ -2419,7 +2431,7 @@ export default function Analytics() {
                                       n={item.intensitySamples}
                                     </Text>
                                   </View>
-                                  {item.intensitySamples < 3 ? (
+                                  {/* {item.intensitySamples < 3 ? (
                                     <View
                                       style={{
                                         marginLeft: 6,
@@ -2442,7 +2454,7 @@ export default function Analytics() {
                                         Low confidence
                                       </Text>
                                     </View>
-                                  ) : null}
+                                  ) : null} */}
                                   <Text
                                     style={{
                                       color: AURORA.textMuted,
@@ -2512,16 +2524,25 @@ export default function Analytics() {
                             STRESS & ENERGY TREND
                           </Text> */}
                         </View>
-                        <Text
+                        <View
                           style={{
-                            color: AURORA.textPrimary,
-                            fontSize: 16,
-                            fontWeight: "700",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
                             marginBottom: 4,
                           }}
                         >
-                          STRESS AND ENERGY BY HOUR
-                        </Text>
+                          <TrendingUp size={14} color="#F59E0B" />
+                          <Text
+                            style={{
+                              color: AURORA.textPrimary,
+                              fontSize: 16,
+                              fontWeight: "700",
+                            }}
+                          >
+                            STRESS AND ENERGY BY HOUR
+                          </Text>
+                        </View>
                         {/* <Text
                           style={{
                             color: AURORA.textSec,
@@ -2562,10 +2583,7 @@ export default function Analytics() {
                                   left: 8,
                                 }}
                               >
-                                <CircleHelp
-                                  size={13}
-                                  color={AURORA.textMuted}
-                                />
+                                <CircleHelp size={13} color={AURORA.textMuted} />
                               </TouchableOpacity>
                             </View>
                             {/* <Text
@@ -2728,10 +2746,7 @@ export default function Analytics() {
                                   left: 8,
                                 }}
                               >
-                                <CircleHelp
-                                  size={13}
-                                  color={AURORA.textMuted}
-                                />
+                                <CircleHelp size={13} color={AURORA.textMuted} />
                               </TouchableOpacity>
                             </View>
                             {/* <Text
@@ -3186,6 +3201,7 @@ export default function Analytics() {
                       gap: 6,
                     }}
                   >
+                    <PieChart size={14} color="#F59E0B" />
                     <Text
                       style={{
                         color: AURORA.textPrimary,
@@ -3193,7 +3209,7 @@ export default function Analytics() {
                         fontWeight: "700",
                       }}
                     >
-                      Mood Frequency
+                      MOOD FREQUENCY
                     </Text>
                     <TouchableOpacity
                       onPress={showMoodFrequencyGuide}
@@ -3287,6 +3303,7 @@ export default function Analytics() {
                       gap: 6,
                     }}
                   >
+                    <Clock3 size={14} color="#F59E0B" />
                     <Text
                       style={{
                         color: AURORA.textPrimary,
@@ -3294,7 +3311,7 @@ export default function Analytics() {
                         fontWeight: "700",
                       }}
                     >
-                      Mood Duration
+                      MOOD DURATION
                     </Text>
                     <TouchableOpacity
                       onPress={showMoodDurationGuide}
@@ -3405,6 +3422,7 @@ export default function Analytics() {
                       gap: 6,
                     }}
                   >
+                    <BarChart3 size={14} color="#F59E0B" />
                     <Text
                       style={{
                         color: AURORA.textPrimary,
@@ -3412,7 +3430,7 @@ export default function Analytics() {
                         fontWeight: "700",
                       }}
                     >
-                      Average Intensity
+                      AVERAGE INTENSITY
                     </Text>
                     <TouchableOpacity
                       onPress={showMoodIntensityGuide}
@@ -3697,7 +3715,7 @@ export default function Analytics() {
                           fontWeight: "700",
                         }}
                       >
-                        TOP ACADEMIC STRESSORS
+                        TOP ACADEMIC ACTIVITIES
                       </Text>
                       <Text
                         style={{
@@ -3730,7 +3748,7 @@ export default function Analytics() {
                             >
                               <Text
                                 style={{
-                                  color: AURORA.green,
+                                  color: AURORA.textSec,
                                   fontSize: 11,
                                   fontWeight: "700",
                                 }}
@@ -3739,7 +3757,7 @@ export default function Analytics() {
                               </Text>
                               <Text
                                 style={{
-                                  color: AURORA.green,
+                                  color: AURORA.textSec,
                                   fontSize: 11,
                                   fontWeight: "700",
                                 }}
