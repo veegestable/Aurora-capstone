@@ -3499,7 +3499,7 @@ export default function Analytics() {
                               >
                                 <Text
                                   style={{
-                                    color: AURORA.textMuted,
+                                    color: AURORA.textSec,
                                     fontSize: 10,
                                     fontWeight: "700",
                                   }}
@@ -3507,6 +3507,16 @@ export default function Analytics() {
                                   n={item.intensitySamples}
                                 </Text>
                               </View>
+                              <Text
+                                style={{
+                                  color: AURORA.textMuted,
+                                  fontSize: 11,
+                                  fontWeight: "700",
+                                  marginLeft: "auto",
+                                }}
+                              >
+                                {item.averageIntensity.toFixed(1)} / 10
+                              </Text>
                             </View>
                             <View
                               style={{
