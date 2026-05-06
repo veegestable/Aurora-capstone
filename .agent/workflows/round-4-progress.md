@@ -1,6 +1,6 @@
 # Mobile-Web Parity Round 4 — Progress Log
 
-**Last updated:** 2026-05-06 (hygiene rule added)  
+**Last updated:** 2026-05-06 — Batch 4: `counselor/students/:id` workspace  
 **Plan file:** [mobile-web_parity_round_4.plan.md](.agent/workflows/mobile-web_parity_round_4.plan.md)  
 **Scope:** Post–partner-merge mobile audit, counselor student depth (journal + charts), student mood history, admin resource detail, admin analytics/charts/thresholds, Firestore rules/indexes, automated smoke tests.
 
@@ -14,15 +14,16 @@ _Document files deleted, dead exports removed, routes dropped, etc._
 
 | Date | What changed | Removed / consolidated |
 |------|----------------|------------------------|
-| | | |
+| 2026-05-06 | Remove redundant counselor modal (replaced by `/counselor/students/:id`) | `StudentProfileModal.tsx` (and moved `CheckInStats` type) |
+| 2026-05-06 | Extracted counselor check-in stats type to shared types | Added `src/types/counselor.types.ts`; removed type dependency on `StudentProfileModal` |
 
 ---
 
 ## Status Overview
 
 - [ ] `round4-mobile-diff-audit` — Diff mobile vs web; file-level gap table
-- [ ] `counselor-student-depth` — Workspace journal calendar + last-7 charts with mobile consent rules
-- [x] `student-mood-history` — Student history route/UX vs mobile `history`
+- [x] `counselor-student-depth` — Workspace journal calendar + last-7 charts with mobile consent rules
+- [x] `student-mood-history` — Student journal/history UX parity (no separate web route; aligned to `/student/journal`)
 - [ ] `admin-resource-detail` — Admin resource detail/edit Firestore parity
 - [ ] `admin-analytics-charts` — School mood chart + threshold UI (when mobile schema exists)
 - [ ] `infra-rules-indexes-tests` — Indexes, security rules notes, Vitest (or agreed runner) smoke tests
@@ -36,9 +37,10 @@ _Add rows as you compare `mobile/` routes and services to `src/`._
 
 | Mobile | Web | Gap / notes |
 |--------|-----|-------------|
-| `app/(student)/history.tsx` | `src/pages/student/History.tsx`, `/student/history` | Route + nav; reuses journal UI (mobile `HistoryScreen` is larger — optional later). |
+| `app/(student)/history.tsx` (HistoryScreen used inside Journal tab) | `src/pages/student/Journal/index.tsx` | Web matches mobile: history is part of Journal; no separate `/student/history` surface. |
 | Counselor student detail + journal | `StudentProfileModal` + `CounselorLast7MoodBars` | Last-7 bars in modal; full calendar: use `<JournalCalendar forUserId={...} />` on `counselor/students/:id` (Batch 4). |
 | `JournalCalendar` (student-only before) | `JournalCalendar` + optional `forUserId` | **Batch 3 done** — enables counselor read-only month view when wired. |
+| `app/(counselor)/students/[id]/index.tsx` | `src/pages/counselor/CounselorStudentDetail.tsx`, `/counselor/students/:id` | Full page: last-7 bars + `JournalCalendar forUserId`; summary via `location.state` from directory (refresh loses tiles until re-fetch — optional follow-up). |
 
 ---
 
@@ -53,6 +55,11 @@ _Add rows as you compare `mobile/` routes and services to `src/`._
 
 - `JournalCalendar`: optional `forUserId` / `targetUserId`; copy for counselor vs student empty state.
 
+### 2026-05-06 (Batch 4)
+
+- `CounselorStudentDetail`, route `counselor/students/:id`, `Students.tsx` navigates with state; modal removed from directory (optional to restore).
+- Removed redundant `/student/history` (mobile history is the Journal tab); web keeps a single canonical student journal surface.
+
 ---
 
 ## Implementation Notes (append per todo)
@@ -65,9 +72,9 @@ _Add rows as you compare `mobile/` routes and services to `src/`._
 
 ### `counselor-student-depth`
 
-- **Status:** In progress (modal: last-7 bars; calendar: use `forUserId` on next route/page)
-- **Files touched:** `src/components/journal/JournalCalendar.tsx` (Batch 3); earlier: `CounselorLast7MoodBars.tsx`, `StudentProfileModal.tsx`
-- **Notes:** Add `counselor/students/:id` and render `<JournalCalendar forUserId={id} />` when rules allow.
+- **Status:** Done (initial parity — full page workspace)
+- **Files touched:** `src/pages/counselor/CounselorStudentDetail.tsx`, `src/App.tsx`, `src/pages/counselor/Students.tsx`
+- **Notes:** Optional: refetch student + stats on `:id` when `location.state` is empty (direct URL / refresh). Align consent gating with mobile when flags exist.
 
 ### `student-mood-history`
 

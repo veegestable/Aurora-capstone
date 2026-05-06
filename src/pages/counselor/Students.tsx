@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { counselorService } from '../../services/counselor'
 import { counselorCheckInContextService } from '../../services/counselor-checkin-context'
 import { Search } from 'lucide-react'
@@ -9,7 +10,7 @@ import {
   counselorSignalFromLogs,
 } from '../../constants/counselor/counselor-checkin-signals'
 import { formatTimeAgo } from '../../utils/formatters'
-import { StudentProfileModal, type CheckInStats } from '../../components/counselor/StudentProfileModal'
+import { type CheckInStats } from '../../types/counselor.types'
 import { LetterAvatar } from '../../components/LetterAvatar'
 
 interface StudentEntry {
@@ -74,11 +75,11 @@ function StudentRow({ student, onClick }: { student: StudentEntry, onClick: () =
 }
 
 export default function Students() {
+  const navigate = useNavigate()
   const [students, setStudents] = useState<StudentEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<SignalFilter>('All Students')
-  const [selectedStudent, setSelectedStudent] = useState<StudentEntry | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -231,16 +232,23 @@ export default function Students() {
       ) : (
         <div className="space-y-2.5">
           {filtered.map((student) => (
-            <StudentRow key={student.id} student={student} onClick={() => setSelectedStudent(student)} />
+            <StudentRow 
+              key={student.id} 
+              student={student} 
+              onClick={() => 
+                navigate(`/counselor/students/${student.id}`, {
+                  state: {
+                    full_name: student.full_name,
+                    email: student.email,
+                    signal: student.signal,
+                    stats: student.stats
+                  }
+                })
+              } 
+            />
           ))}
         </div>
       )}
-
-      <StudentProfileModal
-        isOpen={!!selectedStudent}
-        onClose={() => setSelectedStudent(null)}
-        student={selectedStudent}
-      />
     </div>
   )
 }
