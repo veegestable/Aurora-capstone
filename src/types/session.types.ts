@@ -30,6 +30,8 @@ export interface Session {
   cancelReason: string | null
   reminderSent: boolean
   sessionHistoryBadge: string
+  sessionNotesCount?: number
+  attendanceMarkedAt?: Date | null
   createdAt: Date
   updatedAt: Date
 }
