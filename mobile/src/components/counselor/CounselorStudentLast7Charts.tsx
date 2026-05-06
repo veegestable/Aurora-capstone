@@ -121,7 +121,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          marginBottom: 4,
+          marginBottom: 10,
           gap: 6,
         }}
       >
@@ -195,11 +195,11 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
             })
           }
         />
-        <Text
+        {/* <Text
           style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 8 }}
         >
           Share of this student&apos;s check-ins by mood (last 7 days).
-        </Text>
+        </Text> */}
         <MoodDistributionDonut
           title=""
           caption=""
@@ -340,11 +340,11 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
             })
           }
         />
-        <Text
+        {/* <Text
           style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 10 }}
         >
           Compare moods by average intensity.
-        </Text>
+        </Text> */}
         {intensityBars.length === 0 ? (
           <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
             No intensity values in this window.
@@ -435,7 +435,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         </>
       )}
 
-      <Text
+      {/* <Text
         style={{
           color: AURORA.textMuted,
           fontSize: 11,
@@ -445,7 +445,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         }}
       >
         Observational summaries from self-reported check-ins — not a clinical assessment.
-      </Text>
+      </Text> */}
 
       <InfoGuideModal guide={guide} onClose={() => setGuide(null)} />
     </View>
