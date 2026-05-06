@@ -22,6 +22,10 @@ import type { CounselorSignalPill } from "../../constants/counselor-checkin-sign
 import { counselorSignalFromLogs } from "../../constants/counselor-checkin-signals";
 import { CounselorStudentJournalCalendar } from "../../components/counselor/CounselorStudentJournalCalendar";
 import { CounselorStudentLast7Charts } from "../../components/counselor/CounselorStudentLast7Charts";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../components/common/InfoGuideModal";
 
 type StudentDoc = {
   full_name?: string;
@@ -53,6 +57,7 @@ export default function CounselorStudentDetailScreen() {
     completed: number;
     missed: number;
   }>({ completed: 0, missed: 0 });
+  const [activeGuide, setActiveGuide] = useState<InfoGuideContent | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,14 +173,18 @@ export default function CounselorStudentDetailScreen() {
     }
   };
 
+  const openInfoModal = (title: string, body: string) => {
+    setActiveGuide({ title, body });
+  };
+
   const showSpecialPopulationInfo = () => {
-    Alert.alert(
+    openInfoModal(
       "Special Population",
       "This student unlocked full check-in detail for you. The calendar and charts below mirror what they see in Aurora, including notes and wellness fields. There is no in-app way for them to revoke this yet.",
     );
   };
   const showMoodCheckinsInfo = () => {
-    Alert.alert(
+    openInfoModal(
       "Mood check-ins",
       "You can see each check-in's date, time, and mood label below - not notes, sleep, meals, bath, or photos. Full journal and week charts unlock when this student is in your special population (they sent you a session request, or they accepted a session time you proposed).",
     );
@@ -511,6 +520,7 @@ export default function CounselorStudentDetailScreen() {
             )}
           </ScrollView>
         )}
+        <InfoGuideModal guide={activeGuide} onClose={() => setActiveGuide(null)} />
       </SafeAreaView>
     </View>
   );

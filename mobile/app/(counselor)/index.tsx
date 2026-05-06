@@ -1030,7 +1030,7 @@ export default function CounselorHomeScreen() {
                 </View>
               }
               count={upcomingAcceptedSessions}
-              label="Upcoming Accepted Sessions"
+              label="Upcoming Sessions"
               cardBg="rgba(5,67,52,0.5)"
             />
           </View>
