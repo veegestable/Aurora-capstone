@@ -213,6 +213,80 @@ function mergeEpisodes(episodes: MoodEpisode[]): MoodEpisode[] {
   return merged;
 }
 
+function buildMoodCharts(
+  inputLogs: Array<MoodData & { log_date: Date }>,
+  rangeStartMs: number,
+  rangeEndMs: number,
+): {
+  byMood: MoodChartAggregate[];
+  totalCheckIns: number;
+} {
+  if (inputLogs.length === 0) {
+    return {
+      byMood: [],
+      totalCheckIns: 0,
+    };
+  }
+
+  const moodCount = new Map<string, number>();
+  const moodIntensity = new Map<string, { sum: number; n: number }>();
+  const moodEpisodes = new Map<string, MoodEpisode[]>();
+
+  for (const log of inputLogs) {
+    const moodKey = getMoodFromLog(log);
+    moodCount.set(moodKey, (moodCount.get(moodKey) ?? 0) + 1);
+
+    const intensity = getIntensityFromLog(log);
+    if (intensity != null) {
+      const prev = moodIntensity.get(moodKey) ?? { sum: 0, n: 0 };
+      moodIntensity.set(moodKey, { sum: prev.sum + intensity, n: prev.n + 1 });
+    }
+
+    const minutes = getDurationMinutesFromLog(log);
+    if (minutes != null) {
+      const endMs = new Date(log.log_date).getTime();
+      const startMs = endMs - minutes * 60 * 1000;
+      const clippedStart = Math.max(startMs, rangeStartMs);
+      const clippedEnd = Math.min(endMs, rangeEndMs);
+      if (clippedEnd > clippedStart) {
+        const list = moodEpisodes.get(moodKey) ?? [];
+        list.push({ startMs: clippedStart, endMs: clippedEnd });
+        moodEpisodes.set(moodKey, list);
+      }
+    }
+  }
+
+  const moodKeys = Array.from(
+    new Set([...moodCount.keys(), ...moodIntensity.keys(), ...moodEpisodes.keys()]),
+  );
+  const byMood = moodKeys
+    .map((mood) => {
+      const episodes = mergeEpisodes(moodEpisodes.get(mood) ?? []);
+      const totalMinutes = episodes.reduce(
+        (sum, e) => sum + Math.max(0, Math.round((e.endMs - e.startMs) / 60000)),
+        0,
+      );
+      const intensityStats = moodIntensity.get(mood) ?? { sum: 0, n: 0 };
+      const averageIntensity =
+        intensityStats.n > 0 ? intensityStats.sum / intensityStats.n : 0;
+      return {
+        mood,
+        label: getEmotionLabel(mood),
+        color: getEmotionColor(mood),
+        count: moodCount.get(mood) ?? 0,
+        totalMinutes,
+        averageIntensity,
+        intensitySamples: intensityStats.n,
+      };
+    })
+    .sort((a, b) => b.count - a.count || b.totalMinutes - a.totalMinutes);
+
+  return {
+    byMood,
+    totalCheckIns: inputLogs.length,
+  };
+}
+
 type SchoolAnalysis = {
   totalSchoolEvents: number;
   schoolCheckIns: number;
@@ -608,6 +682,7 @@ export default function Analytics() {
   >(null);
   const [activeGuide, setActiveGuide] = useState<InfoGuideContent | null>(null);
   const [selectedTodayMood, setSelectedTodayMood] = useState<string | null>(null);
+  const [selectedWeekMood, setSelectedWeekMood] = useState<string | null>(null);
   const [logs, setLogs] = useState<
     (MoodData & { log_date: Date; id?: string })[]
   >([]);
@@ -945,75 +1020,9 @@ export default function Analytics() {
     );
   }, [logs]);
   const todayMoodCharts = useMemo(() => {
-    if (todayDayLogs.length === 0) {
-      return {
-        byMood: [] as MoodChartAggregate[],
-        totalCheckIns: 0,
-      };
-    }
-
     const now = new Date();
     const { start, end } = localDayBounds(now);
-    const dayStartMs = start.getTime();
-    const dayEndMs = end.getTime();
-
-    const moodCount = new Map<string, number>();
-    const moodIntensity = new Map<string, { sum: number; n: number }>();
-    const moodEpisodes = new Map<string, MoodEpisode[]>();
-
-    for (const log of todayDayLogs) {
-      const moodKey = getMoodFromLog(log);
-      moodCount.set(moodKey, (moodCount.get(moodKey) ?? 0) + 1);
-
-      const intensity = getIntensityFromLog(log);
-      if (intensity != null) {
-        const prev = moodIntensity.get(moodKey) ?? { sum: 0, n: 0 };
-        moodIntensity.set(moodKey, { sum: prev.sum + intensity, n: prev.n + 1 });
-      }
-
-      const minutes = getDurationMinutesFromLog(log);
-      if (minutes != null) {
-        const endMs = new Date(log.log_date).getTime();
-        const startMs = endMs - minutes * 60 * 1000;
-        const clippedStart = Math.max(startMs, dayStartMs);
-        const clippedEnd = Math.min(endMs, dayEndMs);
-        if (clippedEnd > clippedStart) {
-          const list = moodEpisodes.get(moodKey) ?? [];
-          list.push({ startMs: clippedStart, endMs: clippedEnd });
-          moodEpisodes.set(moodKey, list);
-        }
-      }
-    }
-
-    const moodKeys = Array.from(
-      new Set([...moodCount.keys(), ...moodIntensity.keys(), ...moodEpisodes.keys()]),
-    );
-    const byMood = moodKeys
-      .map((mood) => {
-        const episodes = mergeEpisodes(moodEpisodes.get(mood) ?? []);
-        const totalMinutes = episodes.reduce(
-          (sum, e) => sum + Math.max(0, Math.round((e.endMs - e.startMs) / 60000)),
-          0,
-        );
-        const intensityStats = moodIntensity.get(mood) ?? { sum: 0, n: 0 };
-        const averageIntensity =
-          intensityStats.n > 0 ? intensityStats.sum / intensityStats.n : 0;
-        return {
-          mood,
-          label: getEmotionLabel(mood),
-          color: getEmotionColor(mood),
-          count: moodCount.get(mood) ?? 0,
-          totalMinutes,
-          averageIntensity,
-          intensitySamples: intensityStats.n,
-        };
-      })
-      .sort((a, b) => b.count - a.count || b.totalMinutes - a.totalMinutes);
-
-    return {
-      byMood,
-      totalCheckIns: todayDayLogs.length,
-    };
+    return buildMoodCharts(todayDayLogs, start.getTime(), end.getTime());
   }, [todayDayLogs]);
   const todayFrequencySegments = useMemo(
     () =>
@@ -1119,6 +1128,48 @@ export default function Analytics() {
     );
   }, [logs, last7DayKeySet]);
   const last7TotalCheckIns = last7Logs.length;
+  const weekMoodCharts = useMemo(() => {
+    const end = new Date();
+    const start = new Date(end);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - 6);
+    return buildMoodCharts(last7Logs, start.getTime(), end.getTime());
+  }, [last7Logs]);
+  const weekFrequencySegments = useMemo(
+    () =>
+      weekMoodCharts.byMood
+        .filter((x) => x.count > 0)
+        .map((x) => ({
+          label: x.label,
+          mood: x.mood,
+          value: x.count,
+          color: x.color,
+          hint: `${x.count} check-in${x.count === 1 ? "" : "s"}`,
+        })),
+    [weekMoodCharts],
+  );
+  const weekDurationBars = useMemo(
+    () =>
+      [...weekMoodCharts.byMood]
+        .filter((x) => x.totalMinutes > 0)
+        .sort((a, b) => b.totalMinutes - a.totalMinutes || b.count - a.count),
+    [weekMoodCharts],
+  );
+  const weekIntensityBars = useMemo(
+    () =>
+      [...weekMoodCharts.byMood]
+        .filter((x) => x.intensitySamples > 0)
+        .sort(
+          (a, b) =>
+            b.averageIntensity - a.averageIntensity ||
+            b.intensitySamples - a.intensitySamples,
+        ),
+    [weekMoodCharts],
+  );
+  const selectedWeekMoodSummary = useMemo(() => {
+    if (!selectedWeekMood) return null;
+    return weekMoodCharts.byMood.find((x) => x.mood === selectedWeekMood) ?? null;
+  }, [selectedWeekMood, weekMoodCharts]);
   const weekWellnessStats = useMemo(() => {
     if (last7Logs.length === 0) {
       return {
@@ -1496,9 +1547,9 @@ export default function Analytics() {
             </TouchableOpacity>
           </View>
         </View>
-        <Text style={{ color: UI_TEXT_MUTED, fontSize: 11, marginTop: 6 }}>
+        {/* <Text style={{ color: UI_TEXT_MUTED, fontSize: 11, marginTop: 6 }}>
           {lastUpdatedLabel}
-        </Text>
+        </Text> */}
       </View>
 
       {analyticsView === "today" ? (
@@ -1516,7 +1567,7 @@ export default function Analytics() {
             </Text>
             <Text
               style={{
-                color: UI_TEXT_SECONDARY,
+                color: AURORA.textSec,
                 fontSize: 14,
                 lineHeight: 21,
                 marginBottom: UI_SECTION_GAP,
@@ -1538,7 +1589,11 @@ export default function Analytics() {
               <>
                 <Animatable.View {...analyticsPanelEnter(reduceMotion, 60)}>
                   <View
-                    style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}
+                    style={{ 
+                      flexDirection: "row", 
+                      gap: 12, 
+                      marginBottom: 12,
+                    }}
                   >
                     <View
                       style={{
@@ -1546,6 +1601,7 @@ export default function Analytics() {
                         backgroundColor: AURORA.cardAlt,
                         borderRadius: 14,
                         padding: 12,
+                       
                       }}
                     >
                       <Text
@@ -2753,12 +2809,12 @@ export default function Analytics() {
                 color: AURORA.textSec,
                 fontSize: 14,
                 lineHeight: 21,
-                marginBottom: 8,
+                marginBottom: 0,
               }}
             >
               Quick mood highlights from your last 7 days.
             </Text>
-            <EthicsLine />
+            {/* <EthicsLine /> */}
           </Animatable.View>
 
           <View style={{ marginTop: 18, marginBottom: 8 }}>
@@ -2855,7 +2911,7 @@ export default function Analytics() {
                         ))}
                       </View>
                     </ScrollView>
-                    <Text
+                    {/* <Text
                       style={{
                         color: UI_TEXT_SECONDARY,
                         fontSize: 11,
@@ -2863,7 +2919,7 @@ export default function Analytics() {
                       }}
                     >
                       Based on your last 7 days of check-ins.
-                    </Text>
+                    </Text> */}
                     {explainer ? (
                       <View
                         style={{
@@ -3000,6 +3056,317 @@ export default function Analytics() {
                 />
               </ChartSection>
             ) : null}
+            <Animatable.View {...analyticsPanelEnter(reduceMotion, 220)}>
+              <View
+                style={{
+                  backgroundColor: AURORA.cardAlt,
+                  borderRadius: 14,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text
+                    style={{
+                      color: AURORA.textPrimary,
+                      fontSize: 16,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Mood Frequency (Pie Chart)
+                  </Text>
+                  <TouchableOpacity
+                    onPress={showMoodFrequencyGuide}
+                    onLongPress={() => {}}
+                    delayLongPress={10000}
+                    style={{ padding: 2 }}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                  >
+                    <CircleHelp size={16} color={AURORA.textMuted} />
+                  </TouchableOpacity>
+                </View>
+                <Text
+                  style={{ color: AURORA.textSec, fontSize: 12, marginVertical: 8 }}
+                >
+                  Share of your last 7 days check-ins by mood.
+                </Text>
+                <MoodDistributionDonut
+                  title=""
+                  caption=""
+                  segments={weekFrequencySegments.map((x) => ({
+                    label: x.label,
+                    value: x.value,
+                    color: x.color,
+                    hint: x.hint,
+                  }))}
+                  centerValue={String(weekMoodCharts.totalCheckIns)}
+                  centerLabel={
+                    selectedWeekMoodSummary
+                      ? `${selectedWeekMoodSummary.label} selected`
+                      : "check-ins"
+                  }
+                  selectedSegmentLabel={selectedWeekMoodSummary?.label ?? null}
+                  onSegmentPress={(label) => {
+                    const moodKey =
+                      weekFrequencySegments.find((x) => x.label === label)?.mood ??
+                      null;
+                    if (!moodKey) return;
+                    setSelectedWeekMood((prev) => (prev === moodKey ? null : moodKey));
+                  }}
+                />
+                {selectedWeekMoodSummary ? (
+                  <TouchableOpacity
+                    onPress={() => setSelectedWeekMood(null)}
+                    style={{
+                      marginTop: 8,
+                      alignSelf: "flex-start",
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: "rgba(124,58,237,0.45)",
+                      backgroundColor: "rgba(124,58,237,0.16)",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: AURORA.textPrimary,
+                        fontSize: 11,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Clear highlight
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </Animatable.View>
+            <Animatable.View {...analyticsPanelEnter(reduceMotion, 260)}>
+              <View
+                style={{
+                  backgroundColor: AURORA.cardAlt,
+                  borderRadius: 14,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text
+                    style={{
+                      color: AURORA.textPrimary,
+                      fontSize: 16,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Mood Duration
+                  </Text>
+                  <TouchableOpacity
+                    onPress={showMoodDurationGuide}
+                    onLongPress={() => {}}
+                    delayLongPress={10000}
+                    style={{ padding: 2 }}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                  >
+                    <CircleHelp size={16} color={AURORA.textMuted} />
+                  </TouchableOpacity>
+                </View>
+                <Text
+                  style={{
+                    color: AURORA.textSec,
+                    fontSize: isCompactWidth ? 11 : 12,
+                    marginVertical: 10,
+                  }}
+                >
+                  Total minutes spent in each mood in the last 7 days.
+                </Text>
+                {weekDurationBars.length === 0 ? (
+                  <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
+                    No duration entries yet for the last 7 days.
+                  </Text>
+                ) : (
+                  <View style={{ gap: 10 }}>
+                    {weekDurationBars.map((item) => {
+                      const maxMinutes = Math.max(
+                        1,
+                        weekDurationBars[0]?.totalMinutes ?? 1,
+                      );
+                      const widthPct = Math.max(
+                        10,
+                        Math.round((item.totalMinutes / maxMinutes) * 100),
+                      );
+                      return (
+                        <View key={`week-duration-${item.mood}`}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              marginBottom: 4,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: AURORA.textPrimary,
+                                fontSize: 12,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {item.label}
+                            </Text>
+                            <Text
+                              style={{
+                                color: AURORA.textMuted,
+                                fontSize: 11,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {item.totalMinutes} min
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              opacity:
+                                selectedWeekMood && selectedWeekMood !== item.mood
+                                  ? 0.38
+                                  : 1,
+                              height: 8,
+                              borderRadius: 999,
+                              backgroundColor: "rgba(255,255,255,0.10)",
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: `${widthPct}%`,
+                                height: 8,
+                                borderRadius: 999,
+                                backgroundColor: item.color,
+                              }}
+                            />
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            </Animatable.View>
+            <Animatable.View {...analyticsPanelEnter(reduceMotion, 300)}>
+              <View
+                style={{
+                  backgroundColor: AURORA.cardAlt,
+                  borderRadius: 14,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text
+                    style={{
+                      color: AURORA.textPrimary,
+                      fontSize: 16,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Average Intensity
+                  </Text>
+                  <TouchableOpacity
+                    onPress={showMoodIntensityGuide}
+                    onLongPress={() => {}}
+                    delayLongPress={10000}
+                    style={{ padding: 2 }}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                  >
+                    <CircleHelp size={16} color={AURORA.textMuted} />
+                  </TouchableOpacity>
+                </View>
+                <Text
+                  style={{
+                    color: AURORA.textSec,
+                    fontSize: isCompactWidth ? 11 : 12,
+                    marginVertical: 10,
+                  }}
+                >
+                  Compare which moods had higher or lower average intensity in the
+                  last 7 days.
+                </Text>
+                {weekIntensityBars.length === 0 ? (
+                  <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
+                    No intensity entries yet for the last 7 days.
+                  </Text>
+                ) : (
+                  <View style={{ gap: 10 }}>
+                    {weekIntensityBars.map((item) => {
+                      const widthPct = Math.max(
+                        10,
+                        Math.round((item.averageIntensity / 10) * 100),
+                      );
+                      return (
+                        <View key={`week-intensity-${item.mood}`}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              marginBottom: 4,
+                              opacity:
+                                selectedWeekMood && selectedWeekMood !== item.mood
+                                  ? 0.38
+                                  : 1,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: AURORA.textPrimary,
+                                fontSize: 12,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {item.label}
+                            </Text>
+                            <View
+                              style={{
+                                marginLeft: 8,
+                                paddingHorizontal: 7,
+                                paddingVertical: 2,
+                                borderRadius: 999,
+                                borderWidth: 1,
+                                borderColor: "rgba(255,255,255,0.22)",
+                                backgroundColor: "rgba(255,255,255,0.08)",
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: AURORA.textMuted,
+                                  fontSize: 10,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                n={item.intensitySamples}
+                              </Text>
+                            </View>
+                          </View>
+                          <View
+                            style={{
+                              height: 8,
+                              borderRadius: 999,
+                              backgroundColor: "rgba(255,255,255,0.10)",
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: `${widthPct}%`,
+                                height: 8,
+                                borderRadius: 999,
+                                backgroundColor: item.color,
+                              }}
+                            />
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            </Animatable.View>
           </View>
 
           {celebrateMilestone ? (
