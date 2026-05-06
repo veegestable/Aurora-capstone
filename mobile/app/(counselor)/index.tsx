@@ -151,13 +151,13 @@ function getRosterPillStyle(
     case "session_started":
       return {
         badgeBg: "rgba(45,107,255,0.18)",
-        border: "rgba(45,107,255,0.45)",
+        border: "",
         text: AURORA.blue,
       };
     case "no_session_yet":
       return {
         badgeBg: "rgba(148,163,184,0.12)",
-        border: "rgba(148,163,184,0.35)",
+        border: "",
         text: AURORA.textSec,
       };
   }
@@ -584,6 +584,8 @@ function FlagRow({ item }: { item: FlagItem }) {
         overflow: "hidden",
         borderWidth: 1,
         borderColor: AURORA.border,
+        paddingVertical: 8,
+        paddingRight: 4,
       }}
     >
       <View
@@ -593,10 +595,10 @@ function FlagRow({ item }: { item: FlagItem }) {
           alignSelf: "stretch",
         }}
       />
-      <View style={{ margin: 12 }}>
+      <View style={{ marginLeft: 12, marginRight: 12 }}>
         <LetterAvatar name={item.name} size={48} avatarUrl={item.avatar} />
       </View>
-      <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+      <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
         <Text
           style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}
           numberOfLines={1}
@@ -620,8 +622,8 @@ function FlagRow({ item }: { item: FlagItem }) {
           backgroundColor: style.badgeBg,
           borderRadius: 12,
           paddingHorizontal: 10,
-          paddingVertical: 5,
-          marginRight: 8,
+          paddingVertical: 6,
+          marginRight: 10,
           borderWidth: 1,
           borderColor: `${style.text}44`,
         }}
@@ -642,7 +644,7 @@ function FlagRow({ item }: { item: FlagItem }) {
         <ChevronRight
           size={16}
           color={AURORA.textMuted}
-          style={{ marginRight: 12 }}
+          style={{ marginRight: 2 }}
         />
       </View>
     </TouchableOpacity>
