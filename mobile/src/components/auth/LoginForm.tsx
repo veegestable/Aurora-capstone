@@ -236,19 +236,8 @@ export default function LoginForm() {
             <Text
               style={[styles.verifyBody, compact && styles.verifyBodyCompact]}
             >
-              Open that email and tap the verification link. That confirms this
-              inbox can receive mail from Aurora. You must complete this step
-              before you can sign in.
-            </Text>
-            <Text
-              style={[
-                styles.verifyCooldown,
-                compact && styles.verifyCooldownCompact,
-              ]}
-            >
-              {resendCooldownSeconds > 0
-                ? `Send again in ${resendCooldownSeconds}s`
-                : "You can send the verification email again."}
+              Check your email and tap the verification link. Once verified,
+              go back and sign in to continue.
             </Text>
             <Button
               onPress={handleResendVerificationEmail}
@@ -408,9 +397,7 @@ export default function LoginForm() {
                     compact && styles.signInResendHintCompact,
                   ]}
                 >
-                  {signInResendCooldownSeconds > 0
-                    ? `Resend verification email in ${signInResendCooldownSeconds}s`
-                    : "Need a new verification link?"}
+                  Need a new verification link?
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
@@ -628,14 +615,6 @@ const styles = StyleSheet.create({
   verifyBodyCompact: {
     fontSize: 12,
     lineHeight: 17,
-  },
-  verifyCooldown: {
-    fontSize: 13,
-    color: "#93C5FD",
-    fontWeight: "600",
-  },
-  verifyCooldownCompact: {
-    fontSize: 11,
   },
   signInResendWrap: {
     marginTop: 4,
