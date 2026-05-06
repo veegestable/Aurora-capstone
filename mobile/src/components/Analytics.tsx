@@ -642,12 +642,12 @@ function ChartSection({ children }: { children: React.ReactNode }) {
   return (
     <View
       style={{
-        backgroundColor: AURORA.card,
-        borderRadius: 20,
-        padding: 16,
+        // backgroundColor: AURORA.card,
+        // borderRadius: 20,
+        // padding: 16,
         marginBottom: 16,
-        borderWidth: 1,
-        borderColor: AURORA.border,
+        // borderWidth: 1,
+        // borderColor: AURORA.border,
       }}
     >
       {children}
@@ -1601,6 +1601,8 @@ export default function Analytics() {
                         backgroundColor: AURORA.cardAlt,
                         borderRadius: 14,
                         padding: 12,
+                        borderWidth: 1,
+                        borderColor: AURORA.border,
                        
                       }}
                     >
@@ -1655,6 +1657,8 @@ export default function Analytics() {
                         backgroundColor: AURORA.cardAlt,
                         borderRadius: 14,
                         padding: 12,
+                        borderWidth: 1,
+                        borderColor: AURORA.border,
                       }}
                     >
                       <Text
@@ -1689,6 +1693,8 @@ export default function Analytics() {
                       borderRadius: 14,
                       padding: 12,
                       marginBottom: UI_SECTION_GAP,
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
                     }}
                   >
                     <View
@@ -1910,6 +1916,8 @@ export default function Analytics() {
                       borderRadius: 14,
                       padding: 12,
                       marginBottom: 12,
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
                     }}
                   >
                     <Text
@@ -2040,6 +2048,8 @@ export default function Analytics() {
                       borderRadius: 14,
                       padding: 12,
                       marginBottom: 12,
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
                     }}
                   >
                     <View
@@ -2057,7 +2067,7 @@ export default function Analytics() {
                           fontWeight: "700",
                         }}
                       >
-                        Mood Frequency (Pie Chart)
+                        Mood Frequency
                       </Text>
                       <TouchableOpacity
                         onPress={showMoodFrequencyGuide}
@@ -2138,6 +2148,8 @@ export default function Analytics() {
                       borderRadius: 14,
                       padding: 12,
                       marginBottom: 12,
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
                     }}
                   >
                     <View
@@ -2255,6 +2267,8 @@ export default function Analytics() {
                       borderRadius: 14,
                       padding: 12,
                       marginBottom: 12,
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
                     }}
                   >
                     <View
@@ -2413,12 +2427,22 @@ export default function Analytics() {
                 </Animatable.View>
                 <Animatable.View {...analyticsPanelEnter(reduceMotion, 490)}>
                   {todayStressPointCount >= 2 || todayEnergyPointCount >= 2 ? (
-                    <View style={{ marginBottom: 12 }}>
+                    <View
+                      style={{
+                        backgroundColor: AURORA.cardAlt,
+                        borderRadius: 14,
+                        padding: 12,
+                        marginBottom: 12,
+                        borderWidth: 1,
+                        borderColor: AURORA.border,
+                      }}
+                    >
                       <View
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
                           marginBottom: 10,
+                        
                         }}
                       >
                         <Text
@@ -3063,6 +3087,8 @@ export default function Analytics() {
                   borderRadius: 14,
                   padding: 12,
                   marginBottom: 12,
+                  borderWidth: 1,
+                  borderColor: AURORA.border,
                 }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -3073,7 +3099,7 @@ export default function Analytics() {
                       fontWeight: "700",
                     }}
                   >
-                    Mood Frequency (Pie Chart)
+                    Mood Frequency
                   </Text>
                   <TouchableOpacity
                     onPress={showMoodFrequencyGuide}
@@ -3148,6 +3174,8 @@ export default function Analytics() {
                   borderRadius: 14,
                   padding: 12,
                   marginBottom: 12,
+                  borderWidth: 1,
+                  borderColor: AURORA.border,
                 }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -3257,6 +3285,8 @@ export default function Analytics() {
                   borderRadius: 14,
                   padding: 12,
                   marginBottom: 12,
+                  borderWidth: 1,
+                  borderColor: AURORA.border,
                 }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>

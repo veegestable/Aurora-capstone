@@ -238,6 +238,15 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
   };
   return (
     <View style={{ marginTop: 8 }}>
+      <View
+        style={{
+          backgroundColor: AURORA.cardAlt,
+          borderRadius: 16,
+          padding: 12,
+          borderWidth: 1,
+          borderColor: AURORA.border,
+        }}
+      >
       {/* Widget A */}
       <View
         style={{
@@ -362,8 +371,8 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           backgroundColor: AURORA.card,
           borderRadius: 16,
           padding: 18,
-          borderWidth: 1,
-          borderColor: AURORA.border,
+          // borderWidth: 1,
+          // borderColor: AURORA.border,
           marginBottom: 16,
         }}
       >
@@ -1044,6 +1053,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
             ) : null}
           </>
         )}
+      </View>
       </View>
       <InfoGuideModal guide={activeGuide} onClose={() => setActiveGuide(null)} />
     </View>
