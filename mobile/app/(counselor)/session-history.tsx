@@ -108,6 +108,9 @@ interface SessionHistoryItem {
   sessionHistoryBadge?: SessionHistoryBadge;
   updatedAt: Date;
   createdAt: Date;
+  initiatedBy?: string;
+  /** When the current agreed time was locked (Firestore); null on older docs. */
+  slotConfirmedAt?: Date | null;
 }
 
 function normalizeRouteSessionId(
@@ -118,6 +121,19 @@ function normalizeRouteSessionId(
     return raw[0].trim();
   }
   return undefined;
+}
+
+function formatSessionTimelineLine(d: Date): string {
+  if (!d || isNaN(d.getTime())) return "—";
+  return `${d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })} · ${d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })}`;
 }
 
 function formatDateHeader(date: Date): string {
@@ -421,8 +437,21 @@ export default function SessionHistoryScreen() {
 
     setRescheduleBusy(true);
     try {
-      await firestoreService.proposeSlots(selectedSession.id, timeSlots);
       const conversationId = `${user.id}_${selectedSession.studentId}`;
+      const priorRaw =
+        getAgreedSessionSlot(selectedSession) ??
+        selectedSession.proposedSlots?.[0];
+      const priorFmt = formatSlotForDisplay(priorRaw);
+      const priorDisp = priorFmt
+        ? `${priorFmt.date} at ${priorFmt.time}`
+        : (selectedSession.preferredTimeFromStudent?.trim() ||
+            "the time we had planned");
+      const firstName = selectedSession.studentName.split(" ")[0] || "there";
+      const lead = `Hi ${firstName}, I need to reschedule the session we had for ${priorDisp}. Please choose a new time using the options on my session card below.`;
+      await firestoreService.sendTextMessage(conversationId, user.id, lead);
+      await firestoreService.proposeSlots(selectedSession.id, timeSlots, {
+        proposalKind: "attendance_reschedule",
+      });
       const headline = timeSlots[0];
 
       await firestoreService.updateSessionInviteMessageScheduleForSession(
@@ -432,12 +461,12 @@ export default function SessionHistoryScreen() {
         {
           id: selectedSession.id,
           type: "invite",
-          title: "Academic Guidance",
+          title: "Choose a new time",
           counselorName: user.full_name || "Counselor",
           date: headline.date,
           time: headline.time,
           location: "Guidance Office, West Wing",
-          note: data.note,
+          note: data.note.trim(),
           timeSlots,
         },
       );
@@ -754,6 +783,7 @@ export default function SessionHistoryScreen() {
       {selectedSession && (
         <SendSessionInviteModal
           visible={showRescheduleInviteModal}
+          mode="reschedule"
           student={{
             id: selectedSession.studentId,
             name: selectedSession.studentName,
@@ -847,6 +877,37 @@ function SessionHistoryCard({
               year_level: session.studentYear,
             }) || "CCS"}
           </Text>
+
+          <View style={{ marginBottom: 8 }}>
+            <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16 }}>
+              {(session.initiatedBy ?? "student") === "counselor"
+                ? "Invite sent"
+                : "Requested"}
+              :{" "}
+              {formatSessionTimelineLine(
+                session.createdAt instanceof Date
+                  ? session.createdAt
+                  : new Date(session.createdAt),
+              )}
+            </Text>
+            {session.slotConfirmedAt ? (
+              <Text
+                style={{
+                  color: AURORA.textMuted,
+                  fontSize: 11,
+                  lineHeight: 16,
+                  marginTop: 2,
+                }}
+              >
+                Time agreed:{" "}
+                {formatSessionTimelineLine(
+                  session.slotConfirmedAt instanceof Date
+                    ? session.slotConfirmedAt
+                    : new Date(session.slotConfirmedAt),
+                )}
+              </Text>
+            ) : null}
+          </View>
 
           {session.status === "completed" && (
             <>

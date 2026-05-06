@@ -106,11 +106,11 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
     borderColor: AURORA.border,
   } as const;
 
-  function SectionHead({
-    label,
+  function SectionTitleWithInfo({
+    title,
     onInfo,
   }: {
-    label: string;
+    title: string;
     onInfo: () => void;
   }) {
     return (
@@ -118,25 +118,25 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          marginBottom: 10,
+          marginBottom: 4,
+          gap: 6,
         }}
       >
         <Text
           style={{
-            color: AURORA.textMuted,
-            fontSize: 10,
+            color: AURORA.textPrimary,
+            fontSize: 16,
             fontWeight: "700",
-            letterSpacing: 0.6,
           }}
         >
-          {label}
+          {title}
         </Text>
         <TouchableOpacity
           onPress={onInfo}
           hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-          style={{ padding: 4, marginLeft: "auto" }}
+          style={{ padding: 2 }}
         >
-          <CircleHelp size={14} color={AURORA.textMuted} />
+          <CircleHelp size={16} color={AURORA.textMuted} />
         </TouchableOpacity>
       </View>
     );
@@ -181,8 +181,8 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
       ) : (
         <>
           <View style={chartCard}>
-        <SectionHead
-          label="MOOD FREQUENCY (LAST 7 DAYS)"
+        <SectionTitleWithInfo
+          title="Mood frequency"
           onInfo={() =>
             setGuide({
               title: "Mood frequency",
@@ -190,16 +190,6 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
             })
           }
         />
-        <Text
-          style={{
-            color: AURORA.textPrimary,
-            fontSize: 16,
-            fontWeight: "700",
-            marginBottom: 4,
-          }}
-        >
-          Mood frequency (pie chart)
-        </Text>
         <Text
           style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 8 }}
         >
@@ -254,8 +244,8 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
       </View>
 
       <View style={chartCard}>
-        <SectionHead
-          label="MOOD DURATION (LAST 7 DAYS)"
+        <SectionTitleWithInfo
+          title="Mood duration"
           onInfo={() =>
             setGuide({
               title: "Mood duration",
@@ -264,19 +254,9 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
           }
         />
         <Text
-          style={{
-            color: AURORA.textPrimary,
-            fontSize: 16,
-            fontWeight: "700",
-            marginBottom: 4,
-          }}
-        >
-          Mood duration (bar chart)
-        </Text>
-        <Text
           style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 10 }}
         >
-          Total merged retrospective minutes per mood (last 7 days).
+          Total minutes spent in each mood.
         </Text>
         {durationBars.length === 0 ? (
           <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
@@ -344,8 +324,8 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
       </View>
 
       <View style={chartCard}>
-        <SectionHead
-          label="AVERAGE INTENSITY BY MOOD"
+        <SectionTitleWithInfo
+          title="Average intensity"
           onInfo={() =>
             setGuide({
               title: "Mood intensity",
@@ -354,19 +334,9 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
           }
         />
         <Text
-          style={{
-            color: AURORA.textPrimary,
-            fontSize: 16,
-            fontWeight: "700",
-            marginBottom: 4,
-          }}
-        >
-          Average intensity (bar chart)
-        </Text>
-        <Text
           style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 10 }}
         >
-          Compare moods by average intensity (last 7 days).
+          Compare moods by average intensity.
         </Text>
         {intensityBars.length === 0 ? (
           <Text style={{ color: AURORA.textSec, fontSize: 12 }}>

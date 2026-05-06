@@ -7,6 +7,7 @@ import {
   query,
   orderBy,
   getDocs,
+  getCountFromServer,
   Timestamp,
   limit,
   onSnapshot,
@@ -112,6 +113,16 @@ function mapAnnouncementsForRole(
 }
 
 export const announcementsService = {
+  /** Total documents in `announcements` (for admin dashboard stats). */
+  async countAll(): Promise<number | null> {
+    try {
+      const snap = await getCountFromServer(collection(db, "announcements"));
+      return snap.data().count;
+    } catch {
+      return null;
+    }
+  },
+
   async listForRole(
     role: "counselor" | "student",
     maxCount = 20,

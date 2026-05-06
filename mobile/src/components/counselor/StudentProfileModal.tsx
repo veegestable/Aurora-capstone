@@ -307,15 +307,81 @@ interface StudentProfileModalProps {
 }
 
 function conversationStyleFromSignal(
-    sharingOn: boolean,
     level?: CounselorSignalPill,
 ): { isAlerted: boolean; borderColor?: string } {
-    if (!sharingOn || !level || level === 'sharing_off' || level === 'no_checkins' || level === 'typical_self_report') {
+    if (!level || level === 'no_checkins' || level === 'typical_self_report') {
         return { isAlerted: false, borderColor: undefined };
     }
     if (level === 'higher_self_report') return { isAlerted: true, borderColor: AURORA.red };
     if (level === 'moderate_self_report') return { isAlerted: false, borderColor: AURORA.orange };
     return { isAlerted: false, borderColor: undefined };
+}
+
+function baselineMoodLabel(log: MergedMoodLog): string {
+    const em = log.emotions?.[0]?.emotion;
+    if (typeof em === 'string' && em.trim()) {
+        const t = em.trim();
+        return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+    if (typeof log.mood === 'string' && log.mood.trim()) {
+        const t = log.mood.trim();
+        return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+    return 'Logged';
+}
+
+function CounselorBaselineCheckInList({ logs }: { logs: MergedMoodLog[] }) {
+    const sorted = useMemo(
+        () =>
+            [...logs].sort((a, b) => {
+                const ta =
+                    a.log_date instanceof Date
+                        ? a.log_date.getTime()
+                        : new Date(a.log_date as string).getTime();
+                const tb =
+                    b.log_date instanceof Date
+                        ? b.log_date.getTime()
+                        : new Date(b.log_date as string).getTime();
+                return tb - ta;
+            }),
+        [logs],
+    );
+    const rows = sorted.slice(0, 24);
+    return (
+        <View style={{ gap: 10 }}>
+            <Text style={{ color: AURORA.textSec, fontSize: 12, lineHeight: 18, marginBottom: 4 }}>
+                Date, time, and mood only — not notes, sleep, meals, or photos. Full summaries unlock
+                when this student is in your special population.
+            </Text>
+            {rows.map((log) => {
+                const d = log.log_date instanceof Date ? log.log_date : new Date(log.log_date as string);
+                const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                return (
+                    <View
+                        key={log.id}
+                        style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            paddingVertical: 10,
+                            paddingHorizontal: 12,
+                            borderRadius: 12,
+                            backgroundColor: 'rgba(15,23,42,0.45)',
+                            borderWidth: 1,
+                            borderColor: AURORA.border,
+                        }}
+                    >
+                        <Text style={{ color: '#E2E8F0', fontSize: 13, fontWeight: '700' }}>{dateStr}</Text>
+                        <Text style={{ color: AURORA.blue, fontSize: 12, fontWeight: '600' }}>{timeStr}</Text>
+                        <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+                            {baselineMoodLabel(log)}
+                        </Text>
+                    </View>
+                );
+            })}
+        </View>
+    );
 }
 
 export default function StudentProfileModal({
@@ -327,9 +393,10 @@ export default function StudentProfileModal({
     counselorAvatar,
     signalRiskLevel,
 }: StudentProfileModalProps) {
-    const [rawLogs, setRawLogs] = useState<MergedMoodLog[]>([]);
+    const [fullLogs, setFullLogs] = useState<MergedMoodLog[]>([]);
+    const [baselineLogs, setBaselineLogs] = useState<MergedMoodLog[]>([]);
     const [loading, setLoading] = useState(false);
-    const [sharingEnabled, setSharingEnabled] = useState(false);
+    const [journalAccessGranted, setJournalAccessGranted] = useState(false);
     const [inviteBusy, setInviteBusy] = useState(false);
     const { height: windowHeight } = useWindowDimensions();
 
@@ -342,30 +409,34 @@ export default function StudentProfileModal({
         if (!visible || !student) return;
         if (!counselorId) {
             setLoading(false);
-            setSharingEnabled(false);
-            setRawLogs([]);
+            setJournalAccessGranted(false);
+            setFullLogs([]);
+            setBaselineLogs([]);
             return;
         }
 
         setLoading(true);
-        setRawLogs([]);
+        setFullLogs([]);
+        setBaselineLogs([]);
         fetchStudentCounselorDetailedContext(student.id, counselorId)
-            .then(({ sharingEnabled: on, journalAccessGranted, logs }) => {
-                const allowed = on && journalAccessGranted;
-                setSharingEnabled(allowed);
-                if (!allowed) {
-                    setRawLogs([]);
-                    return;
-                }
-                const normalized = (logs || []).map((l: MergedMoodLog) => ({
+            .then((det) => {
+                setJournalAccessGranted(det.journalAccessGranted);
+                const norm = (det.logs || []).map((l: MergedMoodLog) => ({
                     ...l,
                     log_date: l.log_date instanceof Date ? l.log_date : new Date(l.log_date as unknown as string),
                 }));
-                setRawLogs(normalized);
+                if (det.journalAccessGranted) {
+                    setFullLogs(norm);
+                    setBaselineLogs([]);
+                } else {
+                    setFullLogs([]);
+                    setBaselineLogs(norm);
+                }
             })
             .catch(() => {
-                setSharingEnabled(false);
-                setRawLogs([]);
+                setJournalAccessGranted(false);
+                setFullLogs([]);
+                setBaselineLogs([]);
             })
             .finally(() => setLoading(false));
     }, [visible, student?.id, counselorId]);
@@ -383,11 +454,8 @@ export default function StudentProfileModal({
             Alert.alert('Sign in required', 'Please sign in again as a counselor to send an invite.');
             return;
         }
-        const sharingForSignal =
-            signalRiskLevel != null && signalRiskLevel !== 'sharing_off';
         const { isAlerted, borderColor } = conversationStyleFromSignal(
-            sharingForSignal,
-            signalRiskLevel,
+            journalAccessGranted ? signalRiskLevel : undefined,
         );
         setInviteBusy(true);
         try {
@@ -465,29 +533,27 @@ export default function StudentProfileModal({
                                 >
                                     <ActivityIndicator color={AURORA.blue} size="large" />
                                 </View>
-                            ) : !sharingEnabled ? (
-                                <View style={[styles.chartBox, styles.messageBox]}>
-                                    <Text style={styles.emptyText}>
-                                        Detailed summaries appear only when the student enables sharing with guidance and grants access by requesting a session with you (first-time confirmation). Open Student Directory → student profile for the full journal view.
-                                    </Text>
+                            ) : journalAccessGranted && fullLogs.length > 0 ? (
+                                <View style={styles.chartBox}>
+                                    <CounselorCheckInSummaryPanel logs={fullLogs} />
                                 </View>
-                            ) : rawLogs.length === 0 ? (
-                                <View style={[styles.chartBox, styles.messageBox]}>
-                                    <Text style={styles.emptyText}>
-                                        {`Sharing is on, but there are no check-ins in Aurora for the last ${COUNSELOR_CHECKIN_WINDOW_DAYS} days — so there is nothing to summarize yet.`}
-                                    </Text>
+                            ) : baselineLogs.length > 0 ? (
+                                <View style={[styles.chartBox, { padding: 14 }]}>
+                                    <CounselorBaselineCheckInList logs={baselineLogs} />
                                 </View>
                             ) : (
-                                <View style={styles.chartBox}>
-                                    <CounselorCheckInSummaryPanel logs={rawLogs} />
+                                <View style={[styles.chartBox, styles.messageBox]}>
+                                    <Text style={styles.emptyText}>
+                                        {`No check-ins in Aurora for the last ${COUNSELOR_CHECKIN_WINDOW_DAYS} days yet. Full stress/energy summaries appear when this student is in your special population (session consent).`}
+                                    </Text>
                                 </View>
                             )}
                         </View>
 
                         <Text style={styles.inviteHint}>
-                            {sharingEnabled
+                            {journalAccessGranted && fullLogs.length > 0
                                 ? 'Figures above are self-reported summaries only — not a diagnosis.\nUse messages to coordinate a session respectfully.'
-                                : 'Without sharing plus session-request consent, Aurora does not show this student’s journals here. You can still invite them to chat.'}
+                                : 'Every student shows date, time, and mood here. Full journal analytics unlock after special-population consent. You can still invite them to chat.'}
                         </Text>
                     </ScrollView>
 

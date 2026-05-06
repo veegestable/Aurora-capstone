@@ -21,6 +21,7 @@ export interface UserDaySettingsValue {
   dayResetHour: number;
   timezone: string;
   reminderHour: number;
+  reminderMinute: number;
   remindersEnabled: boolean;
   academicContextEnabled: boolean;
   enabledContextCategories: ContextCategoryKey[];
@@ -33,6 +34,7 @@ export interface UserDaySettingsValue {
   setDayResetHour: (hour: number) => Promise<void>;
   setTimezone: (tz: string) => Promise<void>;
   setReminderHour: (hour: number) => Promise<void>;
+  setReminderTime: (hour: number, minute: number) => Promise<void>;
   setRemindersEnabled: (enabled: boolean) => Promise<void>;
   setAcademicContextEnabled: (enabled: boolean) => Promise<void>;
   setCategoryEnabled: (
@@ -53,6 +55,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
   const [dayResetHour, setDayResetHourState] = useState(0);
   const [timezone, setTimezoneState] = useState(defaultUserTimezone());
   const [reminderHour, setReminderHourState] = useState(7);
+  const [reminderMinute, setReminderMinuteState] = useState(0);
   const [remindersEnabled, setRemindersEnabledState] = useState(true);
   const [academicContextEnabled, setAcademicContextEnabledState] =
     useState(true);
@@ -69,6 +72,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       setDayResetHourState(0);
       setTimezoneState(defaultUserTimezone());
       setReminderHourState(7);
+      setReminderMinuteState(0);
       setRemindersEnabledState(true);
       setAcademicContextEnabledState(true);
       setEnabledContextCategoriesState([
@@ -91,6 +95,9 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       setTimezoneState(s.timezone || defaultUserTimezone());
       setReminderHourState(
         typeof s.reminderHour === "number" ? s.reminderHour : 7,
+      );
+      setReminderMinuteState(
+        typeof s.reminderMinute === "number" ? s.reminderMinute : 0,
       );
       setRemindersEnabledState(
         typeof s.remindersEnabled === "boolean" ? s.remindersEnabled : true,
@@ -137,8 +144,21 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
     async (hour: number) => {
       if (!user?.id) return;
       const h = Math.min(23, Math.max(0, Math.floor(hour)));
-      await updateUserSettings(user.id, { reminderHour: h });
+      await updateUserSettings(user.id, { reminderHour: h, reminderMinute: 0 });
       setReminderHourState(h);
+      setReminderMinuteState(0);
+    },
+    [user?.id],
+  );
+
+  const setReminderTime = useCallback(
+    async (hour: number, minute: number) => {
+      if (!user?.id) return;
+      const h = Math.min(23, Math.max(0, Math.floor(hour)));
+      const m = Math.min(59, Math.max(0, Math.floor(minute)));
+      await updateUserSettings(user.id, { reminderHour: h, reminderMinute: m });
+      setReminderHourState(h);
+      setReminderMinuteState(m);
     },
     [user?.id],
   );
@@ -207,6 +227,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       dayResetHour,
       timezone,
       reminderHour,
+      reminderMinute,
       remindersEnabled,
       academicContextEnabled,
       enabledContextCategories,
@@ -218,6 +239,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       setDayResetHour,
       setTimezone,
       setReminderHour,
+      setReminderTime,
       setRemindersEnabled,
       setAcademicContextEnabled,
       setCategoryEnabled,
@@ -229,6 +251,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       dayResetHour,
       timezone,
       reminderHour,
+      reminderMinute,
       remindersEnabled,
       academicContextEnabled,
       enabledContextCategories,
@@ -240,6 +263,7 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
       setDayResetHour,
       setTimezone,
       setReminderHour,
+      setReminderTime,
       setRemindersEnabled,
       setAcademicContextEnabled,
       setCategoryEnabled,

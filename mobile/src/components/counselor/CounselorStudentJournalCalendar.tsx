@@ -18,6 +18,12 @@ import {
   ChevronRight,
   BookMarked,
   BarChart3,
+  Timer,
+  Bath,
+  UtensilsCrossed,
+  Tags,
+  NotebookPen,
+  Image as ImageIcon,
 } from "lucide-react-native";
 import Animated, {
   Easing,
@@ -38,6 +44,7 @@ import { useReducedMotion } from "../../hooks/useReducedMotion";
 const UI_TEXT_MUTED = "#9AA9C8";
 const UI_TEXT_SECONDARY = "#C1CEE9";
 const JOURNAL_TOGGLE_PAD = 4;
+const DETAILS_ICON_COLOR = "#93C5FD";
 
 interface MoodEntry {
   id: string;
@@ -59,6 +66,26 @@ interface MoodEntry {
     meal_time: string;
     taken: boolean;
   }>;
+}
+
+/** Counselor baseline policy: date, time, mood only — strip fields not shown in UI. */
+function sanitizeEntryForCounselorBaseline(entry: MoodEntry): MoodEntry {
+  const emotions = Array.isArray(entry.emotions) ? entry.emotions : [];
+  return {
+    ...entry,
+    emotions,
+    notes: "",
+    /** Hide self-report scales from UI paths that still receive raw subscription payloads. */
+    stress_level: 1,
+    energy_level: 10,
+    sleep_quality: undefined,
+    journal_image_url: "",
+    bath_taken: false,
+    meal_responses: [],
+    duration_in_minutes: undefined,
+    event_tags: [],
+    event_categories: [],
+  };
 }
 
 interface CalendarDay {
@@ -153,6 +180,15 @@ function sleepQualityLabel(raw: MoodEntry["sleep_quality"]): string {
   return "Not logged";
 }
 
+function formatTagLabel(tag: string): string {
+  return tag.replace(/-/g, " ");
+}
+
+function formatCategoryLabel(category: string): string {
+  if (category === "fun") return "Fun / Leisure";
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
 const MOOD_ICON_BY_MOOD: Record<MoodLog["mood"], any> = {
   Happy: require("../../assets/moodIcon/happy.png"),
   Sad: require("../../assets/moodIcon/sad.png"),
@@ -216,9 +252,11 @@ function CalendarDayCell({
 function CounselorDayDetailCard({
   dateLabel,
   entries,
+  privacyMode = "full",
 }: {
   dateLabel: string;
   entries: MoodEntry[];
+  privacyMode?: "baseline" | "full";
 }) {
   const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null);
 
@@ -271,6 +309,36 @@ function CounselorDayDetailCard({
               entry.duration_in_minutes > 0
                 ? Math.round(entry.duration_in_minutes)
                 : undefined;
+            const energyLevelRaw =
+              typeof entry.energy_level === "number" &&
+              Number.isFinite(entry.energy_level)
+                ? entry.energy_level
+                : null;
+            const stressLevelRaw =
+              typeof entry.stress_level === "number" &&
+              Number.isFinite(entry.stress_level)
+                ? entry.stress_level
+                : null;
+            const energyLevel =
+              energyLevelRaw === null
+                ? null
+                : energyLevelRaw > 5
+                  ? Math.round(energyLevelRaw / 2)
+                  : energyLevelRaw;
+            const stressLevel =
+              stressLevelRaw === null
+                ? null
+                : stressLevelRaw > 5
+                  ? Math.round(stressLevelRaw / 2)
+                  : stressLevelRaw;
+            const tags = Array.isArray(entry.event_tags) ? entry.event_tags : [];
+            const categoriesFromEntry = Array.isArray(entry.event_categories)
+              ? entry.event_categories
+              : [];
+            const categories =
+              categoriesFromEntry.length > 0
+                ? categoriesFromEntry
+                : [];
             const groupKey = entry.id || `e-${idx}`;
             const expanded = expandedEntryId === groupKey;
 
@@ -278,20 +346,23 @@ function CounselorDayDetailCard({
               <TouchableOpacity
                 key={groupKey}
                 activeOpacity={0.88}
-                onPress={() =>
+                onPress={() => {
+                  if (privacyMode !== "full") return;
                   setExpandedEntryId((prev) =>
                     prev === groupKey ? null : groupKey,
-                  )
-                }
+                  );
+                }}
                 style={styles.entryBlock}
               >
                 <View style={styles.entryHeader}>
                   <Text style={styles.entryTime}>
                     {formatTime(entry.created_at || entry.log_date)}
                   </Text>
-                  <Text style={styles.entryHint}>
-                    {expanded ? "Hide details" : "Tap for details"}
-                  </Text>
+                  {privacyMode === "full" ? (
+                    <Text style={styles.entryHint}>
+                      {expanded ? "Hide details" : "Tap for details"}
+                    </Text>
+                  ) : null}
                 </View>
 
                 <View style={styles.chipsRow}>
@@ -309,92 +380,205 @@ function CounselorDayDetailCard({
                       >
                         {log.mood}
                       </Text>
-                      <View style={styles.intensityRow}>
-                        {[1, 2, 3, 4, 5].map((dot) => (
-                          <View
-                            key={dot}
-                            style={[
-                              styles.intensityDot,
-                              {
-                                backgroundColor:
-                                  dot <= log.intensity
-                                    ? MOOD_COLORS[log.mood]
-                                    : "#ffffff15",
-                              },
-                            ]}
-                          />
-                        ))}
-                      </View>
+                      {privacyMode === "full" ? (
+                        <View style={styles.intensityRow}>
+                          {[1, 2, 3, 4, 5].map((dot) => (
+                            <View
+                              key={dot}
+                              style={[
+                                styles.intensityDot,
+                                {
+                                  backgroundColor:
+                                    dot <= log.intensity
+                                      ? MOOD_COLORS[log.mood]
+                                      : "#ffffff15",
+                                },
+                              ]}
+                            />
+                          ))}
+                        </View>
+                      ) : null}
                     </View>
                   ))}
                 </View>
 
-                {expanded ? (
+                {expanded && privacyMode === "full" ? (
                   <>
                     <View style={styles.detailsBlock}>
-                      <Text style={styles.detailsTitle}>Wellness</Text>
-                      <Text style={styles.detailsLine}>
-                        Sleep quality:{" "}
-                        <Text style={styles.healthValue}>
-                          {sleepQualityLabel(entry.sleep_quality)}
-                        </Text>
-                      </Text>
-                      <Text style={[styles.detailsLine, { marginTop: 6 }]}>
-                        Mood duration:{" "}
-                        <Text style={styles.healthValue}>
-                          {formatDurationShort(durationMinutes)}
-                        </Text>
-                      </Text>
+                      <View style={styles.detailsSection}>
+                        <View style={styles.detailsSectionHeader}>
+                          <Timer size={14} color={DETAILS_ICON_COLOR} />
+                          <Text style={styles.noteLabel}>Mood duration</Text>
+                        </View>
+                        <View style={styles.detailsAnswerWrap}>
+                          <Text style={styles.detailsLine}>
+                            <Text style={styles.detailValueAccent}>
+                              {formatDurationShort(durationMinutes)}
+                            </Text>
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.detailsSection}>
+                        <View style={styles.detailsSectionHeader}>
+                          <BarChart3 size={14} color={DETAILS_ICON_COLOR} />
+                          <Text style={styles.noteLabel}>Energy & stress</Text>
+                        </View>
+                        <View style={styles.detailsAnswerWrap}>
+                          <Text style={styles.detailsLine}>
+                            Energy level:{" "}
+                            <Text style={styles.detailValueAccent}>
+                              {energyLevel === null ? "--" : `${energyLevel}/5`}
+                            </Text>
+                          </Text>
+                          <Text style={styles.detailsLine}>
+                            Stress level:{" "}
+                            <Text style={styles.detailValueAccent}>
+                              {stressLevel === null ? "--" : `${stressLevel}/5`}
+                            </Text>
+                          </Text>
+                          <Text style={styles.detailsLine}>
+                            Sleep quality:{" "}
+                            <Text style={styles.detailValueAccent}>
+                              {sleepQualityLabel(entry.sleep_quality)}
+                            </Text>
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.detailsSection}>
+                        <View style={styles.detailsSectionHeader}>
+                          <Bath size={14} color={DETAILS_ICON_COLOR} />
+                          <Text style={styles.noteLabel}>Bath</Text>
+                        </View>
+                        <View style={styles.detailsAnswerWrap}>
+                          <Text style={styles.detailsLine}>
+                            <Text style={styles.detailValueAccent}>
+                              {bathTaken ? "Taken" : "Not yet"}
+                            </Text>
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.detailsSection}>
+                        <View style={styles.detailsSectionHeader}>
+                          <UtensilsCrossed size={14} color={DETAILS_ICON_COLOR} />
+                          <Text style={styles.noteLabel}>
+                            Meal x{mealResponses.length}
+                          </Text>
+                        </View>
+                        {mealResponses.length > 0 ? (
+                          <View style={[styles.detailsAnswerWrap, { gap: 3 }]}>
+                            {mealResponses.map((meal, mealIdx) => (
+                              <Text
+                                key={`${groupKey}-meal-${mealIdx}`}
+                                style={styles.detailsLine}
+                              >
+                                {meal.meal_label} (
+                                {formatMealTimeToAmPm(meal.meal_time)}):{" "}
+                                <Text style={styles.detailValueAccent}>
+                                  {meal.taken ? "Taken" : "Not yet"}
+                                </Text>
+                              </Text>
+                            ))}
+                          </View>
+                        ) : (
+                          <View style={styles.detailsAnswerWrap}>
+                            <Text style={styles.detailsLine}>
+                              <Text style={styles.inlineNone}>
+                                No meal schedule response
+                              </Text>
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.detailsSection}>
+                        <View style={styles.detailsSectionHeader}>
+                          <Tags size={14} color={DETAILS_ICON_COLOR} />
+                          <Text style={styles.noteLabel}>Context</Text>
+                        </View>
+                        <View style={styles.detailsAnswerWrap}>
+                          <Text
+                            style={[
+                              styles.detailsLine,
+                              { marginBottom: tags.length > 0 ? 4 : 0 },
+                            ]}
+                          >
+                            Events:
+                            {tags.length === 0 ? (
+                              <Text style={styles.inlineNone}> None</Text>
+                            ) : null}
+                          </Text>
+                          {tags.length > 0 ? (
+                            <View style={styles.eventPillRow}>
+                              {tags.map((tag) => (
+                                <View
+                                  key={`${groupKey}-${tag}`}
+                                  style={styles.eventPill}
+                                >
+                                  <Text style={styles.eventPillText}>
+                                    {formatTagLabel(tag)}
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                          ) : null}
+                          <Text
+                            style={[
+                              styles.detailsLine,
+                              {
+                                marginTop: 8,
+                                marginBottom: categories.length > 0 ? 4 : 0,
+                              },
+                            ]}
+                          >
+                            Categories:
+                            {categories.length === 0 ? (
+                              <Text style={styles.inlineNone}> None</Text>
+                            ) : null}
+                          </Text>
+                          {categories.length > 0 ? (
+                            <View style={styles.eventPillRow}>
+                              {categories.map((category) => (
+                                <View
+                                  key={`${groupKey}-category-${category}`}
+                                  style={styles.eventPill}
+                                >
+                                  <Text style={styles.eventPillText}>
+                                    {formatCategoryLabel(category)}
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
                     </View>
 
-                    <View style={styles.noteBlock}>
-                      <Text style={styles.noteLabel}>Note</Text>
-                      <Text style={noteText ? styles.noteBody : styles.noteBodyEmpty}>
-                        {noteText || "No notes"}
-                      </Text>
+                    <View style={styles.detailsSection}>
+                      <View style={styles.detailsSectionHeader}>
+                        <NotebookPen size={14} color={DETAILS_ICON_COLOR} />
+                        <Text style={styles.noteLabel}>Note</Text>
+                      </View>
+                      <View style={styles.detailsAnswerWrap}>
+                        <Text style={noteText ? styles.noteBody : styles.noteBodyEmpty}>
+                          {noteText || "No notes"}
+                        </Text>
+                      </View>
                     </View>
 
-                    {journalUrl ? (
-                      <View style={styles.journalImageBlock}>
-                        <Text style={styles.noteLabel}>Journal selfie</Text>
+                    <View style={styles.journalImageBlock}>
+                      <View style={styles.detailsSectionHeader}>
+                        <ImageIcon size={14} color={DETAILS_ICON_COLOR} />
+                        <Text style={styles.noteLabel}>Photo</Text>
+                      </View>
+                      {journalUrl ? (
                         <Image
                           source={{ uri: journalUrl }}
                           style={styles.journalImage}
                           resizeMode="cover"
                         />
-                      </View>
-                    ) : null}
-
-                    <View style={styles.healthChecksBlock}>
-                      <Text style={styles.noteLabel}>Health checks</Text>
-                      <Text style={styles.detailsLine}>
-                        Bath:{" "}
-                        <Text style={styles.healthValue}>
-                          {bathTaken ? "Taken" : "Not yet"}
-                        </Text>
-                      </Text>
-                      {mealResponses.length > 0 ? (
-                        <View style={{ marginTop: 6, gap: 4 }}>
-                          {mealResponses.map((meal, mealIdx) => (
-                            <Text
-                              key={`${groupKey}-meal-${mealIdx}`}
-                              style={styles.detailsLine}
-                            >
-                              {meal.meal_label} (
-                              {formatMealTimeToAmPm(meal.meal_time)}):{" "}
-                              <Text style={styles.healthValue}>
-                                {meal.taken ? "Taken" : "Not yet"}
-                              </Text>
-                            </Text>
-                          ))}
-                        </View>
                       ) : (
-                        <Text style={[styles.detailsLine, { marginTop: 6 }]}>
-                          Meals:{" "}
-                          <Text style={styles.inlineNone}>
-                            No meal schedule response
-                          </Text>
-                        </Text>
+                        <View style={styles.detailsAnswerWrap}>
+                          <Text style={styles.noteBodyEmpty}>No photo</Text>
+                        </View>
                       )}
                     </View>
                   </>
@@ -402,9 +586,11 @@ function CounselorDayDetailCard({
               </TouchableOpacity>
             );
           })}
-          <View style={styles.explanationBox}>
-            <Text style={styles.explanationText}>{explanation}</Text>
-          </View>
+          {privacyMode === "full" ? (
+            <View style={styles.explanationBox}>
+              <Text style={styles.explanationText}>{explanation}</Text>
+            </View>
+          ) : null}
         </>
       )}
     </View>
@@ -416,13 +602,18 @@ type Tab = "calendar" | "analytics";
 interface Props {
   studentId: string;
   analyticsSlot: React.ReactNode;
+  /** baseline = date, time, mood only; full = notes, sleep, meals, charts tab, etc. */
+  privacyMode?: "baseline" | "full";
 }
 
 export function CounselorStudentJournalCalendar({
   studentId,
   analyticsSlot,
+  privacyMode = "full",
 }: Props) {
   const reduceMotion = useReducedMotion();
+  const showAnalyticsTab =
+    privacyMode === "full" && analyticsSlot != null;
   const [tab, setTab] = useState<Tab>("calendar");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [moodData, setMoodData] = useState<MoodEntry[]>([]);
@@ -443,7 +634,13 @@ export function CounselorStudentJournalCalendar({
   }));
 
   useEffect(() => {
-    if (trackW <= 0) return;
+    if (!showAnalyticsTab) {
+      setTab("calendar");
+    }
+  }, [showAnalyticsTab]);
+
+  useEffect(() => {
+    if (trackW <= 0 || !showAnalyticsTab) return;
     const inner = trackW - JOURNAL_TOGGLE_PAD * 2;
     const seg = inner / 2;
     const idx = tab === "calendar" ? 0 : 1;
@@ -451,7 +648,7 @@ export function CounselorStudentJournalCalendar({
     const easing = Easing.out(Easing.cubic);
     thumbX.value = withTiming(idx * seg, { duration: dur, easing });
     thumbW.value = withTiming(seg, { duration: dur, easing });
-  }, [tab, trackW, reduceMotion, thumbX, thumbW]);
+  }, [tab, trackW, reduceMotion, thumbX, thumbW, showAnalyticsTab]);
 
   useEffect(() => {
     if (!studentId) {
@@ -474,7 +671,12 @@ export function CounselorStudentJournalCalendar({
     const unsub = moodService.subscribeMoodLogs(
       studentId,
       (data) => {
-        setMoodData(Array.isArray(data) ? (data as MoodEntry[]) : []);
+        const arr = Array.isArray(data) ? (data as MoodEntry[]) : [];
+        setMoodData(
+          privacyMode === "baseline"
+            ? arr.map(sanitizeEntryForCounselorBaseline)
+            : arr,
+        );
         setLoading(false);
       },
       start.toISOString(),
@@ -485,7 +687,7 @@ export function CounselorStudentJournalCalendar({
       },
     );
     return unsub;
-  }, [currentDate, studentId]);
+  }, [currentDate, studentId, privacyMode]);
 
   const calendarDays = useMemo(() => {
     const year = currentDate.getFullYear();
@@ -533,6 +735,7 @@ export function CounselorStudentJournalCalendar({
 
   return (
     <View>
+      {showAnalyticsTab ? (
       <View
         style={{
           backgroundColor: AURORA.cardAlt,
@@ -602,8 +805,9 @@ export function CounselorStudentJournalCalendar({
           </TouchableOpacity>
         </View>
       </View>
+      ) : null}
 
-      {tab === "analytics" ? (
+      {tab === "analytics" && showAnalyticsTab ? (
         analyticsSlot
       ) : loading ? (
         <View style={styles.loaderBox}>
@@ -710,11 +914,14 @@ export function CounselorStudentJournalCalendar({
                 year: "numeric",
               })}
               entries={dayDetailsEntries}
+              privacyMode={privacyMode}
             />
           ) : (
             <View style={styles.hintBox}>
               <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 14 }}>
-                Tap a colored day to see journal entries for that date.
+                {privacyMode === "baseline"
+                  ? "Tap a colored day to see time and mood for each check-in on that date."
+                  : "Tap a colored day to see journal entries for that date."}
               </Text>
             </View>
           )}
@@ -808,10 +1015,26 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   detailsBlock: {
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: "rgba(148,163,184,0.2)",
+  },
+  detailsSection: {
+    marginTop: 8,
+  },
+  detailsSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 3,
+  },
+  detailsAnswerWrap: {
+    marginLeft: 20,
+    marginTop: 2,
+    paddingLeft: 8,
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(147,197,253,0.22)",
   },
   detailsTitle: {
     color: "#cbd5e1",
@@ -829,21 +1052,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
   },
-  healthChecksBlock: {
-    marginTop: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(16,185,129,0.28)",
-    backgroundColor: "rgba(16,185,129,0.10)",
-  },
   healthValue: {
     color: "#BBF7D0",
     fontWeight: "700",
   },
+  detailValueAccent: {
+    color: "#BBF7D0",
+    fontWeight: "700",
+  },
+  eventPillRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 2,
+  },
+  eventPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(99,102,241,0.35)",
+    backgroundColor: "rgba(99,102,241,0.12)",
+  },
+  eventPillText: {
+    color: "#c4b5fd",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
   journalImageBlock: {
-    marginTop: 10,
+    marginTop: 8,
   },
   chipsRow: {
     flexDirection: "row",
@@ -862,22 +1100,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  noteBlock: {
-    marginTop: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: "rgba(59, 130, 246, 0.08)",
-    borderLeftWidth: 2,
-    borderColor: AURORA.blue,
-  },
   noteLabel: {
     color: AURORA.blue,
     fontSize: 11,
+    lineHeight: 12,
     fontWeight: "800",
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    marginBottom: 6,
+    marginBottom: 0,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   noteBody: {
     color: "#e2e8f0",

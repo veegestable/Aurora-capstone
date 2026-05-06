@@ -47,8 +47,6 @@ function getSignalStyle(signal: CounselorSignalPill) {
       return { border: 'border-l-blue-500', badgeBg: 'bg-blue-500/10', badgeBorder: 'border-blue-500/25', text: 'text-blue-500', hex: undefined }
     case 'no_checkins':
       return { border: 'border-l-amber-400', badgeBg: 'bg-amber-400/10', badgeBorder: 'border-amber-400/25', text: 'text-amber-400', hex: undefined }
-    case 'sharing_off':
-      return { border: 'border-l-gray-400', badgeBg: 'bg-gray-400/10', badgeBorder: 'border-gray-400/25', text: 'text-gray-400', hex: undefined }
   }
 }
 
@@ -132,9 +130,7 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
             ) : (
               <div className="card-aurora p-4 text-center bg-aurora-bg/50">
                 <p className="text-sm text-aurora-primary-dark/50">
-                  {student.signal === 'sharing_off' 
-                    ? 'This student has not enabled check-in sharing. Aurora does not show mood summaries without consent.'
-                    : 'Sharing is on, but there are no check-ins in Aurora for the last 3 days — so there is nothing to summarize yet.'}
+                  No check-ins in Aurora for the recent window — nothing to summarize yet.
                 </p>
               </div>
             )}
@@ -143,7 +139,7 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
           <p className="text-xs text-aurora-primary-dark/60 mb-4 text-center leading-relaxed px-2">
             {hasStats
               ? 'Figures above are self-reported summaries only — not a diagnosis. Use messages to coordinate a session respectfully.'
-              : 'This student has not shared recent check-ins in Aurora. You can still invite them to a session: sharing only controls summaries here, not whether you may reach out through the app.'}
+              : 'Counselors see baseline date/time/mood for all students; detailed tiles need special-population consent on mobile. You can still invite them to a session.'}
           </p>
 
           <button

@@ -3,27 +3,24 @@
  */
 
 export type CounselorSignalPill =
-  | 'sharing_off'
   | 'no_checkins'
   | 'higher_self_report'
   | 'moderate_self_report'
   | 'typical_self_report'
 
 export const COUNSELOR_SIGNAL_LABEL: Record<CounselorSignalPill, string> = {
-  sharing_off: 'Sharing off',
   no_checkins: 'No check-ins',
   higher_self_report: 'Higher self-report',
   moderate_self_report: 'Moderate self-report',
   typical_self_report: 'Typical self-report',
 }
 
-/** Sort: stronger self-reports first; empty window then sharing-off last. */
+/** Sort: stronger self-reports first; empty window last. */
 export const COUNSELOR_SIGNAL_SORT: Record<CounselorSignalPill, number> = {
   higher_self_report: 0,
   moderate_self_report: 1,
   typical_self_report: 2,
   no_checkins: 10,
-  sharing_off: 99,
 }
 
 interface LogLike {
@@ -33,14 +30,8 @@ interface LogLike {
 
 /**
  * Derive a signal pill from a student's recent mood logs.
- * When sharing is off, never infer mood. When sharing is on but the window is empty,
- * return `no_checkins`.
  */
-export function counselorSignalFromLogs(
-  sharingEnabled: boolean,
-  logs: LogLike[],
-): CounselorSignalPill {
-  if (!sharingEnabled) return 'sharing_off'
+export function counselorSignalFromLogs(logs: LogLike[]): CounselorSignalPill {
   if (!logs?.length) return 'no_checkins'
 
   const latest = logs[0]

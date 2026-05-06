@@ -15,14 +15,12 @@ export default function StudentSettings() {
 
   const [dayResetHour, setDayResetHour] = useState(0)
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
-  const [shareCheckIns, setShareCheckIns] = useState(true)
   const [academicMode, setAcademicMode] = useState<'active' | 'relaxed' | 'off'>('active')
 
   useEffect(() => {
     if (settings) {
       if (settings.dayResetHour !== undefined) setDayResetHour(settings.dayResetHour)
       if (settings.timezone !== undefined) setTimezone(settings.timezone)
-      if (settings.shareCheckInsWithGuidance !== undefined) setShareCheckIns(settings.shareCheckInsWithGuidance)
       if (settings.academicContextMode !== undefined) setAcademicMode(settings.academicContextMode)
     }
   }, [settings])
@@ -39,7 +37,6 @@ export default function StudentSettings() {
       await updateSettings({
         dayResetHour,
         timezone,
-        shareCheckInsWithGuidance: shareCheckIns,
         academicContextMode: academicMode
       })
       
@@ -148,17 +145,9 @@ export default function StudentSettings() {
           </div>
 
           <div className="space-y-5">
-            <label className="flex items-center justify-between cursor-pointer">
-              <div>
-                <p className="text-sm font-semibold text-white">Share check-ins with counselor</p>
-                <p className="text-xs text-aurora-text-muted mt-0.5">Allows counselors to provide better support based on your mood logs</p>
-              </div>
-              <div className="relative">
-                <input type="checkbox" className="sr-only" checked={shareCheckIns} onChange={(e) => setShareCheckIns(e.target.checked)} />
-                <div className={`block w-10 h-6 rounded-full transition-colors ${shareCheckIns ? 'bg-aurora-blue' : 'bg-white/10'}`}></div>
-                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${shareCheckIns ? 'transform translate-x-4' : ''}`}></div>
-              </div>
-            </label>
+            <p className="text-xs text-aurora-text-muted leading-relaxed">
+              Counselors see each check-in’s date, time, and mood by default. Full journal detail unlocks only after session consent (same policy as the mobile app). There is no toggle for this here yet.
+            </p>
 
             <div>
               <label className="block text-xs font-semibold text-aurora-text-sec mb-2 items-center gap-1">

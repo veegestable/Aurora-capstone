@@ -176,8 +176,8 @@ export function CounselorStressEnergyTrendChart({ logs }: Props) {
 
   const title =
     mode === "stress"
-      ? "Stress Trend (Bar Chart)"
-      : "Energy Trend (Bar Chart)";
+      ? "Stress Trend"
+      : "Energy Trend";
 
   return (
     <View

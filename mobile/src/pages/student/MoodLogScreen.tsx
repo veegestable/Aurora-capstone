@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   StyleSheet,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,7 +25,6 @@ import {
   CircleHelp,
   CalendarClock,
   Trash2,
-  Info,
 } from "lucide-react-native";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "../../stores/AuthContext";
@@ -67,7 +67,10 @@ import { COUNSELOR_CHECKIN_WINDOW_DAYS } from "../../constants/counselor-checkin
 import {
   getConfirmedFinalSlot,
 } from "../../utils/sessionScheduling";
-import { parseSlotToDate } from "../../utils/dateHelpers";
+import {
+  isSessionDocOpenRequestExpired24h,
+  parseSlotToDate,
+} from "../../utils/dateHelpers";
 
 // ─── Student sessions overview (dashboard sheet) ─────────────────────────────
 const STUDENT_SESSION_CLOSED = new Set([
@@ -88,11 +91,14 @@ interface StudentSessionOverviewRow {
   id: string;
   counselorId: string;
   counselorName: string;
+  counselorAvatarUrl?: string;
   status: string;
   summaryLine: string;
   chipLabel: string;
   updatedAt: Date;
   dashboardBucket: StudentSessionDashboardBucket;
+  /** Agreed slot when set — used for "right now" vs past chip. */
+  lockedSlot: { date: string; time: string } | null;
   /** For sorting agreed sessions (soonest appointment first). */
   scheduledSortMs: number;
 }
@@ -108,27 +114,31 @@ function firestoreTsToDateStudent(v: unknown): Date {
   return new Date(0);
 }
 
-function isStaleStudentRequestedSession(updatedAt: Date, status: string): boolean {
-  if (status !== "requested") return false;
-  const startOfDay = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const daysElapsed =
-    (startOfDay(new Date()) - startOfDay(updatedAt)) / 86400000;
-  return daysElapsed >= 3;
-}
+/** How long after the agreed start we still treat the session as in progress (student "My sessions"). */
+const STUDENT_SESSION_ACTIVE_WINDOW_MS = 90 * 60 * 1000;
 
-/** Confirmed slot start is strictly after now → show under upcoming only. */
-function isConfirmedSlotInFuture(
+function lockedAgreedSlotStartMs(
   slot: { date: string; time: string } | null,
-  nowMs: number = Date.now(),
-): boolean {
-  if (!slot?.date) return false;
+): number | null {
+  if (!slot?.date) return null;
   const parsed = parseSlotToDate({
     date: slot.date,
     time: slot.time ?? "",
   });
-  if (!parsed || isNaN(parsed.getTime())) return false;
-  return parsed.getTime() > nowMs;
+  if (!parsed || isNaN(parsed.getTime())) return null;
+  return parsed.getTime();
+}
+
+/** Start time has passed but we are still within the session window → not a "past" appointment yet. */
+function isStudentSessionSlotActiveNow(
+  slot: { date: string; time: string } | null,
+  nowMs: number = Date.now(),
+): boolean {
+  const startMs = lockedAgreedSlotStartMs(slot);
+  if (startMs == null) return false;
+  return (
+    nowMs >= startMs && nowMs < startMs + STUDENT_SESSION_ACTIVE_WINDOW_MS
+  );
 }
 
 function studentSessionDashboardBucket(params: {
@@ -138,7 +148,12 @@ function studentSessionDashboardBucket(params: {
   const st = params.status.toLowerCase();
   if (STUDENT_SESSION_CLOSED.has(st)) return "closed";
   if (params.lockedSlot) {
-    return isConfirmedSlotInFuture(params.lockedSlot) ? "agreed" : "past_agreed";
+    const startMs = lockedAgreedSlotStartMs(params.lockedSlot);
+    if (startMs == null) return "past_agreed";
+    const now = Date.now();
+    if (startMs > now) return "agreed";
+    if (isStudentSessionSlotActiveNow(params.lockedSlot, now)) return "agreed";
+    return "past_agreed";
   }
   if (["requested", "pending", "needs_rescheduling"].includes(st)) {
     return "action";
@@ -150,7 +165,11 @@ function studentSessionChipLabelForBucket(row: StudentSessionOverviewRow): strin
   const st = row.status.toLowerCase();
   switch (row.dashboardBucket) {
     case "agreed":
-      return st === "rescheduled" ? "Rescheduled" : "Upcoming counseling";
+      if (st === "rescheduled") return "Rescheduled";
+      if (row.lockedSlot && isStudentSessionSlotActiveNow(row.lockedSlot)) {
+        return "Today";
+      }
+      return "Upcoming counseling";
     case "past_agreed":
       return "Past appointment";
     case "action":
@@ -242,6 +261,7 @@ async function fetchStudentSessionsOverview(
     ),
   ];
   const nameMap: Record<string, string> = {};
+  const avatarMap: Record<string, string> = {};
   await Promise.all(
     counselorIds.map(async (id) => {
       try {
@@ -250,8 +270,11 @@ async function fetchStudentSessionsOverview(
         nameMap[id] = String(
           u?.full_name ?? u?.preferred_name ?? u?.fullName ?? "Counselor",
         );
+        avatarMap[id] =
+          typeof u?.avatar_url === "string" ? u.avatar_url.trim() : "";
       } catch {
         nameMap[id] = "Counselor";
+        avatarMap[id] = "";
       }
     }),
   );
@@ -265,7 +288,11 @@ async function fetchStudentSessionsOverview(
 
       if (
         status === "requested" &&
-        isStaleStudentRequestedSession(updatedAt, status)
+        isSessionDocOpenRequestExpired24h({
+          status,
+          createdAt: rec.createdAt,
+          updatedAt: rec.updatedAt,
+        })
       ) {
         return [];
       }
@@ -311,11 +338,13 @@ async function fetchStudentSessionsOverview(
         id: String(rec.id ?? ""),
         counselorId: cid,
         counselorName: nameMap[cid] ?? "Counselor",
+        counselorAvatarUrl: avatarMap[cid] ?? "",
         status,
         summaryLine,
         chipLabel: "",
         updatedAt,
         dashboardBucket,
+        lockedSlot,
         scheduledSortMs,
       };
       baseRow.chipLabel = studentSessionChipLabelForBucket(baseRow);
@@ -424,14 +453,12 @@ function MoodBubble({
 function QuickActionTile({
   label,
   icon,
-  bgColor,
   wide,
   badge,
   onPress,
 }: {
   label: string;
   icon: React.ReactNode;
-  bgColor: string;
   wide?: boolean;
   badge?: React.ReactNode;
   onPress?: () => void;
@@ -458,10 +485,10 @@ function QuickActionTile({
     >
       <View
         style={{
-          backgroundColor: bgColor,
-          borderRadius: 12,
-          padding: 10,
           marginBottom: 4,
+          alignItems: "center",
+          justifyContent: "center",
+          paddingVertical: 2,
         }}
       >
         {icon}
@@ -526,19 +553,7 @@ function StreakCard({ streak }: { streak: number }) {
                     <Text style={{ color: '#FDBA74', fontSize: 9, fontWeight: '700' }}>Active</Text>
                 </View> */}
       </View>
-      <View
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 10,
-          backgroundColor: "rgba(249,115,22,0.2)",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: 8,
-        }}
-      >
-        <Text style={{ fontSize: 16 }}>🔥</Text>
-      </View>
+      <Text style={{ fontSize: 22, marginBottom: 8 }}>🔥</Text>
       <Text
         style={{
           color: "#FFFFFF",
@@ -589,18 +604,7 @@ function AIInsightCard({ insight }: { insight: string }) {
         marginBottom: 16,
       }}
     >
-      <View
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 22,
-          backgroundColor: "rgba(124,58,237,0.25)",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Lightbulb size={22} color={AURORA.purple} />
-      </View>
+      <Lightbulb size={24} color="#C4B5FD" style={{ marginTop: 1 }} />
       <View style={{ flex: 1 }}>
         <Text
           style={{
@@ -869,22 +873,12 @@ export default function MoodLogScreen() {
     void loadStudentSessionsOverview();
   };
 
-  const showMySessionsInfo = () => {
-    triggerHaptic("light");
-    setActiveGuide({
-      title: "My sessions",
-      body:
-        "Future confirmed appointments appear first, followed by counselor invites and anything else that still needs your action.\n\n" +
-        "Tap a row to open Messages with that counselor.\n\n" +
-        "The trash icon only hides a card on this device. It does not cancel your session or remove anything from the server.",
-    });
-  };
-
   const renderSessionOverviewSection = (
     title: string,
     subtitle: string,
     rows: StudentSessionOverviewRow[],
     chipTone: "amber" | "green" | "muted",
+    infoBody?: string,
   ) => {
     if (rows.length === 0) return null;
     const chipPalette =
@@ -893,20 +887,43 @@ export default function MoodLogScreen() {
         : chipTone === "amber"
           ? { bg: "rgba(254,189,3,0.18)", text: AURORA.amber }
           : { bg: "rgba(148,163,184,0.15)", text: AURORA.textMuted };
+    const normalizedInfoBody = (infoBody || "").trim();
     return (
       <View style={{ marginBottom: 18 }}>
-        <Text
+        <View
           style={{
-            color: UI_TEXT_MUTED,
-            fontSize: 11,
-            fontWeight: "700",
-            letterSpacing: 0.8,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
             marginBottom: 4,
           }}
         >
-          {title}
-        </Text>
-        {subtitle.trim() ? (
+          <Text
+            style={{
+              color: UI_TEXT_MUTED,
+              fontSize: 11,
+              fontWeight: "700",
+              letterSpacing: 0.8,
+            }}
+          >
+            {title}
+          </Text>
+          {normalizedInfoBody ? (
+            <TouchableOpacity
+              onPress={() => {
+                triggerHaptic("light");
+                Alert.alert(title, normalizedInfoBody);
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel={`${title} info`}
+              style={{ padding: 4 }}
+            >
+              <CircleHelp size={16} color={UI_TEXT_MUTED} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        {!normalizedInfoBody && subtitle.trim() ? (
           <Text
             style={{
               color: AURORA.textSec,
@@ -942,17 +959,31 @@ export default function MoodLogScreen() {
               }}
               style={{ flex: 1, padding: 14 }}
             >
-              <Text
+              <View
                 style={{
-                  color: "#FFFFFF",
-                  fontSize: 15,
-                  fontWeight: "700",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
                   marginBottom: 6,
                 }}
-                numberOfLines={1}
               >
-                {row.counselorName}
-              </Text>
+                <LetterAvatar
+                  name={row.counselorName}
+                  avatarUrl={row.counselorAvatarUrl}
+                  size={32}
+                />
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 15,
+                    fontWeight: "700",
+                    flex: 1,
+                  }}
+                  numberOfLines={1}
+                >
+                  {row.counselorName}
+                </Text>
+              </View>
               <View
                 style={{
                   alignSelf: "flex-start",
@@ -1162,27 +1193,23 @@ export default function MoodLogScreen() {
           >
             <QuickActionTile
               label="Request a Session"
-              icon={<CalendarPlus size={20} color="#FFFFFF" />}
-              bgColor={AURORA.blue}
+              icon={<CalendarPlus size={22} color={AURORA.blue} />}
               wide
               onPress={() => setShowSessionRequestModal(true)}
             />
             {/* <QuickActionTile
                             label="Log Mood"
-                            icon={<Camera size={18} color="#FFFFFF" />}
-                            bgColor={AURORA.purple}
+                            icon={<Camera size={20} color={AURORA.purple} />}
                             onPress={() => setShowLogModal(true)}
                         /> */}
             <QuickActionTile
               label="Messages"
-              icon={<MessageSquare size={18} color="#FFFFFF" />}
-              bgColor="#7C3AED"
+              icon={<MessageSquare size={20} color="#A78BFA" />}
               onPress={() => router.push("/(student)/messages")}
             />
             <QuickActionTile
-              label="Resources"
-              icon={<BookOpen size={18} color="#FFFFFF" />}
-              bgColor="#1A6B5A"
+              label="Zen"
+              icon={<BookOpen size={20} color="#34D399" />}
               onPress={() => router.push("/(student)/resources")}
             />
           </View>
@@ -1240,18 +1267,8 @@ export default function MoodLogScreen() {
                                     <Text style={{ color: AURORA.blue, fontSize: 9, fontWeight: '700' }}>Live</Text>
                                 </View> */}
               </View>
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
-                  backgroundColor: "rgba(45,107,255,0.2)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <TrendingUp size={16} color={AURORA.blue} />
+              <View style={{ marginBottom: 8 }}>
+                <TrendingUp size={20} color={AURORA.blue} />
               </View>
               <Text
                 style={{
@@ -1375,7 +1392,7 @@ export default function MoodLogScreen() {
             <View
               style={{
                 flexDirection: "row",
-                alignItems: "center",
+                alignItems: "flex-start",
                 justifyContent: "space-between",
                 marginBottom: 12,
               }}
@@ -1383,22 +1400,15 @@ export default function MoodLogScreen() {
               <View
                 style={{
                   flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
                   paddingRight: 8,
                 }}
               >
                 <Text style={sessionsSheetStyles.sheetTitle}>My sessions</Text>
-                <TouchableOpacity
-                  onPress={showMySessionsInfo}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  accessibilityRole="button"
-                  accessibilityLabel="How My sessions works"
-                  style={{ padding: 4 }}
-                >
-                  <Info size={20} color={AURORA.textSec} />
-                </TouchableOpacity>
+                <Text style={sessionsSheetStyles.pendingModalSubtitle}>
+                  Future confirmed appointments appear first, followed by
+                  counselor invites and anything else that still needs your
+                  action.
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => setSessionsSheetOpen(false)}
@@ -1448,27 +1458,31 @@ export default function MoodLogScreen() {
                   <>
                     {renderSessionOverviewSection(
                       "Upcoming counseling",
-                      "Confirmed times that are still in the future (after you accept an invite or agree on a slot).",
+                      "Confirmed times still ahead, or your session time with a (right now) badge for about 90 minutes after start.",
                       sessionsAgreedList,
                       "green",
+                      "Confirmed times still ahead, or your session time with a (right now) badge for about 90 minutes after start.",
                     )}
                     {renderSessionOverviewSection(
                       "Past appointments",
                       "Agreed times that already passed — open Messages if you need a follow-up.",
                       sessionsPastAgreedList,
                       "muted",
+                      "Agreed times that already passed - open Messages if you need a follow-up.",
                     )}
                     {renderSessionOverviewSection(
                       "Needs your attention",
                       "Counselor invites to confirm, reschedule requests, or other open steps.",
                       sessionsActionList,
                       "amber",
+                      "Counselor invites to confirm, reschedule requests, or other open steps.",
                     )}
                     {renderSessionOverviewSection(
                       "Past & closed",
                       "Completed, cancelled, or expired appointments.",
                       sessionsClosedList,
                       "muted",
+                      "Completed, cancelled, or expired appointments.",
                     )}
                     {sessionsOtherList.length > 0
                       ? renderSessionOverviewSection(
@@ -1541,10 +1555,11 @@ export default function MoodLogScreen() {
                 marginBottom: 8,
               }}
             >
-              If you turn on sharing in Settings, counselors can see a brief
-              summary from your last {COUNSELOR_CHECKIN_WINDOW_DAYS} days of
-              self-reported stress and energy — not your private notes, and not
-              a diagnosis.
+              Counselors can see each check-in’s date, time, and mood from your
+              last {COUNSELOR_CHECKIN_WINDOW_DAYS} days. Notes, sleep, meals,
+              bath, and photos stay hidden until you are in that counselor’s
+              special population (session request or accepting their proposed
+              time). Full analytics for them are not a diagnosis.
             </Text>
             <Text
               style={{
@@ -1554,7 +1569,7 @@ export default function MoodLogScreen() {
                 marginBottom: 18,
               }}
             >
-              Default is off; you stay in control.
+              Read the full wording under Privacy transparency in Profile.
             </Text>
             <TouchableOpacity
               onPress={async () => {
@@ -1601,7 +1616,7 @@ export default function MoodLogScreen() {
               <Text
                 style={{ color: AURORA.blue, fontSize: 14, fontWeight: "700" }}
               >
-                Open Settings
+                Open Profile
               </Text>
             </TouchableOpacity>
           </View>
@@ -1698,6 +1713,12 @@ const sessionsSheetStyles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 20,
     fontWeight: "700",
+  },
+  pendingModalSubtitle: {
+    color: AURORA.textSec,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 6,
   },
   secondaryBtn: {
     alignItems: "center",

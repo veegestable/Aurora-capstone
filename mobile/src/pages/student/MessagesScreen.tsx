@@ -54,7 +54,10 @@ import {
 import SelectCounselorModal, {
   type Counselor,
 } from "../../components/student/SelectCounselorModal";
-import { parsePreferredTimeToDate } from "../../utils/dateHelpers";
+import {
+  isOpenSessionRequestExpired,
+  parsePreferredTimeToDate,
+} from "../../utils/dateHelpers";
 import { auditLogsService } from "../../services/audit-logs.service";
 import { subscribeToUsersPresence } from "../../services/firebase-presence.service";
 import { usePeerPresence } from "../../hooks/usePeerPresence";
@@ -287,6 +290,14 @@ function DirectMessageView({
         user.id,
         text,
       );
+      void auditLogsService.write({
+        performedBy: user.id,
+        performedByRole: user.role,
+        action: "message_sent",
+        targetType: "chat",
+        targetId: user.id,
+        metadata: { messageType: "text" },
+      });
       setMessage("");
       setTimeout(
         () => scrollViewRef.current?.scrollToEnd({ animated: true }),
@@ -327,9 +338,9 @@ function DirectMessageView({
               performedBy: user.id,
               performedByRole: user.role,
               action: "delete_chat_message",
-              targetType: "conversation_message",
-              targetId: messageId,
-              metadata: { conversationId: contact.conversationId, messageType },
+              targetType: "chat",
+              targetId: user.id,
+              metadata: { messageType },
             });
           },
         },
@@ -356,6 +367,8 @@ function DirectMessageView({
         conversationId: contact.conversationId,
         counselorId: contact.id,
       });
+
+      await grantCounselorJournalAccess(user.id, contact.id);
 
       // Automated green "Accepted" message for the thread.
       await firestoreService.sendTextMessage(
@@ -713,9 +726,17 @@ function DirectMessageView({
                         }}
                       >
                         <View>
+                          {(() => {
+                            const requestExpired = isOpenSessionRequestExpired({
+                              status: msg.sessionRequest.status,
+                              preferredTime: msg.sessionRequest.preferredTime,
+                              requestedAtMs: msg.sessionRequest.requestedAtMs,
+                            });
+                            return (
                           <SessionRequestCard
                             data={msg.sessionRequest}
                             isFromMe={isMe}
+                            isExpired={requestExpired}
                             onViewDetails={() => {
                               setSelectedSessionRequest(msg.sessionRequest);
                               setShowDetailsModal(true);
@@ -725,6 +746,8 @@ function DirectMessageView({
                               setShowSessionRequestModal(true);
                             }}
                           />
+                            );
+                          })()}
                           <Text
                             style={{
                               color: "rgba(255,255,255,0.6)",

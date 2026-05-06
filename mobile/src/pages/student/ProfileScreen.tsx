@@ -11,8 +11,11 @@ import {
   Modal,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -48,15 +51,7 @@ import {
   formatYearLevelForDisplay,
   matchLegacyDepartmentToProgramValue,
 } from "../../constants/ccs-student-programs";
-import {
-  getUserSettings,
-  updateUserSettings,
-} from "../../services/mood-firestore-v2.service";
-import {
-  COUNSELOR_CHECKIN_WINDOW_DAYS,
-  COUNSELOR_VISIBLE_CHECKIN_SUMMARY,
-} from "../../constants/counselor-checkin-policy";
-import { Shield } from "lucide-react-native";
+import { COUNSELOR_VISIBLE_CHECKIN_SUMMARY } from "../../constants/counselor-checkin-policy";
 import type { MealScheduleItem } from "../../services/mood-firestore-v2.service";
 
 function SectionLabel({ text }: { text: string }) {
@@ -333,6 +328,7 @@ function EditProfileModal({
     program: string;
     yearLevel: string;
     studentNumber: string;
+    contactNumber: string;
     collegeDepartment: string;
   }) => void;
   onPickAvatar?: (imageUri: string) => Promise<void>;
@@ -345,6 +341,9 @@ function EditProfileModal({
   const [yearLevel, setYearLevel] = useState(user?.year_level || "");
   const [studentNumber, setStudentNumber] = useState(
     user?.student_number || "",
+  );
+  const [contactNumber, setContactNumber] = useState(
+    user?.contact_number || "",
   );
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [programPickerOpen, setProgramPickerOpen] = useState(false);
@@ -361,6 +360,7 @@ function EditProfileModal({
       setProgram(resolveProgramFromUser(user));
       setYearLevel(user.year_level || "");
       setStudentNumber(user.student_number || "");
+      setContactNumber(user.contact_number || "");
     }
   }, [visible, user]);
 
@@ -397,6 +397,7 @@ function EditProfileModal({
   const handleSave = () => {
     const yearTrim = yearLevel.trim();
     const studentNumTrim = studentNumber.trim();
+    const contactTrim = contactNumber.trim();
     if (!program) {
       Alert.alert(
         "Required field",
@@ -415,12 +416,24 @@ function EditProfileModal({
       Alert.alert("Required field", "Please enter your student number.");
       return;
     }
+    if (!contactTrim) {
+      Alert.alert("Required field", "Please enter your contact number.");
+      return;
+    }
+    if (contactTrim.length < 7) {
+      Alert.alert(
+        "Invalid number",
+        "Contact number should be at least 7 digits.",
+      );
+      return;
+    }
     onSave({
       preferredName: name.trim() || user?.full_name || "Student",
       sex,
       program,
       yearLevel: yearTrim,
       studentNumber: studentNumTrim,
+      contactNumber: contactTrim,
       collegeDepartment: CCS_COLLEGE_DEPARTMENT,
     });
     onClose();
@@ -468,7 +481,16 @@ function EditProfileModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: 24 }}>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 56 : 0}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
+            >
             <View style={{ alignItems: "center", marginBottom: 24 }}>
               <View style={{ position: "relative" }}>
                 <LetterAvatar
@@ -744,6 +766,43 @@ function EditProfileModal({
                 marginBottom: 8,
               }}
             >
+              Contact number <Text style={{ color: AURORA.red }}>*</Text>
+            </Text>
+            <View
+              style={{
+                backgroundColor: AURORA.card,
+                borderRadius: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 14,
+                marginBottom: 20,
+                borderWidth: 1,
+                borderColor: AURORA.border,
+              }}
+            >
+              <TextInput
+                style={{
+                  flex: 1,
+                  color: "#FFFFFF",
+                  fontSize: 15,
+                  paddingVertical: 14,
+                }}
+                value={contactNumber}
+                onChangeText={setContactNumber}
+                placeholder="Mobile phone (e.g. 09XXXXXXXXX)"
+                placeholderTextColor={AURORA.textMuted}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontSize: 14,
+                fontWeight: "600",
+                marginBottom: 8,
+              }}
+            >
               Sex
             </Text>
             <View style={{ flexDirection: "row", gap: 12, marginBottom: 24 }}>
@@ -815,6 +874,7 @@ function EditProfileModal({
               </LinearGradient>
             </TouchableOpacity>
           </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
     </Modal>
@@ -822,9 +882,9 @@ function EditProfileModal({
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-function formatResetHourLabel(h: number): string {
+function formatResetHourLabel(h: number, m = 0): string {
   const d = new Date();
-  d.setHours(h, 0, 0, 0);
+  d.setHours(h, m, 0, 0);
   return d.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -855,8 +915,9 @@ export default function ProfileScreen() {
   const { user, signOut, updateUser, uploadAvatar } = useAuth();
   const {
     reminderHour,
+    reminderMinute,
     remindersEnabled,
-    setReminderHour,
+    setReminderTime,
     setRemindersEnabled,
     mealSchedule,
     setMealSchedule,
@@ -885,9 +946,6 @@ export default function ProfileScreen() {
   const [devicePermissionGranted, setDevicePermissionGranted] = useState<
     boolean | null
   >(null);
-  const [shareCheckInsWithGuidance, setShareCheckInsWithGuidance] =
-    useState(false);
-  const [sharePrefsLoading, setSharePrefsLoading] = useState(true);
   const [expandedPrivacyRow, setExpandedPrivacyRow] = useState<
     "visible" | "private" | null
   >("visible");
@@ -898,7 +956,8 @@ export default function ProfileScreen() {
     if (user?.sex) score += 15;
     if (user?.program) score += 20;
     if (user?.year_level) score += 20;
-    if (user?.student_number) score += 20;
+    if (user?.student_number) score += 15;
+    if (user?.contact_number?.trim()) score += 5;
     if (user?.avatar_url) score += 5;
     return Math.min(score, 100);
   }, [
@@ -908,14 +967,15 @@ export default function ProfileScreen() {
     user?.program,
     user?.year_level,
     user?.student_number,
+    user?.contact_number,
     user?.avatar_url,
   ]);
 
   const pickerValue = useMemo(() => {
     const d = new Date();
-    d.setHours(reminderHour, 0, 0, 0);
+    d.setHours(reminderHour, reminderMinute, 0, 0);
     return d;
-  }, [reminderHour]);
+  }, [reminderHour, reminderMinute]);
   const mealTimePickerValue = useMemo(() => {
     const meal = activeMealIndex != null ? mealDraft[activeMealIndex] : null;
     const [hRaw, mRaw] = (meal?.time || "07:00").split(":");
@@ -955,6 +1015,22 @@ export default function ProfileScreen() {
     const period = clampedHour >= 12 ? "PM" : "AM";
     const hour12 = clampedHour % 12 || 12;
     return `${hour12}:${String(clampedMinute).padStart(2, "0")} ${period}`;
+  };
+
+  const openAndroidTimePicker = (
+    value: Date,
+    onSelect: (selected: Date) => void,
+  ) => {
+    DateTimePickerAndroid.open({
+      value,
+      mode: "time",
+      is24Hour: false,
+      onChange: (event, selectedDate) => {
+        if (event.type === "set" && selectedDate) {
+          onSelect(selectedDate);
+        }
+      },
+    });
   };
 
   const normalizeMealCount = (count: number, base: MealScheduleItem[]) => {
@@ -1019,6 +1095,13 @@ export default function ProfileScreen() {
   };
 
   const openMealTimePicker = (idx: number) => {
+    if (Platform.OS === "android") {
+      const meal = mealDraft[idx];
+      openAndroidTimePicker(hhmmToDate(meal?.time || "", "07:00"), (selected) => {
+        updateMealTime(idx, selected.getHours(), selected.getMinutes());
+      });
+      return;
+    }
     setActiveMealIndex(idx);
   };
 
@@ -1038,33 +1121,13 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
-    if (!user?.id) return;
-    let cancelled = false;
-    setSharePrefsLoading(true);
-    (async () => {
-      try {
-        const s = await getUserSettings(user.id);
-        if (!cancelled)
-          setShareCheckInsWithGuidance(!!s.shareCheckInsWithGuidance);
-      } catch {
-        if (!cancelled) setShareCheckInsWithGuidance(false);
-      } finally {
-        if (!cancelled) setSharePrefsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
-
-  useEffect(() => {
     if (settingsLoading) return;
     const run = async () => {
       if (!remindersEnabled) {
         await clearDailyCheckInReminder();
         return;
       }
-      const ok = await scheduleDailyCheckInReminder(reminderHour);
+      const ok = await scheduleDailyCheckInReminder(reminderHour, reminderMinute);
       if (!ok) {
         Alert.alert(
           "Notifications disabled",
@@ -1073,7 +1136,7 @@ export default function ProfileScreen() {
       }
     };
     void run();
-  }, [remindersEnabled, reminderHour, settingsLoading]);
+  }, [remindersEnabled, reminderHour, reminderMinute, settingsLoading]);
 
   useEffect(() => {
     if (!user) return;
@@ -1308,6 +1371,10 @@ export default function ProfileScreen() {
               label="Student Number"
               value={user?.student_number || "Not set"}
             />
+            <InfoRow
+              label="Contact number"
+              value={user?.contact_number || "Not set"}
+            />
             <Text
               style={{
                 color: AURORA.textMuted,
@@ -1317,7 +1384,8 @@ export default function ProfileScreen() {
                 paddingBottom: 10,
               }}
             >
-              Student number is used for school identity verification.
+              Student number is used for school identity verification. Contact
+              number is for scheduling and urgent reach-out only.
             </Text>
           </View>
 
@@ -1334,7 +1402,7 @@ export default function ProfileScreen() {
               marginBottom: 8,
             }}
           >
-            Control what counselors can view from your recent check-ins.
+            How guidance can use your check-ins in Aurora (no toggle — policy is fixed for now).
           </Text>
           <View
             style={{
@@ -1348,82 +1416,26 @@ export default function ProfileScreen() {
             <PrivacyRow
               icon={<Eye size={18} color={AURORA.green} />}
               title="What counselors can see"
-              preview={
-                shareCheckInsWithGuidance
-                  ? `Last ${COUNSELOR_CHECKIN_WINDOW_DAYS} days summary only.`
-                  : "Directory info only (name and program)."
-              }
+              preview="Date, time, and mood for recent check-ins; directory info for scheduling."
               expanded={expandedPrivacyRow === "visible"}
               onToggle={() =>
                 setExpandedPrivacyRow((prev) =>
                   prev === "visible" ? null : "visible",
                 )
               }
-              description={
-                shareCheckInsWithGuidance
-                  ? `Summaries from your last ${COUNSELOR_CHECKIN_WINDOW_DAYS} days of check-ins only. ${COUNSELOR_VISIBLE_CHECKIN_SUMMARY} This is self-report data, not a diagnosis.`
-                  : "With sharing off, guidance can still see your directory info (e.g. name and program) for scheduling, but not recent check-in summaries in Aurora."
-              }
+              description={`${COUNSELOR_VISIBLE_CHECKIN_SUMMARY} Stress/energy trend tiles unlock for a counselor only when you are in their special population (you requested a session with them, or you accepted a session time they proposed). That is self-report data, not a diagnosis.`}
             />
             <PrivacyRow
               icon={<Lock size={18} color={AURORA.blue} />}
-              title="What stays private by default"
-              preview="Journal notes and non-shared app activity remain private."
+              title="What stays narrower until special population"
+              preview="Notes, sleep, meals, bath, and photos stay off counselor views until then."
               expanded={expandedPrivacyRow === "private"}
               onToggle={() =>
                 setExpandedPrivacyRow((prev) =>
                   prev === "private" ? null : "private",
                 )
               }
-              description="Check-in notes you write in your journal flow, messages until you chat with guidance, and other app areas not listed when sharing is on."
-            />
-          </View>
-
-          {/* ── Guidance check-in sharing ───────────────────────── */}
-          <SectionHeader
-            icon={<Shield size={14} color={AURORA.blue} />}
-            title="GUIDANCE & CHECK-INS"
-          />
-          <View
-            style={{
-              backgroundColor: AURORA.card,
-              borderRadius: 16,
-              paddingHorizontal: 16,
-              borderWidth: 1,
-              borderColor: AURORA.border,
-            }}
-          >
-            <Text
-              style={{
-                color: "#9AAEDB",
-                fontSize: 12,
-                lineHeight: 18,
-                paddingTop: 12,
-                paddingBottom: 4,
-              }}
-            >
-              Opt in so counselors can see a short summary of recent
-              self-reported stress and energy to support outreach. Turn off
-              anytime.
-            </Text>
-            <ToggleRow
-              icon={<Shield size={18} color={AURORA.textSec} />}
-              label="Share recent check-ins with guidance"
-              statusBadge={shareCheckInsWithGuidance ? "ON" : "OFF"}
-              value={shareCheckInsWithGuidance}
-              disabled={sharePrefsLoading}
-              onValueChange={async (v) => {
-                if (!user?.id || sharePrefsLoading) return;
-                setShareCheckInsWithGuidance(v);
-                try {
-                  await updateUserSettings(user.id, {
-                    shareCheckInsWithGuidance: v,
-                  });
-                } catch {
-                  setShareCheckInsWithGuidance(!v);
-                  Alert.alert("Could not update", "Please try again.");
-                }
-              }}
+              description="After special-population consent for that counselor, they can see the same journal detail you see in Aurora for support. There is no in-app switch to revoke that yet."
             />
           </View>
 
@@ -1461,7 +1473,18 @@ export default function ProfileScreen() {
                             onValueChange={setAiCamera}
                         /> */}
             <TouchableOpacity
-              onPress={() => setShowReminderTimePicker(true)}
+              onPress={() => {
+                if (Platform.OS === "android") {
+                  openAndroidTimePicker(pickerValue, (selected) => {
+                    void setReminderTime(
+                      selected.getHours(),
+                      selected.getMinutes(),
+                    );
+                  });
+                  return;
+                }
+                setShowReminderTimePicker(true);
+              }}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
@@ -1483,7 +1506,7 @@ export default function ProfileScreen() {
               <Text
                 style={{ color: AURORA.blue, fontSize: 14, fontWeight: "700" }}
               >
-                {formatResetHourLabel(reminderHour)}
+                {formatResetHourLabel(reminderHour, reminderMinute)}
               </Text>
               <ChevronRight
                 size={16}
@@ -1553,42 +1576,44 @@ export default function ProfileScreen() {
                         </TouchableOpacity> */}
           </View>
 
-          <Modal
-            visible={showReminderTimePicker}
-            transparent
-            animationType="slide"
-          >
-            <TouchableOpacity
-              style={{
-                flex: 1,
-                justifyContent: "flex-end",
-                backgroundColor: "rgba(0,0,0,0.45)",
-              }}
-              activeOpacity={1}
-              onPress={() => setShowReminderTimePicker(false)}
+          {Platform.OS === "ios" ? (
+            <Modal
+              visible={showReminderTimePicker}
+              transparent
+              animationType="slide"
             >
-              <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-                <View
-                  style={{
-                    backgroundColor: AURORA.card,
-                    padding: 16,
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
-                    borderWidth: 1,
-                    borderColor: AURORA.border,
-                  }}
-                >
-                  <DateTimePicker
-                    value={pickerValue}
-                    mode="time"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={async (_e, date) => {
-                      if (Platform.OS === "android")
-                        setShowReminderTimePicker(false);
-                      if (date) await setReminderHour(date.getHours());
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  justifyContent: "flex-end",
+                  backgroundColor: "rgba(0,0,0,0.45)",
+                }}
+                activeOpacity={1}
+                onPress={() => setShowReminderTimePicker(false)}
+              >
+                <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+                  <View
+                    style={{
+                      backgroundColor: AURORA.card,
+                      padding: 16,
+                      borderTopLeftRadius: 16,
+                      borderTopRightRadius: 16,
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
                     }}
-                  />
-                  {Platform.OS === "ios" ? (
+                  >
+                    <DateTimePicker
+                      value={pickerValue}
+                      mode="time"
+                      display="spinner"
+                      onChange={(_e, date) => {
+                        if (date)
+                          void setReminderTime(
+                            date.getHours(),
+                            date.getMinutes(),
+                          );
+                      }}
+                    />
                     <TouchableOpacity
                       onPress={() => setShowReminderTimePicker(false)}
                       style={{
@@ -1603,11 +1628,11 @@ export default function ProfileScreen() {
                         Done
                       </Text>
                     </TouchableOpacity>
-                  ) : null}
-                </View>
+                  </View>
+                </TouchableOpacity>
               </TouchableOpacity>
-            </TouchableOpacity>
-          </Modal>
+            </Modal>
+          ) : null}
           <Modal visible={showMeal} transparent animationType="slide">
             <View
               style={{
@@ -1863,7 +1888,7 @@ export default function ProfileScreen() {
                     <DateTimePicker
                       value={mealTimePickerValue}
                       mode="time"
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                    display="spinner"
                       onChange={(_e, date) => {
                         if (date && activeMealIndex != null) {
                           updateMealTime(
@@ -2022,14 +2047,42 @@ export default function ProfileScreen() {
                     Your usual wake time helps Aurora ask sleep and routine
                     questions at sensible moments (similar to meal times).
                   </Text>
-                  <DateTimePicker
-                    value={wakePickDate}
-                    mode="time"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={(_e, date) => {
-                      if (date) setWakePickDate(date);
-                    }}
-                  />
+                  {Platform.OS === "ios" ? (
+                    <DateTimePicker
+                      value={wakePickDate}
+                      mode="time"
+                      display="spinner"
+                      onChange={(_e, date) => {
+                        if (date) setWakePickDate(date);
+                      }}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() =>
+                        openAndroidTimePicker(wakePickDate, setWakePickDate)
+                      }
+                      style={{
+                        marginTop: 4,
+                        paddingVertical: 12,
+                        paddingHorizontal: 14,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: AURORA.border,
+                        backgroundColor: AURORA.cardAlt,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#FFFFFF",
+                          fontSize: 16,
+                          fontWeight: "700",
+                          textAlign: "center",
+                        }}
+                      >
+                        {toFriendlyMealTime(dateToHHmm(wakePickDate))}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                     <TouchableOpacity
                       onPress={() => {
@@ -2167,14 +2220,42 @@ export default function ProfileScreen() {
                     Your usual bath time helps Aurora prompt bath check-ins
                     around when you normally take one.
                   </Text>
-                  <DateTimePicker
-                    value={bathPickDate}
-                    mode="time"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={(_e, date) => {
-                      if (date) setBathPickDate(date);
-                    }}
-                  />
+                  {Platform.OS === "ios" ? (
+                    <DateTimePicker
+                      value={bathPickDate}
+                      mode="time"
+                      display="spinner"
+                      onChange={(_e, date) => {
+                        if (date) setBathPickDate(date);
+                      }}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() =>
+                        openAndroidTimePicker(bathPickDate, setBathPickDate)
+                      }
+                      style={{
+                        marginTop: 4,
+                        paddingVertical: 12,
+                        paddingHorizontal: 14,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: AURORA.border,
+                        backgroundColor: AURORA.cardAlt,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#FFFFFF",
+                          fontSize: 16,
+                          fontWeight: "700",
+                          textAlign: "center",
+                        }}
+                      >
+                        {toFriendlyMealTime(dateToHHmm(bathPickDate))}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                     <TouchableOpacity
                       onPress={() => {
@@ -2307,6 +2388,7 @@ export default function ProfileScreen() {
                 program: data.program,
                 year_level: data.yearLevel,
                 student_number: data.studentNumber,
+                contact_number: data.contactNumber,
               });
             } catch (e) {
               console.error("Failed to save profile:", e);

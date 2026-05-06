@@ -3,6 +3,7 @@ import { Stack, useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import * as Notifications from "expo-notifications";
 import { AuthProvider } from "../src/stores/AuthContext";
+import { UserActivityLogger } from "../src/components/UserActivityLogger";
 import { UserDaySettingsProvider } from "../src/stores/UserDaySettingsContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
@@ -167,6 +168,7 @@ export default function RootLayout() {
         <UserDaySettingsProvider>
           <NotificationRouterBridge />
           <SessionNotificationBridge />
+          <UserActivityLogger />
           <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen

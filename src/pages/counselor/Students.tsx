@@ -29,7 +29,6 @@ const FILTERS: { label: string; value: SignalFilter }[] = [
   { label: 'Moderate', value: 'moderate_self_report' },
   { label: 'Typical', value: 'typical_self_report' },
   { label: 'No check-ins', value: 'no_checkins' },
-  { label: 'Sharing off', value: 'sharing_off' },
 ]
 
 function getSignalStyle(signal: CounselorSignalPill) {
@@ -42,8 +41,6 @@ function getSignalStyle(signal: CounselorSignalPill) {
       return { border: 'border-l-blue-500', badgeBg: 'bg-blue-500/10', badgeBorder: 'border-blue-500/25', text: 'text-blue-500' }
     case 'no_checkins':
       return { border: 'border-l-amber-400', badgeBg: 'bg-amber-400/10', badgeBorder: 'border-amber-400/25', text: 'text-amber-400' }
-    case 'sharing_off':
-      return { border: 'border-l-gray-400', badgeBg: 'bg-gray-400/10', badgeBorder: 'border-gray-400/25', text: 'text-gray-400' }
   }
 }
 
@@ -94,12 +91,12 @@ export default function Students() {
         const mapped: StudentEntry[] = await Promise.all(
           raw.map(async (s) => {
             try {
-              const { sharingEnabled, logs } = await counselorCheckInContextService.fetchStudentCheckInContext(s.id)
+              const { logs } = await counselorCheckInContextService.fetchStudentCheckInContext(s.id)
               const latestLog = logs[0]
 
               let stats: CheckInStats | undefined
 
-              if (sharingEnabled && logs.length > 0) {
+              if (logs.length > 0) {
                 const count = logs.length
                 const validStressLogs = logs.filter(l => l.stress_level !== undefined)
                 const validEnergyLogs = logs.filter(l => l.energy_level !== undefined)
@@ -134,10 +131,8 @@ export default function Students() {
                 id: s.id,
                 full_name: s.full_name || 'Student',
                 email: s.email,
-                signal: counselorSignalFromLogs(sharingEnabled, logs),
-                lastLog: !sharingEnabled
-                  ? 'Sharing off'
-                  : (latestLog?.log_date ? formatTimeAgo(new Date(latestLog.log_date)) : 'No check-ins'),
+                signal: counselorSignalFromLogs(logs),
+                lastLog: latestLog?.log_date ? formatTimeAgo(new Date(latestLog.log_date)) : 'No check-ins',
                 stats
               }
             } catch {
@@ -145,7 +140,7 @@ export default function Students() {
                 id: s.id,
                 full_name: s.full_name || 'Student',
                 email: s.email,
-                signal: 'sharing_off' as CounselorSignalPill,
+                signal: 'no_checkins' as CounselorSignalPill,
                 lastLog: 'Error loading',
               }
             }

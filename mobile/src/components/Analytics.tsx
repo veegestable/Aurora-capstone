@@ -28,6 +28,7 @@ import Animated, {
 import { Sparkles, TrendingUp, CircleHelp } from "lucide-react-native";
 import { useAuth } from "../stores/AuthContext";
 import { moodService } from "../services/mood.service";
+import { auth } from "../services/firebase";
 import {
   buildWeekSummaryInput,
   generateWeeklySummary,
@@ -78,6 +79,18 @@ const ANALYTICS_VIEW_TOGGLE_PAD = 4;
 const UI_TEXT_SECONDARY = "#C1CEE9";
 const UI_TEXT_MUTED = "#9AA9C8";
 const UI_SECTION_GAP = 12;
+
+function isPermissionDeniedError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const maybe = error as { code?: unknown; message?: unknown };
+  const code =
+    typeof maybe.code === "string" ? maybe.code.toLowerCase() : "";
+  const message =
+    typeof maybe.message === "string" ? maybe.message.toLowerCase() : "";
+  return code.includes("permission-denied") || code.includes("permission_denied")
+    ? true
+    : message.includes("missing or insufficient permissions");
+}
 
 /** Staggered fade-in-up for analytics panels (skipped when reduce motion is on). */
 function analyticsPanelEnter(reduceMotion: boolean, delayMs: number) {
@@ -691,7 +704,13 @@ export default function Analytics() {
         setLastUpdatedAt(new Date());
         return list;
       } catch (e) {
-        console.error("Analytics logs refresh failed", e);
+        const signedOutOrSwitchedUser =
+          !auth.currentUser || auth.currentUser.uid !== user.id;
+        const shouldSuppress =
+          signedOutOrSwitchedUser && isPermissionDeniedError(e);
+        if (!shouldSuppress) {
+          console.error("Analytics logs refresh failed", e);
+        }
         if (shouldSetBusyState) setLogs([]);
         return [];
       } finally {
@@ -1193,13 +1212,13 @@ export default function Analytics() {
     );
   const showMoodFrequencyGuide = () => {
     openGuide(
-      "Mood frequency (today)",
+      "Mood frequency",
       "This pie chart shows how many check-ins each mood has today.\n\nBigger slice = higher count for that mood.\n\nIt is based on check-in count, not duration.",
     );
   };
   const showMoodDurationGuide = () => {
     openGuide(
-      "Mood duration (retrospective)",
+      "Mood duration",
       "Each check-in duration is treated as look-back time from when you logged.\n\nExample: logging 10 minutes at 9:00 means 8:50 to 9:00.\n\nOverlapping time blocks of the same mood are merged so minutes are not double-counted.",
     );
   };
@@ -1971,38 +1990,29 @@ export default function Analytics() {
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        marginBottom: 10,
+                        marginBottom: 4,
+                        gap: 6,
                       }}
                     >
                       <Text
                         style={{
-                          color: AURORA.textMuted,
-                          fontSize: 10,
+                          color: AURORA.textPrimary,
+                          fontSize: 16,
                           fontWeight: "700",
                         }}
                       >
-                        MOOD FREQUENCY (TODAY)
+                        Mood Frequency (Pie Chart)
                       </Text>
                       <TouchableOpacity
                         onPress={showMoodFrequencyGuide}
                         onLongPress={() => {}}
                         delayLongPress={10000}
-                        style={{ padding: 4, marginLeft: "auto" }}
+                        style={{ padding: 2 }}
                         hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                       >
-                        <CircleHelp size={14} color={AURORA.textMuted} />
+                        <CircleHelp size={16} color={AURORA.textMuted} />
                       </TouchableOpacity>
                     </View>
-                    <Text
-                      style={{
-                        color: AURORA.textPrimary,
-                        fontSize: 16,
-                        fontWeight: "700",
-                        marginBottom: 4,
-                      }}
-                    >
-                      Mood Frequency (Pie Chart)
-                    </Text>
                     <Text
                       style={{
                         color: AURORA.textSec,
@@ -2078,38 +2088,29 @@ export default function Analytics() {
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        marginBottom: 8,
+                        marginBottom: 4,
+                        gap: 6,
                       }}
                     >
                       <Text
                         style={{
-                          color: AURORA.textMuted,
-                          fontSize: 10,
+                          color: AURORA.textPrimary,
+                          fontSize: 16,
                           fontWeight: "700",
                         }}
                       >
-                        MOOD DURATION (TODAY)
+                        Mood Duration
                       </Text>
                       <TouchableOpacity
                         onPress={showMoodDurationGuide}
                         onLongPress={() => {}}
                         delayLongPress={10000}
-                        style={{ padding: 4, marginLeft: "auto" }}
+                        style={{ padding: 2 }}
                         hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                       >
-                        <CircleHelp size={14} color={AURORA.textMuted} />
+                        <CircleHelp size={16} color={AURORA.textMuted} />
                       </TouchableOpacity>
                     </View>
-                    <Text
-                      style={{
-                        color: AURORA.textPrimary,
-                        fontSize: 16,
-                        fontWeight: "700",
-                        marginBottom: 4,
-                      }}
-                    >
-                      Mood Duration (Bar Chart)
-                    </Text>
                     <Text
                       style={{
                         color: AURORA.textSec,
@@ -2117,7 +2118,7 @@ export default function Analytics() {
                         marginBottom: 10,
                       }}
                     >
-                      Total merged retrospective minutes per mood.
+                      Total minutes spent in each mood.
                     </Text>
                     {todayDurationBars.length === 0 ? (
                       <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
@@ -2204,38 +2205,29 @@ export default function Analytics() {
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        marginBottom: 8,
+                        marginBottom: 4,
+                        gap: 6,
                       }}
                     >
                       <Text
                         style={{
-                          color: AURORA.textMuted,
-                          fontSize: 10,
+                          color: AURORA.textPrimary,
+                          fontSize: 16,
                           fontWeight: "700",
                         }}
                       >
-                        AVERAGE INTENSITY BY MOOD
+                        Average Intensity
                       </Text>
                       <TouchableOpacity
                         onPress={showMoodIntensityGuide}
                         onLongPress={() => {}}
                         delayLongPress={10000}
-                        style={{ padding: 4, marginLeft: "auto" }}
+                        style={{ padding: 2 }}
                         hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                       >
-                        <CircleHelp size={14} color={AURORA.textMuted} />
+                        <CircleHelp size={16} color={AURORA.textMuted} />
                       </TouchableOpacity>
                     </View>
-                    <Text
-                      style={{
-                        color: AURORA.textPrimary,
-                        fontSize: 16,
-                        fontWeight: "700",
-                        marginBottom: 4,
-                      }}
-                    >
-                      Average Intensity (Bar Chart)
-                    </Text>
                     <Text
                       style={{
                         color: AURORA.textSec,
@@ -2380,7 +2372,7 @@ export default function Analytics() {
                             fontWeight: "700",
                           }}
                         >
-                          STRESS & ENERGY TREND (TODAY)
+                          STRESS & ENERGY TREND
                         </Text>
                       </View>
                       <Text
@@ -2391,7 +2383,7 @@ export default function Analytics() {
                           marginBottom: 4,
                         }}
                       >
-                        Stress & Energy by Hour (Bar Charts)
+                        Stress & Energy by Hour
                       </Text>
                       <Text
                         style={{
@@ -2418,7 +2410,7 @@ export default function Analytics() {
                                 fontWeight: "700",
                               }}
                             >
-                              STRESS TREND (TODAY)
+                              STRESS TREND
                             </Text>
                             <TouchableOpacity
                               onPress={showTodayStressTrendGuide}
@@ -2569,7 +2561,7 @@ export default function Analytics() {
                                 fontWeight: "700",
                               }}
                             >
-                              ENERGY TREND (TODAY)
+                              ENERGY TREND
                             </Text>
                             <TouchableOpacity
                               onPress={showTodayEnergyTrendGuide}

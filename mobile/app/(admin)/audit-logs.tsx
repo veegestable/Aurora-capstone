@@ -1,16 +1,11 @@
 /**
- * Admin Audit Logs Screen - audit-logs.tsx
- * =========================================
- * Route: /(admin)/audit-logs
- * Role: ADMIN
- *
- * System audit trail for security and compliance.
- * Tracks sensitive role-based actions and data access.
+ * Admin Activity / Audit timeline - Route: /(admin)/audit-logs
+ * Shows sign-ins, app usage (foreground), and admin actions.
  */
-
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import { AURORA } from "../../src/constants/aurora-colors";
 import { auditLogsService } from "../../src/services/audit-logs.service";
@@ -28,28 +23,30 @@ import AuditLogItem from "../../src/components/admin/AuditLogItem";
 export default function AdminAuditLogsScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
-        const result = await auditLogsService.list(50);
-        if (!cancelled) setLogs(result);
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load audit logs");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const load = useCallback(async (isRefresh: boolean) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
+      const result = await auditLogsService.list(200);
+      setLogs(result);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load activity");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    load();
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load(false);
+    }, [load]),
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: AURORA.bg }}>
@@ -65,7 +62,13 @@ export default function AdminAuditLogsScreen() {
           ) : (
             <View style={{ width: 34 }} />
           )}
-          <Text style={styles.title}>Audit Logs</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Activity timeline</Text>
+            <Text style={styles.subHead}>
+              Counselor/student sign-in & sign-out, app usage, and admin actions
+              (newest first).
+            </Text>
+          </View>
         </View>
 
         {loading ? (
@@ -87,14 +90,28 @@ export default function AdminAuditLogsScreen() {
               justifyContent: "center",
             }}
           >
-            <Text style={{ color: AURORA.textSec }}>No audit logs yet.</Text>
+            <Text style={{ color: AURORA.textSec, textAlign: "center" }}>
+              No activity recorded yet. Sign in or open the app as a student or
+              counselor to see entries here.
+            </Text>
           </View>
         ) : (
           <ScrollView
-            contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => void load(true)}
+                tintColor={AURORA.blue}
+              />
+            }
           >
-            {logs.map((l) => (
-              <AuditLogItem key={l.id} entry={l} />
+            {logs.map((l, i) => (
+              <AuditLogItem
+                key={l.id}
+                entry={l}
+                isLast={i === logs.length - 1}
+              />
             ))}
           </ScrollView>
         )}
@@ -106,7 +123,7 @@ export default function AdminAuditLogsScreen() {
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
@@ -116,5 +133,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "700",
+  },
+  subHead: {
+    color: AURORA.textSec,
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 16,
   },
 });

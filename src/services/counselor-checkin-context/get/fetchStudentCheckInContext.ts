@@ -4,7 +4,6 @@ import { moodService } from '../../mood'
 import { counselorCheckInWindowStart } from '../../../constants/counselor/counselor-checkin-policy'
 
 export interface CheckInContextResult {
-  sharingEnabled: boolean
   logs: Array<{
     stress_level?: number
     energy_level?: number
@@ -13,26 +12,9 @@ export interface CheckInContextResult {
 }
 
 /**
- * Fetch a student's check-in context for counselor view.
- * Checks whether the student has opten in to sharing, then fetches
- * recent mood logs within the policy window.
+ * Fetch a student's check-in context for counselor triage (all students; same window as mobile).
  */
 export const fetchStudentCheckInContext = async (studentId: string): Promise<CheckInContextResult> => {
-  // 1. Check if student has sharing enabled in userSettings
-  const settingsRef = doc(db, 'userSettings', studentId)
-  const settingsSnap = await getDoc(settingsRef)
-  const sharingEnabled = settingsSnap.exists()
-    ? settingsSnap.data()?.shareCheckInsWithGuidance === true
-    : false
-
-  if (!sharingEnabled) {
-    return {
-      sharingEnabled: false,
-      logs: []
-    }
-  }
-
-  // 2. Fetch mood logs within the policy window
   const windowStart = counselorCheckInWindowStart()
   const now = new Date()
 
@@ -53,9 +35,9 @@ export const fetchStudentCheckInContext = async (studentId: string): Promise<Che
       return tb - ta
     })
 
-    return { sharingEnabled: true, logs: allLogs }
+    return { logs: allLogs }
   } catch (error) {
     console.error('❌ Failed to fetch check-in context for student:', studentId, error)
-    return { sharingEnabled: true, logs: [] }
+    return { logs: [] }
   }
 }

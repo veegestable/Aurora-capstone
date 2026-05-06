@@ -249,6 +249,11 @@ function ChatView({
     showInviteModalForSessionRequest,
     setShowInviteModalForSessionRequest,
   ] = useState<string | null>(null);
+  /** When opening propose-times after "Needs rescheduling" on a session card — drives chat lead copy. */
+  const [attendanceRescheduleSlot, setAttendanceRescheduleSlot] = useState<{
+    date: string;
+    time: string;
+  } | null>(null);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [selectedSessionForAttendance, setSelectedSessionForAttendance] =
     useState<SessionCardData | null>(null);
@@ -301,6 +306,14 @@ function ChatView({
     setSending(true);
     try {
       await firestoreService.sendTextMessage(conversationId, user.id, text);
+      void auditLogsService.write({
+        performedBy: user.id,
+        performedByRole: user.role,
+        action: "message_sent",
+        targetType: "chat",
+        targetId: user.id,
+        metadata: { messageType: "text" },
+      });
       setMessage("");
     } catch (e) {
       console.error("Failed to send message:", e);
@@ -392,8 +405,8 @@ function ChatView({
       })
     ) {
       Alert.alert(
-        "Request expired",
-        "This session request can no longer be accepted because it is more than three days old or the requested time has already passed.",
+        "Expired request",
+        "This session request can no longer be accepted because 24 hours have passed without a response, or the preferred time has already passed.",
       );
       return;
     }
@@ -419,7 +432,10 @@ function ChatView({
   };
 
   const handleProposeNewTime = (sessionId: string | null) => {
-    if (sessionId) setShowInviteModalForSessionRequest(sessionId);
+    if (sessionId) {
+      setAttendanceRescheduleSlot(null);
+      setShowInviteModalForSessionRequest(sessionId);
+    }
   };
 
   const handleProposeSlotsFromModal = async (
@@ -449,16 +465,26 @@ function ChatView({
     ].filter(Boolean) as { date: string; time: string }[];
     if (slots.length === 0) return;
     const primary = data.primaryDate!;
+    const fromAttendance = attendanceRescheduleSlot;
     setSending(true);
     try {
-      await firestoreService.proposeSlots(sessionId, slots);
+      const firstName = contact.name.split(" ")[0] || "there";
+      const lead = fromAttendance
+        ? `Hi ${firstName}, I need to reschedule the session we had for ${fromAttendance.date} at ${fromAttendance.time}. Please choose a new time using the options on my session card below.`
+        : `Hi ${firstName}, here are some times that work on my side. Please tap the session card below and choose one that fits you.`;
+      await firestoreService.sendTextMessage(conversationId, user.id, lead);
+      await firestoreService.proposeSlots(sessionId, slots, {
+        proposalKind: fromAttendance
+          ? "attendance_reschedule"
+          : "counselor_new_times",
+      });
       const sessionData: SessionCardData & {
         note?: string;
         timeSlots?: { date: string; time: string }[];
       } = {
         id: sessionId,
         type: "invite",
-        title: "Academic Guidance",
+        title: "Choose a new time",
         counselorName: user.full_name || "Counselor",
         date: primary.toLocaleDateString("en-US", {
           month: "long",
@@ -471,7 +497,7 @@ function ChatView({
           hour12: true,
         }),
         location: "Guidance Office, West Wing",
-        note: data.note,
+        note: data.note.trim(),
         timeSlots: slots,
       };
       await firestoreService.updateSessionInviteMessageScheduleForSession(
@@ -485,6 +511,7 @@ function ChatView({
       console.error("Failed to propose slots:", e);
     } finally {
       setSending(false);
+      setAttendanceRescheduleSlot(null);
     }
   };
 
@@ -497,6 +524,24 @@ function ChatView({
   };
 
   const handleMarkAttendance = async (status: AttendanceStatus) => {
+    if (status === "needs_rescheduling") {
+      const sessionId = selectedSessionForAttendance?.id;
+      const att = selectedSessionForAttendance;
+      setShowAttendanceModal(false);
+      setSelectedSessionForAttendance(null);
+      if (sessionId && !sessionId.startsWith("session_")) {
+        if (att?.date?.trim() && att?.time?.trim()) {
+          setAttendanceRescheduleSlot({
+            date: att.date.trim(),
+            time: att.time.trim(),
+          });
+        } else {
+          setAttendanceRescheduleSlot(null);
+        }
+        setShowInviteModalForSessionRequest(sessionId);
+      }
+      return;
+    }
     const sessionId = selectedSessionForAttendance?.id;
     if (sessionId && !sessionId.startsWith("session_")) {
       try {
@@ -539,9 +584,9 @@ function ChatView({
               performedBy: user.id,
               performedByRole: user.role,
               action: "delete_chat_message",
-              targetType: "conversation_message",
-              targetId: messageId,
-              metadata: { conversationId, messageType },
+              targetType: "chat",
+              targetId: user.id,
+              metadata: { messageType },
             });
           },
         },
@@ -818,7 +863,8 @@ function ChatView({
                                     : undefined
                                 }
                                 onProposeNewTime={
-                                  msg.sessionRequest.sessionId
+                                  msg.sessionRequest.sessionId &&
+                                  !requestExpired
                                     ? () =>
                                         handleProposeNewTime(
                                           msg.sessionRequest.sessionId,
@@ -887,6 +933,7 @@ function ChatView({
                               return sid
                                 ? () => {
                                     setShowInviteModal(false);
+                                    setAttendanceRescheduleSlot(null);
                                     setShowInviteModalForSessionRequest(sid);
                                   }
                                 : undefined;
@@ -1100,6 +1147,7 @@ function ChatView({
       {showInviteModalForSessionRequest && (
         <SendSessionInviteModal
           visible={!!showInviteModalForSessionRequest}
+          mode="reschedule"
           student={{
             id: contact.id,
             name: contact.name,
@@ -1108,7 +1156,10 @@ function ChatView({
             studentId: contact.studentId,
           }}
           counselorName={user?.full_name}
-          onClose={() => setShowInviteModalForSessionRequest(null)}
+          onClose={() => {
+            setShowInviteModalForSessionRequest(null);
+            setAttendanceRescheduleSlot(null);
+          }}
           onSend={(data) =>
             handleProposeSlotsFromModal(data, showInviteModalForSessionRequest!)
           }
@@ -1329,7 +1380,7 @@ export default function CounselorMessagesScreen() {
               onPress={() => router.push("/(counselor)/session-history")}
               activeOpacity={0.85}
             >
-              <View
+              {/* <View
                 style={{
                   width: 20,
                   height: 20,
@@ -1340,7 +1391,7 @@ export default function CounselorMessagesScreen() {
                 }}
               >
                 <RotateCcw size={12} color="#FFFFFF" />
-              </View>
+              </View> */}
               <Text
                 style={{
                   color: "#FFFFFF",

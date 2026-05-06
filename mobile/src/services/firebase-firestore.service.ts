@@ -14,6 +14,7 @@ import {
   updateDoc,
   writeBatch,
   deleteDoc,
+  deleteField,
   onSnapshot,
   type QuerySnapshot,
 } from "firebase/firestore";
@@ -22,6 +23,7 @@ import {
   type SessionHistoryBadge,
   EXPIRED_SESSION_RETENTION_MS,
   computeSessionHistoryBadge,
+  getConfirmedFinalSlot,
   getOverdueSchedulingState,
   getSessionScheduledDate,
 } from "../utils/sessionScheduling";
@@ -1150,6 +1152,7 @@ export const firestoreService = {
   // sessions/{sessionId}: counselorId, studentId, riskFlagId, initiatedBy, studentRequestNote,
   //   finalSlot (agreed date+time — single source for history badges & overdue; set when either party confirms),
   //   proposedSlots, confirmedSlot (kept in sync with finalSlot when agreed), status, attendanceNote, cancelReason,
+  //   slotConfirmedAt (Timestamp when final/agreed time was last locked as confirmed),
   //   reminderSent, createdAt, updatedAt, expiredAt, schedulingOverdueAt, sessionHistoryBadge
   // status: requested | pending | confirmed | needs_rescheduling | expired | completed | missed | rescheduled | cancelled
 
@@ -1336,9 +1339,48 @@ export const firestoreService = {
     }
   },
 
+  /**
+   * Counts `sessions` with this student and counselor where `status` is terminal
+   * `completed` or `missed` (same semantics as Session History).
+   * Single query on `studentId` + in-memory filter on `counselorId` (no extra composite index).
+   */
+  async getSessionOutcomeCountsForCounselorStudent(
+    counselorId: string,
+    studentId: string,
+  ): Promise<{ completed: number; missed: number }> {
+    try {
+      const q = query(
+        collection(db, "sessions"),
+        where("studentId", "==", String(studentId)),
+      );
+      const snapshot = await getDocs(q);
+      const cid = String(counselorId);
+      let completed = 0;
+      let missed = 0;
+      for (const d of snapshot.docs) {
+        const data = d.data() as Record<string, unknown>;
+        if (String(data.counselorId ?? "") !== cid) continue;
+        const st = String(data.status ?? "");
+        if (st === "completed") completed += 1;
+        else if (st === "missed") missed += 1;
+      }
+      return { completed, missed };
+    } catch (error: any) {
+      console.error(
+        "❌ Error counting session outcomes for counselor/student:",
+        error,
+      );
+      return { completed: 0, missed: 0 };
+    }
+  },
+
   async proposeSlots(
     sessionId: string,
     slots: Array<{ date: string; time: string }>,
+    opts?: {
+      /** Counselor moved a session (e.g. from attendance "needs rescheduling"). */
+      proposalKind?: "attendance_reschedule" | "counselor_new_times";
+    },
   ) {
     try {
       const sessionRef = doc(db, "sessions", sessionId);
@@ -1348,13 +1390,26 @@ export const firestoreService = {
         proposedSlots: slots,
         finalSlot: null,
         confirmedSlot: null,
+        slotConfirmedAt: deleteField(),
         status: "pending",
         updatedAt: Timestamp.now(),
+        ...(opts?.proposalKind === "attendance_reschedule"
+          ? { counselorRescheduleAt: Timestamp.now() }
+          : {}),
       });
       if (session?.studentId) {
+        let body =
+          "Your counselor proposed new session times. Please choose and confirm a slot in Messages.";
+        if (opts?.proposalKind === "attendance_reschedule") {
+          body =
+            "Your counselor needs to reschedule. Open Messages, read their note, and choose a new time on the session card—this is not a new request from you.";
+        } else if (opts?.proposalKind === "counselor_new_times") {
+          body =
+            "Your counselor suggested new times. Open Messages and pick a slot on the session card.";
+        }
         await createSessionNotification(
           String(session.studentId),
-          "Your counselor proposed new session times. Please choose and confirm a slot in Messages.",
+          body,
           "/(student)/messages",
           `session:${sessionId}:slots_proposed_to_student`,
         );
@@ -1374,6 +1429,7 @@ export const firestoreService = {
         finalSlot: slot,
         confirmedSlot: slot,
         status: "confirmed",
+        slotConfirmedAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
       if (session?.studentId) {
@@ -1434,6 +1490,7 @@ export const firestoreService = {
         finalSlot: slot,
         confirmedSlot: slot,
         status: "confirmed",
+        slotConfirmedAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
       if (data.studentId == null) {
@@ -1609,7 +1666,11 @@ export const firestoreService = {
         schedulingOverdueAt: null,
         sessionHistoryBadge: badge,
         ...(outcome === "rescheduled"
-          ? { finalSlot: null, confirmedSlot: null }
+          ? {
+              finalSlot: null,
+              confirmedSlot: null,
+              slotConfirmedAt: deleteField(),
+            }
           : {}),
       });
     } catch (error: any) {
@@ -1620,7 +1681,9 @@ export const firestoreService = {
 
   /**
    * Get session history for counselor with enriched student data (name, program).
-   * Only returns sessions with confirmedSlot (accepted) or completed/missed/rescheduled status.
+   * **Agreed sessions only:** rows must have a locked `finalSlot` / `confirmedSlot`, or a terminal
+   * attendance outcome (`completed`, `missed`, `rescheduled` — the last clears slots but stays listed).
+   * Excludes open student requests and invite/pending flows where no time is locked yet.
    */
   async getSessionHistoryForCounselor(counselorId: string): Promise<
     Array<{
@@ -1641,6 +1704,9 @@ export const firestoreService = {
       sessionHistoryBadge?: SessionHistoryBadge;
       updatedAt: Date;
       createdAt: Date;
+      initiatedBy?: string;
+      /** When the agreed slot was last confirmed (student or counselor path). */
+      slotConfirmedAt: Date | null;
     }>
   > {
     try {
@@ -1669,9 +1735,19 @@ export const firestoreService = {
         const confirmedSlot =
           normalizeFirestoreSessionSlot(data.confirmedSlot) ??
           looseSessionSlotFromRaw(data.confirmedSlot);
+        const slotConfirmedRaw = data.slotConfirmedAt;
+        const slotConfirmedAt =
+          slotConfirmedRaw != null &&
+          typeof (slotConfirmedRaw as { toDate?: () => Date }).toDate ===
+            "function"
+            ? (slotConfirmedRaw as { toDate: () => Date }).toDate()
+            : null;
         return {
           id: d.id,
-          studentId: data.studentId,
+          studentId:
+            data.studentId != null && String(data.studentId).trim()
+              ? String(data.studentId).trim()
+              : "",
           status: data.status ?? "requested",
           finalSlot,
           confirmedSlot,
@@ -1685,11 +1761,32 @@ export const firestoreService = {
             | undefined,
           updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
           createdAt: data.createdAt?.toDate?.() ?? new Date(),
+          initiatedBy:
+            typeof data.initiatedBy === "string" ? data.initiatedBy : undefined,
+          slotConfirmedAt,
         };
       });
 
+      const sessionsAgreedOnly = sessions.filter((s) => {
+        const st = String(s.status ?? "").toLowerCase();
+        if (st === "completed" || st === "missed" || st === "rescheduled") {
+          return true;
+        }
+        return (
+          getConfirmedFinalSlot(
+            s as { finalSlot?: unknown; confirmedSlot?: unknown },
+          ) != null
+        );
+      });
+
       // Enrich with student data
-      const uniqueStudentIds = [...new Set(sessions.map((s) => s.studentId))];
+      const uniqueStudentIds = [
+        ...new Set(
+          sessionsAgreedOnly
+            .map((s) => s.studentId)
+            .filter((id): id is string => typeof id === "string" && id.trim().length > 0),
+        ),
+      ];
       const userPromises = uniqueStudentIds.map((id) =>
         getDoc(doc(db, "users", id)),
       );
@@ -1707,12 +1804,22 @@ export const firestoreService = {
       userSnaps.forEach((snap, i) => {
         const uid = uniqueStudentIds[i];
         const u = snap.data();
+        const pickAvatar = (raw: Record<string, unknown> | undefined) => {
+          if (!raw) return undefined;
+          const a =
+            (typeof raw.avatar_url === "string" && raw.avatar_url.trim()) ||
+            (typeof raw.avatarUrl === "string" && raw.avatarUrl.trim()) ||
+            (typeof raw.photoURL === "string" && raw.photoURL.trim()) ||
+            (typeof raw.photoUrl === "string" && raw.photoUrl.trim()) ||
+            "";
+          return a || undefined;
+        };
         userMap[uid] = {
           full_name: u?.full_name ?? u?.fullName,
           department: u?.department,
           program: u?.program,
           year: u?.year ?? u?.year_level,
-          avatar_url: u?.avatar_url,
+          avatar_url: pickAvatar(u as Record<string, unknown> | undefined),
         };
       });
 
@@ -1763,7 +1870,7 @@ export const firestoreService = {
       };
 
       const results = await Promise.all(
-        sessions.map(async (s) => {
+        sessionsAgreedOnly.map(async (s) => {
           const status = await syncSchedulingStatus(s);
           const merged = { ...s, status };
           const badge = computeSessionHistoryBadge(merged);
@@ -1887,6 +1994,7 @@ async function buildChatMessagesFromQuerySnapshot(
     string,
     { date: string; time: string } | null
   > = {};
+  let sessionHasProposedSlotsMap: Record<string, boolean> = {};
   if (allSessionIds.length > 0) {
     const sessionPromises = allSessionIds.map((id) =>
       getDoc(doc(db, "sessions", id)),
@@ -1896,6 +2004,16 @@ async function buildChatMessagesFromQuerySnapshot(
       const sid = allSessionIds[i];
       const s = snap.data();
       if (s?.status) sessionStatusMap[sid] = s.status;
+      const slots = s?.proposedSlots;
+      sessionHasProposedSlotsMap[sid] =
+        Array.isArray(slots) &&
+        slots.some(
+          (x: unknown) =>
+            x &&
+            typeof x === "object" &&
+            "date" in (x as object) &&
+            String((x as { date: unknown }).date).trim() !== "",
+        );
       const fs = s?.finalSlot ?? s?.confirmedSlot;
       if (fs && typeof fs === "object" && "date" in fs && "time" in fs) {
         sessionFinalSlotMap[sid] = {
@@ -1911,9 +2029,13 @@ async function buildChatMessagesFromQuerySnapshot(
   return msgs.map((m) => {
     if (m.type === "session_request" && m.sessionRequest.sessionId) {
       const sessionStatus = sessionStatusMap[m.sessionRequest.sessionId];
+      const sid = m.sessionRequest.sessionId;
+      const hasProposed = sessionHasProposedSlotsMap[sid];
       if (
         sessionStatus &&
         [
+          "requested",
+          "pending",
           "confirmed",
           "completed",
           "missed",
@@ -1925,7 +2047,12 @@ async function buildChatMessagesFromQuerySnapshot(
       ) {
         return {
           ...m,
-          sessionRequest: { ...m.sessionRequest, status: sessionStatus },
+          sessionRequest: {
+            ...m.sessionRequest,
+            status: sessionStatus,
+            counselorOfferedSlots:
+              sessionStatus === "pending" && !!hasProposed,
+          },
         };
       }
     }

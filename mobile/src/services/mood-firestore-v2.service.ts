@@ -19,6 +19,7 @@ export interface UserSettingsDoc {
   dayResetHour: number;
   timezone: string;
   reminderHour?: number;
+  reminderMinute?: number;
   remindersEnabled?: boolean;
   academicContextEnabled?: boolean;
   enabledContextCategories?: ContextCategoryKey[];
@@ -118,6 +119,7 @@ const DEFAULT_SETTINGS: UserSettingsDoc = {
       ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
       : "UTC",
   reminderHour: 7,
+  reminderMinute: 0,
   remindersEnabled: true,
   academicContextEnabled: true,
   enabledContextCategories: [
@@ -152,6 +154,10 @@ export async function getUserSettings(
       typeof d.reminderHour === "number"
         ? Math.min(23, Math.max(0, d.reminderHour))
         : (DEFAULT_SETTINGS.reminderHour ?? 7),
+    reminderMinute:
+      typeof d.reminderMinute === "number"
+        ? Math.min(59, Math.max(0, d.reminderMinute))
+        : (DEFAULT_SETTINGS.reminderMinute ?? 0),
     remindersEnabled:
       typeof d.remindersEnabled === "boolean"
         ? d.remindersEnabled
@@ -209,6 +215,7 @@ export async function updateUserSettings(
       | "dayResetHour"
       | "timezone"
       | "reminderHour"
+      | "reminderMinute"
       | "remindersEnabled"
       | "academicContextEnabled"
       | "enabledContextCategories"

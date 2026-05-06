@@ -1,6 +1,7 @@
 /**
- * Full student view for counselors: journals + last-7-day analytics when the student
- * is in the “special population” (session request + consent) and sharing is on.
+ * Counselor student profile: all students see a baseline mood calendar (date, time, mood only).
+ * “Special population” (session request to this counselor, or student accepted counselor’s slot):
+ * full journal + last-7-day charts. Special access cannot be turned off in-app yet.
  */
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -15,15 +16,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Mail, Phone, CircleHelp } from "lucide-react-native";
 import { db } from "../../services/firebase";
 import { AURORA } from "../../constants/aurora-colors";
 import { LetterAvatar } from "../../components/common/LetterAvatar";
 import { formatCounselorStudentSubtitle } from "../../constants/ccs-student-programs";
-import {
-  fetchStudentCounselorDetailedContext,
-  fetchStudentCheckInSignalContextForCounselor,
-} from "../../services/counselor-checkin-context.service";
+import { fetchStudentCounselorDetailedContext } from "../../services/counselor-checkin-context.service";
 import { firestoreService } from "../../services/firebase-firestore.service";
 import { useAuth } from "../../stores/AuthContext";
 import type { CounselorSignalPill } from "../../constants/counselor-checkin-signals";
@@ -33,6 +31,8 @@ import { CounselorStudentLast7Charts } from "../../components/counselor/Counselo
 
 type StudentDoc = {
   full_name?: string;
+  email?: string;
+  contact_number?: string;
   department?: string;
   program?: string;
   year_level?: string;
@@ -50,16 +50,15 @@ export default function CounselorStudentDetailScreen() {
   );
   const [loadingStudent, setLoadingStudent] = useState(true);
   const [loadingCtx, setLoadingCtx] = useState(true);
-  const [sharingEnabled, setSharingEnabled] = useState(false);
   const [journalAccessGranted, setJournalAccessGranted] = useState(false);
   const [logs, setLogs] = useState<Awaited<
     ReturnType<typeof fetchStudentCounselorDetailedContext>
   >["logs"]>([]);
-  const [signalSharingEnabled, setSignalSharingEnabled] = useState(false);
-  const [signalLogs, setSignalLogs] = useState<Awaited<
-    ReturnType<typeof fetchStudentCheckInSignalContextForCounselor>
-  >["logs"]>([]);
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [sessionOutcomeCounts, setSessionOutcomeCounts] = useState<{
+    completed: number;
+    missed: number;
+  }>({ completed: 0, missed: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -94,18 +93,28 @@ export default function CounselorStudentDetailScreen() {
     if (!id || !counselorId) {
       setLoadingCtx(false);
       setLogs([]);
+      setSessionOutcomeCounts({ completed: 0, missed: 0 });
       return;
     }
     setLoadingCtx(true);
     try {
       const ctx = await fetchStudentCounselorDetailedContext(id, counselorId);
-      setSharingEnabled(ctx.sharingEnabled);
       setJournalAccessGranted(ctx.journalAccessGranted);
       setLogs(ctx.logs);
+      if (ctx.journalAccessGranted) {
+        const counts =
+          await firestoreService.getSessionOutcomeCountsForCounselorStudent(
+            counselorId,
+            id,
+          );
+        setSessionOutcomeCounts(counts);
+      } else {
+        setSessionOutcomeCounts({ completed: 0, missed: 0 });
+      }
     } catch {
-      setSharingEnabled(false);
       setJournalAccessGranted(false);
       setLogs([]);
+      setSessionOutcomeCounts({ completed: 0, missed: 0 });
     } finally {
       setLoadingCtx(false);
     }
@@ -115,20 +124,6 @@ export default function CounselorStudentDetailScreen() {
     void reloadContext();
   }, [reloadContext]);
 
-  useEffect(() => {
-    if (!id) {
-      setSignalSharingEnabled(false);
-      setSignalLogs([]);
-      return;
-    }
-    void fetchStudentCheckInSignalContextForCounselor(id).then(
-      ({ sharingEnabled: sh, logs: lg }) => {
-        setSignalSharingEnabled(sh);
-        setSignalLogs(lg);
-      },
-    );
-  }, [id]);
-
   const programLine =
     formatCounselorStudentSubtitle({
       department: student?.department,
@@ -136,10 +131,9 @@ export default function CounselorStudentDetailScreen() {
       year_level: student?.year_level,
     }) || "CCS";
 
-  const signalRiskLevel: CounselorSignalPill = counselorSignalFromLogs(
-    signalSharingEnabled,
-    signalLogs,
-  );
+  const signalRiskLevel: CounselorSignalPill = journalAccessGranted
+    ? counselorSignalFromLogs(logs)
+    : "typical_self_report";
 
   const handleInviteToSession = async () => {
     if (!counselorId || !student?.id) {
@@ -147,12 +141,13 @@ export default function CounselorStudentDetailScreen() {
       return;
     }
     const isAlerted =
-      signalRiskLevel === "higher_self_report" ||
-      signalRiskLevel === "moderate_self_report";
+      journalAccessGranted &&
+      (signalRiskLevel === "higher_self_report" ||
+        signalRiskLevel === "moderate_self_report");
     const borderColor =
-      signalRiskLevel === "higher_self_report"
+      journalAccessGranted && signalRiskLevel === "higher_self_report"
         ? AURORA.red
-        : signalRiskLevel === "moderate_self_report"
+        : journalAccessGranted && signalRiskLevel === "moderate_self_report"
           ? AURORA.orange
           : undefined;
 
@@ -179,6 +174,19 @@ export default function CounselorStudentDetailScreen() {
     }
   };
 
+  const showSpecialPopulationInfo = () => {
+    Alert.alert(
+      "Special Population",
+      "This student unlocked full check-in detail for you. The calendar and charts below mirror what they see in Aurora, including notes and wellness fields. There is no in-app way for them to revoke this yet.",
+    );
+  };
+  const showMoodCheckinsInfo = () => {
+    Alert.alert(
+      "Mood check-ins",
+      "You can see each check-in's date, time, and mood label below - not notes, sleep, meals, bath, or photos. Full journal and week charts unlock when this student is in your special population (they sent you a session request, or they accepted a session time you proposed).",
+    );
+  };
+
   if (!id) {
     return (
       <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
@@ -191,36 +199,7 @@ export default function CounselorStudentDetailScreen() {
     );
   }
 
-  const lockedSpecialPopulation =
-    sharingEnabled && !journalAccessGranted ? (
-      <View
-        style={{
-          backgroundColor: AURORA.card,
-          borderRadius: 16,
-          padding: 20,
-          borderWidth: 1,
-          borderColor: AURORA.border,
-          marginBottom: 16,
-        }}
-      >
-        <Text
-          style={{
-            color: "#FFFFFF",
-            fontSize: 16,
-            fontWeight: "800",
-            marginBottom: 10,
-          }}
-        >
-          Special population access
-        </Text>
-        <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21 }}>
-          Detailed journals and analytics appear here after this student requests a session with you and confirms they want you to review their mood check-ins.
-          Directory summaries still use optional sharing settings only.
-        </Text>
-      </View>
-    ) : null;
-
-  const lockedSharingOff = !sharingEnabled ? (
+  const specialPopulationInfo = !journalAccessGranted ? (
     <View
       style={{
         backgroundColor: AURORA.card,
@@ -231,11 +210,135 @@ export default function CounselorStudentDetailScreen() {
         marginBottom: 16,
       }}
     >
-      <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 21 }}>
-        This student has check-in sharing turned off in Aurora. Ask them to enable sharing with guidance if they want you to see mood context here.
-      </Text>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <Text
+          style={{
+            color: "#FFFFFF",
+            fontSize: 16,
+            fontWeight: "800",
+          }}
+        >
+          Mood check-ins
+        </Text>
+        <TouchableOpacity
+          onPress={showMoodCheckinsInfo}
+          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+          style={{ padding: 2 }}
+          accessibilityRole="button"
+          accessibilityLabel="Mood check-ins info"
+        >
+          <CircleHelp size={16} color={AURORA.textSec} />
+        </TouchableOpacity>
+      </View>
     </View>
-  ) : null;
+  ) : (
+    <View
+      style={{
+        backgroundColor: AURORA.card,
+        borderRadius: 16,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: AURORA.border,
+        marginBottom: 16,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <Text
+          style={{
+            color: "#FFFFFF",
+            fontSize: 16,
+            fontWeight: "800",
+          }}
+        >
+          Special Population
+        </Text>
+        <TouchableOpacity
+          onPress={showSpecialPopulationInfo}
+          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+          style={{ padding: 2 }}
+          accessibilityRole="button"
+          accessibilityLabel="Special population info"
+        >
+          <CircleHelp size={16} color={AURORA.textSec} />
+        </TouchableOpacity>
+      </View>
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 12,
+          marginTop: 16,
+          paddingTop: 16,
+          borderTopWidth: 1,
+          borderTopColor: AURORA.border,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              color: AURORA.textMuted,
+              fontSize: 10,
+              fontWeight: "800",
+              letterSpacing: 0.6,
+              marginBottom: 6,
+            }}
+          >
+            COMPLETED SESSIONS
+          </Text>
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 26,
+              fontWeight: "900",
+            }}
+          >
+            {sessionOutcomeCounts.completed}
+          </Text>
+          <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 4 }}>
+            Marked completed in Session History
+          </Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              color: AURORA.textMuted,
+              fontSize: 10,
+              fontWeight: "800",
+              letterSpacing: 0.6,
+              marginBottom: 6,
+            }}
+          >
+            MISSED SESSIONS
+          </Text>
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 26,
+              fontWeight: "900",
+            }}
+          >
+            {sessionOutcomeCounts.missed}
+          </Text>
+          <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 4 }}>
+            No-show or marked missed
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
@@ -313,6 +416,46 @@ export default function CounselorStudentDetailScreen() {
                 >
                   {programLine}
                 </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 6,
+                    gap: 6,
+                  }}
+                >
+                  <Mail size={13} color="#BFD2FF" />
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: "#C9D8FF",
+                      fontSize: 12,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {student.email?.trim() || "No email provided"}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 4,
+                    gap: 6,
+                  }}
+                >
+                  <Phone size={13} color="#BFD2FF" />
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: "#C9D8FF",
+                      fontSize: 12,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {student.contact_number?.trim() || "No contact number"}
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -332,7 +475,7 @@ export default function CounselorStudentDetailScreen() {
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}>
-                  Invite to Session (opens chat)
+                  Invite to Session
                 </Text>
               )}
             </TouchableOpacity>
@@ -346,7 +489,8 @@ export default function CounselorStudentDetailScreen() {
                 lineHeight: 18,
               }}
             >
-              Journals and week charts mirror what the student sees, only after they request a session with you and confirm counselor review.
+              Baseline view for every student; full journal only for your special population after
+              session consent flows above.
             </Text>
 
             {loadingCtx ? (
@@ -355,15 +499,19 @@ export default function CounselorStudentDetailScreen() {
               </View>
             ) : (
               <>
-                {lockedSharingOff}
-                {lockedSpecialPopulation}
-                {sharingEnabled && journalAccessGranted && id ? (
-                  <>
-                    <CounselorStudentJournalCalendar
-                      studentId={id}
-                      analyticsSlot={<CounselorStudentLast7Charts logs={logs} />}
-                    />
-                  </>
+                {specialPopulationInfo}
+                {id ? (
+                  <CounselorStudentJournalCalendar
+                    studentId={id}
+                    privacyMode={
+                      journalAccessGranted ? "full" : "baseline"
+                    }
+                    analyticsSlot={
+                      journalAccessGranted ? (
+                        <CounselorStudentLast7Charts logs={logs} />
+                      ) : null
+                    }
+                  />
                 ) : null}
               </>
             )}

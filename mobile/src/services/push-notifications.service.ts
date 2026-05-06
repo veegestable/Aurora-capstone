@@ -70,6 +70,7 @@ export async function clearDailyCheckInReminder(): Promise<void> {
 
 export async function scheduleDailyCheckInReminder(
   hour: number,
+  minute = 0,
 ): Promise<boolean> {
   configureNotificationHandler();
   await ensureAndroidChannel();
@@ -79,6 +80,7 @@ export async function scheduleDailyCheckInReminder(
   await clearDailyCheckInReminder();
 
   const h = Math.min(23, Math.max(0, Math.floor(hour)));
+  const m = Math.min(59, Math.max(0, Math.floor(minute)));
   const body =
     FLOWERY_REMINDER_LINES[
       Math.floor(Math.random() * FLOWERY_REMINDER_LINES.length)
@@ -96,7 +98,7 @@ export async function scheduleDailyCheckInReminder(
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
       hour: h,
-      minute: 0,
+      minute: m,
     },
   });
 
