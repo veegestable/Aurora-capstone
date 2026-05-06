@@ -24,7 +24,7 @@ _Document files deleted, dead exports removed, routes dropped, etc._
 - [ ] `round4-mobile-diff-audit` — Diff mobile vs web; file-level gap table
 - [x] `counselor-student-depth` — Workspace journal calendar + last-7 charts with mobile consent rules
 - [x] `student-mood-history` — Student journal/history UX parity (no separate web route; aligned to `/student/journal`)
-- [ ] `admin-resource-detail` — Admin resource detail/edit Firestore parity
+- [ ] `admin-resource-detail` — Admin resource detail/edit Firestore parity (in progress: service + detail edit form wired)
 - [ ] `admin-analytics-charts` — School mood chart + threshold UI (when mobile schema exists)
 - [ ] `infra-rules-indexes-tests` — Indexes, security rules notes, Vitest (or agreed runner) smoke tests
 - [ ] `round4-progress-log` — Keep this file updated after each completed item
@@ -41,6 +41,7 @@ _Add rows as you compare `mobile/` routes and services to `src/`._
 | Counselor student detail + journal | `StudentProfileModal` + `CounselorLast7MoodBars` | Last-7 bars in modal; full calendar: use `<JournalCalendar forUserId={...} />` on `counselor/students/:id` (Batch 4). |
 | `JournalCalendar` (student-only before) | `JournalCalendar` + optional `forUserId` | **Batch 3 done** — enables counselor read-only month view when wired. |
 | `app/(counselor)/students/[id]/index.tsx` | `src/pages/counselor/CounselorStudentDetail.tsx`, `/counselor/students/:id` | Full page: last-7 bars + `JournalCalendar forUserId`; summary via `location.state` from directory (refresh loses tiles until re-fetch — optional follow-up). |
+| `app/(admin)/resources/[id].tsx` | `src/pages/admin/ResourceDetail.tsx` + `src/services/resources/*` | Detail view now loads/updates Firestore doc; verify final field schema against backend/mobile. |
 
 ---
 
@@ -59,6 +60,11 @@ _Add rows as you compare `mobile/` routes and services to `src/`._
 
 - `CounselorStudentDetail`, route `counselor/students/:id`, `Students.tsx` navigates with state; modal removed from directory (optional to restore).
 - Removed redundant `/student/history` (mobile history is the Journal tab); web keeps a single canonical student journal surface.
+
+### 2025-05-06 (Batch 5)
+
+- Added `resourcesService` (`getResourceById`, `updateResource`), wired Admin Resources “Edit” to `/admin/resources/:id`, and replaced detail placeholder with editable form.
+- Cleanup: typed `AdminResources` mock list with `ResourceRecord`, fixed type/icon condition, and documented that Add Resource remains unimplemented on both web and mobile.
 
 ---
 
@@ -84,9 +90,10 @@ _Add rows as you compare `mobile/` routes and services to `src/`._
 
 ### `admin-resource-detail`
 
-- **Status:** Not started
-- **Files touched:** None
-- **Notes:**
+- **Status:** In progress
+- **Files touched:** `src/pages/admin/ResourceDetail.tsx`, `src/pages/admin/Resources.tsx`, `src/services/resources/{index.ts,types.ts,get/getResourceById.ts,put/updateResource.ts}`
+- **Notes:** Uses `resources/{id}` collection path; confirm backend/mobile schema fields (`description`, `duration`, `type`, etc.) before marking complete.
+- Mobile parity check: Add/create resource flow is not implemented on mobile yet (list/detail are placeholders; service only has `listPublished` stub).
 
 ### `admin-analytics-charts`
 
@@ -104,4 +111,4 @@ _Add rows as you compare `mobile/` routes and services to `src/`._
 
 ## Open Questions / Blockers
 
-- None yet.
+- Add Resource parity is blocked by mobile/backend schema and create API not yet implemented.

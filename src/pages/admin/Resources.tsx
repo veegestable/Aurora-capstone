@@ -1,8 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import type { ResourceRecord, ResourceStatus } from '../../services/resources'
 import { Search, Plus, PlayCircle, BookOpen, Clock, FileText } from 'lucide-react'
 
+type ResourceListItem = Omit<ResourceRecord, 'updatedAt'> & { status: ResourceStatus }
+
 // Matching the mock resources from student/Resources.tsx
-const INITIAL_RESOURCES = [
+const INITIAL_RESOURCES: ResourceListItem[] = [
   {
     id: '1', title: '5-Minute Calm', category: 'For Anxiety', duration: '10 min',
     type: 'Meditation', image: 'https://picsum.photos/seed/sunset-ocean/600/260',
@@ -26,7 +30,8 @@ const INITIAL_RESOURCES = [
 ]
 
 export default function AdminResources() {
-  const [resources, setResources] = useState(INITIAL_RESOURCES)
+  const navigate = useNavigate()
+  const [resources, setResources] = useState<ResourceListItem[]>(INITIAL_RESOURCES)
   const [searchQuery, setSearchQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all')
 
@@ -109,7 +114,10 @@ export default function AdminResources() {
             
             <div className="p-4 flex-1 flex flex-col">
               <div className="flex items-center gap-1.5 mb-1.5 text-aurora-primary-dark/60">
-                {r.type === 'Article' ? <FileText className="w-3.5 h-3.5" /> : <PlayCircle className="w-3.5 h-3.5" />}
+              {r.type.toLowerCase() === 'article'
+                ? <FileText className="w-3.5 h-3.5" />
+                : <PlayCircle className="w-3.5 h-3.5" />
+              }
                 <span className="text-[11px] font-bold uppercase tracking-wider">{r.type}</span>
                 <span className="text-[11px] px-1">•</span>
                 <span className="text-[11px] font-bold">{r.category}</span>
@@ -120,7 +128,7 @@ export default function AdminResources() {
               <div className="mt-auto flex items-center gap-2">
                 <button
                   className="flex-1 py-2 text-xs font-semibold rounded-lg bg-aurora-primary-dark/5 text-aurora-primary-dark/80 hover:bg-aurora-primary-dark/10 transition-colors cursor-pointer"
-                  onClick={() => alert(`Edit ${r.title}`)}
+                  onClick={() => navigate(`/admin/resources/${r.id}`)}
                 >
                   Edit
                 </button>
