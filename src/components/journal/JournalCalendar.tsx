@@ -36,24 +36,30 @@ function toLocalDateStr(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-export function JournalCalendar() {
+export type JournalCalendarProps = {
+  /** When set (e.g. counselor view), loads this user's mood logs instead of the signed-in student. */
+  forUserId?: string
+}
+
+export function JournalCalendar({ forUserId }: JournalCalendarProps = {}) {
   const { user } = useAuth()
+  const targetUserId = forUserId ?? user?.id
   const [currentDate, setCurrentDate] = useState(new Date())
   const [moodData, setMoodData] = useState<MoodLogEntryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null)
 
   useEffect(() => {
-    if (user) loadMoodData()
-  }, [currentDate, user])
+    if (targetUserId) void loadMoodData()
+  }, [currentDate, targetUserId])
 
   const loadMoodData = async () => {
-    if (!user) return
+    if (!targetUserId) return
     setLoading(true)
     try {
       const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
       const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999)
-      const data = await moodService.getMoodLogs(user.id, start.toISOString(), end.toISOString())
+      const data = await moodService.getMoodLogs(targetUserId, start.toISOString(), end.toISOString())
       setMoodData(Array.isArray(data) ? data : [])
     } catch {
       setMoodData([])
@@ -105,6 +111,18 @@ export function JournalCalendar() {
     month: 'long',
     year: 'numeric',
   })
+
+  if (!targetUserId) {
+    return (
+      <div className="card-aurora p-6 text-center text-aurora-text-muted text-sm">
+        Sign in to view the journal calendar.
+      </div>
+    )
+  }
+
+  const emptyDayHint = forUserId
+    ? 'Tap a day on the calendar to see this student\'s mood entries.'
+    : 'Tap a day on the calendar to see your mood entries.'
 
   return (
     <div className="space-y-6">
@@ -215,7 +233,7 @@ export function JournalCalendar() {
             </div>
           ) : (
             <div className="card-aurora text-center py-8 border-dashed border-white/10">
-              <p className="text-aurora-text-muted">No mood entries logged on this day.</p>
+              <p className="text-aurora-text-muted font-medium">{emptyDayHint}</p>
             </div>
           )}
         </div>

@@ -22,7 +22,7 @@ _Document files deleted, dead exports removed, routes dropped, etc._
 
 - [ ] `round4-mobile-diff-audit` — Diff mobile vs web; file-level gap table
 - [ ] `counselor-student-depth` — Workspace journal calendar + last-7 charts with mobile consent rules
-- [ ] `student-mood-history` — Student history route/UX vs mobile `history`
+- [x] `student-mood-history` — Student history route/UX vs mobile `history`
 - [ ] `admin-resource-detail` — Admin resource detail/edit Firestore parity
 - [ ] `admin-analytics-charts` — School mood chart + threshold UI (when mobile schema exists)
 - [ ] `infra-rules-indexes-tests` — Indexes, security rules notes, Vitest (or agreed runner) smoke tests
@@ -36,7 +36,9 @@ _Add rows as you compare `mobile/` routes and services to `src/`._
 
 | Mobile | Web | Gap / notes |
 |--------|-----|-------------|
-| | | |
+| `app/(student)/history.tsx` | `src/pages/student/History.tsx`, `/student/history` | Route + nav; reuses journal UI (mobile `HistoryScreen` is larger — optional later). |
+| Counselor student detail + journal | `StudentProfileModal` + `CounselorLast7MoodBars` | Last-7 bars in modal; full calendar: use `<JournalCalendar forUserId={...} />` on `counselor/students/:id` (Batch 4). |
+| `JournalCalendar` (student-only before) | `JournalCalendar` + optional `forUserId` | **Batch 3 done** — enables counselor read-only month view when wired. |
 
 ---
 
@@ -46,6 +48,10 @@ _Add rows as you compare `mobile/` routes and services to `src/`._
 
 - Created Round 4 plan and this progress tracker.
 - Added **Orphan & deprecation hygiene** rule to the plan; linked from this tracker and added **Cleanup / debt removed** table.
+
+### 2026-05-06 (Batch 3)
+
+- `JournalCalendar`: optional `forUserId` / `targetUserId`; copy for counselor vs student empty state.
 
 ---
 
@@ -59,15 +65,15 @@ _Add rows as you compare `mobile/` routes and services to `src/`._
 
 ### `counselor-student-depth`
 
-- **Status:** Not started
-- **Files touched:** None
-- **Notes:**
+- **Status:** In progress (modal: last-7 bars; calendar: use `forUserId` on next route/page)
+- **Files touched:** `src/components/journal/JournalCalendar.tsx` (Batch 3); earlier: `CounselorLast7MoodBars.tsx`, `StudentProfileModal.tsx`
+- **Notes:** Add `counselor/students/:id` and render `<JournalCalendar forUserId={id} />` when rules allow.
 
 ### `student-mood-history`
 
-- **Status:** Not started
-- **Files touched:** None
-- **Notes:**
+- **Status:** Done (initial parity)
+- **Files touched:** `src/pages/student/History.tsx`, `src/App.tsx`, `src/layouts/StudentLayout.tsx`
+- **Notes:** Same calendar/analytics as Journal; mobile mega-screen deferred.
 
 ### `admin-resource-detail`
 
