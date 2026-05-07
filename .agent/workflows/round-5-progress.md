@@ -45,9 +45,12 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   Hint popovers added for Manual / Intensity / Duration. New numeric Duration input
   with friendly category label. Footer shows Retake Photo + Use This Mood after AI detection.
 
-### [ ] Batch 4 — Mood Check-in Steps 2 & 3 UI
-- **Touched:**
-- **Notes:**
+### [x] Batch 4 — Mood Check-in Steps 2 & 3 UI
+- **Touched:** `src/components/MoodCheckIn.tsx`
+- **Notes:** Added Meal Check-in (per `mealSchedule`), Bath Check-in (locks on "Yes"),
+  hint icons across vitals, dynamic Pressure pill, and a photo attachment with
+  Firebase Storage upload on submit. Sleep card now shows a "locked until tomorrow"
+  notice once captured instead of disappearing.
 
 ### [ ] Batch 5 — Mood Check-in Done step
 - **Touched:**

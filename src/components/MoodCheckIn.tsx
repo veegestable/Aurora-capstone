@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmotionDetection } from './EmotionDetection'
 import {
   Sparkles, MousePointerClick, ChevronRight, ChevronLeft,
   BedDouble, Zap, Frown, PenLine, X, MessageSquare, ArrowRight,
   CircleHelp, Clock3, RefreshCw, Check,
+  Droplets, UtensilsCrossed, ImagePlus, Trash2, TrendingUp, CheckCircle2,
 } from 'lucide-react'
 import type { MoodCheckInProps, ManualEmotion } from '../types/mood.types'
 import { MANUAL_EMOTIONS } from '../utils/emotions'
@@ -13,7 +14,18 @@ import { useMoodCheckIn, CONTEXT_CATEGORIES } from '../hooks/useMoodCheckIn'
 import type { SleepQuality } from '../services/mood/types'
 import { MoodIcon } from './student/MoodIcon'
 
-type HintKey = 'manual' | 'intensity' | 'duration' | null
+type HintKey =
+  | 'manual'
+  | 'intensity'
+  | 'duration'
+  | 'energy'
+  | 'stress'
+  | 'sleep'
+  | 'bath'
+  | 'meal'
+  | 'pressure'
+  | 'photo'
+  | null
 
 const HINTS: Record<Exclude<HintKey, null>, { title: string; body: string }> = {
   manual: {
@@ -27,6 +39,34 @@ const HINTS: Record<Exclude<HintKey, null>, { title: string; body: string }> = {
   duration: {
     title: 'Duration',
     body: 'Roughly how long this feeling has been with you. Type a number of minutes (1–1440). The label below adapts as you type.',
+  },
+  energy: {
+    title: 'Energy scale (1–5)',
+    body: 'How much fuel you have in the tank right now.\n\n1 - Exhausted\n2 - Low\n3 - Steady\n4 - High\n5 - Energized',
+  },
+  stress: {
+    title: 'Stress scale (1–5)',
+    body: 'How pressured or tense you feel right now.\n\n1 - Very calm\n2 - A little tense\n3 - Moderately tense\n4 - Very tense\n5 - Overwhelmed',
+  },
+  sleep: {
+    title: 'Sleep quality',
+    body: 'A quick summary of last night. Logged once per day — once you tap a choice it locks for the rest of today.',
+  },
+  bath: {
+    title: 'Bath check-in',
+    body: 'Tracks whether you have bathed today. The chip locks once a "Yes" is logged for the day so you only confirm it once.',
+  },
+  meal: {
+    title: 'Meal check-in',
+    body: 'For each meal in your schedule, tell us whether you had it. Each meal locks individually once you record an answer for the day.',
+  },
+  pressure: {
+    title: 'Pressure today',
+    body: 'A quick read of how heavy your day looks based on the context tags you selected.\n\nLight - 0 tags\nSteady - 1–3 tags\nHeavy - 4–6 tags\nIntense - 7+ tags',
+  },
+  photo: {
+    title: 'Photo attachment',
+    body: 'Optional. Add a photo that captures something from your day — a place, an object, a moment. Stored privately with this check-in.',
   },
 }
 
@@ -109,11 +149,21 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
     sleepQuality,
     setSleepQuality,
     sleepCapturedToday,
+    mealSchedule,
+    mealResponses,
+    setMealResponse,
+    mealsAnsweredToday,
+    bathTaken,
+    setBathTaken,
+    bathLockedToday,
     selectedTags,
     toggleTag,
+    pressureLabel,
     notes,
     setNotes,
     setJournalEdited,
+    journalImage,
+    setJournalImage,
     isSubmitting,
     handleAIEmotionDetected,
     clearDetectedEmotions,
@@ -129,6 +179,24 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
 
   const [activeHint, setActiveHint] = useState<HintKey>(null)
   const [durationDraft, setDurationDraft] = useState<string>(String(durationMinutes))
+
+  // Cheap object-URL preview for the optional journal photo. Revoked when the
+  // file changes or the component unmounts, so we don't leak browser memory.
+  const photoPreview = useMemo(
+    () => (journalImage ? URL.createObjectURL(journalImage) : null),
+    [journalImage],
+  )
+  useEffect(() => {
+    if (!photoPreview) return
+    return () => URL.revokeObjectURL(photoPreview)
+  }, [photoPreview])
+
+  const pressurePillStyle: Record<typeof pressureLabel, string> = {
+    Light: 'bg-[rgba(34,197,94,0.15)] border-[rgba(34,197,94,0.4)] text-aurora-green',
+    Steady: 'bg-[rgba(45,107,255,0.15)] border-[rgba(45,107,255,0.4)] text-aurora-blue',
+    Heavy: 'bg-[rgba(254,189,3,0.15)] border-[rgba(254,189,3,0.4)] text-aurora-amber',
+    Intense: 'bg-[rgba(239,68,68,0.15)] border-[rgba(239,68,68,0.4)] text-aurora-red',
+  }
 
   const commitDuration = () => {
     if (!durationDraft) {
@@ -389,103 +457,235 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
 
               {/* STEP 2: VITALS */}
               {currentStep === 2 && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
-                  <div className="text-center mb-8">
+                <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
+                  <div className="text-center mb-2">
                     <h2 className="text-2xl font-bold text-white mb-2">Check your vitals</h2>
                     <p className="text-sm text-aurora-text-sec">How are your physical levels today?</p>
                   </div>
 
+                  {/* Energy */}
                   <div className="card-aurora p-6">
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center justify-between mb-5">
                       <div className="flex items-center gap-3">
                         <div className="p-2 rounded-lg bg-[rgba(34,197,94,0.15)]">
                           <Zap className="w-5 h-5 text-aurora-green" />
                         </div>
                         <h3 className="font-semibold text-white">Energy Level</h3>
+                        <HintButton hint="energy" active={activeHint} onToggle={setActiveHint} ariaLabel="Energy hint" />
                       </div>
-                      <span className="text-2xl">{energyLevel <= 2 ? '🔋' : energyLevel <= 4 ? '⚡️' : '🚀'}</span>
+                      <span className="text-base font-extrabold text-aurora-green tabular-nums">
+                        {energyLevel}<span className="text-aurora-text-muted text-xs font-semibold">/5</span>
+                      </span>
                     </div>
                     <input
-                      type="range" min="1" max="5" value={energyLevel}
+                      type="range" min={1} max={5} step={1} value={energyLevel}
                       onChange={(e) => setEnergyLevel(Number(e.target.value))}
-                      className="w-full h-2 rounded-lg appearance-none bg-white/10 cursor-pointer accent-aurora-green mb-3"
+                      className="w-full h-2 rounded-lg appearance-none bg-white/10 cursor-pointer accent-aurora-green mb-2"
+                      aria-label="Energy level"
                     />
                     <div className="flex justify-between text-xs font-medium text-aurora-text-muted">
                       <span>Exhausted</span>
                       <span>Energized</span>
                     </div>
                   </div>
+                  {activeHint === 'energy' && <HintPanel hint="energy" onClose={() => setActiveHint(null)} />}
 
+                  {/* Stress */}
                   <div className="card-aurora p-6">
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center justify-between mb-5">
                       <div className="flex items-center gap-3">
                         <div className="p-2 rounded-lg bg-[rgba(249,0,56,0.15)]">
                           <Frown className="w-5 h-5 text-aurora-red" />
                         </div>
                         <h3 className="font-semibold text-white">Stress Level</h3>
+                        <HintButton hint="stress" active={activeHint} onToggle={setActiveHint} ariaLabel="Stress hint" />
                       </div>
-                      <span className="text-2xl">{stressLevel <= 2 ? '😌' : stressLevel <= 4 ? '😐' : '🤯'}</span>
+                      <span className="text-base font-extrabold text-aurora-red tabular-nums">
+                        {stressLevel}<span className="text-aurora-text-muted text-xs font-semibold">/5</span>
+                      </span>
                     </div>
                     <input
-                      type="range" min="1" max="5" value={stressLevel}
+                      type="range" min={1} max={5} step={1} value={stressLevel}
                       onChange={(e) => setStressLevel(Number(e.target.value))}
-                      className="w-full h-2 rounded-lg appearance-none bg-white/10 cursor-pointer accent-aurora-red mb-3"
+                      className="w-full h-2 rounded-lg appearance-none bg-white/10 cursor-pointer accent-aurora-red mb-2"
+                      aria-label="Stress level"
                     />
                     <div className="flex justify-between text-xs font-medium text-aurora-text-muted">
                       <span>Relaxed</span>
                       <span>Overwhelmed</span>
                     </div>
                   </div>
+                  {activeHint === 'stress' && <HintPanel hint="stress" onClose={() => setActiveHint(null)} />}
 
-                  {!sleepCapturedToday && (
-                    <div className="card-aurora p-6">
-                      <div className="flex items-center gap-3 mb-5">
-                        <div className="p-2 rounded-lg bg-[rgba(146,15,254,0.15)]">
-                          <BedDouble className="w-5 h-5 text-aurora-purple" />
-                        </div>
-                        <h3 className="font-semibold text-white">Sleep Quality</h3>
+                  {/* Sleep Quality — required until logged once today */}
+                  <div className="card-aurora p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 rounded-lg bg-[rgba(146,15,254,0.15)]">
+                        <BedDouble className="w-5 h-5 text-aurora-purple" />
                       </div>
+                      <h3 className="font-semibold text-white">Sleep Quality</h3>
+                      <HintButton hint="sleep" active={activeHint} onToggle={setActiveHint} ariaLabel="Sleep hint" />
+                    </div>
+                    {sleepCapturedToday ? (
+                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10">
+                        <CheckCircle2 className="w-4 h-4 text-aurora-green" />
+                        <span className="text-sm font-medium text-aurora-text-sec">
+                          Already logged today — locked until tomorrow.
+                        </span>
+                      </div>
+                    ) : (
                       <div className="grid grid-cols-3 gap-3">
                         {([
                           { key: 'poor', emoji: '😴', label: 'Poor' },
                           { key: 'fair', emoji: '😐', label: 'Fair' },
-                          { key: 'good', emoji: '😊', label: 'Good' }
-                        ]).map(q => (
+                          { key: 'good', emoji: '😊', label: 'Good' },
+                        ]).map((q) => (
                           <button
                             key={q.key}
                             onClick={() => setSleepQuality(q.key as SleepQuality)}
                             className={`flex flex-col items-center gap-2 py-4 rounded-xl border transition-all cursor-pointer ${sleepQuality === q.key ? 'bg-[rgba(146,15,254,0.2)] border-aurora-purple shadow-[0_0_15px_rgba(146,15,254,0.2)]' : 'bg-white/5 border-white/10 text-aurora-text-sec hover:bg-white/10'}`}
+                            aria-pressed={sleepQuality === q.key}
                           >
                             <span className="text-2xl">{q.emoji}</span>
                             <span className={`text-sm font-medium ${sleepQuality === q.key ? 'text-white' : ''}`}>{q.label}</span>
                           </button>
                         ))}
                       </div>
+                    )}
+                  </div>
+                  {activeHint === 'sleep' && <HintPanel hint="sleep" onClose={() => setActiveHint(null)} />}
+
+                  {/* Meal check-ins */}
+                  <div className="card-aurora p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 rounded-lg bg-[rgba(254,189,3,0.15)]">
+                        <UtensilsCrossed className="w-5 h-5 text-aurora-amber" />
+                      </div>
+                      <h3 className="font-semibold text-white">Meal Check-in</h3>
+                      <HintButton hint="meal" active={activeHint} onToggle={setActiveHint} ariaLabel="Meal hint" />
                     </div>
-                  )}
+                    <div className="space-y-2.5">
+                      {mealSchedule.map((meal) => {
+                        const locked = mealsAnsweredToday.has(meal.id)
+                        const choice = mealResponses[meal.id]
+                        const yesActive = locked ? false : choice === true
+                        const noActive = locked ? false : choice === false
+                        return (
+                          <div
+                            key={meal.id}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${locked ? 'bg-white/0.02 border-white/5' : 'bg-white/5 border-white/10'}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-bold ${locked ? 'text-aurora-text-muted' : 'text-white'}`}>
+                                {meal.label}
+                              </p>
+                              <p className="text-[11px] font-medium text-aurora-text-muted">
+                                {locked ? 'Logged earlier today' : `Around ${meal.time}`}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                disabled={locked}
+                                aria-pressed={yesActive}
+                                aria-label={`${meal.label} taken`}
+                                onClick={() => setMealResponse(meal.id, true)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${yesActive ? 'bg-[rgba(34,197,94,0.2)] border-[rgba(34,197,94,0.4)] text-aurora-green' : 'bg-white/5 border-white/10 text-aurora-text-sec hover:bg-white/10'}`}
+                              >
+                                Taken
+                              </button>
+                              <button
+                                type="button"
+                                disabled={locked}
+                                aria-pressed={noActive}
+                                aria-label={`${meal.label} missed`}
+                                onClick={() => setMealResponse(meal.id, false)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${noActive ? 'bg-[rgba(239,68,68,0.15)] border-[rgba(239,68,68,0.4)] text-aurora-red' : 'bg-white/5 border-white/10 text-aurora-text-sec hover:bg-white/10'}`}
+                              >
+                                Missed
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  {activeHint === 'meal' && <HintPanel hint="meal" onClose={() => setActiveHint(null)} />}
+
+                  {/* Bath check-in — locks once a "Yes" exists today */}
+                  <div className="card-aurora p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 rounded-lg bg-[rgba(45,107,255,0.15)]">
+                        <Droplets className="w-5 h-5 text-aurora-blue" />
+                      </div>
+                      <h3 className="font-semibold text-white">Bath Check-in</h3>
+                      <HintButton hint="bath" active={activeHint} onToggle={setActiveHint} ariaLabel="Bath hint" />
+                    </div>
+                    {bathLockedToday ? (
+                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10">
+                        <CheckCircle2 className="w-4 h-4 text-aurora-green" />
+                        <span className="text-sm font-medium text-aurora-text-sec">
+                          Already confirmed today — locked until tomorrow.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setBathTaken(true)}
+                          aria-pressed={bathTaken === true}
+                          className={`flex items-center justify-center gap-2 py-3 rounded-xl border transition-colors cursor-pointer ${bathTaken === true ? 'bg-[rgba(34,197,94,0.2)] border-[rgba(34,197,94,0.4)] text-aurora-green' : 'bg-white/5 border-white/10 text-aurora-text-sec hover:bg-white/10'}`}
+                        >
+                          <Check className="w-4 h-4" />
+                          <span className="text-sm font-bold">Yes, I did</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBathTaken(false)}
+                          aria-pressed={bathTaken === false}
+                          className={`flex items-center justify-center gap-2 py-3 rounded-xl border transition-colors cursor-pointer ${bathTaken === false ? 'bg-[rgba(239,68,68,0.15)] border-[rgba(239,68,68,0.4)] text-aurora-red' : 'bg-white/5 border-white/10 text-aurora-text-sec hover:bg-white/10'}`}
+                        >
+                          <X className="w-4 h-4" />
+                          <span className="text-sm font-bold">Not yet</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {activeHint === 'bath' && <HintPanel hint="bath" onClose={() => setActiveHint(null)} />}
                 </div>
               )}
 
               {/* STEP 3: CONTEXT & JOURNAL */}
               {currentStep === 3 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
-                  <div className="text-center mb-8">
+                  <div className="text-center mb-2">
                     <h2 className="text-2xl font-bold text-white mb-2">What's going on?</h2>
                     <p className="text-sm text-aurora-text-sec">Select tags that describe your day.</p>
                   </div>
 
-                  <div className="space-y-8">
-                    {CONTEXT_CATEGORIES.map(category => (
+                  {/* Pressure pill — dynamic, driven by selectedTags count */}
+                  <div className="flex items-center justify-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-extrabold tracking-wide ${pressurePillStyle[pressureLabel]}`}>
+                      <TrendingUp className="w-3.5 h-3.5" />
+                      Pressure: {pressureLabel}
+                    </span>
+                    <HintButton hint="pressure" active={activeHint} onToggle={setActiveHint} ariaLabel="Pressure hint" />
+                  </div>
+                  {activeHint === 'pressure' && <HintPanel hint="pressure" onClose={() => setActiveHint(null)} />}
+
+                  <div className="space-y-7">
+                    {CONTEXT_CATEGORIES.map((category) => (
                       <div key={category.key}>
                         <h4 className="text-sm font-semibold text-white mb-3 pl-1">{category.title}</h4>
                         <div className="flex flex-wrap gap-2.5">
-                          {category.tags.map(tag => {
+                          {category.tags.map((tag) => {
                             const isSelected = selectedTags.includes(tag)
                             return (
                               <button
                                 key={tag}
                                 onClick={() => toggleTag(tag)}
                                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all border cursor-pointer ${isSelected ? 'bg-[rgba(45,107,255,0.2)] text-aurora-blue border-aurora-blue shadow-[0_0_10px_rgba(45,107,255,0.2)]' : 'bg-white/5 text-aurora-text-sec border-white/10 hover:bg-white/10 hover:text-white'}`}
+                                aria-pressed={isSelected}
                               >
                                 {tag.replace('-', ' ')}
                               </button>
@@ -496,12 +696,66 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                     ))}
                   </div>
 
-                  <div className="mt-8 pt-6 border-t border-white/10">
+                  {/* Photo attachment */}
+                  <div className="card-aurora p-5">
+                    <div className="flex items-center gap-2 mb-3 pl-1">
+                      <ImagePlus className="w-4 h-4 text-aurora-text-sec" />
+                      <label className="text-sm font-semibold text-white">Photo (optional)</label>
+                      <HintButton hint="photo" active={activeHint} onToggle={setActiveHint} ariaLabel="Photo hint" />
+                    </div>
+
+                    {photoPreview ? (
+                      <div className="relative rounded-2xl overflow-hidden border border-white/10">
+                        <img
+                          src={photoPreview}
+                          alt="Attached preview"
+                          className="w-full h-48 object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setJournalImage(null)}
+                          className="absolute top-2 right-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 hover:bg-black/80 text-xs font-bold text-white border border-white/15 cursor-pointer"
+                          aria-label="Remove photo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-2xl border border-dashed border-white/15 bg-white/0.02 hover:bg-white/5 transition-colors cursor-pointer">
+                        <ImagePlus className="w-5 h-5 text-aurora-text-sec" />
+                        <span className="text-sm font-semibold text-aurora-text-sec">
+                          Tap to attach a photo
+                        </span>
+                        <span className="text-[11px] font-medium text-aurora-text-muted">
+                          JPG or PNG · stored privately with this entry
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) setJournalImage(file)
+                            // reset input so the same file can be re-selected after removing
+                            e.currentTarget.value = ''
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  {activeHint === 'photo' && <HintPanel hint="photo" onClose={() => setActiveHint(null)} />}
+
+                  {/* Journal draft */}
+                  <div className="mt-2 pt-6 border-t border-white/10">
                     <div className="flex items-center gap-2 mb-3 pl-1">
                       <PenLine className="w-4 h-4 text-aurora-text-sec" />
-                      <label className="text-sm font-semibold text-white">Journal Draft (Auto-filled)</label>
+                      <label htmlFor="mood-journal" className="text-sm font-semibold text-white">
+                        Journal Draft (Auto-filled)
+                      </label>
                     </div>
                     <textarea
+                      id="mood-journal"
                       value={notes}
                       onChange={(e) => {
                         setNotes(e.target.value)
