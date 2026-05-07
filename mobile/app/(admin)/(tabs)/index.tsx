@@ -110,7 +110,7 @@ export default function AdminDashboardScreen() {
                   <View
                     style={[
                       styles.statIconBg,
-                      { backgroundColor: "rgba(45,107,255,0.2)" },
+                      { backgroundColor: "transparent" },
                     ]}
                   >
                     <Users size={18} color={AURORA.blue} />
@@ -124,7 +124,7 @@ export default function AdminDashboardScreen() {
                   <View
                     style={[
                       styles.statIconBg,
-                      { backgroundColor: "rgba(34,197,94,0.2)" },
+                      { backgroundColor: "transparent" },
                     ]}
                   >
                     <GraduationCap size={18} color={AURORA.green} />
@@ -141,7 +141,7 @@ export default function AdminDashboardScreen() {
                   <View
                     style={[
                       styles.statIconBg,
-                      { backgroundColor: "rgba(254,189,3,0.2)" },
+                      { backgroundColor: "transparent" },
                     ]}
                   >
                     <Clock size={18} color={AURORA.amber} />
@@ -155,7 +155,7 @@ export default function AdminDashboardScreen() {
                   <View
                     style={[
                       styles.statIconBg,
-                      { backgroundColor: "rgba(124,58,237,0.25)" },
+                      { backgroundColor: "transparent" },
                     ]}
                   >
                     <Megaphone size={18} color={AURORA.purple} />
@@ -173,28 +173,28 @@ export default function AdminDashboardScreen() {
           title="Counselors"
           description="Review and approve counselor signups"
           icon={<Users size={24} color={AURORA.blue} />}
-          iconContainerStyle={{ backgroundColor: "rgba(45,107,255,0.2)" }}
+          iconContainerStyle={{ backgroundColor: "transparent" }}
           onPress={() => router.push("/(admin)/counselors")}
         />
         <AdminQuickActionRow
           title="Students"
           description="Read-only roster — directory fields only"
           icon={<GraduationCap size={24} color={AURORA.green} />}
-          iconContainerStyle={{ backgroundColor: "rgba(34,197,94,0.2)" }}
+          iconContainerStyle={{ backgroundColor: "transparent" }}
           onPress={() => router.push("/(admin)/students")}
         />
         <AdminQuickActionRow
           title="Announcements"
           description="Publish updates to counselors and students"
           icon={<Megaphone size={24} color={AURORA.amber} />}
-          iconContainerStyle={{ backgroundColor: "rgba(254,189,3,0.2)" }}
+          iconContainerStyle={{ backgroundColor: "transparent" }}
           onPress={() => router.push("/(admin)/announcements")}
         />
         <AdminQuickActionRow
           title="Activity timeline"
           description="Logins, app usage, and admin actions"
           icon={<FileText size={22} color={AURORA.blue} />}
-          iconContainerStyle={{ backgroundColor: "rgba(45,107,255,0.2)" }}
+          iconContainerStyle={{ backgroundColor: "transparent" }}
           onPress={() => router.push("/(admin)/audit-logs")}
         />
 

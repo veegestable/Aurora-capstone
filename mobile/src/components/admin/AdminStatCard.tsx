@@ -53,6 +53,7 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "800",
     letterSpacing: -0.5,
+    marginLeft: 10,
   },
   label: {
     color: AURORA.textSec,
