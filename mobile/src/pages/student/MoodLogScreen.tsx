@@ -777,11 +777,11 @@ export default function MoodLogScreen() {
         if (todayAgg.entryCount === 1) {
           line =
             `${line} Your dominant emotion was ${dominantLabel}. In that check-in, your mood was ${moodCat}, ` +
-            `your stress was ${stressCat}, and your energy was ${energyCat}.`;
+            `you were ${stressCat}, and your energy was ${energyCat}.`;
         } else {
           line =
             `${line} Your dominant emotion was ${dominantLabel}. Across ${todayAgg.entryCount} check-ins today, ` +
-            `your mood was ${moodCat}, your stress was ${stressCat}, and your energy was ${energyCat}.`;
+            `your mood was ${moodCat}, you were ${stressCat}, and your energy level was ${energyCat}.`;
         }
       }
       if (tasks > 0) {
