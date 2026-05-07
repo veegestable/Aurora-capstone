@@ -3,7 +3,8 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, TouchableOpacity } from "react-native";
+import { AppText as Text } from "../common/AppText";
 import { Battery, CircleHelp, Flame } from "lucide-react-native";
 import type { MoodData } from "../../services/firebase-firestore.service";
 import type { MergedMoodLog } from "../../services/mood.service";
@@ -176,8 +177,8 @@ export function CounselorStressEnergyTrendChart({ logs }: Props) {
 
   const title =
     mode === "stress"
-      ? "Stress Trend"
-      : "Energy Trend";
+      ? "STRESS TREND"
+      : "ENERGY TREND";
 
   return (
     <View
@@ -303,7 +304,7 @@ export function CounselorStressEnergyTrendChart({ logs }: Props) {
         </TouchableOpacity>
       </View>
 
-      <Text
+      {/* <Text
         style={{
           color: AURORA.textSec,
           fontSize: 12,
@@ -312,7 +313,7 @@ export function CounselorStressEnergyTrendChart({ logs }: Props) {
         }}
       >
         Average daily level across the last 7 days.
-      </Text>
+      </Text> */}
 
       <View
         style={{
@@ -336,8 +337,7 @@ export function CounselorStressEnergyTrendChart({ logs }: Props) {
               activeOpacity={0.85}
               onPress={() => {
                 const agg = dailyAggregates.get(dayKey);
-                const has = Boolean(agg && agg.entryCount > 0);
-                if (!has) {
+                if (!agg || agg.entryCount <= 0) {
                   setTip({
                     label: formatDayKeyWeekday(dayKey),
                     text: "No data",

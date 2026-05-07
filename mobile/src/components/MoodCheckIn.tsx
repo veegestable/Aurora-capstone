@@ -1,23 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Image,
-  Modal,
-  PanResponder,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { Alert, Image, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Asset } from "expo-asset";
 import * as Animatable from "react-native-animatable";
+import { AppText as Text } from "./common/AppText";
+import { AppTextInput as TextInput } from "./common/AppTextInput";
 import Animated, {
   Easing,
   FadeInDown,
@@ -1248,14 +1238,12 @@ export function MoodCheckIn({
                 padding: 10,
                 borderRadius: 999,
                 marginBottom: 10,
-                backgroundColor: isPositive
-                  ? "rgba(254, 189, 3, 0.2)"
-                  : "rgba(120, 74, 255, 0.2)",
+                backgroundColor: "transparent",
               }}
             >
               <Image
                 source={require("../assets/logos/logomark light gradient.png")}
-                style={{ width: 30, height: 30 }}
+                style={{ width: 50, height: 50 }}
                 resizeMode="contain"
               />
             </Animatable.View>
@@ -1320,7 +1308,7 @@ export function MoodCheckIn({
                     width: 34,
                     height: 34,
                     borderRadius: 17,
-                    backgroundColor: "rgba(142,60,247,0.20)",
+                    backgroundColor: "transparent",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
@@ -1388,7 +1376,7 @@ export function MoodCheckIn({
                     width: 34,
                     height: 34,
                     borderRadius: 17,
-                    backgroundColor: "rgba(45,107,255,0.24)",
+                    backgroundColor: "transparent",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
@@ -1672,7 +1660,7 @@ export function MoodCheckIn({
               }}
             >
               {isMoodStep && `Hey ${firstName}!`}
-              {isVitalityStep && "Energy, stress, sleep, meals, and bath"}
+              {isVitalityStep && "How has your self-care been today?"}
               {isContextStep && "What affected your mood?"}
             </Text>
             <Text
@@ -1685,7 +1673,7 @@ export function MoodCheckIn({
               {isMoodStep &&
                 "Choose how you feel right now, then set intensity."}
               {isVitalityStep &&
-                "Sleep is once daily. Meals and bath are also tracked."}
+                "Sleep, meals, and bath are tracked once daily."}
               {isContextStep &&
                 "Select tags that influenced how you felt today."}
             </Text>
@@ -1699,7 +1687,7 @@ export function MoodCheckIn({
                   gap: 6,
                 }}
               >
-                <Text style={{ color: AURORA.textMuted, fontSize: 12 }}>
+                {/* <Text style={{ color: AURORA.textMuted, fontSize: 12 }}>
                   What are these categories?
                 </Text>
                 <TouchableOpacity
@@ -1707,7 +1695,7 @@ export function MoodCheckIn({
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <CircleHelp size={14} color={AURORA.textMuted} />
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             ) : null}
           </Animatable.View>

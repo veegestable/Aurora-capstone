@@ -1,16 +1,10 @@
+import { AppText as Text } from "../../components/common/AppText";
 /**
  * Admin — read-only student roster (directory fields only; no mood or performance).
  */
 
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ArrowLeft, GraduationCap } from "lucide-react-native";

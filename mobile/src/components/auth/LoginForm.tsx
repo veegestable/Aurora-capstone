@@ -1,12 +1,6 @@
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Alert,
-  Platform,
-  StyleSheet,
-} from "react-native";
+import { View, TouchableOpacity, Alert, Platform, StyleSheet } from "react-native";
+import { AppText as Text } from "../common/AppText";
 import { BlurView } from "expo-blur";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useAuth } from "../../stores/AuthContext";
@@ -20,7 +14,7 @@ import {
 } from "../../utils/signupEmailPolicy";
 
 /** Same width as native header + feature row; slightly under full bleed for side margins */
-export const LOGIN_AUTH_COLUMN_MAX = 288;
+export const LOGIN_AUTH_COLUMN_MAX = 320;
 
 const REGISTRATION_RESEND_COOLDOWN_SEC = 60;
 const SIGN_IN_RESEND_COOLDOWN_SEC = 60;
@@ -236,19 +230,8 @@ export default function LoginForm() {
             <Text
               style={[styles.verifyBody, compact && styles.verifyBodyCompact]}
             >
-              Open that email and tap the verification link. That confirms this
-              inbox can receive mail from Aurora. You must complete this step
-              before you can sign in.
-            </Text>
-            <Text
-              style={[
-                styles.verifyCooldown,
-                compact && styles.verifyCooldownCompact,
-              ]}
-            >
-              {resendCooldownSeconds > 0
-                ? `Send again in ${resendCooldownSeconds}s`
-                : "You can send the verification email again."}
+              Check your email and tap the verification link. Once verified,
+              go back and sign in to continue.
             </Text>
             <Button
               onPress={handleResendVerificationEmail}
@@ -278,6 +261,7 @@ export default function LoginForm() {
                   dense={compact}
                   label="Full Name"
                   placeholder="Enter your full name"
+                  className="pl-4"
                   value={formData.fullName}
                   onChangeText={(text) => updateFormData("fullName", text)}
                   autoCapitalize="words"
@@ -286,7 +270,8 @@ export default function LoginForm() {
                   variant="glass"
                   dense={compact}
                   label="Contact number"
-                  placeholder="Mobile number (e.g. 09XXXXXXXXX)"
+                  placeholder="Enter your contact number"
+                  className="pl-4"
                   value={formData.contactNumber}
                   onChangeText={(text) => updateFormData("contactNumber", text)}
                   keyboardType="phone-pad"
@@ -361,6 +346,7 @@ export default function LoginForm() {
               dense={compact}
               label="Email"
               placeholder="Enter your email"
+              className="pl-4"
               value={formData.email}
               onChangeText={(text) => updateFormData("email", text)}
               keyboardType="email-address"
@@ -373,6 +359,7 @@ export default function LoginForm() {
                 dense={compact}
                 label="Password"
                 placeholder="Enter your password"
+                className="pl-4"
                 value={formData.password}
                 onChangeText={(text) => updateFormData("password", text)}
                 secureTextEntry={!isPasswordVisible}
@@ -404,9 +391,7 @@ export default function LoginForm() {
                     compact && styles.signInResendHintCompact,
                   ]}
                 >
-                  {signInResendCooldownSeconds > 0
-                    ? `Resend verification email in ${signInResendCooldownSeconds}s`
-                    : "Need a new verification link?"}
+                  Need a new verification link?
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
@@ -517,13 +502,12 @@ const styles = StyleSheet.create({
   passwordToggle: {
     position: "absolute",
     right: 16,
-    padding: 6,
     zIndex: 2,
   },
   glass: {
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderWidth: 0.5,
+    // borderColor: "rgba(255,255,255,0.18)",
     overflow: "hidden",
     position: "relative",
   },
@@ -625,14 +609,6 @@ const styles = StyleSheet.create({
   verifyBodyCompact: {
     fontSize: 12,
     lineHeight: 17,
-  },
-  verifyCooldown: {
-    fontSize: 13,
-    color: "#93C5FD",
-    fontWeight: "600",
-  },
-  verifyCooldownCompact: {
-    fontSize: 11,
   },
   signInResendWrap: {
     marginTop: 4,

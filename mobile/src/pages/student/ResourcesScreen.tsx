@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Modal, ScrollView, TouchableOpacity, View } from "react-native";
+import { AppText as Text } from "../../components/common/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Wind } from "lucide-react-native";
 import { AURORA } from "../../constants/aurora-colors";

@@ -162,6 +162,33 @@ export const announcementsService = {
     );
   },
 
+  async listAll(maxCount = 100): Promise<Announcement[]> {
+    try {
+      const q = query(
+        collection(db, "announcements"),
+        orderBy("createdAt", "desc"),
+        limit(maxCount),
+      );
+      const snapshot = await getDocs(q);
+      const list = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title ?? "",
+          content: data.content ?? "",
+          imageUrl: data.imageUrl ?? undefined,
+          targetRole: data.targetRole ?? "all",
+          createdBy: data.createdBy ?? "",
+          createdByName: data.createdByName ?? "Unknown",
+          createdAt: data.createdAt?.toDate?.() ?? new Date(),
+        } as Announcement;
+      });
+      return list.length > 0 ? list : MOCK_ANNOUNCEMENTS;
+    } catch {
+      return MOCK_ANNOUNCEMENTS;
+    }
+  },
+
   async create(input: CreateAnnouncementInput): Promise<string> {
     const docRef = await addDoc(collection(db, "announcements"), {
       title: input.title.trim(),

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import { ContactRow } from '../../components/messages/ContactRow'
@@ -10,6 +11,8 @@ type TabType = 'All messages' | 'Unread'
 const TABS: TabType[] = ['All messages', 'Unread']
 
 export default function Messages() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<TabType>('All messages')
   const [selectedContact, setSelectedContact] = useState<StudentContact | null>(null)
@@ -35,6 +38,18 @@ export default function Messages() {
       })
     return () => { isCancelled = true }
   }, [user?.id])
+
+  useEffect(() => {
+    const state = location.state as { openConversationId?: string } | null
+    const openConversationId = state?.openConversationId
+    if (!openConversationId || contacts.length === 0) return
+  
+    const matched = contacts.find((c) => c.conversationId === openConversationId)
+    if (matched) {
+      setSelectedContact(matched)
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [location.state, location.pathname, contacts])
 
   const refreshConversations = () => {
     if (!user?.id) return

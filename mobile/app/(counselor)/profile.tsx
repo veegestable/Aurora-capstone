@@ -1,3 +1,5 @@
+import { AppText as Text } from "../../src/components/common/AppText";
+import { AppTextInput as TextInput } from "../../src/components/common/AppTextInput";
 /**
  * Counselor Profile & Settings - profile.tsx
  * =============================================
@@ -7,19 +9,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Switch,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-  Platform,
-  KeyboardAvoidingView,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator, Modal, Platform, KeyboardAvoidingView } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {

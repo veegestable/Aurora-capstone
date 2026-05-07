@@ -1,19 +1,12 @@
+import { AppText as Text } from "../common/AppText";
+import { AppTextInput as TextInput } from "../common/AppTextInput";
 /**
  * StudentSessionRequestModal - Student requests a counseling session
  * Preferred time + note, sends to counselor in the conversation
  */
 
 import React, { useEffect, useState } from 'react';
-import {
-    Modal,
-    View,
-    Text,
-    TouchableOpacity,
-    TextInput,
-    StyleSheet,
-    Platform,
-    KeyboardAvoidingView,
-} from 'react-native';
+import { Modal, View, TouchableOpacity, StyleSheet, Platform, KeyboardAvoidingView } from "react-native";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { X, Send, Calendar } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';

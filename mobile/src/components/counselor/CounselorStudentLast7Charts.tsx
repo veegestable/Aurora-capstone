@@ -4,8 +4,9 @@
  */
 
 import React, { useMemo, useState } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
-import { CircleHelp } from "lucide-react-native";
+import { View, TouchableOpacity } from "react-native";
+import { AppText as Text } from "../common/AppText";
+import { CircleHelp, PieChart, Clock3, BarChart3 } from "lucide-react-native";
 import type { MoodData } from "../../services/firebase-firestore.service";
 import type { MergedMoodLog } from "../../services/mood.service";
 import { calendarDayKeyLocal } from "../../utils/dayKey";
@@ -108,9 +109,11 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
 
   function SectionTitleWithInfo({
     title,
+    icon,
     onInfo,
   }: {
     title: string;
+    icon: React.ReactNode;
     onInfo: () => void;
   }) {
     return (
@@ -118,10 +121,11 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          marginBottom: 4,
+          marginBottom: 10,
           gap: 6,
         }}
       >
+        {icon}
         <Text
           style={{
             color: AURORA.textPrimary,
@@ -182,7 +186,8 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         <>
           <View style={chartCard}>
         <SectionTitleWithInfo
-          title="Mood frequency"
+          title="MOOD FREQUENCY"
+          icon={<PieChart size={14} color="#F59E0B" />}
           onInfo={() =>
             setGuide({
               title: "Mood frequency",
@@ -190,11 +195,11 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
             })
           }
         />
-        <Text
+        {/* <Text
           style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 8 }}
         >
           Share of this student&apos;s check-ins by mood (last 7 days).
-        </Text>
+        </Text> */}
         <MoodDistributionDonut
           title=""
           caption=""
@@ -245,7 +250,8 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
 
       <View style={chartCard}>
         <SectionTitleWithInfo
-          title="Mood duration"
+          title="MOOD DURATION"
+          icon={<Clock3 size={14} color="#F59E0B" />}
           onInfo={() =>
             setGuide({
               title: "Mood duration",
@@ -253,11 +259,11 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
             })
           }
         />
-        <Text
+        {/* <Text
           style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 10 }}
         >
           Total minutes spent in each mood.
-        </Text>
+        </Text> */}
         {durationBars.length === 0 ? (
           <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
             No duration values in this window.
@@ -325,7 +331,8 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
 
       <View style={chartCard}>
         <SectionTitleWithInfo
-          title="Average intensity"
+          title="AVERAGE INTENSITY"
+          icon={<BarChart3 size={14} color="#F59E0B" />}
           onInfo={() =>
             setGuide({
               title: "Mood intensity",
@@ -333,11 +340,11 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
             })
           }
         />
-        <Text
+        {/* <Text
           style={{ color: AURORA.textSec, fontSize: 12, marginBottom: 10 }}
         >
           Compare moods by average intensity.
-        </Text>
+        </Text> */}
         {intensityBars.length === 0 ? (
           <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
             No intensity values in this window.
@@ -382,7 +389,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
                     >
                       <Text
                         style={{
-                          color: AURORA.textMuted,
+                          color: AURORA.textSec,
                           fontSize: 10,
                           fontWeight: "700",
                         }}
@@ -428,7 +435,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         </>
       )}
 
-      <Text
+      {/* <Text
         style={{
           color: AURORA.textMuted,
           fontSize: 11,
@@ -438,7 +445,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         }}
       >
         Observational summaries from self-reported check-ins — not a clinical assessment.
-      </Text>
+      </Text> */}
 
       <InfoGuideModal guide={guide} onClose={() => setGuide(null)} />
     </View>

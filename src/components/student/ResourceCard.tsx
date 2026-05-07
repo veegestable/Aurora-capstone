@@ -1,11 +1,4 @@
-interface ResourceItem {
-  id: string
-  title: string
-  category: string
-  duration: string
-  type: string
-  image: string
-}
+import type { ResourceItem } from '../../types/resource.types'
 
 interface ResourceCardProps {
   item: ResourceItem

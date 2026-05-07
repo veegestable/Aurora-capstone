@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, TouchableOpacity, StyleSheet } from "react-native";
+import { AppText as Text } from "../common/AppText";
 import { Plus } from "lucide-react-native";
 import { useAuth } from "../../stores/AuthContext";
 import { AnnouncementCarousel } from "./AnnouncementCarousel";
@@ -14,11 +15,13 @@ import { triggerHaptic } from "../../utils/haptics";
 interface AnnouncementSectionProps {
   role: "counselor" | "student";
   showAddButton?: boolean;
+  titleIcon?: React.ReactNode;
 }
 
 export function AnnouncementSection({
   role,
   showAddButton = false,
+  titleIcon,
 }: AnnouncementSectionProps) {
   const { user } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
@@ -77,7 +80,10 @@ export function AnnouncementSection({
   return (
     <View style={styles.section}>
       <View style={styles.header}>
-        <Text style={styles.sectionTitle}>Announcements</Text>
+        <View style={styles.titleWrap}>
+          {titleIcon}
+          <Text style={styles.sectionTitle}>Announcements</Text>
+        </View>
         {showAddButton && (
           <TouchableOpacity
             onPress={() => {
@@ -137,6 +143,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "800",
+  },
+  titleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   addBtn: {
     flexDirection: "row",

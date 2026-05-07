@@ -1,3 +1,5 @@
+import { AppText as Text } from "../../components/common/AppText";
+import { AppTextInput as TextInput } from "../../components/common/AppTextInput";
 /**
  * Student Messages Screen
  * Receives messages and session invites from counselors.
@@ -5,19 +7,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-  Pressable,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {

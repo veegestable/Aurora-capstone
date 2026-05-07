@@ -18,6 +18,7 @@ export interface CheckInStats {
 interface StudentProfileModalProps {
   isOpen: boolean
   onClose: () => void
+  onOpenWorkspace?: (studentId: string) => void
   student: {
     id: string
     full_name: string
@@ -50,7 +51,7 @@ function getSignalStyle(signal: CounselorSignalPill) {
   }
 }
 
-export function StudentProfileModal({ isOpen, onClose, student }: StudentProfileModalProps) {
+export function StudentProfileModal({ isOpen, onClose, onOpenWorkspace, student }: StudentProfileModalProps) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [isBusy, setIsBusy] = useState(false)
@@ -153,6 +154,14 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
               <MessageSquare className="w-4 h-4" />
             )}
             Invite to session (open chat)
+          </button>
+          <button
+            onClick={() => onOpenWorkspace?.(student.id)}
+            disabled={isBusy}
+            className="w-full btn-aurora flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Open Workspace
           </button>
         </div>
       </div>

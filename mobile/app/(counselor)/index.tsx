@@ -1,3 +1,4 @@
+import { AppText as Text } from "../../src/components/common/AppText";
 /**
  * Counselor Home Dashboard - index.tsx
  * ======================================
@@ -7,16 +8,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  SectionList,
-  StyleSheet,
-  Alert,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, Modal, SectionList, StyleSheet, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { doc, getDoc } from "firebase/firestore";
@@ -29,6 +21,9 @@ import {
   Trash2,
   X,
   CircleHelp,
+  LayoutDashboard,
+  GraduationCap,
+  Megaphone,
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "../../src/stores/AuthContext";
@@ -156,13 +151,13 @@ function getRosterPillStyle(
     case "session_started":
       return {
         badgeBg: "rgba(45,107,255,0.18)",
-        border: "rgba(45,107,255,0.45)",
+        border: "",
         text: AURORA.blue,
       };
     case "no_session_yet":
       return {
         badgeBg: "rgba(148,163,184,0.12)",
-        border: "rgba(148,163,184,0.35)",
+        border: "",
         text: AURORA.textSec,
       };
   }
@@ -589,6 +584,8 @@ function FlagRow({ item }: { item: FlagItem }) {
         overflow: "hidden",
         borderWidth: 1,
         borderColor: AURORA.border,
+        paddingVertical: 8,
+        paddingRight: 4,
       }}
     >
       <View
@@ -598,10 +595,10 @@ function FlagRow({ item }: { item: FlagItem }) {
           alignSelf: "stretch",
         }}
       />
-      <View style={{ margin: 12 }}>
+      <View style={{ marginLeft: 12, marginRight: 12 }}>
         <LetterAvatar name={item.name} size={48} avatarUrl={item.avatar} />
       </View>
-      <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+      <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
         <Text
           style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}
           numberOfLines={1}
@@ -625,8 +622,8 @@ function FlagRow({ item }: { item: FlagItem }) {
           backgroundColor: style.badgeBg,
           borderRadius: 12,
           paddingHorizontal: 10,
-          paddingVertical: 5,
-          marginRight: 8,
+          paddingVertical: 6,
+          marginRight: 10,
           borderWidth: 1,
           borderColor: `${style.text}44`,
         }}
@@ -647,7 +644,7 @@ function FlagRow({ item }: { item: FlagItem }) {
         <ChevronRight
           size={16}
           color={AURORA.textMuted}
-          style={{ marginRight: 12 }}
+          style={{ marginRight: 2 }}
         />
       </View>
     </TouchableOpacity>
@@ -993,9 +990,12 @@ export default function CounselorHomeScreen() {
               marginBottom: 14,
             }}
           >
-            <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
-              Dashboard Overview
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <LayoutDashboard size={18} color="#F59E0B" />
+              <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
+                Dashboard Overview
+              </Text>
+            </View>
           </View>
 
           {/* Stat Cards Row 1 */}
@@ -1030,7 +1030,7 @@ export default function CounselorHomeScreen() {
                 </View>
               }
               count={upcomingAcceptedSessions}
-              label="Upcoming Accepted Sessions"
+              label="Upcoming Sessions"
               cardBg="rgba(5,67,52,0.5)"
             />
           </View>
@@ -1069,9 +1069,12 @@ export default function CounselorHomeScreen() {
               marginBottom: 14,
             }}
           >
-            <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
-              Students
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <GraduationCap size={18} color="#F59E0B" />
+              <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
+                Students
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={() => {
                 triggerHaptic("light");
@@ -1180,7 +1183,11 @@ export default function CounselorHomeScreen() {
           )}
 
           {/* ── Announcements (dynamic, from admin/counselor) ───────── */}
-          <AnnouncementSection role="counselor" showAddButton />
+          <AnnouncementSection
+            role="counselor"
+            showAddButton
+            titleIcon={<Megaphone size={18} color="#F59E0B" />}
+          />
         </ScrollView>
 
         <Modal

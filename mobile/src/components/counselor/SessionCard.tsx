@@ -1,17 +1,11 @@
+import { AppText as Text } from "../common/AppText";
 /**
  * SessionCard - Session confirmed/invite card shown in chat
  * Gradient card with session details, View Details & Reschedule buttons
  */
 
 import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-    Modal,
-    ScrollView,
-} from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Modal, ScrollView } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
 import { Calendar, MapPin, X, FileText, Clock, Hash, User } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';

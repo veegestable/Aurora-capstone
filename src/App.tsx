@@ -19,6 +19,7 @@ import CounselorStudents from './pages/counselor/Students'
 import CounselorMessages from './pages/counselor/Messages'
 import CounselorProfile from './pages/counselor/Profile'
 import CounselorSessionHistory from './pages/counselor/SessionHistory'
+import CounselorStudentWorkspace from './pages/counselor/StudentWorkspace'
 import AdminLayout from './layouts/AdminLayout'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminCounselors from './pages/admin/Counselors'
@@ -105,6 +106,7 @@ function AppContent() {
           <Route element={<CounselorLayout />}>
             <Route index element={<CounselorDashboard />} />
             <Route path="counselor/students" element={<CounselorStudents />} />
+            <Route path="counselor/students/:studentId" element={<CounselorStudentWorkspace />} />
             <Route path="counselor/messages" element={<CounselorMessages />} />
             <Route path="counselor/session-history" element={<CounselorSessionHistory />} />
             <Route path="counselor/profile" element={<CounselorProfile />} />

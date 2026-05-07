@@ -1,4 +1,5 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
+import { AppText as Text } from "./common/AppText";
 
 interface RolePlaceholderScreenProps {
   title: string;

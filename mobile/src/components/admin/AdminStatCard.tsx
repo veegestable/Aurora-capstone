@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
+import { AppText as Text } from "../common/AppText";
 import { AURORA } from "../../constants/aurora-colors";
 
 type AdminStatCardProps = {
@@ -52,6 +53,7 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "800",
     letterSpacing: -0.5,
+    marginLeft: 10,
   },
   label: {
     color: AURORA.textSec,
