@@ -202,3 +202,9 @@ This page shows the Students recorded in the Database, with Chips for each Stude
 #### Counselor Messages (`/counselor/messages`)
 
 This section shows the Direct Messages that the Counselor have with the Students.
+
+// TODO: PUT DEFAULT MESSAGE SCREEN
+
+##### Counselor Messages DMs
+
+Remains largely the same with the current implemented Web Version, 
