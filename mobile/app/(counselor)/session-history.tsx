@@ -935,7 +935,7 @@ function SessionHistoryCard({
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   style={{
                     flex: 1,
                     flexDirection: "row",
@@ -957,8 +957,8 @@ function SessionHistoryCard({
                   >
                     View Note
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </TouchableOpacity> */}
+                {/* <TouchableOpacity
                   style={{
                     width: 44,
                     height: 44,
@@ -971,7 +971,7 @@ function SessionHistoryCard({
                   }}
                 >
                   <Share2 size={18} color={AURORA.textSec} />
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             </>
           )}
