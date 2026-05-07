@@ -3,6 +3,7 @@ import { createCounselorSessionInvite } from "./post/createCounselorSessionInvit
 import { studentConfirmFinalSlot } from "./post/studentConfirmFinalSlot"
 import { getSessionsForStudent } from "./get/getSessionsForStudent"
 import { getSessionsForCounselor } from "./get/getSessionsForCounselor"
+import { getCounselorNamesForSessions } from "./get/getCounselorNamesForSessions"
 import { updateSessionStatus } from "./put/updateSessionStatus"
 
 export const sessionsService = {
@@ -11,5 +12,6 @@ export const sessionsService = {
   studentConfirmFinalSlot,
   getSessionsForStudent,
   getSessionsForCounselor,
-  updateSessionStatus
+  getCounselorNamesForSessions,
+  updateSessionStatus,
 }

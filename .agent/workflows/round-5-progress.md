@@ -52,13 +52,23 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   Firebase Storage upload on submit. Sleep card now shows a "locked until tomorrow"
   notice once captured instead of disappearing.
 
-### [ ] Batch 5 — Mood Check-in Done step
-- **Touched:**
-- **Notes:**
+### [x] Batch 5 — Mood Check-in Done step
+- **Touched:** `src/components/student/QuickResetBreathing.tsx`,
+  `src/components/MoodCheckIn.tsx`
+- **Notes:** Replaced hardcoded streak/check-ins with values from `getMoodLogs` +
+  `computeStreak`. Inline 60s breathing widget replaces the old "navigate to
+  Resources" recommendation. Added optional School pressure today sub-pill driven
+  by `schoolTagCount`. "Talk to a Counselor" now closes the modal cleanly
+  without the page-reload side effect.
 
-### [ ] Batch 6 — Student Dashboard pane + stability hint
-- **Touched:**
-- **Notes:**
+### [x] Batch 6 — Student Dashboard pane + stability hint
+- **Touched:** `src/services/sessions/get/getCounselorNamesForSessions.ts`,
+  `src/services/sessions/index.ts`,
+  `src/components/student/StudentSessionsPane.tsx`,
+  `src/pages/StudentDashboard.tsx`
+- **Notes:** Welcome row gains a CalendarClock launcher for a Future / Past / Closed
+  sessions modal with a Go to Messages shortcut. Today's Stability card gains a `?`
+  icon that opens a centered explainer modal.
 
 ### [ ] Batch 7 — Student Journal entry detail enrichment
 - **Touched:**
@@ -102,6 +112,7 @@ or substantially reshape something so future batches don't reintroduce it.
 | Date       | Item                                                  | Reason                              |
 |------------|-------------------------------------------------------|-------------------------------------|
 | 2026-05-07 | `CONTEXT_CATEGORIES` inline tag arrays in `useMoodCheckIn.ts` | Duplicated `SCHOOL_TAGS` / `HEALTH_TAGS` / etc. from `journalTemplates.ts`; consolidated into a single source of truth. |
+| 2026-05-07 | `CLOSED_STATUSES` constant in `StudentSessionsPane.tsx` | Unused — `bucketFor` falls through to `'closed'`. Replaced with an inline comment for intent. |
 
 ---
 
