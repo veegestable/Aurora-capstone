@@ -177,6 +177,10 @@ There should be 3 Sections:
         - Button to Mark Attendance (Clicking this button would show this)
             ![Counselor_Messages_SessionHistory_SessionDetails_MarkAttendance](round-5-parity-images/counselor-side/counselors-messages-sessionHistory-sessionDetails-markAttendance.jpg)
 
+        - Considerations:
+            - When the Session Chip selected is **Completed** , it should go to the **Session History** and immediately open up that specific session and its details.
+            - When the Session Chip selected is under **Expired**, then it just redirects to Session History.
+
 #### Counselor Students (`/counselor/students/`)
 
 This page shows the Students recorded in the Database, with Chips for each Student and a Search and Filter option
@@ -203,8 +207,72 @@ This page shows the Students recorded in the Database, with Chips for each Stude
 
 This section shows the Direct Messages that the Counselor have with the Students.
 
-// TODO: PUT DEFAULT MESSAGE SCREEN
+![Counselor_Messages](round-5-parity-images/counselor-side/counselors-messages.jpg)
+
+As can be seen, there is also a "Write Message" Icon at the bottom-right. If clicked, it would show the list of students for the Counselor to choose from and start a conversation with that student.
+
+![Counselor_Messages_NewMessage](round-5-parity-images/counselor-side/counselors-messages-newMessage.jpg)
 
 ##### Counselor Messages DMs
 
-Remains largely the same with the current implemented Web Version, 
+Remains largely the same with the current implemented Web Version, the Message showing the Session should look like what's displayed below however. It should show the: 
+    - Status 
+    - Date and Time
+    - Cnnfirmation Status
+    - View Details button
+    - Reschedule button
+
+![Counselor_Messages_DM](round-5-parity-images/counselor-side/counselors-messages-dm.jpg)
+
+- Clicking the View Details button would show this:
+![Counselor_Messages_DM_SessionDetails](round-5-parity-images/counselor-side/counselors-messages-dm-sessionDetails.jpg)
+
+- Clicking the Reschedule button should show this:
+![Counselor_Messages_DM_Reschedule](round-5-parity-images/counselor-side/counselors-messages-dm-reschedule.jpg)
+
+#### Counselor Profile (`/counselor/profile`)
+
+![Counselor_Profile](round-5-parity-images/counselor-side/counselors-profile.jpg)
+
+Remains largely the same with some minor adjustments. It should display:
+    - Profile Picture
+    - Personal Details:
+        - Full Name
+        - Sex
+        - Counselor Number
+        - Contact Number
+    - Account Settings:
+        - Edit Profile (When clicked, it will allow the Counselor user to edit their Personal Details):
+            ![Counselor_Profile_Edit](round-5-parity-images/counselor-side/counselors-profile-edit.jpg)
+    - App Preferences:
+        - Push Notifications toggle
+    - Privacy & Data
+        - Student Data Access
+    - Sign Out button
+
+![Counselor_Profile_2](round-5-parity-images/counselor-side/counselors-profile2.jpg)
+
+
+## Coding Standards
+
+- Make sure that whenever code is updated, we do **CLEAN-UP**. Check the codebase for any code, files, or functions that have been **ORPHANED** or **DEPRECATED** and delete it or refactor. Minimize Technical Debt as much as necessary
+- For the `services/` directory, follow its structure:
+    ```bash
+    services/
+        delete/
+            file.ts
+        get/
+        post/
+        put/
+        index.ts   // barrel file
+        types.ts
+    ```
+- When declaring **variables**, make sure that they are **USED**, otherwise, don't declare them.
+- Make sure to follow the branding and styles in ![Aurora Branding](workflows/aurora-design-system.md)
+
+
+## Workflows
+
+- **[web-refactor.md](workflows/web-refactor.md):** Vite + React 19, `react-router-dom` v7, Tailwind v4 + tokens in [src/index.css](src/index.css), Context (not Zustand), `lucide-react`, Firebase. Services: `src/services/{feature}/{verb}/…` + barrel `index.ts`.
+- **[aurora-design-system.md](workflows/aurora-design-system.md):** Dark AURORA tokens; web layout differences allowed.
+- **Progress tracker:** **[round-5-progress.md](workflows/round-5-progress.md)** — update after each batch
