@@ -10,6 +10,7 @@ export const createMoodLog = async (
   const payload: MoodLogEntryDoc = {
     mood: entry.mood,
     intensity: entry.intensity,
+    durationMinutes: Math.max(1, Math.round(entry.durationMinutes ?? 60)),
     stress: entry.stress,
     energy: entry.energy,
     sleepQuality: entry.sleepQuality,
@@ -19,6 +20,10 @@ export const createMoodLog = async (
     eventTags: entry.eventTags ?? [],
     notes: entry.notes ?? '',
     journalSource: entry.journalSource ?? 'auto',
+    detectionMethod: entry.detectionMethod ?? 'manual',
+    bathTaken: entry.bathTaken ?? false,
+    mealResponses: entry.mealResponses ?? [],
+    journalImageUrl: entry.journalImageUrl ?? '',
     timestamp: Timestamp.fromDate(entry.timestamp),
   }
 
