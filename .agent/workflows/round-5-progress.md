@@ -39,9 +39,11 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   Hook exposes meal/bath/photo/duration/pressure primitives but UI hasn't wired them yet.
   - 2.1: Moved `CONTEXT_CATEGORIES` to `journalTemplates.ts`; hook re-exports for backward-compat.
 
-### [ ] Batch 3 — Mood Check-in Step 1 UI
-- **Touched:**
-- **Notes:**
+### [x] Batch 3 — Mood Check-in Step 1 UI
+- **Touched:** `src/components/student/MoodIcon.tsx`, `src/components/MoodCheckIn.tsx`, `src/index.css` (slider thumb)
+- **Notes:** Manual on left / Daily Selfie on right. SVG mood icons replace emoji glyphs.
+  Hint popovers added for Manual / Intensity / Duration. New numeric Duration input
+  with friendly category label. Footer shows Retake Photo + Use This Mood after AI detection.
 
 ### [ ] Batch 4 — Mood Check-in Steps 2 & 3 UI
 - **Touched:**

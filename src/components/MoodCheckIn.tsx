@@ -1,15 +1,86 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmotionDetection } from './EmotionDetection'
-import { 
-  Sparkles, MousePointerClick, ChevronRight, ChevronLeft, 
+import {
+  Sparkles, MousePointerClick, ChevronRight, ChevronLeft,
   BedDouble, Zap, Frown, PenLine, X, MessageSquare, ArrowRight,
+  CircleHelp, Clock3, RefreshCw, Check,
 } from 'lucide-react'
-import type { MoodCheckInProps } from '../types/mood.types'
+import type { MoodCheckInProps, ManualEmotion } from '../types/mood.types'
 import { MANUAL_EMOTIONS } from '../utils/emotions'
 import { useAuth } from '../contexts/AuthContext'
 import { useMoodCheckIn, CONTEXT_CATEGORIES } from '../hooks/useMoodCheckIn'
 import type { SleepQuality } from '../services/mood/types'
+import { MoodIcon } from './student/MoodIcon'
+
+type HintKey = 'manual' | 'intensity' | 'duration' | null
+
+const HINTS: Record<Exclude<HintKey, null>, { title: string; body: string }> = {
+  manual: {
+    title: 'Manual Check-in',
+    body: 'Pick the emotion that fits best right now. You can fine-tune intensity and how long it has been with you in the next two controls.',
+  },
+  intensity: {
+    title: 'Intensity scale (1–10)',
+    body: 'How strongly you feel the selected emotion right now.\n\n• 1–3: Mild\n• 4–6: Noticeable\n• 7–8: Strong\n• 9–10: Very intense\n\nUse the number that matches how strong it feels — not whether it is good or bad.',
+  },
+  duration: {
+    title: 'Duration',
+    body: 'Roughly how long this feeling has been with you. Type a number of minutes (1–1440). The label below adapts as you type.',
+  },
+}
+
+function getDurationCategoryLabel(minutes: number): string {
+  if (minutes < 15) return 'Just a moment'
+  if (minutes <= 60) return 'About an hour'
+  if (minutes <= 180) return 'A few hours'
+  if (minutes <= 480) return 'Most of the day'
+  return 'All day / Ongoing'
+}
+
+interface HintButtonProps {
+  hint: Exclude<HintKey, null>
+  active: HintKey
+  onToggle: (next: HintKey) => void
+  ariaLabel?: string
+}
+
+function HintButton({ hint, active, onToggle, ariaLabel }: HintButtonProps) {
+  const isOpen = active === hint
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel ?? `Show ${hint} hint`}
+      onClick={() => onToggle(isOpen ? null : hint)}
+      className="p-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+    >
+      <CircleHelp className={`w-4 h-4 ${isOpen ? 'text-aurora-blue' : 'text-aurora-text-muted'}`} />
+    </button>
+  )
+}
+
+function HintPanel({ hint, onClose }: { hint: Exclude<HintKey, null>; onClose: () => void }) {
+  const { title, body } = HINTS[hint]
+  return (
+    <div className="card-aurora border-aurora-blue/30 bg-[rgba(45,107,255,0.08)] p-4 max-w-sm mx-auto animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="flex items-start gap-2">
+        <CircleHelp className="w-4 h-4 text-aurora-blue mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <p className="text-sm font-bold text-white mb-1">{title}</p>
+          <p className="text-xs text-aurora-text-sec whitespace-pre-line leading-relaxed">{body}</p>
+        </div>
+        <button
+          type="button"
+          aria-label="Dismiss hint"
+          onClick={onClose}
+          className="p-1 -mr-1 -mt-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+        >
+          <X className="w-3.5 h-3.5 text-aurora-text-muted" />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCheckInProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -26,8 +97,11 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
     selectedEmotions,
     moodInputMode,
     setMoodInputMode,
+    detectionMethod,
     intensity,
     setIntensity,
+    durationMinutes,
+    setDurationMinutes,
     energyLevel,
     setEnergyLevel,
     stressLevel,
@@ -42,20 +116,35 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
     setJournalEdited,
     isSubmitting,
     handleAIEmotionDetected,
+    clearDetectedEmotions,
     handleManualEmotionToggle,
     handleSubmit,
-  } = useMoodCheckIn({ 
+  } = useMoodCheckIn({
     onMoodLogged: () => {
       if (onMoodLogged) onMoodLogged()
       // Note: we don't close the modal immediately so they can see Step 4 (Summary)
-    }, 
-    onBackgroundChange 
+    },
+    onBackgroundChange,
   })
 
-  // Start check-in from dashboard widget
+  const [activeHint, setActiveHint] = useState<HintKey>(null)
+  const [durationDraft, setDurationDraft] = useState<string>(String(durationMinutes))
+
+  const commitDuration = () => {
+    if (!durationDraft) {
+      setDurationDraft(String(durationMinutes))
+      return
+    }
+    const parsed = Number(durationDraft)
+    const next = Number.isNaN(parsed) ? durationMinutes : Math.min(1440, Math.max(1, parsed))
+    setDurationMinutes(next)
+    setDurationDraft(String(next))
+  }
+
   const startCheckIn = (emotionName?: string) => {
+    setActiveHint(null)
     if (emotionName) {
-      const target = MANUAL_EMOTIONS.find(e => e.name === emotionName)
+      const target = MANUAL_EMOTIONS.find((e: ManualEmotion) => e.name === emotionName)
       if (target) handleManualEmotionToggle(target)
       setMoodInputMode('manual')
     } else {
@@ -63,6 +152,8 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
     }
     setIsModalOpen(true)
   }
+
+  const aiDetectedReady = moodInputMode === 'selfie' && detectionMethod === 'selfie_ai' && selectedEmotions.length > 0
 
   const handleClose = () => {
     setIsModalOpen(false)
@@ -134,78 +225,164 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
               
               {/* STEP 1: MOOD SELECTION */}
               {currentStep === 1 && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
                   <div className="text-center">
                     <h2 className="text-2xl font-bold text-white mb-2">Identify your mood</h2>
-                    <p className="text-sm text-aurora-text-sec">Use AI or select manually.</p>
+                    <p className="text-sm text-aurora-text-sec">How are you feeling right now?</p>
                   </div>
 
+                  {/* Mode toggle — Manual on the LEFT, Daily Selfie on the RIGHT (round 5 plan §1) */}
                   <div className="flex justify-center">
                     <div className="relative flex bg-white/5 p-1 rounded-full border border-white/8">
-                      <button
-                        onClick={() => setMoodInputMode('selfie')}
-                        className={`relative z-10 flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 cursor-pointer ${moodInputMode === 'selfie' ? 'bg-[rgba(45,107,255,0.2)] text-aurora-blue border border-[rgba(45,107,255,0.3)]' : 'text-aurora-text-muted hover:text-white'}`}
-                      >
-                        <Sparkles className="w-4 h-4" /> Daily Selfie
-                      </button>
                       <button
                         onClick={() => setMoodInputMode('manual')}
                         className={`relative z-10 flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 cursor-pointer ${moodInputMode === 'manual' ? 'bg-[rgba(45,107,255,0.2)] text-aurora-blue border border-[rgba(45,107,255,0.3)]' : 'text-aurora-text-muted hover:text-white'}`}
                       >
                         <MousePointerClick className="w-4 h-4" /> Manual Check-in
                       </button>
+                      <button
+                        onClick={() => setMoodInputMode('selfie')}
+                        className={`relative z-10 flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 cursor-pointer ${moodInputMode === 'selfie' ? 'bg-[rgba(45,107,255,0.2)] text-aurora-blue border border-[rgba(45,107,255,0.3)]' : 'text-aurora-text-muted hover:text-white'}`}
+                      >
+                        <Sparkles className="w-4 h-4" /> Daily Selfie
+                      </button>
                     </div>
                   </div>
 
                   {moodInputMode === 'selfie' ? (
-                    <div className="mt-4">
+                    <div className="mt-2">
                       <EmotionDetection onEmotionDetected={handleAIEmotionDetected} />
+                      {aiDetectedReady && (
+                        <p className="text-center text-xs text-aurora-text-sec mt-3">
+                          Detected: <span className="text-white font-semibold capitalize">{selectedEmotions[0].emotion}</span>. Use the buttons below to keep it or retake.
+                        </p>
+                      )}
                     </div>
                   ) : (
-                    <div className="card-aurora p-6 max-w-sm mx-auto">
-                      <div className="grid grid-cols-5 gap-4 justify-items-center">
-                        {MANUAL_EMOTIONS.map(emotion => {
-                          const isSelected = selectedEmotions.some(e => e.emotion === emotion.name);
-                          return (
-                            <button
-                              key={emotion.name}
-                              onClick={() => handleManualEmotionToggle(emotion)}
-                              className={`flex flex-col items-center gap-2 transition-all duration-300 cursor-pointer ${isSelected ? 'scale-110' : 'hover:scale-105 opacity-70 hover:opacity-100'}`}
-                            >
-                              <div 
-                                className="w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-lg"
-                                style={{ 
-                                  background: isSelected ? `linear-gradient(135deg, ${emotion.color}80, ${emotion.color})` : 'rgba(255,255,255,0.05)',
-                                  border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                                  boxShadow: isSelected ? `0 0 20px ${emotion.color}40` : undefined,
-                                }}
+                    <>
+                      {/* Manual emotion picker */}
+                      <div className="card-aurora p-6 max-w-sm mx-auto">
+                        <div className="flex items-center justify-center gap-1.5 mb-5">
+                          <p className="text-xs font-bold tracking-widest text-aurora-text-muted uppercase">
+                            Pick what fits
+                          </p>
+                          <HintButton hint="manual" active={activeHint} onToggle={setActiveHint} ariaLabel="Manual check-in hint" />
+                        </div>
+                        <div className="grid grid-cols-5 gap-3 justify-items-center">
+                          {MANUAL_EMOTIONS.map((emotion: ManualEmotion) => {
+                            const isSelected = selectedEmotions.some((e) => e.emotion === emotion.name)
+                            return (
+                              <button
+                                key={emotion.name}
+                                onClick={() => handleManualEmotionToggle(emotion)}
+                                className={`flex flex-col items-center gap-2 transition-all duration-300 cursor-pointer ${isSelected ? 'scale-110' : 'hover:scale-105 opacity-70 hover:opacity-100'}`}
+                                aria-pressed={isSelected}
+                                aria-label={emotion.label}
                               >
-                                {emotion.emoji}
-                              </div>
-                              <span className={`text-xs font-medium ${isSelected ? 'text-white' : 'text-aurora-text-sec'}`}>{emotion.label}</span>
-                            </button>
-                          )
-                        })}
+                                <div
+                                  className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
+                                  style={{
+                                    background: isSelected ? `linear-gradient(135deg, ${emotion.color}80, ${emotion.color})` : 'rgba(255,255,255,0.05)',
+                                    border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                                    boxShadow: isSelected ? `0 0 20px ${emotion.color}40` : undefined,
+                                    color: isSelected ? '#FFFFFF' : emotion.color,
+                                  }}
+                                >
+                                  <MoodIcon name={emotion.name as 'happy' | 'sad' | 'angry' | 'surprise' | 'neutral'} size={30} />
+                                </div>
+                                <span className={`text-xs font-medium ${isSelected ? 'text-white' : 'text-aurora-text-sec'}`}>
+                                  {emotion.label}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
+
+                      {activeHint === 'manual' && (
+                        <HintPanel hint="manual" onClose={() => setActiveHint(null)} />
+                      )}
+                    </>
                   )}
 
+                  {/* Intensity slider — manual only, after a mood is picked */}
                   {selectedEmotions.length > 0 && moodInputMode === 'manual' && (
-                    <div className="card-aurora p-6 mt-6 animate-in fade-in max-w-sm mx-auto">
-                      <label className="text-sm font-semibold text-white mb-5 block text-center">Mood Intensity</label>
-                      <div className="flex items-center gap-4">
-                        <span className="text-xs font-medium text-aurora-text-muted">Mild</span>
+                    <>
+                      <div className="card-aurora p-6 max-w-sm mx-auto animate-in fade-in">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-1.5">
+                            <label htmlFor="mood-intensity" className="text-sm font-bold text-white">
+                              Intensity
+                            </label>
+                            <HintButton hint="intensity" active={activeHint} onToggle={setActiveHint} ariaLabel="Intensity hint" />
+                          </div>
+                          <span className="text-base font-extrabold text-aurora-blue tabular-nums">
+                            {intensity}<span className="text-aurora-text-muted text-xs font-semibold">/10</span>
+                          </span>
+                        </div>
                         <input
+                          id="mood-intensity"
                           type="range"
-                          min="1"
-                          max="10"
+                          min={1}
+                          max={10}
+                          step={1}
                           value={intensity}
                           onChange={(e) => setIntensity(Number(e.target.value))}
-                          className="w-full h-2 rounded-lg appearance-none bg-white/10 cursor-pointer accent-aurora-blue"
+                          className="w-full h-3 rounded-full appearance-none bg-white/10 cursor-pointer accent-aurora-blue mood-intensity-slider"
+                          aria-valuemin={1}
+                          aria-valuemax={10}
+                          aria-valuenow={intensity}
+                          aria-label="Mood intensity"
                         />
-                        <span className="text-xs font-medium text-aurora-text-muted">Strong</span>
+                        <div className="flex justify-between text-xs font-medium text-aurora-text-muted mt-2">
+                          <span>Mild</span>
+                          <span>Strong</span>
+                        </div>
                       </div>
-                    </div>
+
+                      {activeHint === 'intensity' && (
+                        <HintPanel hint="intensity" onClose={() => setActiveHint(null)} />
+                      )}
+                    </>
+                  )}
+
+                  {/* Duration of feeling — manual only, after a mood is picked */}
+                  {selectedEmotions.length > 0 && moodInputMode === 'manual' && (
+                    <>
+                      <div className="card-aurora p-6 max-w-sm mx-auto animate-in fade-in">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-1.5">
+                            <Clock3 className="w-4 h-4 text-aurora-text-muted" />
+                            <label htmlFor="mood-duration" className="text-sm font-bold text-white">
+                              Duration
+                            </label>
+                            <HintButton hint="duration" active={activeHint} onToggle={setActiveHint} ariaLabel="Duration hint" />
+                          </div>
+                          <span className="text-xs font-medium text-aurora-text-sec">
+                            {getDurationCategoryLabel(durationMinutes)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            id="mood-duration"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={durationDraft}
+                            onChange={(e) => setDurationDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                            onBlur={commitDuration}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                            className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm font-semibold focus:outline-hidden focus:border-aurora-blue/50 focus:bg-white/10 transition-colors"
+                            aria-label="Duration of feeling in minutes"
+                          />
+                          <span className="text-sm font-semibold text-aurora-text-sec">min</span>
+                        </div>
+                      </div>
+
+                      {activeHint === 'duration' && (
+                        <HintPanel hint="duration" onClose={() => setActiveHint(null)} />
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -413,7 +590,24 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
 
             {/* Footer Navigation */}
             <div className="p-5 border-t border-white/5 bg-[#0a0a0a]">
-              {currentStep < 4 ? (
+              {currentStep === 1 && aiDetectedReady ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={clearDetectedEmotions}
+                    className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-4 rounded-xl font-bold transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Retake Photo
+                  </button>
+                  <button
+                    onClick={handleNext}
+                    className="flex items-center justify-center gap-2 bg-aurora-blue hover:bg-aurora-blue-light text-white py-4 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(45,107,255,0.2)] cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    Use This Mood
+                  </button>
+                </div>
+              ) : currentStep < 4 ? (
                 <button
                   onClick={currentStep === 3 ? handleSubmit : handleNext}
                   disabled={(currentStep === 1 && selectedEmotions.length === 0) || (currentStep === 2 && !sleepCapturedToday && !sleepQuality) || isSubmitting}
