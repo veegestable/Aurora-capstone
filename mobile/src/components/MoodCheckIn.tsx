@@ -1238,14 +1238,12 @@ export function MoodCheckIn({
                 padding: 10,
                 borderRadius: 999,
                 marginBottom: 10,
-                backgroundColor: isPositive
-                  ? "rgba(254, 189, 3, 0.2)"
-                  : "rgba(120, 74, 255, 0.2)",
+                backgroundColor: "transparent",
               }}
             >
               <Image
                 source={require("../assets/logos/logomark light gradient.png")}
-                style={{ width: 30, height: 30 }}
+                style={{ width: 50, height: 50 }}
                 resizeMode="contain"
               />
             </Animatable.View>
@@ -1310,7 +1308,7 @@ export function MoodCheckIn({
                     width: 34,
                     height: 34,
                     borderRadius: 17,
-                    backgroundColor: "rgba(142,60,247,0.20)",
+                    backgroundColor: "transparent",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
@@ -1378,7 +1376,7 @@ export function MoodCheckIn({
                     width: 34,
                     height: 34,
                     borderRadius: 17,
-                    backgroundColor: "rgba(45,107,255,0.24)",
+                    backgroundColor: "transparent",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
