@@ -1662,7 +1662,7 @@ export function MoodCheckIn({
               }}
             >
               {isMoodStep && `Hey ${firstName}!`}
-              {isVitalityStep && "Energy, stress, sleep, meals, and bath"}
+              {isVitalityStep && "How has your self-care been today?"}
               {isContextStep && "What affected your mood?"}
             </Text>
             <Text
@@ -1675,7 +1675,7 @@ export function MoodCheckIn({
               {isMoodStep &&
                 "Choose how you feel right now, then set intensity."}
               {isVitalityStep &&
-                "Sleep is once daily. Meals and bath are also tracked."}
+                "Sleep, meals, and bath are tracked once daily."}
               {isContextStep &&
                 "Select tags that influenced how you felt today."}
             </Text>
@@ -1689,7 +1689,7 @@ export function MoodCheckIn({
                   gap: 6,
                 }}
               >
-                <Text style={{ color: AURORA.textMuted, fontSize: 12 }}>
+                {/* <Text style={{ color: AURORA.textMuted, fontSize: 12 }}>
                   What are these categories?
                 </Text>
                 <TouchableOpacity
@@ -1697,7 +1697,7 @@ export function MoodCheckIn({
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <CircleHelp size={14} color={AURORA.textMuted} />
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             ) : null}
           </Animatable.View>
