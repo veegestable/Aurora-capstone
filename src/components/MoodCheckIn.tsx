@@ -3,16 +3,20 @@ import { useNavigate } from 'react-router-dom'
 import { EmotionDetection } from './EmotionDetection'
 import {
   Sparkles, MousePointerClick, ChevronRight, ChevronLeft,
-  BedDouble, Zap, Frown, PenLine, X, MessageSquare, ArrowRight,
-  CircleHelp, Clock3, RefreshCw, Check,
-  Droplets, UtensilsCrossed, ImagePlus, Trash2, TrendingUp, CheckCircle2,
+  BedDouble, Zap, Frown, PenLine, X, MessageSquare, CircleHelp, 
+  Clock3, RefreshCw, Check, Droplets, UtensilsCrossed, 
+  ImagePlus, Trash2, TrendingUp, CheckCircle2,
 } from 'lucide-react'
 import type { MoodCheckInProps, ManualEmotion } from '../types/mood.types'
 import { MANUAL_EMOTIONS } from '../utils/emotions'
 import { useAuth } from '../contexts/AuthContext'
 import { useMoodCheckIn, CONTEXT_CATEGORIES } from '../hooks/useMoodCheckIn'
 import type { SleepQuality } from '../services/mood/types'
+import { moodService } from '../services/mood'
+import { computeStreak } from '../utils/analytics'
+import { getSchoolWorkloadBand, getSchoolWorkloadCaption } from '../constants/mood/journalTemplates'
 import { MoodIcon } from './student/MoodIcon'
+import { QuickResetBreathing } from './student/QuickResetBreathing'
 
 type HintKey =
   | 'manual'
@@ -159,6 +163,7 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
     selectedTags,
     toggleTag,
     pressureLabel,
+    schoolTagCount,
     notes,
     setNotes,
     setJournalEdited,
@@ -198,7 +203,45 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
     Intense: 'bg-[rgba(239,68,68,0.15)] border-[rgba(239,68,68,0.4)] text-aurora-red',
   }
 
+  const [doneStats, setDoneStats] = useState<{ streak: number; todayCheckIns: number } | null>(null)
+
+  // Pull fresh streak + today's check-in count whenever the wizard reaches Step 4.
+  useEffect(() => {
+    if (currentStep !== 4 || !user?.id) return
+    let cancelled = false
+
+    const run = async () => {
+      try {
+        const end = new Date()
+        const start = new Date()
+        start.setDate(start.getDate() - 60)
+        const logs = await moodService.getMoodLogs(user.id, start.toISOString(), end.toISOString())
+        if (cancelled) return
+
+        const todayKey = (() => {
+          const d = new Date()
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        })()
+
+        setDoneStats({
+          streak: computeStreak(logs),
+          todayCheckIns: logs.filter((l) => l.dayKey === todayKey).length,
+        })
+      } catch (e) {
+        console.error('Failed to load done-step stats:', e)
+        if (!cancelled) setDoneStats({ streak: 0, todayCheckIns: 0 })
+      }
+    }
+
+    run()
+    return () => { cancelled = true }
+  }, [currentStep, user?.id])
+
   const commitDuration = () => {
+    if (!durationDraft) {
+      setDurationDraft(String(durationMinutes))
+      return
+    }
     if (!durationDraft) {
       setDurationDraft(String(durationMinutes))
       return
@@ -673,6 +716,8 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                   </div>
                   {activeHint === 'pressure' && <HintPanel hint="pressure" onClose={() => setActiveHint(null)} />}
 
+                  
+
                   <div className="space-y-7">
                     {CONTEXT_CATEGORIES.map((category) => (
                       <div key={category.key}>
@@ -768,14 +813,18 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                 </div>
               )}
 
-              {/* STEP 4: SUMMARY */}
-              {currentStep === 4 && (
+                            {/* STEP 4: SUMMARY */}
+                            {currentStep === 4 && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
-                  
-                  {/* Top Card */}
+
+                  {/* Thank-you header */}
                   <div className="card-aurora p-6 flex flex-col items-center text-center">
                     <div className="w-22 h-22 bg-[rgba(124,58,237,0.15)] rounded-full flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(124,58,237,0.2)] border border-[rgba(124,58,237,0.3)]">
-                      <img src="/images/logos/logomark light.png" className="w-12 h-12 text-aurora-purple" />
+                      <img
+                        src="/images/logos/logomark light.png"
+                        alt="Aurora"
+                        className="w-12 h-12"
+                      />
                     </div>
                     <h2 className="text-xl font-bold text-white mb-2 font-heading">
                       Thank you for checking in, {firstName}!
@@ -785,56 +834,60 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                     </p>
                   </div>
 
-                  {/* Supportive Space Card */}
+                  {/* School pressure today — only when school tags were selected */}
+                  {schoolTagCount > 0 && (
+                    <div className="card-aurora p-4 flex items-center justify-between">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold tracking-widest text-aurora-text-muted uppercase mb-1">
+                          School pressure today
+                        </p>
+                        <p className="text-xs text-aurora-text-sec truncate">
+                          {getSchoolWorkloadCaption(schoolTagCount)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-sm font-extrabold text-aurora-blue ml-3">
+                        {getSchoolWorkloadBand(schoolTagCount)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Talk to a Counselor */}
                   <div className="card-aurora p-5 border border-aurora-purple/50 shadow-[0_0_15px_rgba(124,58,237,0.1)]">
                     <h3 className="text-sm font-bold text-white mb-3">A supportive space for you</h3>
-                    <button 
-                      onClick={() => navigate('/student/messages')}
+                    <button
+                      onClick={() => {
+                        setIsModalOpen(false)
+                        navigate('/student/messages')
+                      }}
                       className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-colors cursor-pointer"
                     >
                       Talk to a Counselor <MessageSquare className="w-4 h-4 text-aurora-text-sec" />
                     </button>
                   </div>
 
-                  {/* Recommended Exercise */}
-                  <div className="card-aurora p-5">
-                    <p className="text-[10px] font-extrabold tracking-widest text-aurora-amber uppercase mb-1">
-                      Recommended
-                    </p>
-                    <h3 className="text-base font-bold text-white mb-3">5-minute Breathing Exercise</h3>
-                    
-                    <button 
-                      onClick={() => {
-                        handleClose()
-                        navigate('/student/resources')
-                      }}
-                      className="w-full bg-[#10143C] hover:bg-[#161b4d] border border-white/5 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between text-left transition-colors cursor-pointer"
-                    >
-                      <div>
-                        <p className="text-sm font-bold text-white mb-1">Calm reset for your day</p>
-                        <p className="text-xs font-semibold text-aurora-text-muted">5 Min</p>
-                      </div>
-                      <div className="mt-3 sm:mt-0 flex items-center gap-1.5 text-xs font-bold text-aurora-amber tracking-wider">
-                        TRY NOW <ArrowRight className="w-4 h-4" />
-                      </div>
-                    </button>
-                  </div>
+                  {/* Inline 60-second Quick Reset breathing */}
+                  <QuickResetBreathing />
 
-                  {/* Stats Row */}
+                  {/* Real stats: Streak + Today's check-ins */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="card-aurora p-4 flex flex-col justify-center">
                       <p className="text-[10px] font-extrabold tracking-widest text-aurora-text-muted uppercase mb-1">
                         Streak
                       </p>
-                      <p className="text-2xl font-bold text-white font-heading">
-                        1 <span className="text-sm font-semibold text-aurora-text-sec ml-0.5">Days</span>
+                      <p className="text-2xl font-bold text-white font-heading tabular-nums">
+                        {doneStats ? doneStats.streak : '—'}
+                        <span className="text-sm font-semibold text-aurora-text-sec ml-1">
+                          {doneStats?.streak === 1 ? 'day' : 'days'}
+                        </span>
                       </p>
                     </div>
                     <div className="card-aurora p-4 flex flex-col justify-center">
                       <p className="text-[10px] font-extrabold tracking-widest text-aurora-text-muted uppercase mb-1">
-                        Check-ins
+                        Check-ins today
                       </p>
-                      <p className="text-2xl font-bold text-white font-heading">1</p>
+                      <p className="text-2xl font-bold text-white font-heading tabular-nums">
+                        {doneStats ? doneStats.todayCheckIns : '—'}
+                      </p>
                     </div>
                   </div>
 
