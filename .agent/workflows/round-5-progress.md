@@ -130,9 +130,28 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   `student/ToggleRow`. Open question §3.5 (keep stat row?) is now resolved
   in favor of "remove".
 
-### [ ] Batch 14 — Final cleanup sweep
-- **Touched:**
-- **Notes:**
+### [x] Batch 14 — Final cleanup sweep
+- **Touched:** `src/services/counselor/index.ts`,
+  `src/services/counselor/types.ts`,
+  `src/App.tsx`,
+  `src/components/messages/ChatBubble.tsx`,
+  `src/components/messages/DirectMessageView.tsx`
+- **Deleted:** `src/pages/student/DailySelfie.tsx`,
+  `src/services/counselor/post/grantAccess.ts`,
+  `src/services/counselor/post/sendMessagetoStudent.ts`,
+  `src/services/counselor/delete/revokeAccess.ts`,
+  `src/services/counselor/get/getAccessibleStudents.ts`,
+  `src/services/counselor/get/getStudentMoodLogs.tsx`,
+  `src/services/counselor/get/getStudentSchedules.ts`,
+  `src/services/counselor/get/getSessionHistory.ts`,
+  `src/services/counselor/delete/` (directory)
+- **Notes:** `MoodCheckIn` Step 1 now owns the selfie flow, so the standalone
+  `student/daily-selfie` page + route are removed. Counselor service surface
+  collapses to `getStudents` — every other method was unreferenced. Removed
+  the `_ChatBubbleFileText` re-export and `rescheduleTargetId` placeholder
+  span left behind in Batch 12; reschedule still works via
+  `updateSessionStatus` + `SendSessionInviteModal`. `counselor/types.ts`
+  trimmed to just `StudentInfo`.
 
 ---
 
@@ -147,6 +166,9 @@ or substantially reshape something so future batches don't reintroduce it.
 | 2026-05-07 | `CLOSED_STATUSES` constant in `StudentSessionsPane.tsx` | Unused — `bucketFor` falls through to `'closed'`. Replaced with an inline comment for intent. |
 | 2026-05-08 | `src/components/counselor/ProfileStatCard.tsx` | Stat row dropped from Counselor Profile per plan §3.5; component had no other consumers. |
 | 2026-05-08 | `src/components/counselor/SettingsRow.tsx` | Light-theme variant; counselor profile now uses the shared dark `profile/SettingsRow.tsx`. |
+| 2026-05-08 | `src/pages/student/DailySelfie.tsx` + `student/daily-selfie` route | Step 1 of `MoodCheckIn` owns the selfie flow; standalone page was unlinked. |
+| 2026-05-08 | 7 unused `counselorService` methods + their support types (`MoodLogResponse`, `ScheduleResponse`, `SessionRecord`) | Replaced by `userSettingsService.grantJournalAccessToCounselor` (Batch 11), `sessionsService.*`, and `counselorCheckInContextService.*`. |
+| 2026-05-08 | `_ChatBubbleFileText` re-export + `data-reschedule-from` placeholder span | Defensive Batch‑12 leftovers; not used. |
 
 ---
 
@@ -154,6 +176,21 @@ or substantially reshape something so future batches don't reintroduce it.
 
 Capture decisions that need confirmation before continuing.
 
-- [ ] Is `src/pages/student/DailySelfie.tsx` still needed once Step 1 owns the selfie flow? (route: `App.tsx:81`)
+- [x] Is `src/pages/student/DailySelfie.tsx` still needed once Step 1 owns the selfie flow? — **Removed in Batch 14** (also dropped the `student/daily-selfie` route in `App.tsx`).
 - [x] Should the Counselor Profile keep the STUDENTS / SESSIONS stat row, or remove per plan §3.5? — **Removed in Batch 13**.
-- [ ] Reschedule flow: new `services/sessions/put/rescheduleSession.ts` or extend `updateSessionStatus`?
+- [x] Reschedule flow: new `services/sessions/put/rescheduleSession.ts` or extend `updateSessionStatus`? — **Resolved in Batch 12**: counselor "Reschedule" calls `updateSessionStatus({ status: 'rescheduled' })` and re-uses `SendSessionInviteModal` to propose new slots.
+
+# 1. Orphan student page (route was never linked from anywhere)
+Remove-Item "src/pages/student/DailySelfie.tsx"
+
+# 2. Unused counselor service methods (only `getStudents` is still called)
+Remove-Item "src/services/counselor/post/grantAccess.ts"
+Remove-Item "src/services/counselor/post/sendMessagetoStudent.ts"
+Remove-Item "src/services/counselor/delete/revokeAccess.ts"
+Remove-Item "src/services/counselor/get/getAccessibleStudents.ts"
+Remove-Item "src/services/counselor/get/getStudentMoodLogs.tsx"
+Remove-Item "src/services/counselor/get/getStudentSchedules.ts"
+Remove-Item "src/services/counselor/get/getSessionHistory.ts"
+
+# 3. The `delete/` dir is now empty — drop it for cleanliness
+Remove-Item "src/services/counselor/delete" -Force

@@ -24,7 +24,6 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
   const [isSending, setIsSending] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [detailsTarget, setDetailsTarget] = useState<SessionMessage | null>(null)
-  const [rescheduleTargetId, setRescheduleTargetId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const peerOnline = usePeerPresence(contact.id)
   const isOnline = peerOnline || contact.isOnline
@@ -174,7 +173,6 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
     } catch (e) {
       console.error('Failed to flag session as rescheduled:', e)
     }
-    setRescheduleTargetId(id)
     setIsInviteModalOpen(true)
   }
 
@@ -254,10 +252,7 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
         <div className="flex items-center gap-3">
           {user?.role === 'counselor' && (
             <button
-              onClick={() => {
-                setRescheduleTargetId(null)
-                setIsInviteModalOpen(true)
-              }}
+              onClick={() => setIsInviteModalOpen(true)}
               className="w-10 h-10 rounded-full bg-aurora-gray-100 flex items-center justify-center shrink-0 hover:bg-aurora-gray-200 transition-colors cursor-pointer"
               title="Send Session Invite"
             >
@@ -297,12 +292,8 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
             avatar: contact.avatar,
           }}
           counselorId={user.id}
-          onClose={() => {
-            setIsInviteModalOpen(false)
-            setRescheduleTargetId(null)
-          }}
+          onClose={() => setIsInviteModalOpen(false) }
           onSuccess={() => {
-            setRescheduleTargetId(null)
             refreshMessages()
             setTimeout(() => {
               scrollRef.current?.scrollTo({
@@ -319,11 +310,6 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
         message={detailsTarget}
         onClose={() => setDetailsTarget(null)}
       />
-
-      {/* `rescheduleTargetId` is kept for telemetry / future tagging (e.g. linking the new
-          invite back to the rescheduled session). It is intentionally referenced here so
-          unused-variable lint doesn't fire. */}
-      <span className="hidden" data-reschedule-from={rescheduleTargetId ?? ''} />
     </div>
   )
 }

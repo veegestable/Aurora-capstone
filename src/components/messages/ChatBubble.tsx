@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { LetterAvatar } from '../LetterAvatar'
-import { Calendar, Check, FileText } from 'lucide-react'
+import { Calendar, Check } from 'lucide-react'
 import type { ChatMessage, SessionMessage } from '../../types/message.types'
 
 interface ChatBubbleProps {
@@ -308,6 +308,3 @@ export function ChatBubble({
     </div>
   )
 }
-
-/** Re-exported for callers that don't want to import the icon directly. */
-export { FileText as _ChatBubbleFileText }

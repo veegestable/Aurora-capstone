@@ -11,8 +11,6 @@ import StudentJournal from './pages/student/Journal'
 import StudentMessages from './pages/student/Messages'
 import StudentProfile from './pages/student/Profile'
 import StudentResources from './pages/student/Resources'
-import StudentDailySelfie from './pages/student/DailySelfie'
-import StudentSettings from './pages/student/Settings'
 import CounselorLayout from './layouts/CounselorLayout'
 import CounselorDashboard from './pages/CounselorDashboard'
 import CounselorStudents from './pages/counselor/Students'
@@ -32,10 +30,6 @@ import AdminSettings from './pages/admin/Settings'
 import AdminCounselorDetail from './pages/admin/CounselorDetail'
 import AdminStudentDetail from './pages/admin/StudentDetail'
 import AdminResourceDetail from './pages/admin/ResourceDetail'
-
-import MoodCheckIn from './components/MoodCheckIn'
-import ScheduleManager from './components/ScheduleManager'
-import NotificationPanel from './components/NotificationPanel'
 import LoadingScreen from './components/LoadingScreen'
 
 function AppContent() {
@@ -71,15 +65,10 @@ function AppContent() {
         <Routes>
           <Route element={<StudentLayout />}>
             <Route index element={<StudentDashboard />} />
-            <Route path="mood" element={<MoodCheckIn />} />
-            <Route path="schedule" element={<ScheduleManager />} />
-            <Route path="notifications" element={<NotificationPanel />} />
             <Route path="student/journal" element={<StudentJournal />} />
             <Route path="student/messages" element={<StudentMessages />} />
             <Route path="student/profile" element={<StudentProfile />} />
             <Route path="student/resources" element={<StudentResources />} />
-            <Route path="student/daily-selfie" element={<StudentDailySelfie />} />
-            <Route path="settings" element={<StudentSettings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
