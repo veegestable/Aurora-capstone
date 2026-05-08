@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Camera, User as UserIcon, Loader2 } from 'lucide-react'
+import { X, Camera, User as UserIcon, Phone, Loader2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { LetterAvatar } from '../LetterAvatar'
 import type { User } from '../../types/user.types'
@@ -17,6 +17,7 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
   const [name, setName] = useState('')
   const [sex, setSex] = useState<SexOption | undefined>(undefined)
   const [counselorNumber, setCounselorNumber] = useState('')
+  const [contactNumber, setContactNumber] = useState('')
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -26,6 +27,7 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
       setName(user.full_name || '')
       setSex(user.sex ?? undefined)
       setCounselorNumber(user.student_number || '')
+      setContactNumber(user.contact_number || '')
     }
   }, [user])
 
@@ -44,9 +46,14 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
 
   const handleSave = async () => {
     const numTrim = counselorNumber.trim()
+    const contactTrim = contactNumber.trim()
 
     if (!numTrim) {
       alert('Please enter your counselor number.')
+      return
+    }
+    if (contactTrim && !/^[0-9+\-\s()]{7,20}$/.test(contactTrim)) {
+      alert('Please enter a valid contact number.')
       return
     }
 
@@ -56,6 +63,7 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
         full_name: name.trim() || user?.full_name || 'Counselor',
         sex,
         student_number: numTrim,
+        contact_number: contactTrim,
       })
       onClose()
     } catch {
@@ -126,47 +134,23 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
           </div>
 
           {/* Full Name */}
-          <div>
-            <label className="block text-xs font-semibold text-[#7B8EC8] mb-2 tracking-wide">Full Name</label>
-            <div className="flex items-center gap-2.5 border border-white/8 rounded-[12px] px-3.5 bg-[#10143C]">
-              <UserIcon className="w-4 h-4 text-[#4B5693] shrink-0" />
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your full name"
-                className="flex-1 py-3.5 text-[15px] text-white bg-transparent
-                           placeholder:text-[#4B5693] outline-none"
-              />
-            </div>
-          </div>
+          <FieldShell label="Full Name">
+            <UserIcon className="w-4 h-4 text-[#4B5693] shrink-0" />
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your full name"
+              className="flex-1 py-3.5 text-[15px] text-white bg-transparent placeholder:text-[#4B5693] outline-none"
+            />
+          </FieldShell>
 
           {/* Sex */}
           <div>
             <label className="block text-xs font-semibold text-[#7B8EC8] mb-2 tracking-wide">Sex</label>
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setSex('male')}
-                className={`flex-1 py-3.5 rounded-[12px] border text-[15px] font-semibold transition-colors cursor-pointer ${
-                  sex === 'male'
-                    ? 'border-[#2D6BFF] bg-[rgba(45,107,255,0.15)] text-white'
-                    : 'border-white/8 bg-[#10143C] text-[#7B8EC8] hover:border-white/12'
-                }`}
-              >
-                Male
-              </button>
-              <button
-                type="button"
-                onClick={() => setSex('female')}
-                className={`flex-1 py-3.5 rounded-[12px] border text-[15px] font-semibold transition-colors cursor-pointer ${
-                  sex === 'female'
-                    ? 'border-[#2D6BFF] bg-[rgba(45,107,255,0.15)] text-white'
-                    : 'border-white/8 bg-[#10143C] text-[#7B8EC8] hover:border-white/12'
-                }`}
-              >
-                Female
-              </button>
+              <SexButton selected={sex === 'male'} onClick={() => setSex('male')}>Male</SexButton>
+              <SexButton selected={sex === 'female'} onClick={() => setSex('female')}>Female</SexButton>
             </div>
           </div>
 
@@ -186,6 +170,19 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
             />
           </div>
 
+          {/* Contact Number */}
+          <FieldShell label="Contact Number">
+            <Phone className="w-4 h-4 text-[#4B5693] shrink-0" />
+            <input
+              type="tel"
+              inputMode="tel"
+              value={contactNumber}
+              onChange={(e) => setContactNumber(e.target.value)}
+              placeholder="e.g. 09171234567"
+              className="flex-1 py-3.5 text-[15px] text-white bg-transparent placeholder:text-[#4B5693] outline-none"
+            />
+          </FieldShell>
+
           {/* Save Button */}
           <button
             onClick={handleSave}
@@ -197,5 +194,36 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
         </div>
       </div>
     </div>
+  )
+}
+
+function FieldShell({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-[#7B8EC8] mb-2 tracking-wide">{label}</label>
+      <div className="flex items-center gap-2.5 border border-white/8 rounded-[12px] px-3.5 bg-[#10143C]">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function SexButton({
+  selected,
+  onClick,
+  children,
+}: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 py-3.5 rounded-[12px] border text-[15px] font-semibold transition-colors cursor-pointer ${
+        selected
+          ? 'border-[#2D6BFF] bg-[rgba(45,107,255,0.15)] text-white'
+          : 'border-white/8 bg-[#10143C] text-[#7B8EC8] hover:border-white/12'
+      }`}
+    >
+      {children}
+    </button>
   )
 }

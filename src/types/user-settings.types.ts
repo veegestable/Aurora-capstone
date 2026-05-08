@@ -33,6 +33,8 @@ export interface UserSettingsDoc {
   remindersEnabled?: boolean
   /** Notify on session updates. */
   sessionUpdatesEnabled?: boolean
+  /** Counselor preference: master push notifications toggle (Profile → App Preferences). */
+  pushNotificationsEnabled?: boolean
   /**
    * Per-counselor "special population" gate: counselorId → true means that
    * counselor may see this student's full journal detail (notes, sleep, meals,

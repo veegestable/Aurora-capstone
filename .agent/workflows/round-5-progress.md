@@ -115,9 +115,20 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   - Rebuilt `SessionHistory.tsx`: filter chips now cover All / Pending / Confirmed / Reschedule / Completed / Expired / Cancelled / Missed; consumes `location.state.statusFilter` (with bucket→status translation) and `location.state.openSessionId` (auto-opens the detail modal once); session cards are clickable.
   - New `SessionHistoryDetailModal` shows the student profile (avatar + dept/program/year + email), date/time, invite-sent timestamp, session ID, description, and an inline Mark Attendance row (Completed / Missed / Cancel) wired through `updateSessionStatus`.
 
-### [ ] Batch 13 — Counselor Profile cleanup
-- **Touched:**
-- **Notes:**
+### [x] Batch 13 — Counselor Profile cleanup
+- **Touched:** `src/types/user-settings.types.ts`,
+  `src/components/counselor/EditCounselorProfileModal.tsx`,
+  `src/pages/counselor/Profile.tsx`
+- **Deleted:** `src/components/counselor/ProfileStatCard.tsx`,
+  `src/components/counselor/SettingsRow.tsx`
+- **Notes:** Trimmed Counselor Profile to plan §3.5 — removed the Students /
+  Sessions stat row, the Dark Mode toggle, and the unwired Security & Password
+  row; added Contact Number to Personal Details and to `EditCounselorProfileModal`.
+  Push Notifications now persists through `userSettingsService` via the new
+  `pushNotificationsEnabled` field. Page rows switched from the local light-theme
+  `counselor/SettingsRow` to the dark-theme `profile/SettingsRow` and shared
+  `student/ToggleRow`. Open question §3.5 (keep stat row?) is now resolved
+  in favor of "remove".
 
 ### [ ] Batch 14 — Final cleanup sweep
 - **Touched:**
@@ -134,6 +145,8 @@ or substantially reshape something so future batches don't reintroduce it.
 |------------|-------------------------------------------------------|-------------------------------------|
 | 2026-05-07 | `CONTEXT_CATEGORIES` inline tag arrays in `useMoodCheckIn.ts` | Duplicated `SCHOOL_TAGS` / `HEALTH_TAGS` / etc. from `journalTemplates.ts`; consolidated into a single source of truth. |
 | 2026-05-07 | `CLOSED_STATUSES` constant in `StudentSessionsPane.tsx` | Unused — `bucketFor` falls through to `'closed'`. Replaced with an inline comment for intent. |
+| 2026-05-08 | `src/components/counselor/ProfileStatCard.tsx` | Stat row dropped from Counselor Profile per plan §3.5; component had no other consumers. |
+| 2026-05-08 | `src/components/counselor/SettingsRow.tsx` | Light-theme variant; counselor profile now uses the shared dark `profile/SettingsRow.tsx`. |
 
 ---
 
@@ -142,5 +155,5 @@ or substantially reshape something so future batches don't reintroduce it.
 Capture decisions that need confirmation before continuing.
 
 - [ ] Is `src/pages/student/DailySelfie.tsx` still needed once Step 1 owns the selfie flow? (route: `App.tsx:81`)
-- [ ] Should the Counselor Profile keep the STUDENTS / SESSIONS stat row, or remove per plan §3.5?
+- [x] Should the Counselor Profile keep the STUDENTS / SESSIONS stat row, or remove per plan §3.5? — **Removed in Batch 13**.
 - [ ] Reschedule flow: new `services/sessions/put/rescheduleSession.ts` or extend `updateSessionStatus`?
