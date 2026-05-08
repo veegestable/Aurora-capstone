@@ -1,96 +1,88 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Info, Wind, RotateCcw } from 'lucide-react'
-import { zenSoundsService, ZEN_TRACKS, TITLE_OVERRIDES } from '../../services/zen-sounds'
-
-const BREATHING_PHASES = [
-  { name: 'Inhale', instruction: 'Deeply through your nose', duration: 4 },
-  { name: 'Hold', instruction: 'Hold your breath gently', duration: 4 },
-  { name: 'Exhale', instruction: 'Slowly through your mouth', duration: 6 },
-]
-
-const TOTAL_DURATION = 4 * 60 + 52
-
-const AMBIENT_LABELS: Record<string, string> = {
-  Meditation: 'Peaceful Calm',
-  Focus: 'Rain & Focus',
-  Sleep: 'Night Rest',
-}
-const AMBIENT_EMOJI: Record<string, string> = {
-  Meditation: '🌊',
-  Focus: '🌲',
-  Sleep: '🌙',
-}
-
-interface ResourceItem {
-  id: string
-  title: string
-  category: string
-  duration: string
-  type: string
-  image: string
-}
+import { ArrowLeft, Wind, RotateCcw } from 'lucide-react'
+import { zenSoundsService } from '../../services/zen-sounds'
+import {
+  type BreathingExerciseData,
+  getPhaseCycleDurationSeconds,
+} from '../../constants/zen/exercises'
 
 interface BreathingExerciseProps {
-  resource: ResourceItem
-  onBack: () => void
+  exercise: BreathingExerciseData
+  durationSeconds: number
+  sessionLabel?: string
+  onClose: () => void
 }
 
-export function BreathingExercise({ resource, onBack }: BreathingExerciseProps) {
+export function BreathingExercise({
+  exercise,
+  durationSeconds,
+  sessionLabel,
+  onClose,
+}: BreathingExerciseProps) {
   const [isPlaying, setIsPlaying] = useState(true)
   const [phaseIdx, setPhaseIdx] = useState(0)
-  const [totalTime, setTotalTime] = useState(TOTAL_DURATION)
+  const [totalTime, setTotalTime] = useState(durationSeconds)
   const [ambientOn, setAmbientOn] = useState(true)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const currentPhase = BREATHING_PHASES[phaseIdx]
-  const resourceType = resource.type ?? 'Meditation'
+  const currentPhase = exercise.phases[phaseIdx]
+  const cycleSeconds = getPhaseCycleDurationSeconds(exercise)
 
-  // Ambient Audio Logic
   useEffect(() => {
-    if (ambientOn) {
-      if (isPlaying) {
-        // Check for a specific title override first (just like mobile)
-        const track = TITLE_OVERRIDES[resource.title] || 
-                      ZEN_TRACKS.find(t => t.category.toLowerCase() === resourceType.toLowerCase()) || 
-                      ZEN_TRACKS[0]
-        zenSoundsService.play(track)
-      } else {
-        zenSoundsService.pause()
-      }
-    } else {
+    if (!ambientOn) {
       zenSoundsService.stop()
+      return
     }
-  }, [ambientOn, isPlaying, resourceType, resource.title])
+    if (isPlaying) {
+      zenSoundsService.play({
+        id: exercise.id,
+        title: exercise.soundscapeName,
+        url: exercise.soundscapeUrl,
+        volume: exercise.soundscapeVolume,
+      })
+    } else {
+      zenSoundsService.pause()
+    }
+  }, [ambientOn, isPlaying, exercise])
 
-  // Cleanup audio when user leaves the breathing exercise
-  useEffect(() => {
-    return () => zenSoundsService.stop()
-  }, [])
+  useEffect(() => () => zenSoundsService.stop(), [])
 
   useEffect(() => {
     if (!isPlaying) return
     intervalRef.current = setInterval(() => {
-      setTotalTime(prev => Math.max(0, prev - 1))
+      setTotalTime(prev => {
+        if (prev <= 1) {
+          setIsPlaying(false)
+          return 0
+        }
+        return prev - 1
+      })
     }, 1000)
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
   }, [isPlaying])
 
   useEffect(() => {
     if (!isPlaying) return
+    const ms = Math.max(0, currentPhase?.seconds ?? 0) * 1000
     const timeout = setTimeout(() => {
-      setPhaseIdx(i => (i + 1) % BREATHING_PHASES.length)
-    }, currentPhase.duration * 1000)
+      setPhaseIdx(i => (i + 1) % exercise.phases.length)
+    }, ms)
     return () => clearTimeout(timeout)
-  }, [phaseIdx, isPlaying, currentPhase.duration])
+  }, [phaseIdx, isPlaying, currentPhase, exercise.phases.length])
 
   const reset = () => {
     setIsPlaying(false)
     setPhaseIdx(0)
-    setTotalTime(TOTAL_DURATION)
+    setTotalTime(durationSeconds)
     setTimeout(() => setIsPlaying(true), 100)
   }
 
-  const circleScale = phaseIdx === 0 ? 1.15 : phaseIdx === 2 ? 0.88 : 1
+  const circleScale =
+    currentPhase?.type === 'inhale' ? 1.15
+      : currentPhase?.type === 'exhale' ? 0.88
+      : 1
   const minutes = Math.floor(totalTime / 60).toString().padStart(2, '0')
   const seconds = (totalTime % 60).toString().padStart(2, '0')
 
@@ -99,19 +91,19 @@ export function BreathingExercise({ resource, onBack }: BreathingExerciseProps) 
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
-          onClick={onBack}
+          onClick={onClose}
           className="p-1 cursor-pointer hover:opacity-70 transition-opacity"
           aria-label="Go back"
         >
           <ArrowLeft className="w-5.5 h-5.5 text-aurora-primary-dark" />
         </button>
         <div className="text-center">
-          <p className="text-lg font-bold text-aurora-primary-dark">Breathing Space</p>
-          <p className="text-[11px] tracking-widest text-aurora-gray-500 uppercase">Aurora Mindfulness</p>
+          <p className="text-lg font-bold text-aurora-primary-dark">{exercise.name}</p>
+          <p className="text-[11px] tracking-widest text-aurora-gray-500 uppercase">
+            {sessionLabel ?? 'Aurora Mindfulness'}
+          </p>
         </div>
-        <button className="p-1 cursor-pointer hover:opacity-70 transition-opacity" aria-label="Info">
-          <Info className="w-5.5 h-5.5 text-aurora-gray-400" />
-        </button>
+        <div className="w-7" />
       </div>
 
       {/* Timer */}
@@ -147,47 +139,54 @@ export function BreathingExercise({ resource, onBack }: BreathingExerciseProps) 
                          flex items-center justify-center shadow-aurora-lg"
               style={{
                 transform: `scale(${isPlaying ? circleScale : 1})`,
-                transition: `transform ${currentPhase.duration}s ease-in-out`,
+                transition: `transform ${currentPhase?.seconds ?? 1}s ease-in-out`,
               }}
             >
               <Wind className="w-10 h-10 text-white" />
             </div>
           </div>
         </div>
-        <div className="mt-2 w-1.5 h-1.5 rounded-full bg-aurora-gray-400/30" />
       </div>
 
       {/* Phase Text */}
       <div className="text-center">
-        <p className="text-4xl font-extrabold text-aurora-primary-dark mb-2">{currentPhase.name}</p>
-        <p className="text-sm text-aurora-gray-500">{currentPhase.instruction}</p>
+        <p className="text-4xl font-extrabold text-aurora-primary-dark mb-2">
+          {currentPhase?.label ?? '—'}
+        </p>
+        <p className="text-sm text-aurora-gray-500">{currentPhase?.instruction ?? ''}</p>
       </div>
 
-      {/* Phase Tabs */}
-      <div className="card-aurora p-1! flex">
-        {BREATHING_PHASES.map((p, i) => (
+      {/* Phase Tabs (dynamic to exercise.phases) */}
+      <div className="card-aurora p-1! flex gap-1">
+        {exercise.phases.map((p, i) => (
           <button
-            key={p.name}
-            onClick={() => { setPhaseIdx(i) }}
+            key={p.id}
+            onClick={() => setPhaseIdx(i)}
             className={`flex-1 py-2.5 rounded-xl text-[13px] text-center transition-colors cursor-pointer ${
               phaseIdx === i
                 ? 'bg-aurora-secondary-blue text-white font-bold'
                 : 'text-aurora-gray-500 hover:text-aurora-primary-dark'
             }`}
           >
-            {p.name}
+            {p.label}
           </button>
         ))}
       </div>
 
+      {/* Pattern caption */}
+      <p className="text-xs text-aurora-gray-500 text-center">
+        Pattern: {exercise.phases.map(p => `${p.label} ${p.seconds}s`).join(' • ')}
+        <span className="opacity-60"> · {Math.round(cycleSeconds)}s per cycle</span>
+      </p>
+
       {/* Ambient Sound Card */}
       <div className="card-aurora flex items-center gap-3">
         <div className="w-[42px] h-[42px] rounded-[10px] bg-aurora-secondary-blue/20 flex items-center justify-center shrink-0">
-          <span className="text-xl">{AMBIENT_EMOJI[resourceType] ?? '🌲'}</span>
+          <Wind className="w-5 h-5 text-[#9EC2FF]" />
         </div>
-        <div className="flex-1">
-          <p className="text-sm font-bold text-aurora-primary-dark">
-            {AMBIENT_LABELS[resourceType] ?? 'Peaceful Forest'}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-aurora-primary-dark truncate">
+            {exercise.soundscapeName}
           </p>
           <p className="text-xs text-aurora-gray-500">
             {ambientOn ? 'Ambient sound active' : 'Ambient sound off'}
@@ -213,11 +212,17 @@ export function BreathingExercise({ resource, onBack }: BreathingExerciseProps) 
       {/* Controls */}
       <div className="flex gap-3">
         <button
-          onClick={() => setIsPlaying(p => !p)}
+          onClick={() => {
+            if (!isPlaying && totalTime === 0) {
+              setTotalTime(durationSeconds)
+              setPhaseIdx(0)
+            }
+            setIsPlaying(p => !p)
+          }}
           className="flex-1 bg-aurora-secondary-blue text-white text-lg font-extrabold
                      rounded-2xl py-4.5 hover:bg-aurora-secondary-dark-blue transition-colors cursor-pointer"
         >
-          {isPlaying ? 'Pause' : 'Resume'}
+          {isPlaying ? 'Pause' : totalTime === 0 ? 'Restart' : 'Resume'}
         </button>
         <button
           onClick={reset}

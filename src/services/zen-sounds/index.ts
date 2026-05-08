@@ -1,29 +1,35 @@
-import { type Track } from './types'
+import type { Track } from './types'
 export * from './types'
 
 class ZenSoundsService {
   private audio: HTMLAudioElement | null = null
   private currentTrack: Track | null = null
-  private volume: number = 0.5
+  private volume = 0.5
 
   play(track: Track) {
-    // Resume current track
     if (this.currentTrack?.id === track.id && this.audio) {
-      this.audio.play().catch(e => console.warn("Audio playback failed:", e))
+      this.audio.play().catch(e => console.warn('Audio playback failed:', e))
       return
     }
-    
-    // Switch to new track
+
     this.stop()
     this.currentTrack = track
     this.audio = new Audio(track.url)
     this.audio.loop = true
-    this.audio.volume = this.volume
-    this.audio.play().catch(e => console.warn("Audio playback failed (make sure files exist in public/sounds/):", e))
+    this.audio.volume = track.volume ?? this.volume
+    this.audio.play().catch(e =>
+      console.warn('Audio playback failed (check the URL or autoplay policy):', e),
+    )
   }
 
   pause() {
     if (this.audio) this.audio.pause()
+  }
+
+  resume() {
+    if (this.audio) {
+      this.audio.play().catch(e => console.warn('Audio resume failed:', e))
+    }
   }
 
   stop() {

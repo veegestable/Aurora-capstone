@@ -79,9 +79,12 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   fixed from /10 to /5. Photo opens in a lightbox. `getDurationCategoryLabel`
   promoted from `MoodCheckIn.tsx` to `journalTemplates.ts` (single source of truth).
 
-### [ ] Batch 8 — Student Resources → Zen
-- **Touched:**
-- **Notes:**
+- [x] Batch 8 — Student Resources → Zen rebuild
+  - Added `src/constants/zen/exercises.ts` with `BREATHING_EXERCISES`, `DURATION_OPTIONS_MINUTES`, and phase/cycle helpers ported from mobile `breathing-data.ts` (web-safe, no `require()` assets).
+  - Slimmed `src/services/zen-sounds/types.ts` to a minimal `Track` and rewired `zen-sounds/index.ts` to honor per-track volume.
+  - Rewrote `src/pages/student/Resources.tsx` as the Zen page (heading + duration picker + exercise cards). Removed `MOCK_RESOURCES`, search bar, and category tabs.
+  - Rewrote `src/components/student/BreathingExercise.tsx` to drive phases, audio, and timer from the new exercise data; auto-pauses when the session timer ends.
+  - Deleted `src/components/student/ResourceCard.tsx` (no longer referenced).
 
 ### [ ] Batch 9 — Student Profile (Account Settings, Privacy, Reminders)
 - **Touched:**
