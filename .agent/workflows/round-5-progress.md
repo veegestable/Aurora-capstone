@@ -79,16 +79,20 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   fixed from /10 to /5. Photo opens in a lightbox. `getDurationCategoryLabel`
   promoted from `MoodCheckIn.tsx` to `journalTemplates.ts` (single source of truth).
 
-- [x] Batch 8 — Student Resources → Zen rebuild
+### [x] Batch 8 — Student Resources → Zen rebuild
   - Added `src/constants/zen/exercises.ts` with `BREATHING_EXERCISES`, `DURATION_OPTIONS_MINUTES`, and phase/cycle helpers ported from mobile `breathing-data.ts` (web-safe, no `require()` assets).
   - Slimmed `src/services/zen-sounds/types.ts` to a minimal `Track` and rewired `zen-sounds/index.ts` to honor per-track volume.
   - Rewrote `src/pages/student/Resources.tsx` as the Zen page (heading + duration picker + exercise cards). Removed `MOCK_RESOURCES`, search bar, and category tabs.
   - Rewrote `src/components/student/BreathingExercise.tsx` to drive phases, audio, and timer from the new exercise data; auto-pauses when the session timer ends.
   - Deleted `src/components/student/ResourceCard.tsx` (no longer referenced).
 
-### [ ] Batch 9 — Student Profile (Account Settings, Privacy, Reminders)
-- **Touched:**
-- **Notes:**
+### [x] Batch 9 — Student Profile (Account Settings, Privacy, Reminders)
+  - Added `src/constants/student/programs.ts` (CCS / degree options + helpers ported from mobile).
+  - Extended `User`, `UserProfile`, and `UpdateProfileData` with `program` and `contact_number`; `AuthContext.convertUserProfile` now passes them through.
+  - Reworked `PrivacyRow` to be expandable (preview ↔ description with chevron) and `ToggleRow` to support `disabled` + `statusBadge`.
+  - Added `SettingsRow` (chevron tap row), `TimePickerModal` (shared bath / wake / reminder picker), and `MealScheduleModal` (count + per-meal time inputs).
+  - Rebuilt `EditProfileModal` to mobile parity: program dropdown, contact number, fixed-CCS department, mobile-style validation, dark theme.
+  - Rewrote `Profile.tsx` into Account Settings → Personal Details → Privacy Transparency (expandable) → App Preferences (Session updates / Daily Reminders / Reminder time) → Logout, driven by `useUserDaySettings()` for live persistence.
 
 ### [ ] Batch 10 — Counselor Dashboard restructure
 - **Touched:**
