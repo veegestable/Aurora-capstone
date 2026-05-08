@@ -3,6 +3,14 @@ export interface StudentInfo {
   full_name: string
   email: string
   role: string
+  /** Optional CCS program code (e.g. 'cs_dgs', 'it_st'). Set by `getStudents` / `getAccessibleStudents`. */
+  program?: string
+  /** Optional year level (e.g. '1st', '2nd'). Set by `getStudents` / `getAccessibleStudents`. */
+  yearLevel?: string
+  /** Department name when available (legacy / mixed schemas). */
+  department?: string
+  /** Cover photo / profile picture URL when available. */
+  avatar_url?: string
 }
 
 export interface MoodLogResponse {

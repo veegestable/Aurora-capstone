@@ -99,8 +99,6 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   - Rewrote `src/pages/CounselorDashboard.tsx` to the 3-section layout (Dashboard Overview, Students, Announcements) with the calendar-clock icon next to the welcome line; reused `AnnouncementBanner` + `AnnouncementFormModal` (Add Announcement) and removed the legacy Recent Flags / Unread Messages / Pending Session lists.
   - Counselor signal logic and check-in context service now live only on the Students Directory page, where they belong.
 
-- [ ] (deferred to Batch 12) `SessionHistory.tsx` consumes `location.state.statusFilter` / `openSessionId` and gains the matching filter chips for Pending / Confirmed / Expired / Reschedule.
-
 ### [x] Batch 11 — Counselor Student Profile (full info + Special Population gate)
   - Added `userSettings.counselorJournalAccess` (per-counselor boolean) on `UserSettingsDoc`, plus `userSettingsService.grantJournalAccessToCounselor` helper.
   - Auto-grant wired in `createSessionRequest` (student → counselor request) and `studentConfirmFinalSlot` (student accepts counselor's slot) so a student joining a counselor's special population is fully implicit.
@@ -109,9 +107,13 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   - `MoodLogEntry` and `JournalCalendar` accept a new `privacyMode: 'full' | 'baseline'` prop; in baseline mode the expanded view collapses to a "Notes / wellness / photo unlock when in your special population" hint.
   - Rewrote `src/pages/counselor/CounselorStudentDetail.tsx`: Firestore-backed profile card (avatar, name, dept/program/year, email, contact), Invite to Session button, Special Population vs Mood-only card with explainer modal, `CounselorLast7MoodBars` only when granted, `JournalCalendar` with the right privacy mode.
 
-### [ ] Batch 12 — Counselor Messages (Write Message, DM session card, Reschedule)
-- **Touched:**
-- **Notes:**
+### [x] Batch 12 — Counselor Messages (Write Message FAB, DM session card, Reschedule, Session History `location.state` consumption)
+  - `ChatBubble` now branches on `viewerRole`: counselors see a gradient session card with status pill, confirmation hint, View Details, and Reschedule buttons; students keep the existing radio-list confirm flow. `rescheduled` is now a settled status everywhere.
+  - New `SessionChatDetailsModal` opens from "View Details" in chat (status pill, title, confirmed/proposed slots, note).
+  - "Reschedule" marks the existing session as `rescheduled` via `updateSessionStatus` and opens the existing `SendSessionInviteModal` so the counselor can propose new slots — answering the open question by going with `updateSessionStatus` instead of a dedicated reschedule service.
+  - New `SelectStudentForChatModal` + Write Message FAB on `/counselor/messages` lets a counselor start (or jump back into) a conversation with any student via `messagesService.createConversation`.
+  - Rebuilt `SessionHistory.tsx`: filter chips now cover All / Pending / Confirmed / Reschedule / Completed / Expired / Cancelled / Missed; consumes `location.state.statusFilter` (with bucket→status translation) and `location.state.openSessionId` (auto-opens the detail modal once); session cards are clickable.
+  - New `SessionHistoryDetailModal` shows the student profile (avatar + dept/program/year + email), date/time, invite-sent timestamp, session ID, description, and an inline Mark Attendance row (Completed / Missed / Cancel) wired through `updateSessionStatus`.
 
 ### [ ] Batch 13 — Counselor Profile cleanup
 - **Touched:**
