@@ -83,10 +83,17 @@ function StatTile({ icon, label, value }: StatTileProps) {
   )
 }
 
-export function MoodLogEntry({ entry }: { entry: MoodLogEntryRow }) {
+export function MoodLogEntry({
+  entry,
+  privacyMode = 'full',
+}: {
+  entry: MoodLogEntryRow
+  privacyMode?: 'full' | 'baseline'
+}) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
 
+  const isBaseline = privacyMode === 'baseline'
   const primaryEmotion = entry.mood?.toLowerCase() || 'neutral'
   const emotionLabel = primaryEmotion.charAt(0).toUpperCase() + primaryEmotion.slice(1)
   const bgClass = EMOTION_BG[primaryEmotion] || 'bg-gray-700/30'
@@ -96,14 +103,16 @@ export function MoodLogEntry({ entry }: { entry: MoodLogEntryRow }) {
 
   const entryDate = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp)
   const durationMin = entry.durationMinutes ?? 0
-  const hasDuration = durationMin > 0
-  const hasBath = typeof entry.bathTaken === 'boolean'
-  const meals = entry.mealResponses ?? []
+  const hasDuration = !isBaseline && durationMin > 0
+  const hasBath = !isBaseline && typeof entry.bathTaken === 'boolean'
+  const meals = isBaseline ? [] : (entry.mealResponses ?? [])
   const hasMeals = meals.length > 0
-  const hasPhoto = !!entry.journalImageUrl
+  const hasPhoto = !isBaseline && !!entry.journalImageUrl
   const hasAcademicInsight =
-    !!entry.eventCategories?.includes('school') ||
-    !!entry.eventTags?.some((t) => (SCHOOL_TAGS as readonly string[]).includes(t))
+    !isBaseline && (
+      !!entry.eventCategories?.includes('school') ||
+      !!entry.eventTags?.some((t) => (SCHOOL_TAGS as readonly string[]).includes(t))
+    )
   const schoolTagCount = (entry.eventTags ?? []).filter(
     (t) => (SCHOOL_TAGS as readonly string[]).includes(t),
   ).length
@@ -140,175 +149,185 @@ export function MoodLogEntry({ entry }: { entry: MoodLogEntryRow }) {
 
       {/* Expanded Details */}
       {isExpanded && (
-        <div className="px-4 pb-4 border-t border-white/5 pt-4 bg-white/2 space-y-4">
-
-          {/* Vitals row 1: Stress / Energy / Sleep */}
-          <div className="grid grid-cols-3 gap-3">
-            <StatTile
-              icon={<Brain className="w-4 h-4 text-orange-400" />}
-              label="Stress"
-              value={`${entry.stress}/5`}
-            />
-            <StatTile
-              icon={<Battery className="w-4 h-4 text-emerald-400" />}
-              label="Energy"
-              value={`${entry.energy}/5`}
-            />
-            <StatTile
-              icon={<Moon className="w-4 h-4 text-blue-400" />}
-              label="Sleep"
-              value={entry.sleepQuality || 'N/A'}
-            />
+        isBaseline ? (
+          <div className="px-4 pb-4 border-t border-white/5 pt-4 bg-white/2">
+            <p className="text-xs text-aurora-text-muted leading-relaxed">
+              You can only see this student's mood label, time, and intensity.
+              Notes, wellness fields, meals, and photos unlock when this student
+              is in your special population.
+            </p>
           </div>
+        ) : (
+          <div className="px-4 pb-4 border-t border-white/5 pt-4 bg-white/2 space-y-4">
 
-          {/* Vitals row 2: Duration / Bath (only when at least one is set) */}
-          {(hasDuration || hasBath) && (
-            <div className="grid grid-cols-2 gap-3">
-              {hasDuration && (
-                <StatTile
-                  icon={<Clock3 className="w-4 h-4 text-aurora-blue" />}
-                  label="Mood Duration"
-                  value={
-                    <span>
-                      {durationMin}m
-                      <span className="block text-[10px] font-medium text-aurora-text-muted normal-case mt-0.5">
-                        {getDurationCategoryLabel(durationMin)}
+            {/* Vitals row 1: Stress / Energy / Sleep */}
+            <div className="grid grid-cols-3 gap-3">
+              <StatTile
+                icon={<Brain className="w-4 h-4 text-orange-400" />}
+                label="Stress"
+                value={`${entry.stress}/5`}
+              />
+              <StatTile
+                icon={<Battery className="w-4 h-4 text-emerald-400" />}
+                label="Energy"
+                value={`${entry.energy}/5`}
+              />
+              <StatTile
+                icon={<Moon className="w-4 h-4 text-blue-400" />}
+                label="Sleep"
+                value={entry.sleepQuality || 'N/A'}
+              />
+            </div>
+
+            {/* Vitals row 2: Duration / Bath (only when at least one is set) */}
+            {(hasDuration || hasBath) && (
+              <div className="grid grid-cols-2 gap-3">
+                {hasDuration && (
+                  <StatTile
+                    icon={<Clock3 className="w-4 h-4 text-aurora-blue" />}
+                    label="Mood Duration"
+                    value={
+                      <span>
+                        {durationMin}m
+                        <span className="block text-[10px] font-medium text-aurora-text-muted normal-case mt-0.5">
+                          {getDurationCategoryLabel(durationMin)}
+                        </span>
                       </span>
-                    </span>
-                  }
-                />
-              )}
-              {hasBath && (
-                <StatTile
-                  icon={<Droplets className="w-4 h-4 text-aurora-blue" />}
-                  label="Bath"
-                  value={entry.bathTaken ? 'Taken' : 'Skipped'}
-                />
-              )}
-            </div>
-          )}
-
-          {/* Meals */}
-          {hasMeals && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <UtensilsCrossed className="w-3.5 h-3.5 text-aurora-amber" />
-                <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase">
-                  Meals
-                </p>
+                    }
+                  />
+                )}
+                {hasBath && (
+                  <StatTile
+                    icon={<Droplets className="w-4 h-4 text-aurora-blue" />}
+                    label="Bath"
+                    value={entry.bathTaken ? 'Taken' : 'Skipped'}
+                  />
+                )}
               </div>
-              <div className="space-y-1.5">
-                {meals.map((m) => (
-                  <div
-                    key={m.mealId}
-                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-aurora-bg/50 border border-white/5"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-white truncate">{m.mealLabel}</p>
-                      <p className="text-[11px] text-aurora-text-muted">Around {m.mealTime}</p>
-                    </div>
-                    <span
-                      className={`text-[10px] font-extrabold tracking-wider uppercase px-2 py-1 rounded-md border shrink-0 ${m.taken ? 'bg-aurora-green/15 border-aurora-green/40 text-aurora-green' : 'bg-aurora-red/15 border-aurora-red/40 text-aurora-red'}`}
+            )}
+
+            {/* Meals */}
+            {hasMeals && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <UtensilsCrossed className="w-3.5 h-3.5 text-aurora-amber" />
+                  <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase">
+                    Meals
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  {meals.map((m) => (
+                    <div
+                      key={m.mealId}
+                      className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-aurora-bg/50 border border-white/5"
                     >
-                      {m.taken ? 'Taken' : 'Missed'}
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white truncate">{m.mealLabel}</p>
+                        <p className="text-[11px] text-aurora-text-muted">Around {m.mealTime}</p>
+                      </div>
+                      <span
+                        className={`text-[10px] font-extrabold tracking-wider uppercase px-2 py-1 rounded-md border shrink-0 ${m.taken ? 'bg-aurora-green/15 border-aurora-green/40 text-aurora-green' : 'bg-aurora-red/15 border-aurora-red/40 text-aurora-red'}`}
+                      >
+                        {m.taken ? 'Taken' : 'Missed'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Context (categories + tags) */}
+            {(entry.eventCategories?.length || entry.eventTags?.length) ? (
+              <div>
+                <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
+                  Context
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {entry.eventCategories?.map((cat) => (
+                    <span
+                      key={cat}
+                      className="px-2.5 py-1 rounded-full bg-aurora-blue/20 text-aurora-blue text-xs font-semibold border border-aurora-blue/30 capitalize"
+                    >
+                      {cat}
                     </span>
-                  </div>
-                ))}
+                  ))}
+                  {entry.eventTags?.map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-2.5 py-1 rounded-full bg-white/10 text-aurora-text-sec text-xs border border-white/10"
+                    >
+                      {tag.replace('-', ' ')}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            ) : null}
 
-          {/* Context (categories + tags) */}
-          {(entry.eventCategories?.length || entry.eventTags?.length) ? (
-            <div>
-              <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
-                Context
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {entry.eventCategories?.map((cat) => (
-                  <span
-                    key={cat}
-                    className="px-2.5 py-1 rounded-full bg-aurora-blue/20 text-aurora-blue text-xs font-semibold border border-aurora-blue/30 capitalize"
-                  >
-                    {cat}
-                  </span>
-                ))}
-                {entry.eventTags?.map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-2.5 py-1 rounded-full bg-white/10 text-aurora-text-sec text-xs border border-white/10"
-                  >
-                    {tag.replace('-', ' ')}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {/* Journal Note */}
-          {entry.notes && (
-            <div>
-              <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
-                Journal Note
-              </p>
-              <div className="p-3 bg-aurora-bg/50 rounded-lg border-l-4 border-aurora-purple/50 text-sm text-aurora-text-sec leading-relaxed">
-                {entry.notes}
-              </div>
-              {entry.journalSource && (
-                <p className="text-[10px] text-aurora-text-muted mt-1.5 italic">
-                  {entry.journalSource === 'manual' ? 'Edited by you' : 'Auto-drafted from selections'}
+            {/* Journal Note */}
+            {entry.notes && (
+              <div>
+                <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
+                  Journal Note
                 </p>
-              )}
-            </div>
-          )}
-
-          {/* Photo */}
-          {hasPhoto && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <ImageIcon className="w-3.5 h-3.5 text-aurora-text-sec" />
-                <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase">
-                  Photo
-                </p>
+                <div className="p-3 bg-aurora-bg/50 rounded-lg border-l-4 border-aurora-purple/50 text-sm text-aurora-text-sec leading-relaxed">
+                  {entry.notes}
+                </div>
+                {entry.journalSource && (
+                  <p className="text-[10px] text-aurora-text-muted mt-1.5 italic">
+                    {entry.journalSource === 'manual' ? 'Edited by you' : 'Auto-drafted from selections'}
+                  </p>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => setPhotoOpen(true)}
-                className="block w-full rounded-2xl overflow-hidden border border-white/10 bg-aurora-bg/50 cursor-pointer hover:border-white/20 transition-colors"
-                aria-label="Open photo"
-              >
-                <img
-                  src={entry.journalImageUrl}
-                  alt="Mood log attachment"
-                  loading="lazy"
-                  className="w-full h-44 object-cover"
-                />
-              </button>
-            </div>
-          )}
+            )}
 
-          {/* Academic Insight */}
-          {hasAcademicInsight && (
-            <div className="rounded-2xl border border-aurora-blue/30 bg-aurora-blue/8 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <GraduationCap className="w-4 h-4 text-aurora-blue" />
-                <p className="text-[10px] font-bold tracking-widest text-aurora-blue uppercase">
-                  Academic insight
+            {/* Photo */}
+            {hasPhoto && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <ImageIcon className="w-3.5 h-3.5 text-aurora-text-sec" />
+                  <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase">
+                    Photo
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPhotoOpen(true)}
+                  className="block w-full rounded-2xl overflow-hidden border border-white/10 bg-aurora-bg/50 cursor-pointer hover:border-white/20 transition-colors"
+                  aria-label="Open photo"
+                >
+                  <img
+                    src={entry.journalImageUrl}
+                    alt="Mood log attachment"
+                    loading="lazy"
+                    className="w-full h-44 object-cover"
+                  />
+                </button>
+              </div>
+            )}
+
+            {/* Academic Insight */}
+            {hasAcademicInsight && (
+              <div className="rounded-2xl border border-aurora-blue/30 bg-aurora-blue/8 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <GraduationCap className="w-4 h-4 text-aurora-blue" />
+                  <p className="text-[10px] font-bold tracking-widest text-aurora-blue uppercase">
+                    Academic insight
+                  </p>
+                </div>
+                <p className="text-sm font-extrabold text-white">
+                  {getSchoolWorkloadBand(schoolTagCount)}
+                </p>
+                <p className="text-xs text-aurora-text-sec mt-0.5">
+                  {getSchoolWorkloadCaption(schoolTagCount)}
+                </p>
+                <p className="text-[10px] text-aurora-text-muted mt-2 leading-relaxed">
+                  A read of how heavy school looked when you logged this entry. Self-report only — not a grade.
                 </p>
               </div>
-              <p className="text-sm font-extrabold text-white">
-                {getSchoolWorkloadBand(schoolTagCount)}
-              </p>
-              <p className="text-xs text-aurora-text-sec mt-0.5">
-                {getSchoolWorkloadCaption(schoolTagCount)}
-              </p>
-              <p className="text-[10px] text-aurora-text-muted mt-2 leading-relaxed">
-                A read of how heavy school looked when you logged this entry. Self-report only — not a grade.
-              </p>
-            </div>
-          )}
+            )}
 
-        </div>
+          </div>
+        )
       )}
 
       {/* Photo lightbox */}

@@ -1,5 +1,6 @@
 import { collection, addDoc, doc, getDoc, updateDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
+import { grantJournalAccessToCounselor } from '../../user-settings/put/grantJournalAccessToCounselor'
 
 interface CreateSessionRequestParams {
   studentId: string
@@ -37,6 +38,10 @@ export async function createSessionRequest(params: CreateSessionRequestParams): 
 
   const sessionRef = await addDoc(collection(db, 'sessions'), sessionDoc)
   const sessionId = sessionRef.id
+
+  // Special Population: a student's request to this counselor automatically
+  // grants the counselor journal access for that student's check-ins.
+  await grantJournalAccessToCounselor(studentId, counselorId)
 
   const conversationId = `${counselorId}_${studentId}`
   const convRef = doc(db, 'conversations', conversationId)

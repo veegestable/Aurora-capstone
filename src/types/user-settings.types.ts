@@ -33,6 +33,14 @@ export interface UserSettingsDoc {
   remindersEnabled?: boolean
   /** Notify on session updates. */
   sessionUpdatesEnabled?: boolean
+  /**
+   * Per-counselor "special population" gate: counselorId → true means that
+   * counselor may see this student's full journal detail (notes, sleep, meals,
+   * photos, etc.). Granted automatically when the student creates a session
+   * request to the counselor, or accepts a counselor-proposed time. No in-app
+   * revoke yet.
+   */
+  counselorJournalAccess?: Record<string, boolean>
   createdAt?: string
   updatedAt?: string
 }

@@ -39,9 +39,14 @@ function toLocalDateStr(date: Date): string {
 export type JournalCalendarProps = {
   /** When set (e.g. counselor view), loads this user's mood logs instead of the signed-in student. */
   forUserId?: string
+  /** When 'baseline', day-detail entries hide notes / wellness / photo / context. Default 'full'. */
+  privacyMode?: 'full' | 'baseline'
 }
 
-export function JournalCalendar({ forUserId }: JournalCalendarProps = {}) {
+export function JournalCalendar({
+  forUserId,
+  privacyMode = 'full',
+}: JournalCalendarProps = {}) {
   const { user } = useAuth()
   const targetUserId = forUserId ?? user?.id
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -228,7 +233,7 @@ export function JournalCalendar({ forUserId }: JournalCalendarProps = {}) {
           {selectedDay.moods.length > 0 ? (
             <div className="space-y-3">
               {selectedDay.moods.map((entry, i) => (
-                <MoodLogEntry key={i} entry={entry} />
+                <MoodLogEntry key={i} entry={entry} privacyMode={privacyMode} />
               ))}
             </div>
           ) : (

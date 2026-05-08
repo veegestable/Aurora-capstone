@@ -101,9 +101,13 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 
 - [ ] (deferred to Batch 12) `SessionHistory.tsx` consumes `location.state.statusFilter` / `openSessionId` and gains the matching filter chips for Pending / Confirmed / Expired / Reschedule.
 
-### [ ] Batch 11 — Counselor Student Profile (full info + day detail + Special Population)
-- **Touched:**
-- **Notes:**
+### [x] Batch 11 — Counselor Student Profile (full info + Special Population gate)
+  - Added `userSettings.counselorJournalAccess` (per-counselor boolean) on `UserSettingsDoc`, plus `userSettingsService.grantJournalAccessToCounselor` helper.
+  - Auto-grant wired in `createSessionRequest` (student → counselor request) and `studentConfirmFinalSlot` (student accepts counselor's slot) so a student joining a counselor's special population is fully implicit.
+  - New `counselorCheckInContextService.fetchStudentCounselorDetailedContext` sanitizes the 7-day mood window for counselors without journal access (mood label / time / intensity only), and reports the gate boolean.
+  - New `sessionsService.getSessionOutcomeCountsForCounselorStudent` for the Special Population card's Completed / Missed tiles.
+  - `MoodLogEntry` and `JournalCalendar` accept a new `privacyMode: 'full' | 'baseline'` prop; in baseline mode the expanded view collapses to a "Notes / wellness / photo unlock when in your special population" hint.
+  - Rewrote `src/pages/counselor/CounselorStudentDetail.tsx`: Firestore-backed profile card (avatar, name, dept/program/year, email, contact), Invite to Session button, Special Population vs Mood-only card with explainer modal, `CounselorLast7MoodBars` only when granted, `JournalCalendar` with the right privacy mode.
 
 ### [ ] Batch 12 — Counselor Messages (Write Message, DM session card, Reschedule)
 - **Touched:**
