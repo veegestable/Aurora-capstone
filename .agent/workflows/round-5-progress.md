@@ -70,9 +70,14 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   sessions modal with a Go to Messages shortcut. Today's Stability card gains a `?`
   icon that opens a centered explainer modal.
 
-### [ ] Batch 7 — Student Journal entry detail enrichment
-- **Touched:**
-- **Notes:**
+### [x] Batch 7 — Student Journal entry detail enrichment
+- **Touched:** `src/constants/mood/journalTemplates.ts`,
+  `src/components/MoodCheckIn.tsx`,
+  `src/components/journal/MoodLogEntry.tsx`
+- **Notes:** Mood log detail now shows Mood Duration, Bath, Meals, Photo, and an
+  Academic Insight pill alongside the existing context. Stress/Energy display
+  fixed from /10 to /5. Photo opens in a lightbox. `getDurationCategoryLabel`
+  promoted from `MoodCheckIn.tsx` to `journalTemplates.ts` (single source of truth).
 
 ### [ ] Batch 8 — Student Resources → Zen
 - **Touched:**

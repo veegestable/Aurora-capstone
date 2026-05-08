@@ -166,3 +166,15 @@ export function getOverallPressureLabel(totalTags: number): 'Light' | 'Steady' |
   if (totalTags <= 6) return 'Heavy'
   return 'Intense'
 }
+
+/**
+ * Friendly category label for a mood duration in minutes.
+ * Mirrors the mobile copy at `mobile/src/components/MoodCheckIn.tsx:1050`.
+ */
+export function getDurationCategoryLabel(minutes: number): string {
+  if (minutes < 15) return 'Just a moment'
+  if (minutes <= 60) return 'About an hour'
+  if (minutes <= 180) return 'A few hours'
+  if (minutes <= 480) return 'Most of the day'
+  return 'All day / Ongoing'
+}

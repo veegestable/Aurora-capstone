@@ -14,7 +14,11 @@ import { useMoodCheckIn, CONTEXT_CATEGORIES } from '../hooks/useMoodCheckIn'
 import type { SleepQuality } from '../services/mood/types'
 import { moodService } from '../services/mood'
 import { computeStreak } from '../utils/analytics'
-import { getSchoolWorkloadBand, getSchoolWorkloadCaption } from '../constants/mood/journalTemplates'
+import {
+  getSchoolWorkloadBand,
+  getSchoolWorkloadCaption,
+  getDurationCategoryLabel,
+} from '../constants/mood/journalTemplates'
 import { MoodIcon } from './student/MoodIcon'
 import { QuickResetBreathing } from './student/QuickResetBreathing'
 
@@ -72,14 +76,6 @@ const HINTS: Record<Exclude<HintKey, null>, { title: string; body: string }> = {
     title: 'Photo attachment',
     body: 'Optional. Add a photo that captures something from your day — a place, an object, a moment. Stored privately with this check-in.',
   },
-}
-
-function getDurationCategoryLabel(minutes: number): string {
-  if (minutes < 15) return 'Just a moment'
-  if (minutes <= 60) return 'About an hour'
-  if (minutes <= 180) return 'A few hours'
-  if (minutes <= 480) return 'Most of the day'
-  return 'All day / Ongoing'
 }
 
 interface HintButtonProps {
