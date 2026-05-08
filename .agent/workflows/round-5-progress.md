@@ -94,9 +94,12 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
   - Rebuilt `EditProfileModal` to mobile parity: program dropdown, contact number, fixed-CCS department, mobile-style validation, dark theme.
   - Rewrote `Profile.tsx` into Account Settings → Personal Details → Privacy Transparency (expandable) → App Preferences (Session updates / Daily Reminders / Reminder time) → Logout, driven by `useUserDaySettings()` for live persistence.
 
-### [ ] Batch 10 — Counselor Dashboard restructure
-- **Touched:**
-- **Notes:**
+### [x] Batch 10 — Counselor Dashboard restructure
+  - Added `src/components/counselor/CounselorSessionsPane.tsx` (CalendarClock pane that loads counselor sessions + student names, splits them into Pending / Upcoming / Reschedule / Completed / Expired / Closed, and routes chip taps to `/counselor/session-history` with `state.openSessionId` + `state.statusFilter` for the upcoming detail panel).
+  - Rewrote `src/pages/CounselorDashboard.tsx` to the 3-section layout (Dashboard Overview, Students, Announcements) with the calendar-clock icon next to the welcome line; reused `AnnouncementBanner` + `AnnouncementFormModal` (Add Announcement) and removed the legacy Recent Flags / Unread Messages / Pending Session lists.
+  - Counselor signal logic and check-in context service now live only on the Students Directory page, where they belong.
+
+- [ ] (deferred to Batch 12) `SessionHistory.tsx` consumes `location.state.statusFilter` / `openSessionId` and gains the matching filter chips for Pending / Confirmed / Expired / Reschedule.
 
 ### [ ] Batch 11 — Counselor Student Profile (full info + day detail + Special Population)
 - **Touched:**
