@@ -1,117 +1,103 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
-import { ResourceCard } from '../../components/student/ResourceCard'
+import { useMemo, useState } from 'react'
+import { Wind } from 'lucide-react'
+import {
+  BREATHING_EXERCISES,
+  DURATION_OPTIONS_MINUTES,
+  type BreathingExerciseData,
+  type DurationOptionMinutes,
+} from '../../constants/zen/exercises'
 import { BreathingExercise } from '../../components/student/BreathingExercise'
-import { resourcesService } from '../../services/resources'
-import type { ResourceItem } from '../../types/resource.types'
-
-const CATEGORIES = ['All', 'Meditation', 'Focus', 'Sleep', 'Article'] as const
 
 export default function StudentResources() {
-  const [activeCategory, setActiveCategory] = useState<(typeof CATEGORIES)[number]>('All')
-  const [activeResource, setActiveResource] = useState<ResourceItem | null>(null)
-  const [resources, setResources] = useState<ResourceItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [selectedDuration, setSelectedDuration] = useState<DurationOptionMinutes>(3)
+  const [activeExercise, setActiveExercise] = useState<BreathingExerciseData | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
+  const durationSeconds = useMemo(() => selectedDuration * 60, [selectedDuration])
 
-    async function load() {
-      setLoading(true)
-      try {
-        const rows = await resourcesService.listResources('published')
-        if (!cancelled) setResources(rows)
-      } catch (e) {
-        console.error('Failed to load resources:', e)
-        if (!cancelled) setResources([])
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  if (activeResource) {
-    return <BreathingExercise resource={activeResource} onBack={() => setActiveResource(null)} />
+  if (activeExercise) {
+    return (
+      <BreathingExercise
+        exercise={activeExercise}
+        durationSeconds={durationSeconds}
+        sessionLabel={`${selectedDuration} min session`}
+        onClose={() => setActiveExercise(null)}
+      />
+    )
   }
-
-  const filteredResources = useMemo(() => {
-    let list = activeCategory === 'All'
-      ? resources
-      : resources.filter((r) => r.type === activeCategory)
-
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter(
-        (r) => r.title.toLowerCase().includes(q) || r.category.toLowerCase().includes(q)
-      )
-    }
-
-    return list
-  }, [resources, activeCategory, search])
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-aurora-primary-dark font-heading">
-            Aurora Library
-          </h2>
-          <p className="text-xs font-bold tracking-wide text-aurora-accent-purple">MSU-IIT CCS</p>
-        </div>
-        <div className="p-1" aria-hidden>
-          <Search className="w-5.5 h-5.5 text-aurora-gray-400" />
+      {/* Header */}
+      <div>
+        <h2 className="text-xl sm:text-2xl font-extrabold text-aurora-primary-dark font-heading">
+          Zen
+        </h2>
+        <p className="text-sm text-aurora-gray-500 mt-1">
+          Pick a breathing practice and pace your nervous system in real time.
+        </p>
+      </div>
+
+      {/* Duration */}
+      <div className="card-aurora">
+        <p className="text-sm font-bold text-aurora-primary-dark mb-2">Duration</p>
+        <div className="flex gap-2">
+          {DURATION_OPTIONS_MINUTES.map(minutes => {
+            const selected = selectedDuration === minutes
+            return (
+              <button
+                key={minutes}
+                onClick={() => setSelectedDuration(minutes)}
+                className={`flex-1 rounded-xl py-2.5 text-sm font-bold border transition-colors cursor-pointer ${
+                  selected
+                    ? 'border-aurora-secondary-blue bg-aurora-secondary-blue/20 text-white'
+                    : 'border-aurora-border bg-aurora-card-alt text-aurora-gray-500 hover:text-aurora-primary-dark'
+                }`}
+              >
+                {minutes} min
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      <div className="flex items-center gap-2.5 card-aurora rounded-full! py-2.5! px-4!">
-        <Search className="w-[18px] h-[18px] text-aurora-primary-dark/40 shrink-0" />
-        <input
-          type="text"
-          placeholder="Search resources..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 bg-transparent text-sm text-aurora-primary-dark placeholder:text-aurora-primary-dark/40 outline-none"
-        />
-      </div>
-
-      <div className="flex border-b border-aurora-gray-200 mb-6 overflow-x-auto">
-        {CATEGORIES.map((cat) => (
+      {/* Exercises */}
+      <div className="space-y-3">
+        {BREATHING_EXERCISES.map(exercise => (
           <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`py-2.5 mr-5 text-sm border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-              activeCategory === cat
-                ? 'border-aurora-secondary-blue text-aurora-secondary-blue font-bold'
-                : 'border-transparent text-aurora-gray-500 hover:text-aurora-primary-dark'
-            }`}
+            key={exercise.id}
+            onClick={() => setActiveExercise(exercise)}
+            className="card-aurora w-full text-left hover:border-aurora-border-light transition-colors cursor-pointer"
           >
-            {cat}
+            <div className="flex items-center gap-3 mb-2.5">
+              <div className="w-10 h-10 rounded-xl bg-aurora-secondary-blue/24 flex items-center justify-center shrink-0">
+                <Wind className="w-4.5 h-4.5 text-[#9EC2FF]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-extrabold text-white">{exercise.name}</p>
+                <p className="text-xs text-[#B7C8ED] mt-0.5">{exercise.description}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {exercise.primaryMoodTargets.map(target => (
+                <span
+                  key={`${exercise.id}-${target}`}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-bold text-[#D7C6FF] bg-aurora-purple/18"
+                >
+                  {target}
+                </span>
+              ))}
+            </div>
+
+            <p className="text-xs text-[#9BB0DC]">
+              Pattern:{' '}
+              {exercise.phases.map(p => `${p.label} ${p.seconds}s`).join(' • ')}
+            </p>
+            <p className="text-[11px] text-[#8FB4FF] mt-1.5">
+              Audio: {exercise.soundscapeName}
+            </p>
           </button>
         ))}
-      </div>
-
-      <div>
-        <h3 className="text-lg font-extrabold text-aurora-primary-dark mb-3.5">Curated for You</h3>
-
-        {loading ? (
-          <p className="text-sm text-aurora-primary-dark/50">Loading resources...</p>
-        ) : filteredResources.length === 0 ? (
-          <p className="text-sm text-aurora-primary-dark/50">No resources found.</p>
-        ) : (
-          filteredResources.map((item) => (
-            <ResourceCard
-              key={item.id}
-              item={item}
-              onStart={() => setActiveResource(item)}
-            />
-          ))
-        )}
       </div>
     </div>
   )

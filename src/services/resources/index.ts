@@ -1,11 +1,9 @@
-import { listResources } from './get/listResources'
-import { createResource } from './post/createResource'
+import { getResourceById } from './get/getResourceById'
 import { updateResource } from './put/updateResource'
-import { deleteResource } from './delete/deleteResource'
+
+export * from './types'
 
 export const resourcesService = {
-  listResources,
-  createResource,
+  getResourceById,
   updateResource,
-  deleteResource,
 }

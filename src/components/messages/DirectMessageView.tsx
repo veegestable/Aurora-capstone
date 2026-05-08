@@ -6,8 +6,9 @@ import { sessionsService } from '../../services/sessions'
 import { LetterAvatar } from '../LetterAvatar'
 import { ChatBubble } from './ChatBubble'
 import { SendSessionInviteModal } from '../counselor/SendSessionInviteModal'
+import { SessionChatDetailsModal } from '../counselor/SessionChatDetailsModal'
 import { Calendar, ArrowLeft, Send, Info } from 'lucide-react'
-import type { CounselorContact, StudentContact, ChatMessage } from '../../types/message.types'
+import type { CounselorContact, StudentContact, ChatMessage, SessionMessage } from '../../types/message.types'
 import { usePeerPresence } from '../../hooks/usePeerPresence'
 
 interface DirectMessageViewProps {
@@ -22,9 +23,18 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [detailsTarget, setDetailsTarget] = useState<SessionMessage | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const peerOnline = usePeerPresence(contact.id)
   const isOnline = peerOnline || contact.isOnline
+
+  const refreshMessages = () => {
+    if (!contact.conversationId || !user?.id) return
+    messagesService
+      .getMessagesForStudent(contact.conversationId, user.id)
+      .then(setMessages)
+      .catch(() => setMessages([]))
+  }
 
   useEffect(() => {
     if (!contact.conversationId || !user?.id) {
@@ -49,7 +59,6 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
     return () => { isCancelled = true }
   }, [contact.conversationId, user?.id])
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
@@ -63,7 +72,7 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
       const msgId = await messagesService.sendTextMessage(
         contact.conversationId,
         user.id,
-        text
+        text,
       )
       setMessages((prev) => [
         ...prev,
@@ -75,7 +84,7 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
         performedByRole: user.role ?? 'unknown',
         action: 'message_sent',
         targetType: 'conversation',
-        targetId: contact.conversationId
+        targetId: contact.conversationId,
       })
     } catch (error) {
       console.error('Failed to send message:', error)
@@ -93,10 +102,7 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
 
   const handleConfirmSession = async (
     sessionId: string,
-    slot: {
-      date: string
-      time: string
-    }
+    slot: { date: string; time: string },
   ) => {
     if (!user?.id || !contact.conversationId || isSending) return
     if (!sessionId || sessionId.startsWith('session_')) {
@@ -106,35 +112,28 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
 
     setIsSending(true)
     try {
-      // 1. Confirm slot in Firestore
       await sessionsService.studentConfirmFinalSlot(
-        sessionId, 
-        user.id, 
-        slot, 
+        sessionId,
+        user.id,
+        slot,
         {
           conversationId: contact.conversationId,
-          counselorId: contact.id
-        }
+          counselorId: contact.id,
+        },
       )
 
-      // 2. Update Local React State so the Green Banner appears immediately
-      setMessages((prev) => {
-        return prev.map(m => {
+      setMessages((prev) =>
+        prev.map((m) => {
           if (m.type === 'session' && m.session.id === sessionId) {
             return {
               ...m,
-              session: {
-                ...m.session,
-                sessionStatus: 'confirmed',
-                agreedSlot: slot
-              }
+              session: { ...m.session, sessionStatus: 'confirmed', agreedSlot: slot },
             }
           }
           return m
-        })
-      })
+        }),
+      )
 
-      // Ensure we stay scrolled to the bottom
       setTimeout(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
       }, 100)
@@ -144,6 +143,37 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
     } finally {
       setIsSending(false)
     }
+  }
+
+  const handleViewDetails = (msg: SessionMessage) => {
+    setDetailsTarget(msg)
+  }
+
+  const handleReschedule = async (msg: SessionMessage) => {
+    if (!user?.id) return
+    const id = msg.session.id
+    if (!id || id.startsWith('session_')) {
+      alert('This invite is missing a valid session link.')
+      return
+    }
+    try {
+      await sessionsService.updateSessionStatus({
+        sessionId: id,
+        status: 'rescheduled',
+        performedBy: user.id,
+        performedByRole: user.role ?? 'counselor',
+      })
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.type === 'session' && m.session.id === id
+            ? { ...m, session: { ...m.session, sessionStatus: 'rescheduled' } }
+            : m,
+        ),
+      )
+    } catch (e) {
+      console.error('Failed to flag session as rescheduled:', e)
+    }
+    setIsInviteModalOpen(true)
   }
 
   return (
@@ -166,15 +196,9 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
             )}
           </div>
           <div className="text-center">
-            <p className="font-bold text-aurora-primary-dark text-sm">
-              {contact.name}
-            </p>
+            <p className="font-bold text-aurora-primary-dark text-sm">{contact.name}</p>
             <div className="flex items-center justify-center gap-1.5">
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  isOnline ? 'bg-aurora-accent-green' : 'bg-aurora-gray-400'
-                }`}
-              />
+              <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-aurora-accent-green' : 'bg-aurora-gray-400'}`} />
               <span className="text-xs text-aurora-gray-500">
                 {isOnline ? 'Online now' : 'Offline'}
               </span>
@@ -190,14 +214,12 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
         </button>
       </div>
 
-      {/* Privacy Banner */}
       <div className="mx-4 mt-3 px-4 py-2.5 rounded-xl bg-aurora-accent-purple/10 border border-aurora-accent-purple/20">
         <p className="text-[11px] font-bold text-aurora-accent-purple text-center tracking-wider uppercase">
           This is a private conversation with your counselor.
         </p>
       </div>
 
-      {/* Messages Area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         <p className="text-xs font-semibold text-aurora-gray-400 text-center tracking-wider mb-4">
           TODAY
@@ -216,14 +238,16 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
               userName={user?.full_name ?? 'You'}
               contactAvatarUrl={contact.avatar || undefined}
               userAvatarUrl={user?.avatar_url ?? undefined}
+              viewerRole={user?.role === 'counselor' ? 'counselor' : 'student'}
               onConfirmSession={handleConfirmSession}
               isConfirming={isSending}
+              onViewDetails={handleViewDetails}
+              onReschedule={handleReschedule}
             />
           ))
         )}
       </div>
 
-      {/* Input Bar */}
       <div className="shrink-0 border-t border-aurora-gray-200 px-4 py-3">
         <div className="flex items-center gap-3">
           {user?.role === 'counselor' && (
@@ -265,18 +289,27 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
           student={{
             id: contact.id,
             name: contact.name,
-            avatar: contact.avatar
+            avatar: contact.avatar,
           }}
           counselorId={user.id}
-          onClose={() => setIsInviteModalOpen(false)}
-          onSuccess={() => setTimeout(() => {
-            scrollRef.current?.scrollTo({
-              top: scrollRef.current.scrollHeight,
-              behavior: 'smooth'
-            })
-          }, 500)}
+          onClose={() => setIsInviteModalOpen(false) }
+          onSuccess={() => {
+            refreshMessages()
+            setTimeout(() => {
+              scrollRef.current?.scrollTo({
+                top: scrollRef.current.scrollHeight,
+                behavior: 'smooth',
+              })
+            }, 500)
+          }}
         />
       )}
+
+      <SessionChatDetailsModal
+        open={!!detailsTarget}
+        message={detailsTarget}
+        onClose={() => setDetailsTarget(null)}
+      />
     </div>
   )
 }

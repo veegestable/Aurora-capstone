@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../../config/firebase'
 import type { UserSettingsDoc } from '../../types/user-settings.types'
+import { grantJournalAccessToCounselor } from './put/grantJournalAccessToCounselor'
 
 export const userSettingsService = {
   getUserSettings: async (userId: string): Promise<UserSettingsDoc | null> => {
@@ -24,5 +25,7 @@ export const userSettingsService = {
         createdAt: new Date().toISOString()
       })
     }
-  }
+  },
+
+  grantJournalAccessToCounselor,
 }

@@ -1,5 +1,6 @@
 import { doc, getDoc, updateDoc, Timestamp, collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
+import { grantJournalAccessToCounselor } from '../../user-settings/put/grantJournalAccessToCounselor'
 
 export async function studentConfirmFinalSlot(
   sessionId: string,
@@ -46,7 +47,13 @@ export async function studentConfirmFinalSlot(
 
   await updateDoc(sessionRef, patch as any)
 
-  // NEW: Update the actual chat message so ChatBubble.tsx shows the Green Banner!
+  // Special Population: student accepting the counselor's slot grants the
+  // counselor journal access (mirrors createSessionRequest behavior).
+  const counselorIdForGrant = String(data.counselorId ?? '')
+  if (counselorIdForGrant) {
+    await grantJournalAccessToCounselor(uid, counselorIdForGrant)
+  }
+
   if (opts?.conversationId) {
     const messagesRef = collection(db, 'conversations', opts.conversationId, 'messages')
     const q = query(messagesRef, where('sessionId', '==', sessionId))

@@ -1,10 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import {
-  Home, MessageSquare, BookOpen, User, 
-  Heart, Calendar, Bell, LogOut, 
-  Settings as SettingsIcon, 
-} from 'lucide-react'
+import { Home, MessageSquare, BookOpen, User, LogOut } from 'lucide-react'
 
 const PRIMARY_NAV = [
   { path: '/', label: 'Home', icon: Home },
@@ -12,13 +8,6 @@ const PRIMARY_NAV = [
   { path: '/student/messages', label: 'Messages', icon: MessageSquare },
   { path: '/student/resources', label: 'Resources', icon: BookOpen },
   { path: '/student/profile', label: 'Profile', icon: User },
-]
-
-const SECONDARY_NAV = [
-  { path: '/mood', label: 'Mood Check-in', icon: Heart },
-  { path: '/schedule', label: 'Schedule', icon: Calendar },
-  { path: '/notifications', label: 'Notifications', icon: Bell },
-  { path: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
 function NavItem({ path, label, icon: Icon, end }: { path: string; label: string; icon: React.ElementType; end?: boolean }) {
@@ -114,19 +103,6 @@ export default function StudentLayout() {
               </p>
               {PRIMARY_NAV.map(({ path, label, icon }) => (
                 <NavItem key={path} path={path} label={label} icon={icon} end={path === '/'} />
-              ))}
-            </div>
-
-            <div className="px-4">
-              <div className="border-t border-white/6" />
-            </div>
-
-            <div className="space-y-1">
-              <p className="px-4 text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-3">
-                Tools
-              </p>
-              {SECONDARY_NAV.map(({ path, label, icon }) => (
-                <NavItem key={path} path={path} label={label} icon={icon} />
               ))}
             </div>
           </nav>

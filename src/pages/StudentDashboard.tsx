@@ -7,9 +7,10 @@ import { computeStreak, computeStability, computeDailyInsight } from '../utils/a
 import type { StabilityMetrics } from '../utils/analytics'
 import { SessionRequestModal } from '../components/sessions/SessionRequestModal'
 import { AnnouncementBanner } from '../components/announcements/AnnouncementBanner'
+import { StudentSessionsPane } from '../components/student/StudentSessionsPane'
 import {
   MessageSquare, BookOpen, CalendarPlus,
-  Sparkles, ShieldCheck
+  Sparkles, ShieldCheck, CalendarClock, CircleHelp, X,
 } from 'lucide-react'
 
 export default function StudentDashboard() {
@@ -22,6 +23,8 @@ export default function StudentDashboard() {
     'Complete a check-in to get a personalized note based on your mood and energy.'
   )
   const [showSessionModal, setShowSessionModal] = useState(false)
+  const [showSessionsPane, setShowSessionsPane] = useState(false)
+  const [showStabilityHint, setShowStabilityHint] = useState(false)
 
   const firstName = user?.full_name?.split(' ')[0] || 'Student'
 
@@ -53,29 +56,40 @@ export default function StudentDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
-      <div className="flex items-center gap-4">
-        <div className="relative">
-          <div className="w-14 h-14 rounded-2xl shadow-[0_0_25px_rgba(45,107,255,0.2)] overflow-hidden ring-2 ring-white/10">
-            {user?.avatar_url ? (
-              <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-linear-to-br from-aurora-blue to-aurora-purple flex items-center justify-center">
-                <span className="text-white text-xl font-bold">
-                  {firstName.charAt(0).toUpperCase()}
-                </span>
-              </div>
-            )}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="relative shrink-0">
+            <div className="w-14 h-14 rounded-2xl shadow-[0_0_25px_rgba(45,107,255,0.2)] overflow-hidden ring-2 ring-white/10">
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-linear-to-br from-aurora-blue to-aurora-purple flex items-center justify-center">
+                  <span className="text-white text-xl font-bold">
+                    {firstName.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-aurora-green rounded-full border-2 border-aurora-bg" />
           </div>
-          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-aurora-green rounded-full border-2 border-aurora-bg" />
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-aurora-text-muted tracking-widest uppercase mb-1">
+              Welcome back
+            </p>
+            <h2 className="text-3xl font-bold text-white font-heading tracking-wide truncate">
+              {firstName}
+            </h2>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-bold text-aurora-text-muted tracking-widest uppercase mb-1">
-            Welcome back
-          </p>
-          <h2 className="text-3xl font-bold text-white font-heading tracking-wide">
-            {firstName}
-          </h2>
-        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowSessionsPane(true)}
+          aria-label="Open My Sessions"
+          className="shrink-0 w-12 h-12 rounded-2xl bg-[rgba(45,107,255,0.12)] border border-[rgba(45,107,255,0.3)] flex items-center justify-center hover:bg-[rgba(45,107,255,0.2)] hover:border-[rgba(45,107,255,0.5)] transition-colors cursor-pointer"
+        >
+          <CalendarClock className="w-5 h-5 text-aurora-blue" />
+        </button>
       </div>
 
       {/* Mood Check-In Widget */}
@@ -145,11 +159,21 @@ export default function StudentDashboard() {
           <div className="w-12 h-12 rounded-full bg-[rgba(45,107,255,0.15)] flex items-center justify-center text-2xl mr-4 shrink-0 shadow-[0_0_15px_rgba(45,107,255,0.1)]">
             <ShieldCheck className="w-6 h-6 text-aurora-blue" />
           </div>
-          <div>
-            <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-1">
-              Today's Stability
-            </p>
-            <div className="flex items-baseline gap-1">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1">
+              <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase">
+                Today's Stability
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowStabilityHint(true)}
+                aria-label="What is Today's Stability?"
+                className="p-0.5 -mt-px rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <CircleHelp className="w-3.5 h-3.5 text-aurora-text-muted" />
+              </button>
+            </div>
+            <div className="flex items-baseline gap-1 mt-1">
               <p className="text-3xl font-extrabold text-white font-heading">{stability.percentage}%</p>
             </div>
             <p className="text-xs font-medium text-aurora-text-sec truncate">{stability.label}</p>
@@ -193,6 +217,61 @@ export default function StudentDashboard() {
         onClose={() => setShowSessionModal(false)}
         onSuccess={() => setShowSessionModal(false)}
       />
+
+      {/* My Sessions Pane (welcome-row CalendarClock icon) */}
+      <StudentSessionsPane
+        visible={showSessionsPane}
+        studentId={user?.id ?? ''}
+        onClose={() => setShowSessionsPane(false)}
+      />
+
+      {/* Today's Stability — explainer modal */}
+      {showStabilityHint && (
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="stability-hint-title"
+          onClick={() => setShowStabilityHint(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#0f0f11] w-full max-w-md rounded-3xl border border-white/10 shadow-2xl p-6 animate-in zoom-in-95 duration-200"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-full bg-[rgba(45,107,255,0.15)] flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5 text-aurora-blue" />
+                </div>
+                <h3 id="stability-hint-title" className="text-base font-bold text-white">
+                  What is Today's Stability?
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStabilityHint(false)}
+                aria-label="Dismiss"
+                className="p-1.5 -m-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4 text-aurora-text-sec" />
+              </button>
+            </div>
+            <p className="text-sm text-aurora-text-sec leading-relaxed mb-3">
+              Stability is a quick read of how steady your mood has been over the last 30 days.
+              We compare today's check-ins to your recent baseline and the variance between them.
+            </p>
+            <ul className="text-sm text-aurora-text-sec space-y-1.5 mb-4 pl-1">
+              <li><span className="text-white font-semibold">90–100%</span> · Very steady</li>
+              <li><span className="text-white font-semibold">70–89%</span> · Mostly steady</li>
+              <li><span className="text-white font-semibold">50–69%</span> · Some variation</li>
+              <li><span className="text-white font-semibold">Below 50%</span> · A turbulent stretch — be gentle with yourself</li>
+            </ul>
+            <p className="text-xs text-aurora-text-muted leading-relaxed">
+              This is a self-report summary, not a clinical assessment. It only changes after you log a check-in.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

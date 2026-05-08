@@ -1,15 +1,14 @@
-import { Timestamp, doc, updateDoc } from 'firebase/firestore'
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
-import type { ResourceItem } from '../../../types/resource.types'
+import type { ResourceRecord } from '../types'
 
-interface UpdateResourceInput {
-  id: string
-  patch: Partial<Omit<ResourceItem, 'id' | 'createdAt' | 'updatedAt'>>
-}
-
-export async function updateResource(input: UpdateResourceInput): Promise<void> {
-  await updateDoc(doc(db, 'resources', input.id), {
-    ...input.patch,
-    updatedAt: Timestamp.now()
-  })
+export const updateResource= async (
+  id: string,
+  patch: Partial<Omit<ResourceRecord, 'id'>>
+): Promise<void> => {
+  const ref = doc(db, 'resources', id)
+  await updateDoc(ref, {
+    ...patch,
+    updatedAt: serverTimestamp()
+  } as Record<string, unknown>)
 }

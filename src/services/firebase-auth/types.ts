@@ -20,8 +20,10 @@ export interface UserProfile {
   approval_status?: CounselorApprovalStatus
   preferred_name?: string
   department?: string
+  program?: string
   year_level?: string
   student_number?: string
+  contact_number?: string
   sex?: 'male' | 'female'
   bio?: string
   avatar_url?: string | null
@@ -33,8 +35,10 @@ export interface UpdateProfileData {
   full_name?: string
   preferred_name?: string
   department?: string
+  program?: string
   year_level?: string
   student_number?: string
+  contact_number?: string
   sex?: 'male' | 'female'
   bio?: string
   avatar_url?: string | null

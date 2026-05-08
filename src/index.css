@@ -24,7 +24,7 @@
   --color-aurora-blue: #2D6BFF;
   --color-aurora-blue-light: #4D8BFF;
   --color-aurora-purple: #7C3AED;
-  --color-aurora-purple-deep: #4A00E0;
+  --color-aurora-purple-7eep: #4A00E0;
   --color-aurora-purple-bright: #8B2CF5;
   --color-aurora-green: #22C55E;
   --color-aurora-amber: #FEBD03;
@@ -238,4 +238,25 @@
 
 .animate-aurora-pulse-gradient {
   animation: aurora-pulse-gradient 4s ease-in-out infinite;
+}
+
+/* Mood Check-in intensity slider — slightly thicker thumb for an "obvious" feel (round 5 plan §1) */
+.mood-intensity-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #2D6BFF;
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 14px rgba(45, 107, 255, 0.55);
+  cursor: pointer;
+}
+.mood-intensity-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #2D6BFF;
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 14px rgba(45, 107, 255, 0.55);
+  cursor: pointer;
 }
