@@ -1,17 +1,11 @@
+import { AppText as Text } from "../common/AppText";
 /**
  * SessionRequestDetailsModal - Shows full session request details (status, time, note).
  * Opened when "View details" is tapped on SessionRequestCard.
  */
 
 import React from 'react';
-import {
-    Modal,
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-    ScrollView,
-} from 'react-native';
+import { Modal, View, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { X, Clock, FileText } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import type { SessionRequestData } from './SessionRequestCard';

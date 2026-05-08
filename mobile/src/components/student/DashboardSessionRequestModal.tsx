@@ -1,3 +1,4 @@
+import { AppText as Text } from "../common/AppText";
 /**
  * DashboardSessionRequestModal — pick counselor on Wellness/dashboard, then continue in Messages.
  * Preferred time + note are collected only via StudentSessionRequestModal (same as Request session in chat)
@@ -5,18 +6,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from "react-native";
+import { Modal, View, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { X, ArrowRight } from "lucide-react-native";
 import { AURORA } from "../../constants/aurora-colors";
 import { LetterAvatar } from "../common/LetterAvatar";

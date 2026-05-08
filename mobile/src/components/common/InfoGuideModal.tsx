@@ -1,5 +1,6 @@
 import React from "react";
-import { Modal, Pressable, Text, TouchableOpacity, View } from "react-native";
+import { Modal, Pressable, TouchableOpacity, View } from "react-native";
+import { AppText as Text } from "./AppText";
 import { AURORA } from "../../constants/aurora-colors";
 
 export type InfoGuideContent = {

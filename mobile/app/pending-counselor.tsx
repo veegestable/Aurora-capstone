@@ -6,7 +6,8 @@
  */
 
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, TouchableOpacity } from "react-native";
+import { AppText as Text } from "../src/components/common/AppText";
 import { useAuth } from "../src/stores/AuthContext";
 import { router } from "expo-router";
 import { Clock, LogOut } from "lucide-react-native";

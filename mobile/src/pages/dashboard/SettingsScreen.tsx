@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native';
+import { View, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native';
+import { AppText as Text } from '../../components/common/AppText';
+import { AppTextInput as TextInput } from '../../components/common/AppTextInput';
 import { useAuth } from '../../stores/AuthContext';
 import { User, LogOut } from 'lucide-react-native';
 import { Card } from '../../components/common/Card';

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   View,
-  Text,
   ScrollView,
   TouchableOpacity,
   LayoutChangeEvent,
@@ -10,7 +9,8 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import { Battery, CircleHelp, Flame } from "lucide-react-native";
+import { AppText as Text } from "../common/AppText";
+import { Battery, CircleHelp, Flame, Sparkles } from "lucide-react-native";
 import type { MoodData } from "../../services/firebase-firestore.service";
 import { calendarDayKeyLocal } from "../../utils/dayKey";
 import { moodLogsToMoodEntries } from "../../utils/moodEntryNormalize";
@@ -238,6 +238,15 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
   };
   return (
     <View style={{ marginTop: 8 }}>
+      <View
+        style={{
+          backgroundColor: AURORA.cardAlt,
+          borderRadius: 16,
+          padding: 12,
+          borderWidth: 1,
+          borderColor: AURORA.border,
+        }}
+      >
       {/* Widget A */}
       <View
         style={{
@@ -257,14 +266,15 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
             paddingRight: 10,
           }}
         >
+          <Sparkles size={14} color="#F59E0B" />
           <Text
             style={{
               color: AURORA.textPrimary,
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: "700",
             }}
           >
-            Mood stability
+            MOOD STABILITY
           </Text>
           <TouchableOpacity
             onPress={showStabilityGuide}
@@ -354,21 +364,21 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           </View>
         </View>
       </View>
-      <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 8 }}>
+      {/* <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 8 }}>
         Stability score chart for the selected time range.
-      </Text>
+      </Text> */}
       <View
         style={{
           backgroundColor: AURORA.card,
           borderRadius: 16,
           padding: 18,
-          borderWidth: 1,
-          borderColor: AURORA.border,
+          // borderWidth: 1,
+          // borderColor: AURORA.border,
           marginBottom: 16,
         }}
       >
         <Text
-          style={{ fontSize: 42, fontWeight: "900", color: stability.blended }}
+          style={{ fontSize: 42, fontWeight: "700", color: stability.blended }}
         >
           {stability.score}%
         </Text>
@@ -382,7 +392,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
         >
           Stability score
         </Text>
-        <Text
+        {/* <Text
           style={{
             color: AURORA.textSec,
             fontSize: 13,
@@ -391,7 +401,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           }}
         >
           {stabilityCopy(stability.score)}
-        </Text>
+        </Text> */}
       </View>
 
       {/* Widget B */}
@@ -403,10 +413,10 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           marginBottom: 8,
         }}
       >
-        <Text style={{ color: AURORA.textPrimary, fontSize: 15, fontWeight: "700" }}>
+        <Text style={{ color: AURORA.textPrimary, fontSize: 16, fontWeight: "700" }}>
           {metric === "stress"
-            ? "Stress Trend"
-            : "Energy Trend"}
+            ? "STRESS TREND"
+            : "ENERGY TREND"}
         </Text>
         <TouchableOpacity
           onPress={showMetricGuide}
@@ -512,11 +522,11 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
           
         </View>
       </View>
-      <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 8 }}>
+      {/* <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 8 }}>
         {period === "week"
           ? "Average daily level across the last 7 days."
           : "Average daily level across the last 30 days."}
-      </Text>
+      </Text> */}
 
       <View
         style={{
@@ -1044,6 +1054,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
             ) : null}
           </>
         )}
+      </View>
       </View>
       <InfoGuideModal guide={activeGuide} onClose={() => setActiveGuide(null)} />
     </View>

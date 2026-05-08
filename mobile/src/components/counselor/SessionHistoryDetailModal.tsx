@@ -1,17 +1,11 @@
+import { AppText as Text } from "../common/AppText";
 /**
  * SessionHistoryDetailModal - Counselor view of session details
  * Shows session info, status, date/time. Can open attendance modal when applicable.
  */
 
 import React from 'react';
-import {
-    Modal,
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-    ScrollView,
-} from 'react-native';
+import { Modal, View, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { Calendar, Clock, FileText, AlertTriangle, X, Hash } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';

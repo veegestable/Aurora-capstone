@@ -4,7 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Pressable, Platform } from 'react-native';
+import { AppText as Text } from '../common/AppText';
 import { Calendar, Check } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 

@@ -1,3 +1,5 @@
+import { AppText as Text } from "../../src/components/common/AppText";
+import { AppTextInput as TextInput } from "../../src/components/common/AppTextInput";
 /**
  * Counselor Messages - messages.tsx
  * ====================================
@@ -7,19 +9,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-  Pressable,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {

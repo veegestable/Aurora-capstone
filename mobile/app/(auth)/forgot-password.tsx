@@ -1,4 +1,5 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
+import { AppText as Text } from "../../src/components/common/AppText";
 
 export default function ForgotPasswordScreen() {
   return (

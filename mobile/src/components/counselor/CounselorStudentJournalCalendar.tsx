@@ -1,18 +1,11 @@
+import { AppText as Text } from "../common/AppText";
 /**
  * Counselor-facing mood journal calendar for one student when journal access is granted.
  * Mirrors student Journal tab layout (month grid + day detail).
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  ActivityIndicator,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from "react-native";
 import {
   ChevronLeft,
   ChevronRight,

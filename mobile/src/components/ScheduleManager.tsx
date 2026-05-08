@@ -1,19 +1,11 @@
-import { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  TextInput,
-  Alert,
-  FlatList,
-} from "react-native";
+import { useState, useEffect } from "react"; import {   View, TouchableOpacity, ScrollView, Modal, Alert, FlatList } from "react-native";
 import { Plus, Calendar, Trash2, Edit2, X, Clock } from "lucide-react-native";
 import { useAuth } from "../stores/AuthContext";
 import { scheduleService, ScheduleData } from "../services/schedule.service";
 import { Card } from "./common/Card";
 import { Button } from "./common/Button";
+import { AppText as Text } from "./common/AppText";
+import { AppTextInput as TextInput } from "./common/AppTextInput";
 
 interface Schedule {
   id: string;

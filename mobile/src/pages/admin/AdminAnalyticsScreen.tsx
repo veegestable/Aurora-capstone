@@ -1,16 +1,10 @@
+import { AppText as Text } from "../../components/common/AppText";
 /**
  * Admin Analytics — 7-day engagement from audit_logs + roster snapshot (no mood data).
  */
 
 import React, { useCallback, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  ActivityIndicator,
-  RefreshControl,
-  StyleSheet,
-} from "react-native";
+import { View, ScrollView, ActivityIndicator, RefreshControl, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import {

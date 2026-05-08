@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import { View, TouchableOpacity, ScrollView } from "react-native";
+import { AppText as Text } from "../../src/components/common/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";

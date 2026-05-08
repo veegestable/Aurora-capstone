@@ -1,16 +1,7 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  Platform,
-  StyleSheet,
-  ScrollView,
-  Image,
-} from "react-native";
+import { View, Modal, TouchableOpacity, Alert, Platform, StyleSheet, ScrollView, Image } from "react-native";
+import { AppText as Text } from "../common/AppText";
+import { AppTextInput as TextInput } from "../common/AppTextInput";
 import * as ImagePicker from "expo-image-picker";
 import { X, Camera } from "lucide-react-native";
 import { useAuth } from "../../stores/AuthContext";

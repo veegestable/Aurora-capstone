@@ -1,21 +1,11 @@
 import React from "react";
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Platform,
-  StyleSheet,
-  Dimensions,
-  Alert,
-} from "react-native";
+import { View, Modal, TouchableOpacity, ScrollView, Image, Platform, StyleSheet, Dimensions, Alert } from "react-native";
 import { X, Pencil, Trash2 } from "lucide-react-native";
 import type { Announcement } from "../../services/announcements.service";
 import { AURORA } from "../../constants/aurora-colors";
 import { Megaphone } from "lucide-react-native";
 import { triggerHaptic } from "../../utils/haptics";
+import { AppText as Text } from "../common/AppText";
 
 interface AnnouncementDetailModalProps {
   visible: boolean;

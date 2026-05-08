@@ -1,3 +1,5 @@
+import { AppText as Text } from "../../src/components/common/AppText";
+import { AppTextInput as TextInput } from "../../src/components/common/AppTextInput";
 /**
  * Session History - Counselor view of past/upcoming sessions
  * Shows accepted sessions with status badges (Completed, Missed, Cancelled, Pending).
@@ -11,14 +13,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-} from "react-native";
+import { View, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import {
@@ -940,7 +935,7 @@ function SessionHistoryCard({
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   style={{
                     flex: 1,
                     flexDirection: "row",
@@ -962,8 +957,8 @@ function SessionHistoryCard({
                   >
                     View Note
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </TouchableOpacity> */}
+                {/* <TouchableOpacity
                   style={{
                     width: 44,
                     height: 44,
@@ -976,7 +971,7 @@ function SessionHistoryCard({
                   }}
                 >
                   <Share2 size={18} color={AURORA.textSec} />
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             </>
           )}

@@ -1,19 +1,10 @@
-import { useState, useRef } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  Modal,
-  Alert,
-  StatusBar,
-  Platform,
-} from "react-native";
+import { useState, useRef } from "react"; import {   View, TouchableOpacity, Image, Modal, Alert, StatusBar, Platform } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { Camera, Upload, X, RefreshCw } from "lucide-react-native";
 import { AURORA } from "../constants/aurora-colors";
 import { getEmotionLabel } from "../utils/moodColors";
+import { AppText as Text } from "./common/AppText";
 
 interface DetectedEmotion {
   emotion: string;

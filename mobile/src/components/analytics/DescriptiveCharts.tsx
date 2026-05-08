@@ -1,17 +1,11 @@
+import { AppText as Text } from "../common/AppText";
 /**
  * Student-friendly charts: larger layout, plain-language axes, light grids.
  * Copy stays observational (no causation).
  */
 
 import type { ReactElement } from "react";
-import { Fragment, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  useWindowDimensions,
-  ScrollView,
-  TouchableOpacity,
-} from "react-native";
+import { Fragment, useEffect, useRef } from "react"; import {   View, useWindowDimensions, ScrollView, TouchableOpacity } from "react-native";
 import Svg, {
   Circle,
   Line,
@@ -965,8 +959,7 @@ export function MoodDistributionDonut({
               >
                 {s.label}{" "}
                 <Text style={{ color: AURORA.textSec, fontWeight: "500" }}>
-                  ({total ? Math.round((s.value / total) * 100) : 0}% of
-                  check-ins)
+                  ({total ? Math.round((s.value / total) * 100) : 0}%)
                 </Text>
               </Text>
               {s.hint ? (

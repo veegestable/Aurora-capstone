@@ -1,15 +1,9 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  Platform,
-} from "react-native";
+import { View, TouchableOpacity, ActivityIndicator, Alert, Platform } from "react-native";
 import { useAuth } from "../../stores/AuthContext";
 import { AURORA } from "../../constants/aurora-colors";
 import { triggerHaptic } from "../../utils/haptics";
+import { AppText as Text } from "../common/AppText";
 
 /** Lets signed-in users link Google to the same Firebase uid (native dev build only). */
 export function GoogleAccountLinkSection() {
