@@ -66,7 +66,7 @@ const HINTS: Record<Exclude<HintKey, null>, { title: string; body: string }> = {
   },
   meal: {
     title: 'Meal check-in',
-    body: 'For each meal in your schedule, tell us whether you had it. Each meal locks individually once you record an answer for the day.',
+    body: 'For each meal in your schedule, tell us whether you had it. If you tap Taken and save, that meal stays Taken for the rest of today (like bath). If you tap Missed, you can change it on a later check-in today if you need to.',
   },
   pressure: {
     title: 'Pressure today',
@@ -152,7 +152,7 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
     mealSchedule,
     mealResponses,
     setMealResponse,
-    mealsAnsweredToday,
+    mealsTakenLockedToday,
     bathTaken,
     setBathTaken,
     bathLockedToday,
@@ -605,27 +605,29 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                     </div>
                     <div className="space-y-2.5">
                       {mealSchedule.map((meal) => {
-                        const locked = mealsAnsweredToday.has(meal.id)
+                        const takenLocked = mealsTakenLockedToday.has(meal.id)
                         const choice = mealResponses[meal.id]
-                        const yesActive = locked ? false : choice === true
-                        const noActive = locked ? false : choice === false
+                        const yesActive = takenLocked || choice === true
+                        const noActive = !takenLocked && choice === false
                         return (
                           <div
                             key={meal.id}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${locked ? 'bg-white/0.02 border-white/5' : 'bg-white/5 border-white/10'}`}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${takenLocked ? 'bg-white/0.02 border-white/5' : 'bg-white/5 border-white/10'}`}
                           >
                             <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-bold ${locked ? 'text-aurora-text-muted' : 'text-white'}`}>
+                              <p className={`text-sm font-bold ${takenLocked ? 'text-aurora-text-muted' : 'text-white'}`}>
                                 {meal.label}
                               </p>
                               <p className="text-[11px] font-medium text-aurora-text-muted">
-                                {locked ? 'Logged earlier today' : `Around ${meal.time}`}
+                                {takenLocked
+                                  ? 'Taken — saved for today'
+                                  : `Around ${meal.time}`}
                               </p>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               <button
                                 type="button"
-                                disabled={locked}
+                                disabled={takenLocked}
                                 aria-pressed={yesActive}
                                 aria-label={`${meal.label} taken`}
                                 onClick={() => setMealResponse(meal.id, true)}
@@ -635,7 +637,7 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                               </button>
                               <button
                                 type="button"
-                                disabled={locked}
+                                disabled={takenLocked}
                                 aria-pressed={noActive}
                                 aria-label={`${meal.label} missed`}
                                 onClick={() => setMealResponse(meal.id, false)}

@@ -60,7 +60,8 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
     [settings?.mealSchedule],
   )
   const [mealResponses, setMealResponses] = useState<Record<string, boolean>>({})
-  const [mealsAnsweredToday, setMealsAnsweredToday] = useState<Set<string>>(new Set())
+  /** Meals already logged as Taken today — locked for the day (like bath). "Missed" can be updated later. */
+  const [mealsTakenLockedToday, setMealsTakenLockedToday] = useState<Set<string>>(new Set())
 
   const [bathTaken, setBathTaken] = useState<boolean | null>(null)
   const [bathLockedToday, setBathLockedToday] = useState(false)
@@ -88,9 +89,10 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
       })
       .catch(() => setBathLockedToday(false))
 
-    moodService.getMealsAnsweredForDayKey(user.id, dayKey)
-      .then(setMealsAnsweredToday)
-      .catch(() => setMealsAnsweredToday(new Set()))
+    moodService
+      .getMealsTakenLockedForDayKey(user.id, dayKey)
+      .then(setMealsTakenLockedToday)
+      .catch(() => setMealsTakenLockedToday(new Set()))
   }, [user?.id])
 
   // Drive the optional ambient background tint based on the current emotion blend.
@@ -147,7 +149,7 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
   }
 
   const setMealResponse = (mealId: string, taken: boolean) => {
-    if (mealsAnsweredToday.has(mealId)) return
+    if (mealsTakenLockedToday.has(mealId)) return
     setMealResponses((prev) => ({ ...prev, [mealId]: taken }))
   }
 
@@ -195,10 +197,12 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
         journalImageUrl = await firebaseStorageService.uploadImage(path, journalImage)
       }
 
-      // Only persist meals that the user actually answered in this check-in
-      // and that weren't already locked from an earlier entry today.
+      // Only persist meals answered in this check-in; skip meals already Taken-locked today.
       const mealResponseList: MealResponse[] = mealSchedule
-        .filter((m) => mealResponses[m.id] !== undefined && !mealsAnsweredToday.has(m.id))
+        .filter(
+          (m) =>
+            mealResponses[m.id] !== undefined && !mealsTakenLockedToday.has(m.id)
+        )
         .map((m) => ({
           mealId: m.id,
           mealLabel: m.label,
@@ -228,9 +232,11 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
 
       setSleepCapturedToday(true)
       if (bathTaken) setBathLockedToday(true)
-      setMealsAnsweredToday((prev) => {
+      setMealsTakenLockedToday((prev) => {
         const next = new Set(prev)
-        mealResponseList.forEach((m) => next.add(m.mealId))
+        mealResponseList.forEach((m) => {
+          if (m.taken) next.add(m.mealId)
+        })
         return next
       })
 
@@ -275,7 +281,7 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
     mealSchedule,
     mealResponses,
     setMealResponse,
-    mealsAnsweredToday,
+    mealsTakenLockedToday,
 
     bathTaken,
     setBathTaken,

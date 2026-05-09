@@ -1995,6 +1995,11 @@ async function buildChatMessagesFromQuerySnapshot(
     { date: string; time: string } | null
   > = {};
   let sessionHasProposedSlotsMap: Record<string, boolean> = {};
+  /** Present when `sessions/{id}` exists — used for student 24h open-invite expiry. */
+  let sessionDocTimestampsMap: Record<
+    string,
+    { createdAt?: unknown; updatedAt?: unknown }
+  > = {};
   if (allSessionIds.length > 0) {
     const sessionPromises = allSessionIds.map((id) =>
       getDoc(doc(db, "sessions", id)),
@@ -2003,7 +2008,12 @@ async function buildChatMessagesFromQuerySnapshot(
     sessionSnaps.forEach((snap, i) => {
       const sid = allSessionIds[i];
       const s = snap.data();
+      if (!s) return;
       if (s?.status) sessionStatusMap[sid] = s.status;
+      sessionDocTimestampsMap[sid] = {
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      };
       const slots = s?.proposedSlots;
       sessionHasProposedSlotsMap[sid] =
         Array.isArray(slots) &&
@@ -2060,8 +2070,17 @@ async function buildChatMessagesFromQuerySnapshot(
       const sid = resolveSessionsDocIdForSessionCard(
         m.session as Record<string, unknown>,
       );
-      if (sid && sessionStatusMap[sid]) {
+      if (sid && (sessionStatusMap[sid] || sessionDocTimestampsMap[sid])) {
         const fs = sessionFinalSlotMap[sid];
+        const ts = sessionDocTimestampsMap[sid];
+        const stFromDoc = sessionStatusMap[sid];
+        const stFromMsg = (m.session as Record<string, unknown>)?.sessionStatus;
+        const sessionStatus =
+          typeof stFromDoc === "string" && stFromDoc.trim()
+            ? stFromDoc.trim()
+            : typeof stFromMsg === "string" && stFromMsg.trim()
+              ? stFromMsg.trim()
+              : "pending";
         return {
           ...m,
           session: {
@@ -2069,7 +2088,13 @@ async function buildChatMessagesFromQuerySnapshot(
             id: sid,
             linkedSessionId: sid,
             sessionId: sid,
-            sessionStatus: sessionStatusMap[sid],
+            sessionStatus,
+            ...(ts?.createdAt != null
+              ? { sessionDocCreatedAt: ts.createdAt }
+              : {}),
+            ...(ts?.updatedAt != null
+              ? { sessionDocUpdatedAt: ts.updatedAt }
+              : {}),
             ...(fs ? { agreedSlot: fs } : {}),
           },
         };

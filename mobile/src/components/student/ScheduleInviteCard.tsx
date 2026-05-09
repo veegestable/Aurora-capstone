@@ -8,6 +8,7 @@ import { View, TouchableOpacity, StyleSheet, Pressable, Platform } from 'react-n
 import { AppText as Text } from '../common/AppText';
 import { Calendar, Check } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
+import { isSessionDocOpenRequestExpired24h } from '../../utils/dateHelpers';
 
 export interface TimeSlot {
     date: string;
@@ -27,6 +28,10 @@ export interface ScheduleInviteData {
     sessionStatus?: string;
     /** From `sessions.finalSlot` when agreed — optional display. */
     agreedSlot?: { date: string; time: string };
+    /** From `sessions.createdAt` — used with `sessionDocUpdatedAt` for 24h open-invite expiry. */
+    sessionDocCreatedAt?: unknown;
+    /** From `sessions.updatedAt` — counselor edits reset the student response window. */
+    sessionDocUpdatedAt?: unknown;
 }
 
 interface ScheduleInviteCardProps {
@@ -46,8 +51,32 @@ export default function ScheduleInviteCard({
     onConfirm,
 }: ScheduleInviteCardProps) {
     const st = data.sessionStatus;
+    const stLower = (st ?? '').toLowerCase();
     const settled =
         st != null && ['confirmed', 'completed', 'missed', 'cancelled'].includes(st);
+
+    const hasLockedSlot = !!(
+        data.agreedSlot &&
+        typeof data.agreedSlot.date === 'string' &&
+        data.agreedSlot.date.trim() !== ''
+    );
+
+    const expiredByServerStatus = stLower === 'expired';
+
+    const expiredBy24hOpenInvite =
+        !hasLockedSlot &&
+        !settled &&
+        (stLower === 'pending' || stLower === 'requested') &&
+        isSessionDocOpenRequestExpired24h({
+            status: stLower || 'pending',
+            createdAt: data.sessionDocCreatedAt,
+            updatedAt: data.sessionDocUpdatedAt,
+        });
+
+    const inviteNoLongerActionable =
+        settled || expiredByServerStatus || expiredBy24hOpenInvite;
+
+    const showInviteExpiredBanner = expiredByServerStatus || expiredBy24hOpenInvite;
 
     const slots = data.timeSlots && data.timeSlots.length > 0
         ? data.timeSlots
@@ -76,7 +105,15 @@ export default function ScheduleInviteCard({
             {data.note && (
                 <Text style={styles.quote}>"{data.note}"</Text>
             )}
-            {settled && st !== 'confirmed' && (
+            {showInviteExpiredBanner && (
+                <View style={[styles.statusBanner, styles.statusBannerMuted]}>
+                    <Text style={[styles.statusBannerText, styles.statusBannerTextMuted]}>
+                        This invite is no longer available. If you still need a session, message your
+                        counselor for a new time.
+                    </Text>
+                </View>
+            )}
+            {settled && st !== 'confirmed' && !showInviteExpiredBanner && (
                 <View
                     style={[
                         styles.statusBanner,
@@ -107,9 +144,9 @@ export default function ScheduleInviteCard({
                         <TouchableOpacity
                             key={i}
                             style={styles.slotRow}
-                            onPress={() => !settled && setSelectedIndex(i)}
-                            activeOpacity={settled ? 1 : 0.8}
-                            disabled={settled}
+                            onPress={() => !inviteNoLongerActionable && setSelectedIndex(i)}
+                            activeOpacity={inviteNoLongerActionable ? 1 : 0.8}
+                            disabled={inviteNoLongerActionable}
                         >
                             <Calendar size={14} color={AURORA.textSec} style={styles.slotIcon} />
                             <Text style={styles.slotText}>{slot.date}, {slot.time}</Text>
@@ -123,7 +160,7 @@ export default function ScheduleInviteCard({
                     ))}
                 </View>
             )}
-            {onConfirm && slots.length > 0 && !settled && (
+            {onConfirm && slots.length > 0 && !inviteNoLongerActionable && (
                 <Pressable
                     style={({ pressed }) => [
                         styles.confirmBtnPressable,

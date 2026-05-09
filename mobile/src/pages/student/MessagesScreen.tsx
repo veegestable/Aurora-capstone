@@ -97,6 +97,8 @@ interface SessionMessage {
     note?: string;
     sessionStatus?: string;
     agreedSlot?: { date: string; time: string };
+    sessionDocCreatedAt?: unknown;
+    sessionDocUpdatedAt?: unknown;
   };
   time: string;
 }
@@ -765,6 +767,8 @@ function DirectMessageView({
                               timeSlots: msg.session.timeSlots,
                               sessionStatus: msg.session.sessionStatus,
                               agreedSlot: msg.session.agreedSlot,
+                              sessionDocCreatedAt: msg.session.sessionDocCreatedAt,
+                              sessionDocUpdatedAt: msg.session.sessionDocUpdatedAt,
                             }}
                             senderLabel="Aurora Academic Support"
                             isFromMe={isMe}
@@ -780,6 +784,7 @@ function DirectMessageView({
                                   "completed",
                                   "missed",
                                   "cancelled",
+                                  "expired",
                                 ].includes(msg.session.sessionStatus)
                               )
                                 ? (slot) =>

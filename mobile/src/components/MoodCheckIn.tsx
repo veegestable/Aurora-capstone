@@ -78,6 +78,22 @@ interface MoodCheckInProps {
   initialMood?: string | null;
 }
 
+type MealScheduleRow = { id: string; label: string; time: string };
+
+/** Keep meals already marked Taken in daily context — later check-ins cannot flip them (same idea as bath). */
+function mergeMealStatusForCalendarDay(
+  persisted: Record<string, boolean> | undefined,
+  local: Record<string, boolean>,
+  schedule: MealScheduleRow[],
+): Record<string, boolean> {
+  const out: Record<string, boolean> = { ...(persisted || {}) };
+  for (const meal of schedule) {
+    if (out[meal.id] === true) continue;
+    if (typeof local[meal.id] === "boolean") out[meal.id] = local[meal.id];
+  }
+  return out;
+}
+
 interface DetectedEmotion {
   emotion: string;
   confidence: number;
@@ -874,12 +890,6 @@ export function MoodCheckIn({
         );
         setUploadingJournalImage(false);
       }
-      const normalizedMealResponses = mealSchedule.map((meal) => ({
-        meal_id: meal.id,
-        meal_label: meal.label,
-        meal_time: meal.time,
-        taken: !!mealStatusById[meal.id],
-      }));
       const calCtx = await getDailyContext(user.id, dk);
       const sleepDoc =
         sleepKey === dk ? calCtx : await getDailyContext(user.id, sleepKey);
@@ -889,6 +899,17 @@ export function MoodCheckIn({
           : bathKey === sleepKey
             ? sleepDoc
             : await getDailyContext(user.id, bathKey);
+      const mealMergedCal = mergeMealStatusForCalendarDay(
+        calCtx?.mealStatusById,
+        mealStatusById,
+        mealSchedule,
+      );
+      const normalizedMealResponses = mealSchedule.map((meal) => ({
+        meal_id: meal.id,
+        meal_label: meal.label,
+        meal_time: meal.time,
+        taken: !!mealMergedCal[meal.id],
+      }));
       const sleepForMoodLog = sleepLocked
         ? (sleepDoc?.sleepQuality ?? sleepQuality ?? "fair")
         : sleepQuality || "fair";
@@ -918,11 +939,6 @@ export function MoodCheckIn({
         meal_responses: normalizedMealResponses,
         journal_image_url: uploadedJournalImageUrl,
       });
-
-      const mealMergedCal = {
-        ...(calCtx?.mealStatusById || {}),
-        ...mealStatusById,
-      };
 
       const buildDoc = (
         key: string,
@@ -957,6 +973,11 @@ export function MoodCheckIn({
           key === dk ? calCtx : key === sleepKey ? sleepDoc : bathDoc;
         await setDailyContext(user.id, key, buildDoc(key, existing));
       }
+
+      setMealStatusById(mealMergedCal);
+      setDailyContextState((prev) =>
+        prev ? { ...prev, mealStatusById: { ...mealMergedCal } } : prev,
+      );
 
       try {
         const weekAgo = new Date();
@@ -1091,7 +1112,7 @@ export function MoodCheckIn({
   const showMealGuide = () => {
     setActiveGuide({
       title: "Meal check-in guide",
-      body: "Track if each scheduled meal is already taken.\n\nThis schedule comes from your Profile settings.\nTo set or edit meal times, go to:\nProfile -> Meal Schedule\n\n- Taken: you already had this meal.\n- Not yet: you have not taken it yet.\n\nFuture meal slots are locked until their scheduled time.",
+      body: "Track if each scheduled meal is already taken.\n\nThis schedule comes from your Profile settings.\nTo set or edit meal times, go to:\nProfile -> Meal Schedule\n\n- Taken: you already had this meal. Once saved for today, it stays Taken (like bath) until tomorrow.\n- Not yet: you have not had it yet — you can change this on a later check-in today if you need to.\n\nFuture meal slots are locked until their scheduled time.",
     });
   };
 
@@ -2540,6 +2561,8 @@ export function MoodCheckIn({
                 ) : (
                   mealSchedule.map((meal) => {
                     const status = mealStatusById[meal.id];
+                    const mealTakenLocked =
+                      dailyContext?.mealStatusById?.[meal.id] === true;
                     const mealAvailable = isMealAvailableNow(meal.time);
                     const mealTimeLabel = formatMealTime(meal.time);
                     return (
@@ -2565,12 +2588,13 @@ export function MoodCheckIn({
                         >
                           <TouchableOpacity
                             onPress={() =>
+                              !mealTakenLocked &&
                               setMealStatusById((prev) => ({
                                 ...prev,
                                 [meal.id]: true,
                               }))
                             }
-                            disabled={!mealAvailable}
+                            disabled={!mealAvailable || mealTakenLocked}
                             style={{
                               flex: 1,
                               borderRadius: 10,
@@ -2583,6 +2607,8 @@ export function MoodCheckIn({
                                   : AURORA.cardAlt,
                               paddingVertical: 10,
                               alignItems: "center",
+                              opacity:
+                                mealTakenLocked || !mealAvailable ? 0.75 : 1,
                             }}
                           >
                             <Text
@@ -2600,12 +2626,13 @@ export function MoodCheckIn({
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() =>
+                              !mealTakenLocked &&
                               setMealStatusById((prev) => ({
                                 ...prev,
                                 [meal.id]: false,
                               }))
                             }
-                            disabled={!mealAvailable}
+                            disabled={!mealAvailable || mealTakenLocked}
                             style={{
                               flex: 1,
                               borderRadius: 10,
@@ -2618,6 +2645,8 @@ export function MoodCheckIn({
                                   : AURORA.cardAlt,
                               paddingVertical: 10,
                               alignItems: "center",
+                              opacity:
+                                mealTakenLocked || !mealAvailable ? 0.75 : 1,
                             }}
                           >
                             <Text
