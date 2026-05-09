@@ -28,3 +28,20 @@ export function counselorApprovalBadgeStatus(
   if (s === "pending" || s === "rejected" || s === "approved") return s;
   return "approved";
 }
+
+/**
+ * Counselors students may message or request sessions with.
+ * Excludes pending/rejected admin approval and profiles explicitly marked as unverified.
+ * Older user docs without `email_verified` still qualify if approval is not pending/rejected.
+ */
+export function isCounselorSelectableByStudent(
+  c: Record<string, unknown>,
+): boolean {
+  const approval = readCounselorApprovalRaw(c);
+  if (approval === "pending" || approval === "rejected") return false;
+
+  const ev = c.email_verified ?? c.emailVerified;
+  if (ev === false) return false;
+
+  return true;
+}

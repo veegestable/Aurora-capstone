@@ -48,6 +48,7 @@ import {
   isOpenSessionRequestExpired,
   parsePreferredTimeToDate,
 } from "../../utils/dateHelpers";
+import { isCounselorSelectableByStudent } from "../../utils/counselorApprovalForAdmin";
 import { auditLogsService } from "../../services/audit-logs.service";
 import { subscribeToUsersPresence } from "../../services/firebase-presence.service";
 import { usePeerPresence } from "../../hooks/usePeerPresence";
@@ -1103,10 +1104,19 @@ export default function MessagesScreen() {
         if (!contact) {
           const users = await firestoreService.getUsersByRole("counselor");
           if (cancelled) return;
-          const counselor = (users as Counselor[]).find(
-            (u) => u.id === counselorId,
-          );
-          if (!counselor) return;
+          const raw = (users as Counselor[]).find((u) => u.id === counselorId);
+          if (
+            !raw ||
+            !isCounselorSelectableByStudent(raw as unknown as Record<string, unknown>)
+          ) {
+            clearCounselorRouteParams();
+            Alert.alert(
+              "Counselor unavailable",
+              "That counselor is not available for messaging yet.",
+            );
+            return;
+          }
+          const counselor = raw;
 
           await firestoreService.addConversation(
             counselor.id,

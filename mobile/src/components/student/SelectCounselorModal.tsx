@@ -10,6 +10,7 @@ import { X } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
 import { firestoreService } from '../../services/firebase-firestore.service';
+import { isCounselorSelectableByStudent } from '../../utils/counselorApprovalForAdmin';
 
 export interface Counselor {
     id: string;
@@ -36,7 +37,13 @@ export default function SelectCounselorModal({
             setLoading(true);
             firestoreService
                 .getUsersByRole('counselor')
-                .then((users) => setCounselors((users || []) as Counselor[]))
+                .then((users) =>
+                    setCounselors(
+                        (users || []).filter((u) =>
+                            isCounselorSelectableByStudent(u as Record<string, unknown>),
+                        ) as Counselor[],
+                    ),
+                )
                 .catch(() => setCounselors([]))
                 .finally(() => setLoading(false));
         }
