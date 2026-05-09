@@ -1,5 +1,9 @@
 name: CI
 
+# Mobile + Cloud Functions + Firebase rules — the checks you should mark as
+# **required** on the `release` branch. The Vite web app lives in `ci-web.yml`
+# so a broken dashboard never blocks an Expo / mobile release.
+#
 # Runs on every pull request to either long-lived branch and on direct pushes
 # to them. `main` is the day-to-day dev line (CI is informational); `release`
 # is the trusted line that requires green CI before merge (configured in
@@ -32,25 +36,6 @@ jobs:
       - name: Typecheck
         working-directory: mobile
         run: npm run typecheck
-
-  web-build:
-    name: Web (Vite) lint + typecheck + build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: package-lock.json
-      - name: Install
-        run: npm ci
-      - name: Lint
-        run: npm run lint
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Build
-        run: npm run build
 
   functions-build:
     name: Cloud Functions typecheck/build

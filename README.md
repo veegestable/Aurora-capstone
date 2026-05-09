@@ -123,12 +123,16 @@ EXPO_PUBLIC_FIREBASE_PROJECT_ID=...
 Promotion flow: develop on `main` → when a snapshot is ready, open a PR `main → release` → wait for CI green → merge. Anything that touches `mobile/firestore.rules` or `mobile/storage.rules` then auto-deploys to Firebase.
 
 ### `CI` — `.github/workflows/ci.yml`
-Runs on every PR into `main` or `release`, and on direct pushes to either:
+Runs on every PR into `main` or `release`, and on direct pushes to either. These are the jobs to mark as **required** on `release` when you care about shipping mobile:
 
 - **Mobile typecheck** — `tsc --noEmit` inside `mobile/`
-- **Web lint + typecheck + build** — `npm run lint && npm run typecheck && npm run build` at the root
 - **Cloud Functions build** — `npm run build` inside `functions/`
 - **Firestore + Storage rules dry-run** — `firebase deploy --dry-run` validates that `mobile/firestore.rules` and `mobile/storage.rules` compile against the live Firebase parser. Skipped automatically on forks (or any run without the credentials secret).
+
+### `CI Web` — `.github/workflows/ci-web.yml`
+Runs **only when web-related paths change** (`src/`, `public/`, root `package.json`, Vite/ESLint/Tailwind configs, etc.). Keeps the Vite dashboard healthy without blocking mobile-only work.
+
+**Do not** add `Web (Vite) lint + typecheck + build` to required status checks on `release` if your priority is shipping the Expo app — a broken web build would otherwise block merges. Fix web on its own timeline; mobile + rules + functions stay the gate.
 
 ### `Deploy Firestore + Storage rules` — `.github/workflows/deploy-rules.yml`
 Runs on push to **`release`** whenever any of these change:
@@ -140,7 +144,11 @@ Publishes the rules to Firebase project `aurora-44941` automatically — no more
 GitHub repo → **Settings → Branches → Add branch protection rule** for `release`:
 - ✅ Require a pull request before merging
 - ✅ Require status checks to pass before merging
-- ✅ Tick all four CI jobs as required (Mobile, Web, Functions, Rules)
+- ✅ Tick **only** these three jobs from the **CI** workflow as required:
+  - `Mobile (Expo) typecheck`
+  - `Cloud Functions typecheck/build`
+  - `Firestore + Storage rules compile`
+- ⛔ **Do not** require `Web (Vite) lint + typecheck + build` (from **CI Web**) if you want mobile releases independent of the web dashboard.
 - ✅ Require branches to be up to date before merging
 
 `main` stays unprotected so quick iterative pushes are not slowed down.
@@ -159,7 +167,7 @@ Pick **one** of the two below in **Settings → Secrets and variables → Action
 2. Copy the printed token.
 3. Add a secret named `FIREBASE_TOKEN` with the token as its value.
 
-After saving the secret, the next push to `main` that touches a rules file will deploy automatically.
+After saving the secret, the next merge to `release` that touches a rules file will deploy automatically.
 
 ### Cutting an APK / IPA
 Production app binaries are **not** built in CI (Apple Developer Program is paid; EAS credits are limited). Run them locally when you cut a release:
