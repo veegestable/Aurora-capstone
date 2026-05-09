@@ -169,12 +169,41 @@ Pick **one** of the two below in **Settings → Secrets and variables → Action
 
 After saving the secret, the next merge to `release` that touches a rules file will deploy automatically.
 
-### Cutting an APK / IPA
-Production app binaries are **not** built in CI (Apple Developer Program is paid; EAS credits are limited). Run them locally when you cut a release:
+### `Build Android (EAS)` — `.github/workflows/build-android.yml`
+Triggers an EAS cloud build for Android whenever **`release`** changes inside `mobile/`. Build runs on Expo's servers (~15–25 min); the Action just kicks it off and exits, so it doesn't burn GitHub minutes.
+
+- **Auto-trigger:** `push` to `release` with changes under `mobile/**`
+- **Manual:** Actions tab → **Build Android (EAS)** → **Run workflow** → pick `preview` (APK), `production` (AAB for Play Store), or `development`
+- **Output:** download from `https://expo.dev/accounts/<your-account>/projects/mobile/builds`
+- **Profiles** are defined in `mobile/eas.json`:
+  - `preview` → installable `.apk`, internal distribution (good for QA / sideload)
+  - `production` → `.aab` for Play Store, autoIncrements versionCode
+  - `development` → dev client build for hot-reload native testing
+
+### One-time setup for EAS builds
+Run these **on your laptop** (interactive, can't be done in CI):
+
+```bash
+npm install -g eas-cli
+eas login                                # use your Expo account
+cd mobile
+eas init                                 # creates `extra.eas.projectId` in app.json
+```
+
+Commit the resulting `app.json` change. Then in **Settings → Secrets and variables → Actions → New repository secret**:
+
+- Generate a token at <https://expo.dev/accounts/[your-account]/settings/access-tokens>
+- Add a secret named **`EXPO_TOKEN`** with the value
+
+After that, every push to `release` that touches `mobile/**` will trigger an Android build automatically. iOS builds use the same flow — change the workflow's `--platform android` to `ios` (requires an Apple Developer account, $99/yr).
+
+### Cutting a build manually (optional)
+If you'd rather build from your laptop instead of CI:
 
 ```bash
 cd mobile
-npx eas build --platform android --profile production   # APK
+npx eas build --platform android --profile preview      # installable APK
+npx eas build --platform android --profile production   # Play Store AAB
 npx eas build --platform ios --profile production       # IPA (requires Apple Dev account)
 ```
 
