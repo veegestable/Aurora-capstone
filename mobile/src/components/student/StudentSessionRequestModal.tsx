@@ -7,7 +7,7 @@ import { AppTextInput as TextInput } from "../common/AppTextInput";
 
 import React, { useEffect, useState } from 'react';
 import { Modal, View, TouchableOpacity, StyleSheet, Platform, KeyboardAvoidingView } from "react-native";
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { X, Send, Calendar } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 
@@ -63,9 +63,41 @@ export default function StudentSessionRequestModal({
         setShowPicker(false);
     }, [visible, initialPreferredDate, initialNote]);
 
-    const handleDateChange = (_: any, selectedDate?: Date) => {
-        if (Platform.OS === 'android') setShowPicker(false);
+    const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+        if (Platform.OS === 'android') {
+            if (event.type !== 'set' || !selectedDate) return;
+            setPreferredDate(selectedDate);
+            return;
+        }
+
         if (selectedDate) setPreferredDate(selectedDate);
+    };
+
+    const openPicker = () => {
+        if (Platform.OS === 'android') {
+            DateTimePickerAndroid.open({
+                value: preferredDate,
+                mode: 'date',
+                minimumDate: new Date(),
+                onChange: (dateEvent, selectedDay) => {
+                    if (dateEvent.type !== 'set' || !selectedDay) return;
+
+                    DateTimePickerAndroid.open({
+                        value: selectedDay,
+                        mode: 'time',
+                        is24Hour: false,
+                        onChange: (timeEvent, selectedTime) => {
+                            if (timeEvent.type !== 'set' || !selectedTime) return;
+                            const combined = new Date(selectedDay);
+                            combined.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+                            setPreferredDate(combined);
+                        },
+                    });
+                },
+            });
+            return;
+        }
+        setShowPicker(true);
     };
 
     const handleSend = () => {
@@ -94,7 +126,7 @@ export default function StudentSessionRequestModal({
                     <Text style={styles.label}>Preferred Time</Text>
                     <TouchableOpacity
                         style={styles.timeRow}
-                        onPress={() => setShowPicker(true)}
+                        onPress={openPicker}
                         activeOpacity={0.8}
                     >
                         <Calendar size={18} color={AURORA.blue} />

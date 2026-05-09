@@ -7,7 +7,7 @@ import { AppTextInput as TextInput } from "../common/AppTextInput";
 
 import React, { useState, useEffect } from 'react';
 import { Modal, View, TouchableOpacity, ScrollView, StyleSheet, Platform, KeyboardAvoidingView } from "react-native";
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { X, Send, Calendar, Pencil, Info } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
@@ -82,15 +82,48 @@ export default function SendSessionInviteModal({
         setNote(mode === 'reschedule' ? '' : DEFAULT_INVITE_NOTE(fn));
     }, [visible, mode, student.id, student.name]);
 
-    const handleDateChange = (_: any, selectedDate?: Date) => {
-        if (Platform.OS === 'android') setPickingSlot(null);
+    const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
         if (selectedDate) {
             setTempDate(selectedDate);
-            if (Platform.OS === 'ios') return;
-            if (pickingSlot === 'primary') setPrimaryDate(selectedDate);
-            if (pickingSlot === 'alternative') setAlternativeDate(selectedDate);
-            if (pickingSlot === 'final') setFinalDate(selectedDate);
         }
+    };
+
+    const applySlotDate = (slot: 'primary' | 'alternative' | 'final', date: Date) => {
+        if (slot === 'primary') setPrimaryDate(date);
+        if (slot === 'alternative') setAlternativeDate(date);
+        if (slot === 'final') setFinalDate(date);
+    };
+
+    const openAndroidPicker = (slot: 'primary' | 'alternative' | 'final', pickerValue: Date) => {
+        DateTimePickerAndroid.open({
+            value: pickerValue,
+            mode: 'date',
+            minimumDate: new Date(),
+            onChange: (dateEvent, selectedDay) => {
+                if (dateEvent.type !== 'set' || !selectedDay) {
+                    setPickingSlot(null);
+                    return;
+                }
+
+                DateTimePickerAndroid.open({
+                    value: selectedDay,
+                    mode: 'time',
+                    is24Hour: false,
+                    onChange: (timeEvent, selectedTime) => {
+                        if (timeEvent.type !== 'set' || !selectedTime) {
+                            setPickingSlot(null);
+                            return;
+                        }
+
+                        const combined = new Date(selectedDay);
+                        combined.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+                        setTempDate(combined);
+                        applySlotDate(slot, combined);
+                        setPickingSlot(null);
+                    },
+                });
+            },
+        });
     };
 
     const handleConfirmDate = () => {
@@ -102,8 +135,13 @@ export default function SendSessionInviteModal({
 
     const openPicker = (slot: 'primary' | 'alternative' | 'final') => {
         const existing = slot === 'primary' ? primaryDate : slot === 'alternative' ? alternativeDate : finalDate;
-        setTempDate(existing || new Date());
+        const pickerValue = existing || new Date();
+        setTempDate(pickerValue);
         setPickingSlot(slot);
+
+        if (Platform.OS === 'android') {
+            openAndroidPicker(slot, pickerValue);
+        }
     };
 
     const handleSend = () => {
@@ -227,7 +265,7 @@ export default function SendSessionInviteModal({
                         <Text style={styles.sendBtnText}>{sendBtnText}</Text>
                     </TouchableOpacity>
 
-                    {pickingSlot && (
+                    {Platform.OS === 'ios' && pickingSlot && (
                         <View style={styles.pickerOverlay}>
                             <DateTimePicker
                                 value={tempDate}
