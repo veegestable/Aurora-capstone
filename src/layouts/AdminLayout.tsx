@@ -5,6 +5,7 @@ import {
   Megaphone, BarChart3, ScrollText,
   Settings, LogOut,
 } from 'lucide-react'
+import { LetterAvatar } from '../components/LetterAvatar'
 
 const PRIMARY_NAV = [
   { path: '/',                    label: 'Dashboard',     icon: Home },
@@ -43,9 +44,11 @@ export default function AdminLayout() {
             <div className="flex items-center space-x-2 sm:space-x-4">
               <div className="flex items-center space-x-2">
                 <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[rgba(45,107,255,0.2)] rounded-full flex items-center justify-center ring-2 ring-[rgba(45,107,255,0.35)]">
-                  <span className="text-white text-xs sm:text-sm font-semibold">
-                    {user?.full_name?.charAt(0).toUpperCase()}
-                  </span>
+                  <LetterAvatar 
+                    name={user?.full_name || ''} 
+                    size={28} 
+                    avatarUrl={user?.avatar_url ?? ''} 
+                  />
                 </div>
                 <span className="text-xs sm:text-sm text-aurora-text-sec hidden sm:block">
                   Welcome, {user?.full_name}

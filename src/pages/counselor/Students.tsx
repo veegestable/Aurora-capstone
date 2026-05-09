@@ -17,6 +17,7 @@ interface StudentEntry {
   id: string
   full_name: string
   email?: string
+  avatar_url?: string
   signal: CounselorSignalPill
   lastLog: string
   stats?: CheckInStats
@@ -55,7 +56,11 @@ function StudentRow({ student, onClick }: { student: StudentEntry, onClick: () =
       aria-label={`View details for ${student.full_name}`}
     >
       <div className="p-3 pl-4">
-        <LetterAvatar name={student.full_name} size={44} avatarUrl={(student as any).avatar_url || undefined} />
+        <LetterAvatar 
+          name={student.full_name} 
+          size={44} 
+          avatarUrl={student.avatar_url} 
+        />
       </div>
       <div className="flex-1 py-3 min-w-0">
         <p className="font-bold text-aurora-primary-dark text-sm truncate">{student.full_name}</p>
@@ -132,6 +137,7 @@ export default function Students() {
                 id: s.id,
                 full_name: s.full_name || 'Student',
                 email: s.email,
+                avatar_url: s.avatar_url,
                 signal: counselorSignalFromLogs(logs),
                 lastLog: latestLog?.log_date ? formatTimeAgo(new Date(latestLog.log_date)) : 'No check-ins',
                 stats
@@ -141,6 +147,7 @@ export default function Students() {
                 id: s.id,
                 full_name: s.full_name || 'Student',
                 email: s.email,
+                avatar_url: s.avatar_url,
                 signal: 'no_checkins' as CounselorSignalPill,
                 lastLog: 'Error loading',
               }
@@ -203,20 +210,31 @@ export default function Students() {
       </div>
 
       {/* Signal Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => setActiveFilter(f.value)}
-            className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
-              activeFilter === f.value
-                ? 'bg-aurora-secondary-blue text-white border-aurora-secondary-blue'
-                : 'bg-white border-aurora-gray-200 text-aurora-primary-dark/60 hover:border-aurora-secondary-blue/40'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div>
+        <p className="text-[11px] font-bold tracking-wide text-aurora-primary-dark/45 uppercase mb-2">
+          Filter by signal
+        </p>
+        <div
+          className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide"
+          role="toolbar"
+          aria-label="Filter students by check-in signal"
+        >
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setActiveFilter(f.value)}
+              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer min-h-[36px] ${
+                activeFilter === f.value
+                  ? 'bg-aurora-secondary-blue text-white border-aurora-secondary-blue shadow-sm'
+                  : 'bg-aurora-secondary-blue/10 border-aurora-gray-200 text-aurora-primary-dark/60 hover:border-aurora-secondary-blue/40'
+              }`}
+              aria-pressed={activeFilter === f.value}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Student List */}

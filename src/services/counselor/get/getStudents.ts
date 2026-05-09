@@ -5,28 +5,30 @@ import { StudentInfo } from '../types'
 export const getStudents = async (): Promise<StudentInfo[]> => {
   try {
     const q = query(
-      collection(db, 'users'), 
-      where('role', '==', 'student')
+      collection(db, 'users'),
+      where('role', '==', 'student'),
     )
-    
+
     const querySnapshot = await getDocs(q)
-    
-    const students: StudentInfo[] = querySnapshot.docs.map(doc => {
-      const data = doc.data()
+
+    const students: StudentInfo[] = querySnapshot.docs.map((docSnap) => {
+      const data = docSnap.data()
       return {
-        id: doc.id,
+        id: docSnap.id,
         full_name: data.full_name || data.displayName || 'Unknown Student',
         email: data.email || 'No Email',
         role: data.role || 'student',
-
         program: data.program || undefined,
         yearLevel: data.yearLevel || undefined,
-      } as StudentInfo
+        department: data.department || data.dept || undefined,
+        avatar_url: typeof data.avatar_url === 'string' && data.avatar_url.trim()
+          ? data.avatar_url.trim()
+          : undefined,
+      }
     })
 
     console.log(`✅ Retrieved ${students.length} students from Firebase`)
     return students
-
   } catch (error) {
     console.error('❌ Error fetching students from Firebase: ', error)
     return []

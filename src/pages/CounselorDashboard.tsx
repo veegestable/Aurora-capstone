@@ -35,7 +35,11 @@ function StudentChip({ student }: { student: StudentInfo }) {
       className="flex items-center gap-3 card-aurora p-3 hover:border-aurora-blue/40 transition-colors"
       aria-label={`Open ${student.full_name}'s profile`}
     >
-      <LetterAvatar name={student.full_name || 'Student'} size={40} />
+      <LetterAvatar
+        name={student.full_name || 'Student'}
+        size={40}
+        avatarUrl={student.avatar_url}
+      />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-white truncate">
           {student.full_name || 'Student'}

@@ -88,6 +88,7 @@ Use this file as the source of truth for **what to implement** and **where to ch
 
 - **[web-refactor.md](workflows/web-refactor.md):** Vite + React 19, `react-router-dom` v7, Tailwind v4 + tokens in [`src/index.css`](../src/index.css), Context (not Zustand), `lucide-react`, Firebase. Services: `src/services/{feature}/{verb}/…` + barrel `index.ts`.  
 - **[aurora-design-system.md](workflows/aurora-design-system.md):** Dark AURORA tokens; layout may differ on large viewports but **visual parity** with mobile for colors, typography hierarchy, and component styling.
+- **Progress tracker:** **[round-6-progress.md](workflows/round-6-progress.md)** — update after each batch.
 
 ---
 
