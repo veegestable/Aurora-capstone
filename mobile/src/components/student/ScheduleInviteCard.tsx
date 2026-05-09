@@ -126,21 +126,26 @@ export default function ScheduleInviteCard({
             {onConfirm && slots.length > 0 && !settled && (
                 <Pressable
                     style={({ pressed }) => [
-                        styles.confirmBtnOuter,
+                        styles.confirmBtnPressable,
                         pressed && !confirmBusy && styles.confirmBtnOuterPressed,
                         confirmBusy && styles.confirmBtnDisabled,
                     ]}
                     onPress={handleConfirm}
                     disabled={confirmBusy}
-                    android_ripple={{ color: 'rgba(255, 255, 255, 0.25)', foreground: true }}
+                    android_ripple={{
+                        color: 'rgba(255, 255, 255, 0.22)',
+                        borderless: false,
+                    }}
                 >
-                    <View style={styles.confirmBtnInner}>
-                        <View style={styles.confirmBtnIconCircle}>
-                            <Check size={18} color="#32CD32" strokeWidth={2.75} />
+                    <View style={styles.confirmBtnFill}>
+                        <View style={styles.confirmBtnInner}>
+                            <View style={styles.confirmBtnIconCircle}>
+                                <Check size={18} color="#ffffff" strokeWidth={2.75} />
+                            </View>
+                            <Text style={styles.confirmBtnText}>
+                                {confirmBusy ? 'Confirming…' : 'Confirm slot'}
+                            </Text>
                         </View>
-                        <Text style={styles.confirmBtnText}>
-                            {confirmBusy ? 'Confirming…' : 'Confirm slot'}
-                        </Text>
                     </View>
                 </Pressable>
             )}
@@ -259,19 +264,23 @@ const styles = StyleSheet.create({
         borderRadius: 5,
         backgroundColor: AURORA.blue,
     },
-    confirmBtnOuter: {
+    /** Pressable wrapper only — solid paint lives on `confirmBtnFill` so Android ripple does not flatten/hide the background. */
+    confirmBtnPressable: {
         width: '100%',
         marginTop: 6,
         borderRadius: 12,
         overflow: 'hidden',
-        backgroundColor: 'rgba(45,107,255,0.16)',
+    },
+    confirmBtnFill: {
+        width: '100%',
+        borderRadius: 12,
+        backgroundColor: '#22c55e',
         borderWidth: 1,
-        borderColor: 'rgba(45,107,255,0.45)',
         ...Platform.select({
             ios: {
-                shadowColor: '#1e40af',
+                shadowColor: '#14532d',
                 shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.16,
+                shadowOpacity: 0.22,
                 shadowRadius: 4,
             },
             android: {
@@ -296,12 +305,11 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
         borderRadius: 12,
-        backgroundColor: 'rgba(45,107,255,0.22)',
         alignItems: 'center',
         justifyContent: 'center',
     },
     confirmBtnText: {
-        color: '#CFE0FF',
+        color: '#ffffff',
         fontSize: 14,
         fontWeight: '700',
         letterSpacing: 0.2,
