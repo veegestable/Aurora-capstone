@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 12.0.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -10,19 +10,14 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview",
       "android": {
         "buildType": "apk"
       },
       "ios": {
         "simulator": true
-      },
-      "env": {
-        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "aurora-44941"
       }
     },
     "production": {
-      "channel": "production",
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
