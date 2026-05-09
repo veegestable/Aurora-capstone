@@ -71,6 +71,11 @@ import {
   type SleepQuality,
 } from "../services/mood-firestore-v2.service";
 import { getBreathingExerciseForMood } from "../features/breathing/breathing-data";
+import { ZEN_BREATHING_REMINDER_DELAY_SEC } from "../services/push-notifications.service";
+import {
+  clearPendingBreathingReminder,
+  setPendingBreathingReminder,
+} from "../utils/pendingBreathingReminder";
 import { InfoGuideModal, type InfoGuideContent } from "./common/InfoGuideModal";
 
 interface MoodCheckInProps {
@@ -293,6 +298,10 @@ export function MoodCheckIn({
   const [submittedTodayCheckIns, setSubmittedTodayCheckIns] = useState(1);
   const [showQuickResetPrompt, setShowQuickResetPrompt] = useState(false);
   const [showQuickResetSession, setShowQuickResetSession] = useState(false);
+  /** True after Quick Reset breathing finishes this submission (clears Zen reminder). */
+  const quickResetDoneRef = useRef(false);
+  /** True after Skip quick reset queued the Zen banner (avoid duplicate save on Done). */
+  const pendingZenReminderQueuedRef = useRef(false);
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const scrollRef = useRef<ScrollView | null>(null);
   const durationInputYRef = useRef(0);
@@ -1015,6 +1024,8 @@ export function MoodCheckIn({
 
       setIsSubmitting(false);
       setIsSubmitted(true);
+      quickResetDoneRef.current = false;
+      pendingZenReminderQueuedRef.current = false;
       setShowQuickResetPrompt(true);
     } catch (error: any) {
       setIsSubmitting(false);
@@ -1200,6 +1211,9 @@ export function MoodCheckIn({
             onComplete={async () => {
               setShowQuickResetSession(false);
               setShowQuickResetPrompt(false);
+              quickResetDoneRef.current = true;
+              pendingZenReminderQueuedRef.current = false;
+              await clearPendingBreathingReminder();
               const zenDayKey = calendarDayKeyLocal(new Date());
               if (user?.id) {
                 try {
@@ -1454,7 +1468,30 @@ export function MoodCheckIn({
                 more focused.
               </Text>
               <TouchableOpacity
-                onPress={() => setShowQuickResetPrompt(false)}
+                onPress={() => {
+                  void (async () => {
+                    pendingZenReminderQueuedRef.current = true;
+                    const pushOk = user?.session_push_notifications_enabled !== false;
+                    await setPendingBreathingReminder(
+                      {
+                        exerciseId: quickResetExercise.id,
+                        savedAtMs: Date.now(),
+                      },
+                      { schedulePush: pushOk },
+                    );
+                    setShowQuickResetPrompt(false);
+                    const mins = Math.max(
+                      1,
+                      Math.round(ZEN_BREATHING_REMINDER_DELAY_SEC / 60),
+                    );
+                    Alert.alert(
+                      "We’ll remind you on Zen",
+                      pushOk
+                        ? `Suggested exercise: ${quickResetExercise.name}. It appears at the top of Zen until you complete it. You'll also get a nudge in about ${mins} minutes if notifications are allowed.`
+                        : `Suggested exercise: ${quickResetExercise.name}. Open the Zen tab anytime — it appears at the top until you complete it.`,
+                    );
+                  })();
+                }}
                 style={{ alignSelf: "flex-end", marginBottom: 12, padding: 4 }}
               >
                 <Text
@@ -1574,7 +1611,35 @@ export function MoodCheckIn({
               useNativeDriver
             >
               <TouchableOpacity
-                onPress={() => onComplete?.()}
+                onPress={() => {
+                  void (async () => {
+                    if (
+                      !quickResetDoneRef.current &&
+                      !pendingZenReminderQueuedRef.current
+                    ) {
+                      const pushOk =
+                        user?.session_push_notifications_enabled !== false;
+                      await setPendingBreathingReminder(
+                        {
+                          exerciseId: quickResetExercise.id,
+                          savedAtMs: Date.now(),
+                        },
+                        { schedulePush: pushOk },
+                      );
+                      const mins = Math.max(
+                        1,
+                        Math.round(ZEN_BREATHING_REMINDER_DELAY_SEC / 60),
+                      );
+                      Alert.alert(
+                        "We’ll remind you on Zen",
+                        pushOk
+                          ? `Suggested exercise: ${quickResetExercise.name}. You'll see it at the top of Zen until you complete it. You'll also get a nudge in about ${mins} minutes if notifications are allowed.`
+                          : `Suggested exercise: ${quickResetExercise.name}. You'll see it at the top of Zen until you complete a quick session.`,
+                      );
+                    }
+                    onComplete?.();
+                  })();
+                }}
                 activeOpacity={0.9}
                 style={{ borderRadius: 999, overflow: "hidden" }}
               >

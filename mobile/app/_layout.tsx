@@ -15,6 +15,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
   configureNotificationHandler,
   sendSessionDeviceNotification,
+  ZEN_BREATHING_REMINDER_TYPE,
 } from "../src/services/push-notifications.service";
 import { useAuth } from "../src/stores/AuthContext";
 import {
@@ -56,7 +57,9 @@ function NotificationRouterBridge() {
       const fallbackRoute =
         notifType === "session_invitation" || notifType === "session_update"
           ? "/(student)/messages"
-          : "/(student)/index";
+          : notifType === ZEN_BREATHING_REMINDER_TYPE
+            ? "/(student)/resources"
+            : "/(student)/index";
 
       if (notificationId) {
         try {

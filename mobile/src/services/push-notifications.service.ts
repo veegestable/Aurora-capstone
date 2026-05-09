@@ -1,7 +1,16 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
+import { BREATHING_EXERCISES } from "../features/breathing/breathing-data";
 
 const DAILY_REMINDER_TYPE = "aurora_daily_checkin_reminder";
+
+/** Local scheduled push for Zen breathing reminder after mood check-in (skip / Done without Quick Reset). */
+export const ZEN_BREATHING_REMINDER_TYPE = "aurora_zen_breathing_reminder";
+
+const ANDROID_CHANNEL_WELLNESS = "wellness-reminders";
+
+/** Fires after this many seconds when a pending Zen exercise is queued (non-stacking). */
+export const ZEN_BREATHING_REMINDER_DELAY_SEC = 1 * 60;
 
 let handlerConfigured = false;
 const FLOWERY_REMINDER_LINES = [
@@ -31,6 +40,17 @@ async function ensureAndroidChannel(): Promise<void> {
     description: "Aurora check-in reminders",
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  });
+}
+
+async function ensureWellnessAndroidChannel(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_WELLNESS, {
+    name: "Wellness reminders",
+    description: "Breathing and mindfulness nudges from Aurora",
+    importance: Notifications.AndroidImportance.DEFAULT,
+    vibrationPattern: [0, 200, 120, 200],
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   });
 }
@@ -123,6 +143,71 @@ export async function sendTestDailyCheckInNotification(): Promise<boolean> {
       },
     },
     trigger: null,
+  });
+
+  return true;
+}
+
+export async function clearZenBreathingReminderScheduled(): Promise<void> {
+  configureNotificationHandler();
+  const all = await Notifications.getAllScheduledNotificationsAsync();
+  const ownIds = all
+    .filter((n) => n.content?.data?.type === ZEN_BREATHING_REMINDER_TYPE)
+    .map((n) => n.identifier);
+  await Promise.all(
+    ownIds.map((id) => Notifications.cancelScheduledNotificationAsync(id)),
+  );
+}
+
+/**
+ * Schedules one local notification (replaces any previous Zen breathing reminder).
+ * Requires OS permission; respects optional push toggle via caller (only schedule when enabled).
+ */
+export async function scheduleZenBreathingReminderPush(
+  exerciseId: string,
+  opts?: { delaySeconds?: number },
+): Promise<boolean> {
+  configureNotificationHandler();
+  await ensureAndroidChannel();
+  await ensureWellnessAndroidChannel();
+  const permission = await ensureNotificationPermission();
+  if (!permission) return false;
+
+  await clearZenBreathingReminderScheduled();
+
+  const ex = BREATHING_EXERCISES.find((e) => e.id === exerciseId);
+  const name = ex?.name ?? "your breathing exercise";
+
+  const delaySeconds = Math.max(
+    60,
+    typeof opts?.delaySeconds === "number"
+      ? opts.delaySeconds
+      : ZEN_BREATHING_REMINDER_DELAY_SEC,
+  );
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Your breathing exercise is waiting",
+      body: `Take a minute for ${name} — open Zen when you're ready.`,
+      sound: true,
+      ...(Platform.OS === "android"
+        ? {
+            android: {
+              channelId: ANDROID_CHANNEL_WELLNESS,
+            },
+          }
+        : {}),
+      data: {
+        type: ZEN_BREATHING_REMINDER_TYPE,
+        targetRoute: "/(student)/resources",
+        exerciseId,
+      },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: delaySeconds,
+      repeats: false,
+    },
   });
 
   return true;
