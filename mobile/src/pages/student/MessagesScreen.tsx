@@ -554,14 +554,7 @@ function DirectMessageView({
                 </View>
               </View>
             </View>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <TouchableOpacity style={{ padding: 4 }}>
-                <Phone size={20} color={AURORA.textSec} />
-              </TouchableOpacity>
-              <TouchableOpacity style={{ padding: 4 }}>
-                <Info size={22} color={AURORA.textSec} />
-              </TouchableOpacity>
-            </View>
+            <View style={{ width: 30 }} />
           </View>
 
           {/* Privacy Banner */}

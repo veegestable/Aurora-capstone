@@ -2,9 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { View, ScrollView, TouchableOpacity, Switch, Alert, Image, Modal, Platform, ActivityIndicator, KeyboardAvoidingView } from "react-native";
 import { AppText as Text } from "../../components/common/AppText";
 import { AppTextInput as TextInput } from "../../components/common/AppTextInput";
-import DateTimePicker, {
-  DateTimePickerAndroid,
-} from "@react-native-community/datetimepicker";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { AndroidWheelTimePicker } from "../../components/common/AndroidWheelTimePicker";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -929,6 +928,17 @@ export default function ProfileScreen() {
     hhmmToDate("", "19:00"),
   );
   const [activeMealIndex, setActiveMealIndex] = useState<number | null>(null);
+  const [androidPicker, setAndroidPicker] = useState<{
+    visible: boolean;
+    value: Date;
+    title?: string;
+    onSelect: (selected: Date) => void;
+  }>({
+    visible: false,
+    value: new Date(),
+    title: undefined,
+    onSelect: () => {},
+  });
   const [sessionPushEnabled, setSessionPushEnabled] = useState(true);
   const [savingSessionPushPreference, setSavingSessionPushPreference] =
     useState(false);
@@ -1009,17 +1019,18 @@ export default function ProfileScreen() {
   const openAndroidTimePicker = (
     value: Date,
     onSelect: (selected: Date) => void,
+    title?: string,
   ) => {
-    DateTimePickerAndroid.open({
+    setAndroidPicker({
+      visible: true,
       value,
-      mode: "time",
-      is24Hour: false,
-      onChange: (event, selectedDate) => {
-        if (event.type === "set" && selectedDate) {
-          onSelect(selectedDate);
-        }
-      },
+      title,
+      onSelect,
     });
+  };
+
+  const closeAndroidTimePicker = () => {
+    setAndroidPicker((prev) => ({ ...prev, visible: false }));
   };
 
   const normalizeMealCount = (count: number, base: MealScheduleItem[]) => {
@@ -1086,9 +1097,13 @@ export default function ProfileScreen() {
   const openMealTimePicker = (idx: number) => {
     if (Platform.OS === "android") {
       const meal = mealDraft[idx];
-      openAndroidTimePicker(hhmmToDate(meal?.time || "", "07:00"), (selected) => {
-        updateMealTime(idx, selected.getHours(), selected.getMinutes());
-      });
+      openAndroidTimePicker(
+        hhmmToDate(meal?.time || "", "07:00"),
+        (selected) => {
+          updateMealTime(idx, selected.getHours(), selected.getMinutes());
+        },
+        meal?.label ? `${meal.label} time` : "Meal time",
+      );
       return;
     }
     setActiveMealIndex(idx);
@@ -1464,12 +1479,16 @@ export default function ProfileScreen() {
             <TouchableOpacity
               onPress={() => {
                 if (Platform.OS === "android") {
-                  openAndroidTimePicker(pickerValue, (selected) => {
-                    void setReminderTime(
-                      selected.getHours(),
-                      selected.getMinutes(),
-                    );
-                  });
+                  openAndroidTimePicker(
+                    pickerValue,
+                    (selected) => {
+                      void setReminderTime(
+                        selected.getHours(),
+                        selected.getMinutes(),
+                      );
+                    },
+                    "Reminder time",
+                  );
                   return;
                 }
                 setShowReminderTimePicker(true);
@@ -2048,7 +2067,11 @@ export default function ProfileScreen() {
                   ) : (
                     <TouchableOpacity
                       onPress={() =>
-                        openAndroidTimePicker(wakePickDate, setWakePickDate)
+                        openAndroidTimePicker(
+                          wakePickDate,
+                          setWakePickDate,
+                          "Usual wake-up time",
+                        )
                       }
                       style={{
                         marginTop: 4,
@@ -2221,7 +2244,11 @@ export default function ProfileScreen() {
                   ) : (
                     <TouchableOpacity
                       onPress={() =>
-                        openAndroidTimePicker(bathPickDate, setBathPickDate)
+                        openAndroidTimePicker(
+                          bathPickDate,
+                          setBathPickDate,
+                          "Usual bath time",
+                        )
                       }
                       style={{
                         marginTop: 4,
@@ -2387,6 +2414,16 @@ export default function ProfileScreen() {
             await uploadAvatar(uri);
           }}
         />
+
+        {Platform.OS === "android" ? (
+          <AndroidWheelTimePicker
+            visible={androidPicker.visible}
+            value={androidPicker.value}
+            title={androidPicker.title}
+            onConfirm={(d) => androidPicker.onSelect(d)}
+            onClose={closeAndroidTimePicker}
+          />
+        ) : null}
       </SafeAreaView>
     </View>
   );

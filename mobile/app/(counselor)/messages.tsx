@@ -49,6 +49,7 @@ import SelectStudentModal from "../../src/components/counselor/SelectStudentModa
 import * as Clipboard from "expo-clipboard";
 import { subscribeToUsersPresence } from "../../src/services/firebase-presence.service";
 import { usePeerPresence } from "../../src/hooks/usePeerPresence";
+import { auth } from "../../src/services/firebase";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type FilterTab = "All Messages" | "Unread" | "Priority";
@@ -270,7 +271,8 @@ function ChatView({
         setMessages(msgs as ChatMessage[]);
         setLoadingMessages(false);
       },
-      () => {
+      (err) => {
+        console.error("Failed to load conversation messages:", err);
         setMessages([]);
         setLoadingMessages(false);
       },
@@ -1250,6 +1252,7 @@ function ChatView({
 // ─── Main Screen ────────────────────────────────────────────────────────────────
 export default function CounselorMessagesScreen() {
   const { user } = useAuth();
+  const currentUserId = user?.id || auth.currentUser?.uid || null;
   const { contacts, setContacts } = useMessagesContactStore();
   const [activeTab, setActiveTab] = useState<FilterTab>("All Messages");
   const [selectedContact, setSelectedContact] = useState<Conversation | null>(
@@ -1289,13 +1292,13 @@ export default function CounselorMessagesScreen() {
   }, [studentId]);
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!currentUserId) {
       setLoading(false);
       return;
     }
     let cancelled = false;
     firestoreService
-      .getConversations(user.id)
+      .getConversations(currentUserId)
       .then((convos) => {
         if (!cancelled) setContacts(convos);
       })
@@ -1308,7 +1311,7 @@ export default function CounselorMessagesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, setContacts]);
+  }, [currentUserId, setContacts]);
 
   useEffect(() => {
     if (loading) return;
@@ -1329,17 +1332,17 @@ export default function CounselorMessagesScreen() {
   ]);
 
   const refreshConversations = () => {
-    if (!user?.id) return;
+    if (!currentUserId) return;
     firestoreService
-      .getConversations(user.id)
+      .getConversations(currentUserId)
       .then(setContacts)
       .catch(() => setContacts([]));
   };
 
   const handleConversationCreated = async (studentId: string) => {
-    if (!user?.id) return;
+    if (!currentUserId) return;
     try {
-      const convos = await firestoreService.getConversations(user.id);
+      const convos = await firestoreService.getConversations(currentUserId);
       setContacts(convos);
       const added = convos.find((c) => c.id === studentId);
       if (added) setSelectedContact(added);

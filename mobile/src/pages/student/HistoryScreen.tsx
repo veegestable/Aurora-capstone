@@ -1421,7 +1421,6 @@ export default function HistoryScreen() {
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={{ fontSize: 18 }}>✦</Text>
             <View>
               <Text
                 style={{ color: "#FFFFFF", fontSize: 17, fontWeight: "800" }}

@@ -5,11 +5,12 @@ import { AppTextInput as TextInput } from "../common/AppTextInput";
  * Preferred time + note, sends to counselor in the conversation
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { Fragment, useEffect, useState } from 'react';
 import { Modal, View, TouchableOpacity, StyleSheet, Platform, KeyboardAvoidingView } from "react-native";
-import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { X, Send, Calendar } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
+import { AndroidWheelDateTimePicker } from '../common/AndroidWheelDateTimePicker';
 
 export interface SessionRequestFormData {
     preferredDate: Date;
@@ -55,12 +56,14 @@ export default function StudentSessionRequestModal({
     const [preferredDate, setPreferredDate] = useState<Date>(() => getDefaultPreferredDate());
     const [note, setNote] = useState<string>(initialNote ?? DEFAULT_NOTE);
     const [showPicker, setShowPicker] = useState(false);
+    const [showAndroidDatePicker, setShowAndroidDatePicker] = useState(false);
 
     useEffect(() => {
         if (!visible) return;
         setPreferredDate(initialPreferredDate ?? getDefaultPreferredDate());
         setNote(initialNote ?? DEFAULT_NOTE);
         setShowPicker(false);
+        setShowAndroidDatePicker(false);
     }, [visible, initialPreferredDate, initialNote]);
 
     const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
@@ -75,26 +78,7 @@ export default function StudentSessionRequestModal({
 
     const openPicker = () => {
         if (Platform.OS === 'android') {
-            DateTimePickerAndroid.open({
-                value: preferredDate,
-                mode: 'date',
-                minimumDate: new Date(),
-                onChange: (dateEvent, selectedDay) => {
-                    if (dateEvent.type !== 'set' || !selectedDay) return;
-
-                    DateTimePickerAndroid.open({
-                        value: selectedDay,
-                        mode: 'time',
-                        is24Hour: false,
-                        onChange: (timeEvent, selectedTime) => {
-                            if (timeEvent.type !== 'set' || !selectedTime) return;
-                            const combined = new Date(selectedDay);
-                            combined.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
-                            setPreferredDate(combined);
-                        },
-                    });
-                },
-            });
+            setShowAndroidDatePicker(true);
             return;
         }
         setShowPicker(true);
@@ -107,6 +91,7 @@ export default function StudentSessionRequestModal({
     if (!visible) return null;
 
     return (
+        <Fragment>
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <KeyboardAvoidingView
                 style={styles.overlay}
@@ -176,6 +161,16 @@ export default function StudentSessionRequestModal({
                 </View>
             </KeyboardAvoidingView>
         </Modal>
+        {Platform.OS === 'android' && (
+            <AndroidWheelDateTimePicker
+                visible={showAndroidDatePicker}
+                value={preferredDate}
+                title="Preferred time"
+                onConfirm={setPreferredDate}
+                onClose={() => setShowAndroidDatePicker(false)}
+            />
+        )}
+        </Fragment>
     );
 }
 

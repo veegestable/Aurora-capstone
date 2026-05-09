@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, Image, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
+import { Alert, AppState, Image, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
@@ -251,7 +251,6 @@ export function MoodCheckIn({
 }: MoodCheckInProps) {
   const { user } = useAuth();
   const {
-    timezone,
     academicContextEnabled,
     enabledContextCategories,
     mealSchedule,
@@ -280,6 +279,60 @@ export function MoodCheckIn({
   const [sleepCapturedToday, setSleepCapturedToday] = useState(false);
   const [bathTakenToday, setBathTakenToday] = useState(false);
   const [bathTakenNow, setBathTakenNow] = useState(false);
+  // Re-render whenever the next meal/wake/bath unlock boundary passes, instead
+  // of polling on a fixed interval. Fires a single timer per boundary plus a
+  // recompute on every foreground transition (covers the case where the app
+  // was backgrounded across an unlock instant).
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setNowTick((n) => (n + 1) % 1_000_000);
+
+    const collectBoundaries = (): number[] => {
+      const out: number[] = [];
+      for (const m of mealSchedule) {
+        const v = parseMealMinutes(m.time);
+        if (v !== null) out.push(v);
+      }
+      const wake = parseMealMinutes((usualWakeTime || "").trim());
+      if (wake !== null) out.push(wake);
+      const bath = parseMealMinutes((usualBathTime || "").trim());
+      if (bath !== null) out.push(bath);
+      return out;
+    };
+
+    const scheduleNextBoundary = (): ReturnType<typeof setTimeout> | null => {
+      const now = new Date();
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      const next = collectBoundaries()
+        .filter((m) => m > nowMins)
+        .sort((a, b) => a - b)[0];
+      if (next == null) return null;
+      // Ms until the next boundary (account for current seconds), with a +1s
+      // safety pad so the clock has crossed before we recompute.
+      const ms =
+        (next - nowMins) * 60_000 - now.getSeconds() * 1000 + 1_000;
+      return setTimeout(() => {
+        bump();
+        timeoutRef = scheduleNextBoundary();
+      }, Math.max(1_000, ms));
+    };
+
+    let timeoutRef = scheduleNextBoundary();
+
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      bump();
+      if (timeoutRef) clearTimeout(timeoutRef);
+      timeoutRef = scheduleNextBoundary();
+    });
+
+    return () => {
+      if (timeoutRef) clearTimeout(timeoutRef);
+      sub.remove();
+    };
+    // We intentionally re-run this effect when the schedule changes so the
+    // next-boundary calculation stays in sync.
+  }, [mealSchedule, usualWakeTime, usualBathTime]);
   const [mealStatusById, setMealStatusById] = useState<Record<string, boolean>>(
     {},
   );
@@ -437,25 +490,16 @@ export function MoodCheckIn({
     return hour * 60 + minute;
   };
 
+  /** Minutes since midnight on the device wall clock. Used only for meal unlock vs `HH:mm` schedule. */
   const getCurrentMinutesInTimezone = (): number | null => {
-    try {
-      const parts = new Intl.DateTimeFormat("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-        timeZone: timezone,
-      }).formatToParts(new Date());
-      const hour = Number(
-        parts.find((part) => part.type === "hour")?.value ?? "0",
-      );
-      const minute = Number(
-        parts.find((part) => part.type === "minute")?.value ?? "0",
-      );
-      if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
-      return hour * 60 + minute;
-    } catch {
-      return null;
-    }
+    const now = new Date();
+    // Always use the device clock. Meal times are plain `HH:mm` from profile (same
+    // basis as wake/bath in `wellnessDayKey`). Comparing against `Intl` with a
+    // stored IANA `timezone` breaks on Android (Hermes often lacks full ICU: the
+    // `timeZone` option is ignored and you get UTC), and any mismatch between
+    // Firestore `timezone` and `resolvedOptions().timeZone` also routed into that
+    // broken path — leaving evening meals locked while local time had passed.
+    return now.getHours() * 60 + now.getMinutes();
   };
 
   const formatMealTime = (time: string): string => {

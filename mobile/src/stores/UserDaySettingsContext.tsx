@@ -92,7 +92,17 @@ export function UserDaySettingsProvider({ children }: { children: ReactNode }) {
     try {
       const s = await getUserSettings(user.id);
       setDayResetHourState(s.dayResetHour);
-      setTimezoneState(s.timezone || defaultUserTimezone());
+
+      // Silently keep the stored timezone in sync with the device. Schedule
+      // logic (meals/wake/bath) all uses the device wall clock so a stale
+      // stored zone doesn't break the UI, but the Firestore field stays
+      // accurate for any analytics that may want it. Fire-and-forget.
+      const deviceTz = defaultUserTimezone();
+      const storedTz = (s.timezone || "").trim();
+      if (deviceTz && storedTz !== deviceTz) {
+        updateUserSettings(user.id, { timezone: deviceTz }).catch(() => {});
+      }
+      setTimezoneState(storedTz || deviceTz);
       setReminderHourState(
         typeof s.reminderHour === "number" ? s.reminderHour : 7,
       );

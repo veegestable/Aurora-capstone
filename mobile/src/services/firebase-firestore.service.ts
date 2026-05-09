@@ -18,7 +18,7 @@ import {
   onSnapshot,
   type QuerySnapshot,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { auth, db } from "./firebase";
 import {
   type SessionHistoryBadge,
   EXPIRED_SESSION_RETENTION_MS,
@@ -206,21 +206,29 @@ async function createSessionNotification(
     const key = (
       eventKey?.trim() || message.slice(0, 80).toLowerCase()
     ).toLowerCase();
-    const recentQuery = query(
-      collection(db, "notifications"),
-      where("user_id", "==", userId),
-      where("type", "==", "counselor_message"),
-      where("notification_key", "==", key),
-      orderBy("created_at", "desc"),
-      limit(1),
-    );
-    const recentSnap = await getDocs(recentQuery);
-    const lastCreatedAt = recentSnap.docs[0]?.data()?.created_at?.toDate?.() as
-      | Date
-      | undefined;
-    // Basic anti-spam guard: do not resend near-identical session notices within 10 minutes.
-    if (lastCreatedAt && Date.now() - lastCreatedAt.getTime() < 10 * 60 * 1000)
-      return;
+    const actorUid = auth.currentUser?.uid ?? "";
+    // Under strict rules, clients can only read their own notifications. Skip
+    // dedupe query when creating a notification for another user.
+    if (actorUid && actorUid === userId) {
+      const recentQuery = query(
+        collection(db, "notifications"),
+        where("user_id", "==", userId),
+        where("type", "==", "counselor_message"),
+        where("notification_key", "==", key),
+        orderBy("created_at", "desc"),
+        limit(1),
+      );
+      const recentSnap = await getDocs(recentQuery);
+      const lastCreatedAt = recentSnap.docs[0]?.data()?.created_at?.toDate?.() as
+        | Date
+        | undefined;
+      // Basic anti-spam guard: do not resend near-identical session notices within 10 minutes.
+      if (
+        lastCreatedAt &&
+        Date.now() - lastCreatedAt.getTime() < 10 * 60 * 1000
+      )
+        return;
+    }
 
     await addDoc(collection(db, "notifications"), {
       user_id: userId,
@@ -724,8 +732,8 @@ export const firestoreService = {
         conversationId,
         "messages",
       );
-      const q = query(messagesRef, orderBy("createdAt", "asc"));
-      const snapshot = await getDocs(q);
+      // Do not force `createdAt` ordering: some older rows use `created_at`.
+      const snapshot = await getDocs(messagesRef);
       return await buildChatMessagesFromQuerySnapshot(snapshot, userId);
     } catch (error: any) {
       console.error("❌ Error getting messages:", error);
@@ -758,9 +766,7 @@ export const firestoreService = {
         conversationId,
         "messages",
       );
-      const snapshot = await getDocs(
-        query(messagesRef, orderBy("createdAt", "desc")),
-      );
+      const snapshot = await getDocs(messagesRef);
       snapshot.docs.forEach((d) => {
         const data = d.data() as Record<string, unknown>;
         const senderId = typeof data.senderId === "string" ? data.senderId : "";
@@ -800,10 +806,9 @@ export const firestoreService = {
       conversationId,
       "messages",
     );
-    const q = query(messagesRef, orderBy("createdAt", "asc"));
     let generation = 0;
     return onSnapshot(
-      q,
+      messagesRef,
       (snapshot) => {
         const g = ++generation;
         buildChatMessagesFromQuerySnapshot(snapshot, userId)
@@ -1342,7 +1347,7 @@ export const firestoreService = {
   /**
    * Counts `sessions` with this student and counselor where `status` is terminal
    * `completed` or `missed` (same semantics as Session History).
-   * Single query on `studentId` + in-memory filter on `counselorId` (no extra composite index).
+   * Query uses both participant IDs so it stays compatible with strict rules.
    */
   async getSessionOutcomeCountsForCounselorStudent(
     counselorId: string,
@@ -1351,15 +1356,14 @@ export const firestoreService = {
     try {
       const q = query(
         collection(db, "sessions"),
+        where("counselorId", "==", String(counselorId)),
         where("studentId", "==", String(studentId)),
       );
       const snapshot = await getDocs(q);
-      const cid = String(counselorId);
       let completed = 0;
       let missed = 0;
       for (const d of snapshot.docs) {
         const data = d.data() as Record<string, unknown>;
-        if (String(data.counselorId ?? "") !== cid) continue;
         const st = String(data.status ?? "");
         if (st === "completed") completed += 1;
         else if (st === "missed") missed += 1;
@@ -1907,9 +1911,15 @@ async function buildChatMessagesFromQuerySnapshot(
   snapshot: QuerySnapshot,
   userId: string,
 ) {
-  const msgs = snapshot.docs.map((d) => {
+  const docsSorted = [...snapshot.docs].sort((a, b) => {
+    const aMs = resolveMessageCreatedAtMillis(a.data() as Record<string, unknown>);
+    const bMs = resolveMessageCreatedAtMillis(b.data() as Record<string, unknown>);
+    return aMs - bMs;
+  });
+
+  const msgs = docsSorted.map((d) => {
     const data = d.data();
-    const createdAt = data.createdAt?.toDate?.() ?? new Date();
+    const createdAt = resolveMessageCreatedAtDate(data as Record<string, unknown>);
     const isMe = data.senderId === userId;
     const senderId = isMe ? "me" : "them";
     if (data.type === "session_invite") {
@@ -2001,11 +2011,17 @@ async function buildChatMessagesFromQuerySnapshot(
     { createdAt?: unknown; updatedAt?: unknown }
   > = {};
   if (allSessionIds.length > 0) {
-    const sessionPromises = allSessionIds.map((id) =>
-      getDoc(doc(db, "sessions", id)),
-    );
+    const sessionPromises = allSessionIds.map(async (id) => {
+      try {
+        return await getDoc(doc(db, "sessions", id));
+      } catch {
+        // Keep chat rendering even when one linked session is inaccessible.
+        return null;
+      }
+    });
     const sessionSnaps = await Promise.all(sessionPromises);
     sessionSnaps.forEach((snap, i) => {
+      if (!snap) return;
       const sid = allSessionIds[i];
       const s = snap.data();
       if (!s) return;
@@ -2102,6 +2118,41 @@ async function buildChatMessagesFromQuerySnapshot(
     }
     return m;
   });
+}
+
+function resolveMessageCreatedAtDate(data: Record<string, unknown>): Date {
+  const createdAt = data.createdAt as
+    | { toDate?: () => Date }
+    | Date
+    | string
+    | number
+    | undefined;
+  const createdAtLegacy = data.created_at as
+    | { toDate?: () => Date }
+    | Date
+    | string
+    | number
+    | undefined;
+  const raw = createdAt ?? createdAtLegacy;
+
+  if (raw && typeof raw === "object" && "toDate" in raw) {
+    const d = (raw as { toDate?: () => Date }).toDate?.();
+    if (d instanceof Date && !Number.isNaN(d.getTime())) return d;
+  }
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw;
+  if (typeof raw === "number") {
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  if (typeof raw === "string") {
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return new Date(0);
+}
+
+function resolveMessageCreatedAtMillis(data: Record<string, unknown>): number {
+  return resolveMessageCreatedAtDate(data).getTime();
 }
 
 function formatMessageTime(date: Date): string {

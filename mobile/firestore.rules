@@ -1,0 +1,206 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function myRole() {
+      return isAuthed() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? userDoc(request.auth.uid).data.role
+        : null;
+    }
+
+    function isAdmin() {
+      return myRole() == 'admin';
+    }
+
+    function isCounselor() {
+      return myRole() == 'counselor';
+    }
+
+    function isOwner(uid) {
+      return isAuthed() && request.auth.uid == uid;
+    }
+
+    function isConversationParticipant(convId) {
+      return exists(/databases/$(database)/documents/conversations/$(convId)) && (
+        get(/databases/$(database)/documents/conversations/$(convId)).data.counselorId == request.auth.uid ||
+        get(/databases/$(database)/documents/conversations/$(convId)).data.studentId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    function isSessionParticipant(sessionId) {
+      return exists(/databases/$(database)/documents/sessions/$(sessionId)) && (
+        get(/databases/$(database)/documents/sessions/$(sessionId)).data.counselorId == request.auth.uid ||
+        get(/databases/$(database)/documents/sessions/$(sessionId)).data.studentId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    match /users/{uid} {
+      allow read: if isAuthed();
+      allow create: if isOwner(uid) || isAdmin();
+      allow update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /announcements/{id} {
+      allow read: if isAuthed();
+      allow create: if isAuthed()
+        && (isAdmin() || isCounselor())
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isAuthed()
+        && (resource.data.createdBy == request.auth.uid || isAdmin());
+    }
+
+    match /conversations/{id} {
+      allow read: if isAuthed() && (
+        resource.data.counselorId == request.auth.uid ||
+        resource.data.studentId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow create: if isAuthed() && (
+        request.resource.data.counselorId == request.auth.uid ||
+        request.resource.data.studentId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow update: if isAuthed() && (
+        resource.data.counselorId == request.auth.uid ||
+        resource.data.studentId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow delete: if isAdmin();
+
+      match /messages/{msgId} {
+        allow read, create, update: if isAuthed() && isConversationParticipant(id);
+        allow delete: if isAuthed() && (
+          isConversationParticipant(id) ||
+          resource.data.senderId == request.auth.uid
+        );
+      }
+    }
+
+    match /sessions/{id} {
+      allow read: if isAuthed() && (
+        resource.data.counselorId == request.auth.uid ||
+        resource.data.studentId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow create: if isAuthed() && (
+        request.resource.data.counselorId == request.auth.uid ||
+        request.resource.data.studentId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow update: if isAuthed() && (
+        resource.data.counselorId == request.auth.uid ||
+        resource.data.studentId == request.auth.uid ||
+        (resource.data.studentId == null && request.resource.data.studentId == request.auth.uid) ||
+        isAdmin()
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    match /session_notes/{id} {
+      allow read: if isAuthed() && (
+        resource.data.counselorId == request.auth.uid ||
+        isSessionParticipant(resource.data.sessionId)
+      );
+
+      allow create: if isAuthed() && (
+        request.resource.data.counselorId == request.auth.uid || isAdmin()
+      );
+
+      allow update, delete: if isAuthed() && (
+        resource.data.counselorId == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /counselor_notes/{id} {
+      allow read: if isAuthed() && (
+        resource.data.counselorId == request.auth.uid ||
+        resource.data.studentId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow create: if isAuthed() && (
+        request.resource.data.counselorId == request.auth.uid || isAdmin()
+      );
+
+      allow update, delete: if isAuthed() && (
+        resource.data.counselorId == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /moodLogs/{uid}/entries/{entryId} {
+      allow read: if isAuthed() && (
+        request.auth.uid == uid || isCounselor() || isAdmin()
+      );
+      allow create, update, delete: if isAuthed() && request.auth.uid == uid;
+    }
+
+    match /mood_logs/{id} {
+      allow read: if isAuthed() && (
+        resource.data.user_id == request.auth.uid || isCounselor() || isAdmin()
+      );
+      allow create: if isAuthed() && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isAuthed() && resource.data.user_id == request.auth.uid;
+    }
+
+    match /notifications/{id} {
+      allow read: if isAuthed() && (
+        resource.data.user_id == request.auth.uid || isAdmin()
+      );
+      allow create: if isAuthed();
+      allow update, delete: if isAuthed() && (
+        resource.data.user_id == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /resources/{id} {
+      allow read: if isAuthed();
+      allow create, update, delete: if isAuthed() && (isAdmin() || isCounselor());
+    }
+
+    match /schedules/{id} {
+      allow read: if isAuthed();
+      allow create, update, delete: if isAuthed() && (isAdmin() || isCounselor());
+    }
+
+    match /audit_logs/{id} {
+      allow read: if isAdmin();
+      allow create: if isAuthed();
+      allow update, delete: if false;
+    }
+
+    match /userSettings/{uid} {
+      allow read: if isAuthed();
+      allow create, update: if isOwner(uid) || isAdmin();
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // Student mood calendar context written during MoodCheckIn save flow.
+    match /dailyContext/{uid} {
+      allow read, create, update, delete: if isOwner(uid) || isAdmin();
+
+      match /days/{dayKey} {
+        allow read, create, update, delete: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
