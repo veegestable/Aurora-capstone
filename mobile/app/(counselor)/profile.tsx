@@ -875,7 +875,7 @@ export default function CounselorProfileScreen() {
                   for assigned students. All session notes are encrypted and
                   stored securely.
                 </Text>
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
                 >
                   <Text
@@ -889,7 +889,7 @@ export default function CounselorProfileScreen() {
                     READ FULL POLICY
                   </Text>
                   <ExternalLink size={13} color={AURORA.blue} />
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             </View>
           </View>

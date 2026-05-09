@@ -1531,7 +1531,7 @@ export function MoodCheckIn({
                     Alert.alert(
                       "We’ll remind you on Zen",
                       pushOk
-                        ? `Suggested exercise: ${quickResetExercise.name}. It appears at the top of Zen until you complete it. You'll also get a nudge in about ${mins} minutes if notifications are allowed.`
+                        ? `Suggested exercise: ${quickResetExercise.name}. It appears at the top of Zen until you complete it.`
                         : `Suggested exercise: ${quickResetExercise.name}. Open the Zen tab anytime — it appears at the top until you complete it.`,
                     );
                   })();

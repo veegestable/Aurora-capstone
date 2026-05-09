@@ -19,7 +19,12 @@ export const LOGIN_AUTH_COLUMN_MAX = 320;
 const REGISTRATION_RESEND_COOLDOWN_SEC = 60;
 const SIGN_IN_RESEND_COOLDOWN_SEC = 60;
 
-export default function LoginForm() {
+export type LoginFormProps = {
+  /** Called after switching from sign-in to sign-up so the parent ScrollView can reveal the taller form */
+  onSwitchToSignUp?: () => void;
+};
+
+export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
   const { signIn, signUp, resendRegistrationVerificationEmail } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [signUpPhase, setSignUpPhase] = useState<"form" | "verifyEmail">(
@@ -436,7 +441,11 @@ export default function LoginForm() {
           triggerHaptic("light");
           setSignUpPhase("form");
           setShowMsuiitSignInResendOption(false);
-          setIsSignUp(!isSignUp);
+          const nextIsSignUp = !isSignUp;
+          setIsSignUp(nextIsSignUp);
+          if (nextIsSignUp) {
+            onSwitchToSignUp?.();
+          }
         }}
         activeOpacity={0.75}
         accessibilityRole="button"
@@ -474,17 +483,34 @@ export default function LoginForm() {
     </>
   );
 
+  const glassNativeSolid =
+    Platform.OS === "android" ? (
+      <View
+        style={[
+          styles.glass,
+          compact && styles.glassCompact,
+          styles.glassAndroidSolid,
+        ]}
+      >
+        <View style={[styles.glassContent, compact && styles.glassContentCompact]}>
+          {formContent}
+        </View>
+      </View>
+    ) : (
+      <BlurView intensity={60} tint="dark" style={[styles.glass, compact && styles.glassCompact]}>
+        <View style={styles.glassOverlay} />
+        <View style={[styles.glassContent, compact && styles.glassContentCompact]}>
+          {formContent}
+        </View>
+      </BlurView>
+    );
+
   return (
     <View style={[styles.wrapper, compact && styles.wrapperNarrow]}>
       {isWeb ? (
         <View style={[styles.glass, styles.glassFallback]}>{formContent}</View>
       ) : (
-        <BlurView intensity={60} tint="dark" style={[styles.glass, compact && styles.glassCompact]}>
-          <View style={styles.glassOverlay} />
-          <View style={[styles.glassContent, compact && styles.glassContentCompact]}>
-            {formContent}
-          </View>
-        </BlurView>
+        glassNativeSolid
       )}
     </View>
   );
@@ -517,6 +543,10 @@ const styles = StyleSheet.create({
   glassFallback: {
     backgroundColor: "rgba(15, 23, 42, 0.85)",
     padding: 24,
+  },
+  /** Android: expo-blur native view is often unavailable — match iOS card weight without blur */
+  glassAndroidSolid: {
+    backgroundColor: "rgba(15, 23, 42, 0.85)",
   },
   glassOverlay: {
     ...StyleSheet.absoluteFillObject,

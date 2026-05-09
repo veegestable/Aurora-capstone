@@ -10,7 +10,7 @@ export const ZEN_BREATHING_REMINDER_TYPE = "aurora_zen_breathing_reminder";
 const ANDROID_CHANNEL_WELLNESS = "wellness-reminders";
 
 /** Fires after this many seconds when a pending Zen exercise is queued (non-stacking). */
-export const ZEN_BREATHING_REMINDER_DELAY_SEC = 1 * 60;
+export const ZEN_BREATHING_REMINDER_DELAY_SEC = 5 * 60;
 
 let handlerConfigured = false;
 const FLOWERY_REMINDER_LINES = [
@@ -188,7 +188,7 @@ export async function scheduleZenBreathingReminderPush(
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "Your breathing exercise is waiting",
-      body: `Take a minute for ${name} — open Zen when you're ready.`,
+      body: `Take a few minutes for ${name} — open Zen when you're ready.`,
       sound: true,
       ...(Platform.OS === "android"
         ? {
