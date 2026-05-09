@@ -98,28 +98,21 @@ export default function SendSessionInviteModal({
         DateTimePickerAndroid.open({
             value: pickerValue,
             mode: 'date',
+            display: 'spinner',
             minimumDate: new Date(),
             onChange: (dateEvent, selectedDay) => {
-                if (dateEvent.type !== 'set' || !selectedDay) {
-                    setPickingSlot(null);
-                    return;
-                }
-
+                if (dateEvent.type !== 'set' || !selectedDay) return;
                 DateTimePickerAndroid.open({
                     value: selectedDay,
                     mode: 'time',
+                    display: 'spinner',
                     is24Hour: false,
                     onChange: (timeEvent, selectedTime) => {
-                        if (timeEvent.type !== 'set' || !selectedTime) {
-                            setPickingSlot(null);
-                            return;
-                        }
-
+                        if (timeEvent.type !== 'set' || !selectedTime) return;
                         const combined = new Date(selectedDay);
                         combined.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
                         setTempDate(combined);
                         applySlotDate(slot, combined);
-                        setPickingSlot(null);
                     },
                 });
             },
@@ -137,11 +130,11 @@ export default function SendSessionInviteModal({
         const existing = slot === 'primary' ? primaryDate : slot === 'alternative' ? alternativeDate : finalDate;
         const pickerValue = existing || new Date();
         setTempDate(pickerValue);
-        setPickingSlot(slot);
-
         if (Platform.OS === 'android') {
             openAndroidPicker(slot, pickerValue);
+            return;
         }
+        setPickingSlot(slot);
     };
 
     const handleSend = () => {
@@ -270,20 +263,18 @@ export default function SendSessionInviteModal({
                             <DateTimePicker
                                 value={tempDate}
                                 mode="datetime"
-                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                display="spinner"
                                 onChange={handleDateChange}
                                 minimumDate={new Date()}
                             />
-                            {Platform.OS === 'ios' && (
-                                <View style={styles.pickerActions}>
-                                    <TouchableOpacity onPress={() => setPickingSlot(null)} style={styles.pickerBtn}>
-                                        <Text style={styles.pickerBtnText}>Cancel</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={handleConfirmDate} style={[styles.pickerBtn, styles.pickerBtnPrimary]}>
-                                        <Text style={styles.pickerBtnTextPrimary}>Confirm</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
+                            <View style={styles.pickerActions}>
+                                <TouchableOpacity onPress={() => setPickingSlot(null)} style={styles.pickerBtn}>
+                                    <Text style={styles.pickerBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleConfirmDate} style={[styles.pickerBtn, styles.pickerBtnPrimary]}>
+                                    <Text style={styles.pickerBtnTextPrimary}>Confirm</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     )}
                 </View>
