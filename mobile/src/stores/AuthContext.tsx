@@ -5,6 +5,7 @@ import {
   useEffect,
   ReactNode,
 } from "react";
+import { AppState } from "react-native";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../services/firebase";
 import { authService, UserProfile } from "../services/firebase-auth.service";
@@ -17,6 +18,12 @@ import {
   logUserLogoutCounselorOrStudent,
   clearActivityThrottleForUser,
 } from "../services/user-activity.service";
+import {
+  clearAuthSessionIdleTracking,
+  getAuthSessionMaxIdleMs,
+  isAuthSessionIdleExpired,
+  touchAuthSessionLastBackgroundNow,
+} from "../utils/auth-session-idle";
 
 export type CounselorApprovalStatus = "pending" | "approved" | "rejected";
 
@@ -100,6 +107,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const appStateSub = AppState.addEventListener("change", (next) => {
+      if (next === "background") {
+        void touchAuthSessionLastBackgroundNow();
+      }
+    });
+
     console.log("🔥 Setting up Firebase auth listener...");
 
     let stopPresence: (() => void) | undefined;
@@ -109,6 +122,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       stopPresence?.();
       stopPresence = undefined;
+
+      if (firebaseUser) {
+        const idleExpired = await isAuthSessionIdleExpired();
+        if (idleExpired) {
+          try {
+            await authService.signOut();
+          } catch {
+            /* ignore */
+          }
+          await clearAuthSessionIdleTracking();
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+      }
 
       // Presence must use Firebase Auth uid (RTDB rules: auth.uid === $uid). Start as soon as
       // Auth is ready — do not wait for Firestore profile, or RTDB never gets writes.
@@ -142,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       stopPresence?.();
+      appStateSub.remove();
       unsubscribe();
     };
   }, []);
@@ -158,6 +187,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         displayName: userProfile.full_name ?? "",
         email: userProfile.email ?? "",
       });
+      if (getAuthSessionMaxIdleMs() > 0) {
+        void touchAuthSessionLastBackgroundNow();
+      }
       console.log("✅ Sign in successful:", userProfile.email);
     } catch (error) {
       console.error("❌ Sign in error:", error);
@@ -247,6 +279,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (uid) clearActivityThrottleForUser(uid);
       await authService.signOut();
+      await clearAuthSessionIdleTracking();
       setUser(null);
       console.log("✅ Sign out successful");
     } catch (error) {
