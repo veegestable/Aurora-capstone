@@ -239,6 +239,12 @@ function ChatView({
     showInviteModalForSessionRequest,
     setShowInviteModalForSessionRequest,
   ] = useState<string | null>(null);
+  const [initialRescheduleData, setInitialRescheduleData] = useState<
+    Partial<SessionInviteData> | undefined
+  >(undefined);
+  const [proposeModalSource, setProposeModalSource] = useState<
+    "student_request" | "reschedule" | null
+  >(null);
   /** When opening propose-times after "Needs rescheduling" on a session card — drives chat lead copy. */
   const [attendanceRescheduleSlot, setAttendanceRescheduleSlot] = useState<{
     date: string;
@@ -421,11 +427,32 @@ function ChatView({
     }
   };
 
-  const handleProposeNewTime = (sessionId: string | null) => {
+  const handleProposeNewTime = (
+    sessionId: string | null,
+    preferredTime?: string,
+  ) => {
     if (sessionId) {
+      setProposeModalSource("student_request");
+      const preferredSeed = preferredTime
+        ? parseSlotToDate(parsePreferredTimeToSlot(preferredTime))
+        : null;
+      setInitialRescheduleData(
+        preferredSeed
+          ? {
+              primaryDate: preferredSeed,
+            }
+          : undefined,
+      );
       setAttendanceRescheduleSlot(null);
       setShowInviteModalForSessionRequest(sessionId);
     }
+  };
+
+  const parseSlotToDate = (slot?: { date?: string; time?: string } | null) => {
+    if (!slot?.date || !slot?.time) return null;
+    const parsed = new Date(`${slot.date} ${slot.time}`);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed;
   };
 
   const handleProposeSlotsFromModal = async (
@@ -456,15 +483,17 @@ function ChatView({
     if (slots.length === 0) return;
     const primary = data.primaryDate!;
     const fromAttendance = attendanceRescheduleSlot;
+    const isRescheduleFlow = proposeModalSource === "reschedule";
+    const isStudentRequestFlow = proposeModalSource === "student_request";
     setSending(true);
     try {
-      const firstName = contact.name.split(" ")[0] || "there";
-      const lead = fromAttendance
-        ? `Hi ${firstName}, I need to reschedule the session we had for ${fromAttendance.date} at ${fromAttendance.time}. Please choose a new time using the options on my session card below.`
-        : `Hi ${firstName}, here are some times that work on my side. Please tap the session card below and choose one that fits you.`;
-      await firestoreService.sendTextMessage(conversationId, user.id, lead);
+      if (isStudentRequestFlow) {
+        const firstName = contact.name.split(" ")[0] || "there";
+        const lead = `Hi ${firstName}, here are some schedules that work on my side. Please tap the session card below and choose one that fits you.`;
+        await firestoreService.sendTextMessage(conversationId, user.id, lead);
+      }
       await firestoreService.proposeSlots(sessionId, slots, {
-        proposalKind: fromAttendance
+        proposalKind: isRescheduleFlow || !!fromAttendance
           ? "attendance_reschedule"
           : "counselor_new_times",
       });
@@ -502,6 +531,8 @@ function ChatView({
     } finally {
       setSending(false);
       setAttendanceRescheduleSlot(null);
+      setInitialRescheduleData(undefined);
+      setProposeModalSource(null);
     }
   };
 
@@ -520,12 +551,24 @@ function ChatView({
       setShowAttendanceModal(false);
       setSelectedSessionForAttendance(null);
       if (sessionId && !sessionId.startsWith("session_")) {
+        const parsed =
+          parseSlotToDate(att ? { date: att.date, time: att.time } : null) ??
+          null;
+        setInitialRescheduleData(
+          parsed
+            ? {
+                primaryDate: parsed,
+              }
+            : undefined,
+        );
         if (att?.date?.trim() && att?.time?.trim()) {
+          setProposeModalSource("reschedule");
           setAttendanceRescheduleSlot({
             date: att.date.trim(),
             time: att.time.trim(),
           });
         } else {
+          setProposeModalSource("reschedule");
           setAttendanceRescheduleSlot(null);
         }
         setShowInviteModalForSessionRequest(sessionId);
@@ -858,6 +901,7 @@ function ChatView({
                                     ? () =>
                                         handleProposeNewTime(
                                           msg.sessionRequest.sessionId,
+                                          msg.sessionRequest.preferredTime,
                                         )
                                     : undefined
                                 }
@@ -922,7 +966,23 @@ function ChatView({
                               );
                               return sid
                                 ? () => {
+                                    const slotDates = (
+                                      msg.session.timeSlots || []
+                                    )
+                                      .map((slot) => parseSlotToDate(slot))
+                                      .filter(Boolean) as Date[];
+                                    const primaryFallback = parseSlotToDate({
+                                      date: msg.session.date,
+                                      time: msg.session.time,
+                                    });
+                                    setInitialRescheduleData({
+                                      primaryDate:
+                                        slotDates[0] ?? primaryFallback ?? null,
+                                      alternativeDate: slotDates[1] ?? null,
+                                      finalDate: slotDates[2] ?? null,
+                                    });
                                     setShowInviteModal(false);
+                                    setProposeModalSource("reschedule");
                                     setAttendanceRescheduleSlot(null);
                                     setShowInviteModalForSessionRequest(sid);
                                   }
@@ -1146,9 +1206,12 @@ function ChatView({
             studentId: contact.studentId,
           }}
           counselorName={user?.full_name}
+          initialData={initialRescheduleData}
           onClose={() => {
             setShowInviteModalForSessionRequest(null);
             setAttendanceRescheduleSlot(null);
+            setInitialRescheduleData(undefined);
+            setProposeModalSource(null);
           }}
           onSend={(data) =>
             handleProposeSlotsFromModal(data, showInviteModalForSessionRequest!)

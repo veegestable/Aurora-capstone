@@ -41,6 +41,7 @@ interface SendSessionInviteModalProps {
     mode?: 'invite' | 'reschedule';
     student: StudentInfo;
     counselorName?: string;
+    initialData?: Partial<SessionInviteData>;
     onClose: () => void;
     onSend: (data: SessionInviteData) => void;
 }
@@ -154,6 +155,7 @@ export default function SendSessionInviteModal({
     mode = 'invite',
     student,
     counselorName = 'Counselor',
+    initialData,
     onClose,
     onSend,
 }: SendSessionInviteModalProps) {
@@ -172,15 +174,51 @@ export default function SendSessionInviteModal({
     const [wheelMinute, setWheelMinute] = useState<number>(0);
     const [wheelPeriod, setWheelPeriod] = useState<'AM' | 'PM'>('AM');
     const [androidPickerStep, setAndroidPickerStep] = useState<'date' | 'time'>('date');
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const getSlotDate = (slot: 'primary' | 'alternative' | 'final'): Date | null => {
+        if (slot === 'primary') return primaryDate;
+        if (slot === 'alternative') return alternativeDate;
+        return finalDate;
+    };
+
+    const seedWheelFromDate = (date: Date) => {
+        let hour = date.getHours();
+        const period: 'AM' | 'PM' = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12;
+        if (hour === 0) hour = 12;
+        setTempDate(date);
+        setWheelMonth(date.getMonth());
+        setWheelDay(date.getDate());
+        setWheelYear(date.getFullYear());
+        setWheelHour(hour);
+        setWheelMinute(date.getMinutes());
+        setWheelPeriod(period);
+        setAndroidPickerStep('date');
+    };
 
     useEffect(() => {
         if (!visible) return;
         const fn = student.name.split(' ')[0] || 'there';
-        setPrimaryDate(null);
-        setAlternativeDate(null);
-        setFinalDate(null);
+        const nowSeed = new Date();
+        setPrimaryDate(initialData?.primaryDate ?? null);
+        setAlternativeDate(initialData?.alternativeDate ?? null);
+        setFinalDate(initialData?.finalDate ?? null);
         setNote(mode === 'reschedule' ? '' : DEFAULT_INVITE_NOTE(fn));
-    }, [visible, mode, student.id, student.name]);
+        setTempDate(initialData?.primaryDate ?? nowSeed);
+        setWheelMonth((initialData?.primaryDate ?? nowSeed).getMonth());
+        setWheelDay((initialData?.primaryDate ?? nowSeed).getDate());
+        setWheelYear((initialData?.primaryDate ?? nowSeed).getFullYear());
+        let seededHour = (initialData?.primaryDate ?? nowSeed).getHours();
+        const seededPeriod: 'AM' | 'PM' = seededHour >= 12 ? 'PM' : 'AM';
+        seededHour = seededHour % 12;
+        if (seededHour === 0) seededHour = 12;
+        setWheelHour(seededHour);
+        setWheelMinute((initialData?.primaryDate ?? nowSeed).getMinutes());
+        setWheelPeriod(seededPeriod);
+        setAndroidPickerStep('date');
+    }, [visible, mode, student.id, student.name, initialData?.primaryDate, initialData?.alternativeDate, initialData?.finalDate]);
 
     const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
         if (selectedDate) {
@@ -231,32 +269,24 @@ export default function SendSessionInviteModal({
 
     useEffect(() => {
         if (Platform.OS !== 'android' || !pickingSlot) return;
-        let hour = tempDate.getHours();
-        const period: 'AM' | 'PM' = hour >= 12 ? 'PM' : 'AM';
-        hour = hour % 12;
-        if (hour === 0) hour = 12;
-        setWheelMonth(tempDate.getMonth());
-        setWheelDay(tempDate.getDate());
-        setWheelYear(tempDate.getFullYear());
-        setWheelHour(hour);
-        setWheelMinute(tempDate.getMinutes());
-        setWheelPeriod(period);
-        setAndroidPickerStep('date');
-    }, [pickingSlot, tempDate]);
+        const activeSlotDate = getSlotDate(pickingSlot);
+        seedWheelFromDate(activeSlotDate || new Date());
+    }, [pickingSlot]);
 
     const handleConfirmDate = () => {
         if (Platform.OS === 'android') {
             if (androidPickerStep === 'date') {
+                const selectedDateStart = new Date(wheelYear, wheelMonth, wheelDay);
+                if (selectedDateStart < todayStart) return;
                 setAndroidPickerStep('time');
                 return;
             }
             let hour24 = wheelHour % 12;
             if (wheelPeriod === 'PM') hour24 += 12;
             const built = new Date(wheelYear, wheelMonth, wheelDay, hour24, wheelMinute, 0, 0);
-            const now = new Date();
-            const finalDate = built < now ? now : built;
-            setTempDate(finalDate);
-            if (pickingSlot) applySlotDate(pickingSlot, finalDate);
+            if (built < now) return;
+            setTempDate(built);
+            if (pickingSlot) applySlotDate(pickingSlot, built);
             setPickingSlot(null);
             return;
         }
@@ -267,9 +297,9 @@ export default function SendSessionInviteModal({
     };
 
     const openPicker = (slot: 'primary' | 'alternative' | 'final') => {
-        const existing = slot === 'primary' ? primaryDate : slot === 'alternative' ? alternativeDate : finalDate;
+        const existing = getSlotDate(slot);
         const pickerValue = existing || new Date();
-        setTempDate(pickerValue);
+        seedWheelFromDate(pickerValue);
         setPickingSlot(slot);
     };
 
@@ -304,6 +334,18 @@ export default function SendSessionInviteModal({
     const sendBtnText = mode === 'reschedule' ? 'Send new times' : 'Send Session Invite';
 
     const canSend = primaryDate !== null;
+    const androidBuiltDateTime = new Date(
+        wheelYear,
+        wheelMonth,
+        wheelDay,
+        ((wheelHour % 12) + (wheelPeriod === 'PM' ? 12 : 0)),
+        wheelMinute,
+        0,
+        0
+    );
+    const androidSelectedDateStart = new Date(wheelYear, wheelMonth, wheelDay);
+    const androidDateInPast = Platform.OS === 'android' && pickingSlot !== null && androidPickerStep === 'date' && androidSelectedDateStart < todayStart;
+    const androidSelectionInPast = Platform.OS === 'android' && pickingSlot !== null && androidPickerStep === 'time' && androidBuiltDateTime < now;
 
     if (!visible) return null;
 
@@ -406,6 +448,16 @@ export default function SendSessionInviteModal({
                                         ((wheelHour % 12) + (wheelPeriod === 'PM' ? 12 : 0)),
                                         wheelMinute,
                                     ))}</Text>
+                                    {androidDateInPast && (
+                                        <Text style={styles.pickerValidationText}>
+                                            Pick today or a future date to continue.
+                                        </Text>
+                                    )}
+                                    {androidSelectionInPast && (
+                                        <Text style={styles.pickerValidationText}>
+                                            Pick a future time to continue.
+                                        </Text>
+                                    )}
                                     <View style={styles.stepTabs}>
                                         <TouchableOpacity
                                             onPress={() => setAndroidPickerStep('date')}
@@ -447,7 +499,11 @@ export default function SendSessionInviteModal({
                                 <TouchableOpacity onPress={() => setPickingSlot(null)} style={styles.pickerBtn}>
                                     <Text style={styles.pickerBtnText}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={handleConfirmDate} style={[styles.pickerBtn, styles.pickerBtnPrimary]}>
+                                <TouchableOpacity
+                                    onPress={handleConfirmDate}
+                                    disabled={androidDateInPast || androidSelectionInPast}
+                                    style={[styles.pickerBtn, styles.pickerBtnPrimary, (androidDateInPast || androidSelectionInPast) && styles.pickerBtnDisabled]}
+                                >
                                     <Text style={styles.pickerBtnTextPrimary}>
                                         {Platform.OS === 'android' && androidPickerStep === 'date' ? 'Next' : 'Confirm'}
                                     </Text>
@@ -646,6 +702,12 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         paddingHorizontal: 8,
     },
+    pickerValidationText: {
+        color: '#FFB4B4',
+        fontSize: 12,
+        marginBottom: 8,
+        paddingHorizontal: 8,
+    },
     stepTabs: {
         flexDirection: 'row',
         backgroundColor: 'rgba(255,255,255,0.07)',
@@ -734,6 +796,9 @@ const styles = StyleSheet.create({
     pickerBtnPrimary: {
         backgroundColor: AURORA.blue,
         borderRadius: 8,
+    },
+    pickerBtnDisabled: {
+        opacity: 0.45,
     },
     pickerBtnText: {
         color: AURORA.textSec,

@@ -308,6 +308,21 @@ export default function SessionHistoryScreen() {
     return list;
   }, [sessions, searchQuery, programFilter]);
 
+  const rescheduleInitialData = useMemo<Partial<SessionInviteData> | undefined>(
+    () => {
+      if (!selectedSession) return undefined;
+      const slotDates = (selectedSession.proposedSlots || [])
+        .map((slot) => parseSlotToDate(slot))
+        .filter(Boolean) as Date[];
+      return {
+        primaryDate: slotDates[0] ?? null,
+        alternativeDate: slotDates[1] ?? null,
+        finalDate: slotDates[2] ?? null,
+      };
+    },
+    [selectedSession],
+  );
+
   const getSessionDate = (s: SessionHistoryItem): Date | null => {
     const slot = getAgreedSessionSlot(s);
     if (slot) {
@@ -433,17 +448,6 @@ export default function SessionHistoryScreen() {
     setRescheduleBusy(true);
     try {
       const conversationId = `${user.id}_${selectedSession.studentId}`;
-      const priorRaw =
-        getAgreedSessionSlot(selectedSession) ??
-        selectedSession.proposedSlots?.[0];
-      const priorFmt = formatSlotForDisplay(priorRaw);
-      const priorDisp = priorFmt
-        ? `${priorFmt.date} at ${priorFmt.time}`
-        : (selectedSession.preferredTimeFromStudent?.trim() ||
-            "the time we had planned");
-      const firstName = selectedSession.studentName.split(" ")[0] || "there";
-      const lead = `Hi ${firstName}, I need to reschedule the session we had for ${priorDisp}. Please choose a new time using the options on my session card below.`;
-      await firestoreService.sendTextMessage(conversationId, user.id, lead);
       await firestoreService.proposeSlots(selectedSession.id, timeSlots, {
         proposalKind: "attendance_reschedule",
       });
@@ -787,6 +791,7 @@ export default function SessionHistoryScreen() {
             studentId: selectedSession.studentId,
           }}
           counselorName={user?.full_name}
+          initialData={rescheduleInitialData}
           onClose={() => {
             setShowRescheduleInviteModal(false);
             setSelectedSession(null);
