@@ -5,10 +5,11 @@ import { AppTextInput as TextInput } from "../common/AppTextInput";
  * Matches Aurora design: student profile, proposed time slots, supportive note
  */
 
-import React, { useState, useEffect } from 'react';
-import { Modal, View, TouchableOpacity, ScrollView, StyleSheet, Platform, KeyboardAvoidingView } from "react-native";
-import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Modal, View, TouchableOpacity, ScrollView, StyleSheet, Platform, KeyboardAvoidingView, FlatList, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { X, Send, Calendar, Pencil, Info } from 'lucide-react-native';
+import { BlurView } from 'expo-blur';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
 
@@ -45,6 +46,21 @@ interface SendSessionInviteModalProps {
 }
 
 const SLOT_LABELS: TimeSlotLabel[] = ['Primary Option', 'Alternative Option', 'Final Option'];
+const WHEEL_ITEM_HEIGHT = 40;
+const WHEEL_VISIBLE_ROWS = 3;
+
+interface WheelOption {
+    label: string;
+    value: number | string;
+}
+
+function clamp(num: number, min: number, max: number): number {
+    return Math.min(Math.max(num, min), max);
+}
+
+function getDaysInMonth(year: number, monthIndex: number): number {
+    return new Date(year, monthIndex + 1, 0).getDate();
+}
 
 function formatDateTime(date: Date): string {
     return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}, ${date.toLocaleTimeString('en-US', {
@@ -54,8 +70,84 @@ function formatDateTime(date: Date): string {
     })}`;
 }
 
+function formatPickerDateTime(date: Date): string {
+    return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    })}`;
+}
+
 const DEFAULT_INVITE_NOTE = (firstName: string) =>
     `Hi ${firstName}, I'd like to check in with you regarding your recent academic progress and see how you're settling into the new semester.`;
+
+function WheelColumn({
+    options,
+    selectedValue,
+    onValueChange,
+}: {
+    options: WheelOption[];
+    selectedValue: number | string;
+    onValueChange: (next: number | string) => void;
+}) {
+    const listRef = useRef<FlatList<WheelOption>>(null);
+    const selectedIndex = Math.max(0, options.findIndex((o) => o.value === selectedValue));
+    const containerHeight = WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_ROWS;
+
+    useEffect(() => {
+        listRef.current?.scrollToOffset({
+            offset: selectedIndex * WHEEL_ITEM_HEIGHT,
+            animated: false,
+        });
+    }, [selectedIndex]);
+
+    const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const offsetY = event.nativeEvent.contentOffset.y;
+        const idx = clamp(Math.round(offsetY / WHEEL_ITEM_HEIGHT), 0, options.length - 1);
+        const next = options[idx];
+        if (next && next.value !== selectedValue) onValueChange(next.value);
+        listRef.current?.scrollToOffset({
+            offset: idx * WHEEL_ITEM_HEIGHT,
+            animated: true,
+        });
+    };
+
+    return (
+        <View style={[styles.wheelColumn, { height: containerHeight }]}>
+            <FlatList
+                ref={listRef}
+                data={options}
+                keyExtractor={(item) => `${item.value}`}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={WHEEL_ITEM_HEIGHT}
+                decelerationRate="fast"
+                bounces={false}
+                getItemLayout={(_data, index) => ({
+                    length: WHEEL_ITEM_HEIGHT,
+                    offset: WHEEL_ITEM_HEIGHT * index,
+                    index,
+                })}
+                contentContainerStyle={{
+                    paddingVertical: WHEEL_ITEM_HEIGHT,
+                }}
+                onMomentumScrollEnd={handleMomentumEnd}
+                onScrollEndDrag={handleMomentumEnd}
+                renderItem={({ item }) => {
+                    const selected = item.value === selectedValue;
+                    return (
+                        <View style={styles.wheelItem}>
+                            <Text style={[styles.wheelItemText, selected ? styles.wheelItemTextSelected : styles.wheelItemTextUnselected]}>
+                                {item.label}
+                            </Text>
+                        </View>
+                    );
+                }}
+            />
+            <View pointerEvents="none" style={styles.wheelFadeTop} />
+            <View pointerEvents="none" style={styles.wheelFadeBottom} />
+        </View>
+    );
+}
 
 export default function SendSessionInviteModal({
     visible,
@@ -72,6 +164,14 @@ export default function SendSessionInviteModal({
     const [note, setNote] = useState(() => DEFAULT_INVITE_NOTE(firstName));
     const [pickingSlot, setPickingSlot] = useState<'primary' | 'alternative' | 'final' | null>(null);
     const [tempDate, setTempDate] = useState(new Date());
+    const currentYear = new Date().getFullYear();
+    const [wheelMonth, setWheelMonth] = useState<number>(new Date().getMonth());
+    const [wheelDay, setWheelDay] = useState<number>(new Date().getDate());
+    const [wheelYear, setWheelYear] = useState<number>(new Date().getFullYear());
+    const [wheelHour, setWheelHour] = useState<number>(12);
+    const [wheelMinute, setWheelMinute] = useState<number>(0);
+    const [wheelPeriod, setWheelPeriod] = useState<'AM' | 'PM'>('AM');
+    const [androidPickerStep, setAndroidPickerStep] = useState<'date' | 'time'>('date');
 
     useEffect(() => {
         if (!visible) return;
@@ -94,32 +194,72 @@ export default function SendSessionInviteModal({
         if (slot === 'final') setFinalDate(date);
     };
 
-    const openAndroidPicker = (slot: 'primary' | 'alternative' | 'final', pickerValue: Date) => {
-        DateTimePickerAndroid.open({
-            value: pickerValue,
-            mode: 'date',
-            display: 'spinner',
-            minimumDate: new Date(),
-            onChange: (dateEvent, selectedDay) => {
-                if (dateEvent.type !== 'set' || !selectedDay) return;
-                DateTimePickerAndroid.open({
-                    value: selectedDay,
-                    mode: 'time',
-                    display: 'spinner',
-                    is24Hour: false,
-                    onChange: (timeEvent, selectedTime) => {
-                        if (timeEvent.type !== 'set' || !selectedTime) return;
-                        const combined = new Date(selectedDay);
-                        combined.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
-                        setTempDate(combined);
-                        applySlotDate(slot, combined);
-                    },
-                });
-            },
-        });
-    };
+    const months = useMemo<WheelOption[]>(
+        () => [
+            { label: 'Jan', value: 0 }, { label: 'Feb', value: 1 }, { label: 'Mar', value: 2 }, { label: 'Apr', value: 3 },
+            { label: 'May', value: 4 }, { label: 'Jun', value: 5 }, { label: 'Jul', value: 6 }, { label: 'Aug', value: 7 },
+            { label: 'Sep', value: 8 }, { label: 'Oct', value: 9 }, { label: 'Nov', value: 10 }, { label: 'Dec', value: 11 },
+        ],
+        []
+    );
+    const years = useMemo<WheelOption[]>(
+        () => Array.from({ length: 6 }, (_, i) => ({ label: String(currentYear + i), value: currentYear + i })),
+        [currentYear]
+    );
+    const daysInActiveMonth = getDaysInMonth(wheelYear, wheelMonth);
+    const days = useMemo<WheelOption[]>(
+        () => Array.from({ length: daysInActiveMonth }, (_, i) => ({ label: String(i + 1).padStart(2, '0'), value: i + 1 })),
+        [daysInActiveMonth]
+    );
+    const hours = useMemo<WheelOption[]>(
+        () => Array.from({ length: 12 }, (_, i) => ({ label: String(i + 1), value: i + 1 })),
+        []
+    );
+    const minutes = useMemo<WheelOption[]>(
+        () => Array.from({ length: 60 }, (_, i) => ({ label: String(i).padStart(2, '0'), value: i })),
+        []
+    );
+    const periods = useMemo<WheelOption[]>(
+        () => [{ label: 'AM', value: 'AM' }, { label: 'PM', value: 'PM' }],
+        []
+    );
+
+    useEffect(() => {
+        const maxDay = getDaysInMonth(wheelYear, wheelMonth);
+        if (wheelDay > maxDay) setWheelDay(maxDay);
+    }, [wheelMonth, wheelYear, wheelDay]);
+
+    useEffect(() => {
+        if (Platform.OS !== 'android' || !pickingSlot) return;
+        let hour = tempDate.getHours();
+        const period: 'AM' | 'PM' = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12;
+        if (hour === 0) hour = 12;
+        setWheelMonth(tempDate.getMonth());
+        setWheelDay(tempDate.getDate());
+        setWheelYear(tempDate.getFullYear());
+        setWheelHour(hour);
+        setWheelMinute(tempDate.getMinutes());
+        setWheelPeriod(period);
+        setAndroidPickerStep('date');
+    }, [pickingSlot, tempDate]);
 
     const handleConfirmDate = () => {
+        if (Platform.OS === 'android') {
+            if (androidPickerStep === 'date') {
+                setAndroidPickerStep('time');
+                return;
+            }
+            let hour24 = wheelHour % 12;
+            if (wheelPeriod === 'PM') hour24 += 12;
+            const built = new Date(wheelYear, wheelMonth, wheelDay, hour24, wheelMinute, 0, 0);
+            const now = new Date();
+            const finalDate = built < now ? now : built;
+            setTempDate(finalDate);
+            if (pickingSlot) applySlotDate(pickingSlot, finalDate);
+            setPickingSlot(null);
+            return;
+        }
         if (pickingSlot === 'primary') setPrimaryDate(tempDate);
         if (pickingSlot === 'alternative') setAlternativeDate(tempDate);
         if (pickingSlot === 'final') setFinalDate(tempDate);
@@ -130,10 +270,6 @@ export default function SendSessionInviteModal({
         const existing = slot === 'primary' ? primaryDate : slot === 'alternative' ? alternativeDate : finalDate;
         const pickerValue = existing || new Date();
         setTempDate(pickerValue);
-        if (Platform.OS === 'android') {
-            openAndroidPicker(slot, pickerValue);
-            return;
-        }
         setPickingSlot(slot);
     };
 
@@ -258,21 +394,63 @@ export default function SendSessionInviteModal({
                         <Text style={styles.sendBtnText}>{sendBtnText}</Text>
                     </TouchableOpacity>
 
-                    {Platform.OS === 'ios' && pickingSlot && (
+                    {pickingSlot && (
                         <View style={styles.pickerOverlay}>
-                            <DateTimePicker
-                                value={tempDate}
-                                mode="datetime"
-                                display="spinner"
-                                onChange={handleDateChange}
-                                minimumDate={new Date()}
-                            />
+                            {Platform.OS === 'android' ? (
+                                <BlurView intensity={55} tint="dark" style={styles.androidPickerBlur}>
+                                    <Text style={styles.pickerHintText}>Preferred time</Text>
+                                    <Text style={styles.pickerPreviewText}>{formatPickerDateTime(new Date(
+                                        wheelYear,
+                                        wheelMonth,
+                                        wheelDay,
+                                        ((wheelHour % 12) + (wheelPeriod === 'PM' ? 12 : 0)),
+                                        wheelMinute,
+                                    ))}</Text>
+                                    <View style={styles.stepTabs}>
+                                        <TouchableOpacity
+                                            onPress={() => setAndroidPickerStep('date')}
+                                            style={[styles.stepTab, androidPickerStep === 'date' && styles.stepTabActive]}
+                                        >
+                                            <Text style={[styles.stepTabText, androidPickerStep === 'date' && styles.stepTabTextActive]}>Date</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => setAndroidPickerStep('time')}
+                                            style={[styles.stepTab, androidPickerStep === 'time' && styles.stepTabActive]}
+                                        >
+                                            <Text style={[styles.stepTabText, androidPickerStep === 'time' && styles.stepTabTextActive]}>Time</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    {androidPickerStep === 'date' ? (
+                                        <View style={styles.wheelRow}>
+                                            <WheelColumn options={months} selectedValue={wheelMonth} onValueChange={(v) => setWheelMonth(v as number)} />
+                                            <WheelColumn options={days} selectedValue={wheelDay} onValueChange={(v) => setWheelDay(v as number)} />
+                                            <WheelColumn options={years} selectedValue={wheelYear} onValueChange={(v) => setWheelYear(v as number)} />
+                                        </View>
+                                    ) : (
+                                        <View style={styles.wheelRow}>
+                                            <WheelColumn options={hours} selectedValue={wheelHour} onValueChange={(v) => setWheelHour(v as number)} />
+                                            <WheelColumn options={minutes} selectedValue={wheelMinute} onValueChange={(v) => setWheelMinute(v as number)} />
+                                            <WheelColumn options={periods} selectedValue={wheelPeriod} onValueChange={(v) => setWheelPeriod(v as 'AM' | 'PM')} />
+                                        </View>
+                                    )}
+                                </BlurView>
+                            ) : (
+                                <DateTimePicker
+                                    value={tempDate}
+                                    mode="datetime"
+                                    display="spinner"
+                                    onChange={handleDateChange}
+                                    minimumDate={new Date()}
+                                />
+                            )}
                             <View style={styles.pickerActions}>
                                 <TouchableOpacity onPress={() => setPickingSlot(null)} style={styles.pickerBtn}>
                                     <Text style={styles.pickerBtnText}>Cancel</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={handleConfirmDate} style={[styles.pickerBtn, styles.pickerBtnPrimary]}>
-                                    <Text style={styles.pickerBtnTextPrimary}>Confirm</Text>
+                                    <Text style={styles.pickerBtnTextPrimary}>
+                                        {Platform.OS === 'android' && androidPickerStep === 'date' ? 'Next' : 'Confirm'}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -444,6 +622,104 @@ const styles = StyleSheet.create({
         paddingTop: 12,
         borderTopWidth: 1,
         borderTopColor: AURORA.border,
+    },
+    androidPickerBlur: {
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.18)',
+        backgroundColor: 'rgba(15,20,42,0.45)',
+        overflow: 'hidden',
+        paddingHorizontal: 8,
+        paddingTop: 10,
+        paddingBottom: 8,
+    },
+    pickerHintText: {
+        color: AURORA.textMuted,
+        fontSize: 12,
+        marginBottom: 2,
+        paddingHorizontal: 8,
+    },
+    pickerPreviewText: {
+        color: '#FFFFFF',
+        fontSize: 24,
+        fontWeight: '700',
+        marginBottom: 8,
+        paddingHorizontal: 8,
+    },
+    stepTabs: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(255,255,255,0.07)',
+        borderRadius: 10,
+        padding: 3,
+        marginHorizontal: 4,
+        marginBottom: 8,
+    },
+    stepTab: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    stepTabActive: {
+        backgroundColor: 'rgba(45,107,255,0.3)',
+    },
+    stepTabText: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    stepTabTextActive: {
+        color: '#FFFFFF',
+    },
+    wheelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 2,
+    },
+    wheelColumn: {
+        flex: 1,
+        position: 'relative',
+        marginHorizontal: 2,
+        overflow: 'hidden',
+        borderRadius: 10,
+    },
+    wheelItem: {
+        height: WHEEL_ITEM_HEIGHT,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    wheelItemText: {
+        textAlign: 'center',
+    },
+    wheelItemTextSelected: {
+        color: '#FFFFFF',
+        fontSize: 26,
+        fontWeight: '700',
+    },
+    wheelItemTextUnselected: {
+        color: 'rgba(255,255,255,0.42)',
+        fontSize: 19,
+        fontWeight: '500',
+    },
+    wheelFadeTop: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: WHEEL_ITEM_HEIGHT,
+        backgroundColor: 'rgba(15,20,42,0.45)',
+        zIndex: 3,
+    },
+    wheelFadeBottom: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: WHEEL_ITEM_HEIGHT,
+        backgroundColor: 'rgba(15,20,42,0.45)',
+        zIndex: 3,
     },
     pickerActions: {
         flexDirection: 'row',
