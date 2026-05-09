@@ -1,6 +1,7 @@
 // Firebase configuration for Aurora Mental Health App (native)
-import { initializeApp, getApp, getApps } from "firebase/app";
-import { getAuth, Auth, initializeAuth } from "firebase/auth";
+import { initializeApp, getApp, getApps, type FirebaseApp } from "firebase/app";
+import type { Auth } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore, initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getDatabase, type Database } from "firebase/database";
@@ -11,6 +12,18 @@ const inferredDatabaseUrl = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
 
 const databaseURL =
   process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL || inferredDatabaseUrl;
+
+/**
+ * Firebase Auth persistence on React Native must use AsyncStorage via
+ * `getReactNativePersistence`. The top-level `firebase/auth` typings omit this
+ * helper (it's exported from @firebase/auth's RN bundle).
+ */
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- RN-only auth entry
+const nativeAuth = require("@firebase/auth/dist/rn/index.js") as {
+  initializeAuth: (app: FirebaseApp, deps?: { persistence?: unknown }) => Auth;
+  getAuth: (app?: FirebaseApp) => Auth;
+  getReactNativePersistence: (storage: typeof AsyncStorage) => unknown;
+};
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -29,13 +42,19 @@ let dbInstance;
 
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
-  auth = initializeAuth(app);
+  try {
+    auth = nativeAuth.initializeAuth(app, {
+      persistence: nativeAuth.getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    auth = nativeAuth.getAuth(app);
+  }
   dbInstance = initializeFirestore(app, {
     experimentalAutoDetectLongPolling: true,
   });
 } else {
   app = getApp();
-  auth = getAuth(app);
+  auth = nativeAuth.getAuth(app);
   dbInstance = getFirestore(app);
 }
 
