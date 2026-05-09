@@ -103,63 +103,72 @@ function SessionNotificationBridge() {
       orderBy("created_at", "desc"),
     );
 
-    const unsub = onSnapshot(q, async (snap) => {
-      const additions = snap
-        .docChanges()
-        .filter((change) => change.type === "added");
-      for (const change of additions) {
-        const notifId = change.doc.id;
-        if (processingIdsRef.current.has(notifId)) continue;
-        processingIdsRef.current.add(notifId);
+    const unsub = onSnapshot(
+      q,
+      async (snap) => {
+        const additions = snap
+          .docChanges()
+          .filter((change) => change.type === "added");
+        for (const change of additions) {
+          const notifId = change.doc.id;
+          if (processingIdsRef.current.has(notifId)) continue;
+          processingIdsRef.current.add(notifId);
 
-        try {
-          const shouldSendSessionPush =
-            user.session_push_notifications_enabled !== false;
+          try {
+            const shouldSendSessionPush =
+              user.session_push_notifications_enabled !== false;
 
-          if (!shouldSendSessionPush) {
-            await updateDoc(doc(db, "notifications", notifId), {
-              status: "sent",
-              delivery_mode: "local_bridge",
-              attempted_at: Timestamp.now(),
-              skipped_by_user_preference: true,
-              updated_at: Timestamp.now(),
+            if (!shouldSendSessionPush) {
+              await updateDoc(doc(db, "notifications", notifId), {
+                status: "sent",
+                delivery_mode: "local_bridge",
+                attempted_at: Timestamp.now(),
+                skipped_by_user_preference: true,
+                updated_at: Timestamp.now(),
+              });
+              continue;
+            }
+
+            const data = change.doc.data() as Record<string, unknown>;
+            const body =
+              typeof data.message === "string"
+                ? data.message
+                : "You have a session update.";
+            const targetRoute =
+              data.target_route === "/(counselor)/messages"
+                ? "/(counselor)/messages"
+                : "/(student)/messages";
+
+            const ok = await sendSessionDeviceNotification({
+              title: "Session update",
+              body,
+              targetRoute,
+              notificationId: notifId,
             });
-            continue;
+
+            if (ok) {
+              await updateDoc(doc(db, "notifications", notifId), {
+                status: "sent",
+                delivery_mode: "local_bridge",
+                attempted_at: Timestamp.now(),
+                sent_at: Timestamp.now(),
+                updated_at: Timestamp.now(),
+              });
+            }
+          } catch {
+            // Keep notification pending; bridge will retry on next launch/snapshot.
+          } finally {
+            processingIdsRef.current.delete(notifId);
           }
-
-          const data = change.doc.data() as Record<string, unknown>;
-          const body =
-            typeof data.message === "string"
-              ? data.message
-              : "You have a session update.";
-          const targetRoute =
-            data.target_route === "/(counselor)/messages"
-              ? "/(counselor)/messages"
-              : "/(student)/messages";
-
-          const ok = await sendSessionDeviceNotification({
-            title: "Session update",
-            body,
-            targetRoute,
-            notificationId: notifId,
-          });
-
-          if (ok) {
-            await updateDoc(doc(db, "notifications", notifId), {
-              status: "sent",
-              delivery_mode: "local_bridge",
-              attempted_at: Timestamp.now(),
-              sent_at: Timestamp.now(),
-              updated_at: Timestamp.now(),
-            });
-          }
-        } catch {
-          // Keep notification pending; bridge will retry on next launch/snapshot.
-        } finally {
-          processingIdsRef.current.delete(notifId);
         }
-      }
-    });
+      },
+      (err) => {
+        console.warn(
+          "[SessionNotificationBridge] notifications listener failed — deploy Firestore indexes (see mobile/firestore.indexes.json) and check rules:",
+          err.message,
+        );
+      },
+    );
 
     return () => {
       unsub();

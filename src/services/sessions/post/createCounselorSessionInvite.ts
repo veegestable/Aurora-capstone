@@ -1,5 +1,6 @@
 import { collection, addDoc, doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
+import { enqueueSessionInviteStudentPush } from '../../notifications/enqueueSessionInviteStudentPush'
 
 interface ProposedSlot {
   date: string
@@ -68,6 +69,8 @@ export async function createCounselorSessionInvite(
       unreadCountStudent: (conv.unreadCountStudent ?? 0) + 1,
     })
   }
+
+  await enqueueSessionInviteStudentPush(studentId, sessionId)
 
   return sessionId
 }

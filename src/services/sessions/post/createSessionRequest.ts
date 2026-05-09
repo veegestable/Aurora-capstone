@@ -1,6 +1,7 @@
 import { collection, addDoc, doc, getDoc, updateDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
 import { grantJournalAccessToCounselor } from '../../user-settings/put/grantJournalAccessToCounselor'
+import { enqueueSessionRequestCounselorPush } from '../../notifications/enqueueSessionRequestCounselorPush'
 
 interface CreateSessionRequestParams {
   studentId: string
@@ -90,6 +91,8 @@ export async function createSessionRequest(params: CreateSessionRequestParams): 
       unreadCountCounselor: (conv?.unreadCountCounselor ?? 0) + 1
     })
   }
+
+  await enqueueSessionRequestCounselorPush(counselorId, sessionId)
 
   return sessionId
 }
