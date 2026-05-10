@@ -7,6 +7,7 @@ interface CreateSessionRequestParams {
   studentId: string
   counselorId: string
   note: string
+  preferredTime: string
   studentName?: string
   studentAvatar?: string
   counselorName?: string
@@ -15,8 +16,8 @@ interface CreateSessionRequestParams {
 
 export async function createSessionRequest(params: CreateSessionRequestParams): Promise<string> {
   const {
-    studentId, counselorId, note, studentName,
-    studentAvatar, counselorName, counselorAvatar
+    studentId, counselorId, note, preferredTime,
+    studentName, studentAvatar, counselorName, counselorAvatar,
   } = params
 
   const sessionDoc = {
@@ -25,6 +26,7 @@ export async function createSessionRequest(params: CreateSessionRequestParams): 
     riskFlagId: null,
     initiatedBy: 'student',
     studentRequestNote: note.trim(),
+    preferredTimeFromStudent: preferredTime.trim(),
     proposedSlots: [],
     confirmedSlot: null,
     finalSlot: null,
@@ -48,6 +50,10 @@ export async function createSessionRequest(params: CreateSessionRequestParams): 
   const convRef = doc(db, 'conversations', conversationId)
   const convSnap = await getDoc(convRef)
 
+  const summary = preferredTime.trim()
+    ? `Session request: ${preferredTime.trim()}`
+    : 'Session request'
+
   if (!convSnap.exists()) {
     await setDoc(convRef, {
       counselorId,
@@ -56,7 +62,7 @@ export async function createSessionRequest(params: CreateSessionRequestParams): 
       student_avatar: studentAvatar ?? '',
       counselor_name: counselorName ?? 'Counselor',
       counselor_avatar: counselorAvatar ?? '',
-      lastMessage: 'Session request',
+      lastMessage: summary,
       lastMessageAt: Timestamp.now(),
       lastSenderId: studentId,
       unreadCountCounselor: 1,
@@ -68,12 +74,13 @@ export async function createSessionRequest(params: CreateSessionRequestParams): 
   const messagesRef = collection(db, 'conversations', conversationId, 'messages')
   await addDoc(messagesRef, {
     senderId: studentId,
-    content: 'Session request',
+    content: summary,
     type: 'session_request',
     sessionId,
     sessionData: {
       sessionId,
       note: note.trim(),
+      preferredTime: preferredTime.trim(),
       status: 'requested'
     },
     isRead: false,
@@ -85,14 +92,14 @@ export async function createSessionRequest(params: CreateSessionRequestParams): 
   if (convSnap.exists()) {
     const conv = convSnap.data()
     await updateDoc(convRef, {
-      lastMessage: 'Session request',
+      lastMessage: summary,
       lastMessageAt: Timestamp.now(),
       lastSenderId: studentId,
       unreadCountCounselor: (conv?.unreadCountCounselor ?? 0) + 1
     })
   }
 
-  await enqueueSessionRequestCounselorPush(counselorId, sessionId)
+  await enqueueSessionRequestCounselorPush(counselorId, sessionId, preferredTime.trim())
 
   return sessionId
 }

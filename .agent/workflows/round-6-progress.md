@@ -37,17 +37,15 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Touched:** `src/services/messages/sanitizeMessageText.ts`, `src/services/messages/get/getConversationsForStudent.ts`, `src/services/messages/get/getConversationsForCounselor.ts`, `src/services/messages/get/getMessagesForStudent.ts`
 - **Notes:** `formatConversationPreview` strips `__AUTO_ACCEPTED__` for inbox previews; `stripAutoAcceptedPrefix` applied to plain `content` in `getMessagesForStudent` so thread bubbles match mobile behavior.
 
-### [ ] Batch 3 — Student profile photos + Student Directory + dashboard chips
+### [x] Batch 3 — Student profile photos + Student Directory + dashboard chips
 
-- Covers [round6_parity.md §1](../round6_parity.md): `getStudents.ts` maps `avatar_url`; `Students.tsx` / `CounselorDashboard.tsx` pass `LetterAvatar`.
-- **Touched:** _(fill when done)_
-- **Notes:** _(fill when done)_
+- Covers [round6_parity.md §1](../round6_parity.md).
+- **Touched:** `src/services/counselor/get/getStudents.ts`, `src/pages/counselor/Students.tsx`, `src/pages/CounselorDashboard.tsx`
+- **Notes:** `StudentInfo.avatar_url` populated from Firestore; directory rows and dashboard chips use `LetterAvatar`; filter strip has “Filter by signal” label + `scrollbar-hide` + `aria` on toolbar buttons.
 
-### [ ] Batch 4 — Request Session: preferred date/time
-
-- Covers [round6_parity.md §7](../round6_parity.md): `SessionRequestModal.tsx`, `createSessionRequest.ts`, `enqueueSessionRequestCounselorPush` preferred time; verify `ChatBubble` / `getMessagesForStudent` display.
-- **Touched:** _(fill when done)_
-- **Notes:** _(fill when done)_
+### [x] Batch 4 — Request Session: preferred date/time
+- **Touched:** `src/components/sessions/SessionRequestModal.tsx`, `src/services/sessions/post/createSessionRequest.ts`
+- **Notes:** `datetime-local` → formatted `preferredTime`; session doc + `sessionData` + `lastMessage` summary already handled in service.
 
 ### [ ] Batch 5 — Student Messages: “Request session” entry point
 

@@ -11,6 +11,18 @@ interface Counselor {
   avatar_url?: string
 }
 
+/** `datetime-local` value → string shown in chat / Firestore */
+function formatDatetimeLocalForDisplay(isoLocal: string): string {
+  const t = isoLocal.trim()
+  if (!t) return ''
+  const d = new Date(t)
+  if (Number.isNaN(d.getTime())) return t
+  return d.toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 interface SessionRequestModalProps {
   visible: boolean
   studentId: string
@@ -33,18 +45,22 @@ export function SessionRequestModal({
   const [sending, setSending] = useState(false)
   const [selectedCounselorId, setSelectedCounselorId] = useState<string | null>(null)
   const [note, setNote] = useState(
-    "I've been feeling a bit overwhelmed and would like to talk to someone."
+    "I've been feeling a bit overwhelmed and would like to talk to someone.",
   )
+  /** Raw value from `<input type="datetime-local" />` (e.g. 2026-05-10T14:30) */
+  const [preferredSlotLocal, setPreferredSlotLocal] = useState('')
 
   useEffect(() => {
     if (!visible) return
+    setPreferredSlotLocal('')
     setLoading(true)
     const q = query(collection(db, 'users'), where('role', '==', 'counselor'))
     getDocs(q)
       .then((snap) => {
         const approved = snap.docs
           .map((d) => ({ id: d.id, ...d.data() } as Counselor & { approval_status?: string }))
-          .filter((c) => (c as any).approval_status === 'approved' || !(c as any).approval_status)
+          .filter((c) => (c as Counselor & { approval_status?: string }).approval_status === 'approved'
+            || !(c as Counselor & { approval_status?: string }).approval_status)
         setCounselors(approved)
       })
       .catch(() => setCounselors([]))
@@ -52,7 +68,9 @@ export function SessionRequestModal({
   }, [visible])
 
   const handleSend = async () => {
-    if (!selectedCounselorId || !note.trim() || sending) return
+    const preferredTime = formatDatetimeLocalForDisplay(preferredSlotLocal)
+    if (!selectedCounselorId || !note.trim() || !preferredTime || sending) return
+
     const counselor = counselors.find((c) => c.id === selectedCounselorId)
     setSending(true)
     try {
@@ -60,6 +78,7 @@ export function SessionRequestModal({
         studentId,
         counselorId: selectedCounselorId,
         note: note.trim(),
+        preferredTime,
         studentName,
         studentAvatar,
         counselorName: counselor?.full_name,
@@ -77,20 +96,21 @@ export function SessionRequestModal({
 
   if (!visible) return null
 
+  const preferredTimeReady = !!formatDatetimeLocalForDisplay(preferredSlotLocal).trim()
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden
       />
 
-      {/* Modal */}
       <div className="relative w-full max-w-md card-aurora border border-aurora-border p-6 shadow-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white">Request a Session</h2>
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-white/5 text-aurora-text-sec transition-colors cursor-pointer"
           >
@@ -99,11 +119,9 @@ export function SessionRequestModal({
         </div>
 
         <p className="text-sm text-aurora-text-sec mb-5 leading-relaxed">
-          Choose a counselor and share why you'd like to talk. They'll review your
-          request and propose time slots.
+          Choose a counselor and share when you&apos;d like to meet and why you&apos;d like to talk.
         </p>
 
-        {/* Counselor Selection */}
         <label className="text-xs font-semibold text-aurora-text-sec uppercase tracking-wider mb-2 block">
           Select Counselor
         </label>
@@ -114,9 +132,10 @@ export function SessionRequestModal({
         ) : counselors.length === 0 ? (
           <p className="text-sm text-aurora-text-muted mb-4">No counselors available.</p>
         ) : (
-          <div className="max-h-40 overflow-y-auto space-y-2 mb-5 pr-1">
+          <div className="max-h-40 overflow-y-auto space-y-2 mb-5 pr-1 scrollbar-hide">
             {counselors.map((c) => (
               <button
+                type="button"
                 key={c.id}
                 onClick={() => setSelectedCounselorId(c.id)}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${
@@ -139,7 +158,17 @@ export function SessionRequestModal({
           </div>
         )}
 
-        {/* Note */}
+        <label className="text-xs font-semibold text-aurora-text-sec uppercase tracking-wider mb-2 block">
+          Preferred date &amp; time
+        </label>
+        <input
+          type="datetime-local"
+          value={preferredSlotLocal}
+          onChange={(e) => setPreferredSlotLocal(e.target.value)}
+          className="w-full bg-white/3 border border-aurora-border rounded-xl px-3.5 py-3 text-sm text-white mb-5
+                     focus:outline-none focus:border-aurora-blue/50 transition-colors scheme:dark"
+        />
+
         <label className="text-xs font-semibold text-aurora-text-sec uppercase tracking-wider mb-2 block">
           Your Note
         </label>
@@ -151,10 +180,10 @@ export function SessionRequestModal({
           onChange={(e) => setNote(e.target.value)}
         />
 
-        {/* Send */}
         <button
+          type="button"
           onClick={handleSend}
-          disabled={!selectedCounselorId || !note.trim() || sending}
+          disabled={!selectedCounselorId || !note.trim() || !preferredTimeReady || sending}
           className="mt-5 w-full btn-aurora flex items-center justify-center gap-2.5 py-3.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {sending ? (
