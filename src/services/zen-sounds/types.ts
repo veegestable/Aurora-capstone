@@ -4,3 +4,9 @@ export interface Track {
   url: string
   volume?: number
 }
+
+export interface ZenPlaybackState {
+  isLoading: boolean
+  hasError: boolean
+  errorMessage: string | null
+}

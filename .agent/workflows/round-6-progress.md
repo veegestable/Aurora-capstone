@@ -57,11 +57,12 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Touched:** `public/images/moodIcon/*.png`, `src/constants/mood/moodIconPng.ts`, `src/components/student/MoodIcon.tsx`, `src/components/MoodCheckIn.tsx`, `src/index.css`
 - **Notes:** PNGs from `mobile/src/assets/moodIcon/` served at `/images/moodIcon/*.png`; `MoodIcon` prefers PNG, vector fallback on error. Dashboard + Step 1 manual grid use `MoodIcon`. **Theming:** `moodAccent` from `getBlendedColorWeighted(selectedEmotions)` for progress bar, modal edge, mode toggle, intensity readout + `--thumb-mood` on intensity slider. **Step 2:** `.vital-range-slider` + `--thumb-vital` on Energy (green) / Stress (red); custom `style` vars cast `as React.CSSProperties`.
 
-### [ ] Batch 7 — Zen / breathing audio reliability
+### [x] Batch 7 — Zen / breathing audio reliability
 
 - Covers [round6_parity.md §5](../round6_parity.md): `constants/zen/exercises.ts`, `BreathingExercise.tsx`, `zen-sounds` — self-host audio, autoplay/gesture, errors surfaced.
-- **Touched:** _(fill when done)_
-- **Notes:** _(fill when done)_
+- **Touched:** `public/sounds/breathing/*.mp3`, `src/constants/zen/exercises.ts`, `src/services/zen-sounds/types.ts`, `src/services/zen-sounds/index.ts`, `src/components/student/BreathingExercise.tsx`
+- **Notes:** Copied 5 MP3s from mobile assets to `public/sounds/breathing/` with web-safe names; replaced Pixabay CDN URLs with local `/sounds/breathing/` paths. `ZenSoundsService` rewritten with subscribe-based `ZenPlaybackState` (loading/error), `canplaythrough` + `error` listeners, and `NotAllowedError` (autoplay policy) graceful handling. `BreathingExercise` starts paused with a "Tap to Start" CTA so the first `play()` originates from a real user gesture; error banner shown if audio load fails; ambient card shows "Loading audio…" while buffering.
+
 
 ### [ ] Batch 8 — Final sweep: cleanup + open questions
 

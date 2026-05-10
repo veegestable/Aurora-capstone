@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Wind, RotateCcw } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { ArrowLeft, Wind, RotateCcw, AlertTriangle } from 'lucide-react'
 import { zenSoundsService } from '../../services/zen-sounds'
+import type { ZenPlaybackState } from '../../services/zen-sounds'
 import {
   type BreathingExerciseData,
   getPhaseCycleDurationSeconds,
@@ -19,15 +20,27 @@ export function BreathingExercise({
   sessionLabel,
   onClose,
 }: BreathingExerciseProps) {
-  const [isPlaying, setIsPlaying] = useState(true)
+  const [isPlaying, setIsPlaying] = useState(false) // start paused until user gesture
   const [phaseIdx, setPhaseIdx] = useState(0)
   const [totalTime, setTotalTime] = useState(durationSeconds)
   const [ambientOn, setAmbientOn] = useState(true)
+  const [audioState, setAudioState] = useState<ZenPlaybackState>({
+    isLoading: false,
+    hasError: false,
+    errorMessage: null,
+  })
+  const [hasUserGesture, setHasUserGesture] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const currentPhase = exercise.phases[phaseIdx]
   const cycleSeconds = getPhaseCycleDurationSeconds(exercise)
 
+  // Subscribe to audio state
+  useEffect(() => {
+    return zenSoundsService.subscribe(setAudioState)
+  }, [])
+
+  // Audio lifecycle: play/pause/stop based on ambientOn + isPlaying
   useEffect(() => {
     if (!ambientOn) {
       zenSoundsService.stop()
@@ -45,8 +58,10 @@ export function BreathingExercise({
     }
   }, [ambientOn, isPlaying, exercise])
 
+  // Cleanup on unmount
   useEffect(() => () => zenSoundsService.stop(), [])
 
+  // Countdown timer
   useEffect(() => {
     if (!isPlaying) return
     intervalRef.current = setInterval(() => {
@@ -63,6 +78,7 @@ export function BreathingExercise({
     }
   }, [isPlaying])
 
+  // Phase cycling
   useEffect(() => {
     if (!isPlaying) return
     const ms = Math.max(0, currentPhase?.seconds ?? 0) * 1000
@@ -72,12 +88,24 @@ export function BreathingExercise({
     return () => clearTimeout(timeout)
   }, [phaseIdx, isPlaying, currentPhase, exercise.phases.length])
 
-  const reset = () => {
+  const handlePlayPause = useCallback(() => {
+    setHasUserGesture(true)
+    if (!isPlaying && totalTime === 0) {
+      setTotalTime(durationSeconds)
+      setPhaseIdx(0)
+    }
+    setIsPlaying(p => !p)
+  }, [isPlaying, totalTime, durationSeconds])
+
+  const reset = useCallback(() => {
     setIsPlaying(false)
     setPhaseIdx(0)
     setTotalTime(durationSeconds)
-    setTimeout(() => setIsPlaying(true), 100)
-  }
+    setTimeout(() => {
+      setHasUserGesture(true)
+      setIsPlaying(true)
+    }, 100)
+  }, [durationSeconds])
 
   const circleScale =
     currentPhase?.type === 'inhale' ? 1.15
@@ -105,6 +133,35 @@ export function BreathingExercise({
         </div>
         <div className="w-7" />
       </div>
+
+      {/* Audio error banner */}
+      {audioState.hasError && (
+        <div
+          className="flex items-center gap-2.5 px-4 py-3 rounded-xl
+                     bg-red-500/12 border border-red-500/30"
+        >
+          <AlertTriangle className="w-4.5 h-4.5 text-red-400 shrink-0" />
+          <p className="text-sm text-red-300 flex-1">
+            {audioState.errorMessage ?? 'Audio could not be loaded.'}
+          </p>
+        </div>
+      )}
+
+      {/* Tap-to-start prompt (before first gesture) */}
+      {!hasUserGesture && (
+        <div className="text-center">
+          <button
+            onClick={handlePlayPause}
+            className="btn-aurora px-8 py-3 text-base font-bold cursor-pointer"
+            aria-label="Start exercise"
+          >
+            Tap to Start
+          </button>
+          <p className="text-xs text-aurora-gray-500 mt-2">
+            A user gesture is required to enable audio playback.
+          </p>
+        </div>
+      )}
 
       {/* Timer */}
       <div className="flex gap-3">
@@ -189,7 +246,11 @@ export function BreathingExercise({
             {exercise.soundscapeName}
           </p>
           <p className="text-xs text-aurora-gray-500">
-            {ambientOn ? 'Ambient sound active' : 'Ambient sound off'}
+            {audioState.isLoading
+              ? 'Loading audio…'
+              : ambientOn
+                ? 'Ambient sound active'
+                : 'Ambient sound off'}
           </p>
         </div>
         <label className="relative inline-flex items-center cursor-pointer">
@@ -210,29 +271,25 @@ export function BreathingExercise({
       </div>
 
       {/* Controls */}
-      <div className="flex gap-3">
-        <button
-          onClick={() => {
-            if (!isPlaying && totalTime === 0) {
-              setTotalTime(durationSeconds)
-              setPhaseIdx(0)
-            }
-            setIsPlaying(p => !p)
-          }}
-          className="flex-1 bg-aurora-secondary-blue text-white text-lg font-extrabold
-                     rounded-2xl py-4.5 hover:bg-aurora-secondary-dark-blue transition-colors cursor-pointer"
-        >
-          {isPlaying ? 'Pause' : totalTime === 0 ? 'Restart' : 'Resume'}
-        </button>
-        <button
-          onClick={reset}
-          className="w-[60px] card-aurora p-0! flex items-center justify-center rounded-2xl
-                     hover:bg-aurora-gray-100 transition-colors cursor-pointer"
-          aria-label="Reset"
-        >
-          <RotateCcw className="w-5.5 h-5.5 text-aurora-gray-500" />
-        </button>
-      </div>
+      {hasUserGesture && (
+        <div className="flex gap-3">
+          <button
+            onClick={handlePlayPause}
+            className="flex-1 bg-aurora-secondary-blue text-white text-lg font-extrabold
+                       rounded-2xl py-4.5 hover:bg-aurora-secondary-dark-blue transition-colors cursor-pointer"
+          >
+            {isPlaying ? 'Pause' : totalTime === 0 ? 'Restart' : 'Resume'}
+          </button>
+          <button
+            onClick={reset}
+            className="w-[60px] card-aurora p-0! flex items-center justify-center rounded-2xl
+                       hover:bg-aurora-gray-100 transition-colors cursor-pointer"
+            aria-label="Reset"
+          >
+            <RotateCcw className="w-5.5 h-5.5 text-aurora-gray-500" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
