@@ -21,8 +21,8 @@
       "package": "com.aurora.mobile",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/logos/logotype dark.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./src/assets/icon.png",
+        "backgroundColor": "#0F172A"
       },
       "permissions": [
         "android.permission.CAMERA",
