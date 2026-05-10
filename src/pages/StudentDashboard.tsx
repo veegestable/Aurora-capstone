@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import MoodCheckIn from '../components/MoodCheckIn'
+import MoodCheckIn from '../components/mood-checkin'
 import { moodService } from '../services/mood'
 import { computeStreak, computeStability, computeDailyInsight } from '../utils/analytics'
 import type { StabilityMetrics } from '../utils/analytics'
