@@ -1,0 +1,93 @@
+name: CI
+
+# Mobile + Cloud Functions + Firebase rules — the checks you should mark as
+# **required** on the `release` branch. The Vite web app lives in `ci-web.yml`
+# so a broken dashboard never blocks an Expo / mobile release.
+#
+# Runs on every pull request to either long-lived branch and on direct pushes
+# to them. `main` is the day-to-day dev line (CI is informational); `release`
+# is the trusted line that requires green CI before merge (configured in
+# GitHub repo Settings → Branches).
+on:
+  pull_request:
+    branches: [main, release]
+  push:
+    branches: [main, release]
+
+# Cancel in-flight runs for the same ref when a new commit is pushed.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-typecheck:
+    name: Mobile (Expo) typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install
+        working-directory: mobile
+        run: npm ci
+      - name: Typecheck
+        working-directory: mobile
+        run: npm run typecheck
+
+  functions-build:
+    name: Cloud Functions typecheck/build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: functions/package-lock.json
+      - name: Install
+        working-directory: functions
+        run: npm ci
+      - name: Build
+        working-directory: functions
+        run: npm run build
+
+  firestore-rules:
+    name: Firestore + Storage rules compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # Dry-run deploy validates that firestore.rules and storage.rules compile
+      # against Firebase's parser. Catches typos / accidentally-broken syntax in
+      # PRs before they can ever reach the live project.
+      # Uses a service account JSON stored as the GOOGLE_APPLICATION_CREDENTIALS
+      # secret. If the secret is not set (e.g. forks), the job is skipped.
+      - name: Skip if no Firebase credentials
+        id: gate
+        run: |
+          if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ] && [ -z "${{ secrets.FIREBASE_TOKEN }}" ]; then
+            echo "no_creds=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping rules dry-run — no FIREBASE_SERVICE_ACCOUNT or FIREBASE_TOKEN secret."
+          fi
+      - name: Write service account file
+        if: steps.gate.outputs.no_creds != 'true' && env.FIREBASE_SERVICE_ACCOUNT != ''
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+      - name: Dry-run rules deploy
+        if: steps.gate.outputs.no_creds != 'true'
+        working-directory: mobile
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          npx --yes firebase-tools@latest deploy \
+            --only firestore:rules,storage:rules \
+            --dry-run \
+            --non-interactive

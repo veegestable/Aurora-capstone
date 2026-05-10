@@ -111,6 +111,104 @@ EXPO_PUBLIC_FIREBASE_PROJECT_ID=...
 
 ---
 
+## 🤖 Continuous Integration / Delivery
+
+### Branch model
+
+| Branch | Role | Push policy |
+|--------|------|-------------|
+| **`main`** | Day-to-day work. CI runs on every push (informational green/red). | Push freely. |
+| **`release`** | Trusted line used for demos, store builds, and live rules deploys. | Update via PR `main` → `release` only. CI must be green to merge (after branch protection is enabled). |
+
+Promotion flow: develop on `main` → when a snapshot is ready, open a PR `main → release` → wait for CI green → merge. Anything that touches `mobile/firestore.rules` or `mobile/storage.rules` then auto-deploys to Firebase.
+
+### `CI` — `.github/workflows/ci.yml`
+Runs on every PR into `main` or `release`, and on direct pushes to either. These are the jobs to mark as **required** on `release` when you care about shipping mobile:
+
+- **Mobile typecheck** — `tsc --noEmit` inside `mobile/`
+- **Cloud Functions build** — `npm run build` inside `functions/`
+- **Firestore + Storage rules dry-run** — `firebase deploy --dry-run` validates that `mobile/firestore.rules` and `mobile/storage.rules` compile against the live Firebase parser. Skipped automatically on forks (or any run without the credentials secret).
+
+### `CI Web` — `.github/workflows/ci-web.yml`
+Runs **only when web-related paths change** (`src/`, `public/`, root `package.json`, Vite/ESLint/Tailwind configs, etc.). Keeps the Vite dashboard healthy without blocking mobile-only work.
+
+**Do not** add `Web (Vite) lint + typecheck + build` to required status checks on `release` if your priority is shipping the Expo app — a broken web build would otherwise block merges. Fix web on its own timeline; mobile + rules + functions stay the gate.
+
+### `Deploy Firestore + Storage rules` — `.github/workflows/deploy-rules.yml`
+Runs on push to **`release`** whenever any of these change:
+`mobile/firestore.rules`, `mobile/storage.rules`, `mobile/firebase.json`, `mobile/.firebaserc`.
+
+Publishes the rules to Firebase project `aurora-44941` automatically — no more manual `firebase deploy` from a laptop. Can also be triggered manually from the Actions tab.
+
+### Recommended branch protection
+GitHub repo → **Settings → Branches → Add branch protection rule** for `release`:
+- ✅ Require a pull request before merging
+- ✅ Require status checks to pass before merging
+- ✅ Tick **only** these three jobs from the **CI** workflow as required:
+  - `Mobile (Expo) typecheck`
+  - `Cloud Functions typecheck/build`
+  - `Firestore + Storage rules compile`
+- ⛔ **Do not** require `Web (Vite) lint + typecheck + build` (from **CI Web**) if you want mobile releases independent of the web dashboard.
+- ✅ Require branches to be up to date before merging
+
+`main` stays unprotected so quick iterative pushes are not slowed down.
+
+### One-time setup: add a Firebase credential secret
+
+Pick **one** of the two below in **Settings → Secrets and variables → Actions → New repository secret**:
+
+**Option 1 — Service account (recommended)**
+1. Firebase Console → ⚙️ Project Settings → **Service accounts** → **Generate new private key**.
+2. Open the downloaded JSON file, copy its full contents.
+3. Add a secret named `FIREBASE_SERVICE_ACCOUNT` with the JSON as its value.
+
+**Option 2 — CI token (legacy, simpler)**
+1. On your laptop: `npx firebase-tools login:ci`
+2. Copy the printed token.
+3. Add a secret named `FIREBASE_TOKEN` with the token as its value.
+
+After saving the secret, the next merge to `release` that touches a rules file will deploy automatically.
+
+### `Build Android (EAS)` — `.github/workflows/build-android.yml`
+Triggers an EAS cloud build for Android whenever **`release`** changes inside `mobile/`. Build runs on Expo's servers (~15–25 min); the Action just kicks it off and exits, so it doesn't burn GitHub minutes.
+
+- **Auto-trigger:** `push` to `release` with changes under `mobile/**`
+- **Manual:** Actions tab → **Build Android (EAS)** → **Run workflow** → pick `preview` (APK), `production` (AAB for Play Store), or `development`
+- **Output:** download from `https://expo.dev/accounts/<your-account>/projects/mobile/builds`
+- **Profiles** are defined in `mobile/eas.json`:
+  - `preview` → installable `.apk`, internal distribution (good for QA / sideload)
+  - `production` → `.aab` for Play Store, autoIncrements versionCode
+  - `development` → dev client build for hot-reload native testing
+
+### One-time setup for EAS builds
+Run these **on your laptop** (interactive, can't be done in CI):
+
+```bash
+npm install -g eas-cli
+eas login                                # use your Expo account
+cd mobile
+eas init                                 # creates `extra.eas.projectId` in app.json
+```
+
+Commit the resulting `app.json` change. Then in **Settings → Secrets and variables → Actions → New repository secret**:
+
+- Generate a token at <https://expo.dev/accounts/[your-account]/settings/access-tokens>
+- Add a secret named **`EXPO_TOKEN`** with the value
+
+After that, every push to `release` that touches `mobile/**` will trigger an Android build automatically. iOS builds use the same flow — change the workflow's `--platform android` to `ios` (requires an Apple Developer account, $99/yr).
+
+### Cutting a build manually (optional)
+If you'd rather build from your laptop instead of CI:
+
+```bash
+cd mobile
+npx eas build --platform android --profile preview      # installable APK
+npx eas build --platform android --profile production   # Play Store AAB
+npx eas build --platform ios --profile production       # IPA (requires Apple Dev account)
+```
+
+---
+
 ## 🤝 Contributing
 
 1. Fork the repository

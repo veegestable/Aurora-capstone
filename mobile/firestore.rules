@@ -43,8 +43,24 @@ service cloud.firestore {
       );
     }
 
+    /** `conversations/{counselorId}_{studentId}` — student may only notify their assigned counselor. */
+    function canStudentNotifyCounselorRecipient() {
+      let recipient = request.resource.data.user_id;
+      let convId = recipient + '_' + request.auth.uid;
+      return myRole() == 'student'
+        && exists(/databases/$(database)/documents/conversations/$(convId))
+        && get(/databases/$(database)/documents/conversations/$(convId)).data.counselorId == recipient
+        && get(/databases/$(database)/documents/conversations/$(convId)).data.studentId == request.auth.uid;
+    }
+
     match /users/{uid} {
-      allow read: if isAuthed();
+      // Tightened: students cannot scrape every peer profile. Counselor directory stays readable.
+      allow read: if isAuthed() && (
+        isOwner(uid) ||
+        isAdmin() ||
+        isCounselor() ||
+        resource.data.role == 'counselor'
+      );
       allow create: if isOwner(uid) || isAdmin();
       allow update: if isOwner(uid) || isAdmin();
       allow delete: if isAdmin();
@@ -162,7 +178,14 @@ service cloud.firestore {
       allow read: if isAuthed() && (
         resource.data.user_id == request.auth.uid || isAdmin()
       );
-      allow create: if isAuthed();
+      // Self, admin, counselor (e.g. session invite before conversation exists), or
+      // student notifying their counselor via an existing conversation doc.
+      allow create: if isAuthed() && (
+        request.resource.data.user_id == request.auth.uid ||
+        isAdmin() ||
+        isCounselor() ||
+        canStudentNotifyCounselorRecipient()
+      );
       allow update, delete: if isAuthed() && (
         resource.data.user_id == request.auth.uid || isAdmin()
       );
@@ -180,12 +203,21 @@ service cloud.firestore {
 
     match /audit_logs/{id} {
       allow read: if isAdmin();
-      allow create: if isAuthed();
+      // Prevent forged audit rows: performer must match caller (admin may still write if you add that path).
+      allow create: if isAuthed() && (
+        isAdmin() ||
+        request.resource.data.performedBy == request.auth.uid
+      );
       allow update, delete: if false;
     }
 
     match /userSettings/{uid} {
-      allow read: if isAuthed();
+      // Counselors read student settings for journal-access + check-in context; peers cannot.
+      allow read: if isAuthed() && (
+        isOwner(uid) ||
+        isAdmin() ||
+        isCounselor()
+      );
       allow create, update: if isOwner(uid) || isAdmin();
       allow delete: if isOwner(uid) || isAdmin();
     }

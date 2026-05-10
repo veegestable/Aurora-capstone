@@ -63,11 +63,13 @@ function getRosterPillStyle(pill: CounselorStudentRosterPill) {
       return {
         badgeBg: "rgba(45,107,255,0.15)",
         text: AURORA.blue,
+        border: 'transparent',
       };
     case "no_session_yet":
       return {
         badgeBg: "rgba(148,163,184,0.12)",
         text: AURORA.textSec,
+        border: 'transparent',
       };
   }
 }
@@ -296,7 +298,7 @@ export default function CounselorStudentsScreen() {
                 sessionStarted =
                   settings.counselorJournalAccess?.[counselorId] === true;
               }
-              if (sessionStarted) {
+              if (sessionStarted && counselorId) {
                 rosterPill = "session_started";
                 const { logs } =
                   await fetchStudentCheckInSignalContextForCounselor(

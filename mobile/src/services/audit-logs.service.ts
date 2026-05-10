@@ -54,7 +54,10 @@ export const auditLogsService = {
         action: String(data.action ?? ""),
         targetType: String(data.targetType ?? ""),
         targetId: String(data.targetId ?? ""),
-        metadata: data.metadata ?? undefined,
+        metadata:
+          data.metadata != null
+            ? (data.metadata as Record<string, unknown>)
+            : undefined,
         createdAt: data.createdAt?.toDate?.() ?? undefined,
       } satisfies AuditEntry;
     });
@@ -85,7 +88,10 @@ export const auditLogsService = {
         action: String(data.action ?? ""),
         targetType: String(data.targetType ?? ""),
         targetId: String(data.targetId ?? ""),
-        metadata: data.metadata ?? undefined,
+        metadata:
+          data.metadata != null
+            ? (data.metadata as Record<string, unknown>)
+            : undefined,
         createdAt:
           (data.createdAt as { toDate?: () => Date })?.toDate?.() ?? undefined,
       } satisfies AuditEntry;

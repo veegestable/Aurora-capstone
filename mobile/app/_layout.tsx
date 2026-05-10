@@ -1,6 +1,7 @@
 import "../global.css";
 import { Stack, useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import {
   useFonts,
@@ -29,6 +30,9 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../src/services/firebase";
+import { AuroraAnimatedSplash } from "../src/components/AuroraAnimatedSplash";
+
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function NotificationRouterBridge() {
   const router = useRouter();
@@ -185,6 +189,11 @@ export default function RootLayout() {
     NunitoSans_600SemiBold,
     NunitoSans_700Bold,
   });
+  const [splashAnimationDone, setSplashAnimationDone] = useState(false);
+
+  const handleSplashFinish = useCallback(() => {
+    setSplashAnimationDone(true);
+  }, []);
 
   if (!fontsLoaded) return null;
 
@@ -207,6 +216,9 @@ export default function RootLayout() {
             <Stack.Screen name="(student)" options={{ headerShown: false }} />
             <Stack.Screen name="dashboard" options={{ headerShown: false }} />
           </Stack>
+          {!splashAnimationDone ? (
+            <AuroraAnimatedSplash onFinish={handleSplashFinish} />
+          ) : null}
         </UserDaySettingsProvider>
       </AuthProvider>
     </GestureHandlerRootView>

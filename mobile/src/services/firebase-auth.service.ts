@@ -50,6 +50,8 @@ export interface UserProfile {
   sex?: Sex;
   bio?: string;
   session_push_notifications_enabled?: boolean;
+  /** Synced from Firebase Auth on sign-in; used to hide unverified counselors from student pickers. */
+  email_verified?: boolean;
   created_at: Date;
   updated_at?: Date;
 }
@@ -81,6 +83,7 @@ export const authService = {
         email: data.email,
         full_name: data.fullName,
         role: data.role,
+        email_verified: user.emailVerified,
         ...(data.role === "counselor"
           ? { approval_status: "pending" as const }
           : {}),
@@ -151,8 +154,18 @@ export const authService = {
       }
 
       const userProfile = userDoc.data() as UserProfile;
+
+      try {
+        await updateDoc(doc(db, "users", user.uid), {
+          email_verified: user.emailVerified,
+          updated_at: new Date(),
+        });
+      } catch (syncErr) {
+        console.warn("Could not sync email_verified to Firestore:", syncErr);
+      }
+
       console.log("✅ User signed in successfully");
-      return userProfile;
+      return { ...userProfile, email_verified: user.emailVerified };
     } catch (error: any) {
       console.error("❌ Signin error:", error.message);
       throw new Error(error.message);

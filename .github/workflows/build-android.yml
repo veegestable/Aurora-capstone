@@ -1,0 +1,80 @@
+name: Build Android (EAS)
+
+# Triggers a cloud build on Expo Application Services (EAS) for the Android
+# app whenever the `release` branch changes inside `mobile/`. The actual native
+# build runs on Expo's infrastructure (~15-25 min), so we use `--no-wait`: this
+# Action only kicks off the job and exits, you can watch it at
+# https://expo.dev/accounts/<owner>/projects/<slug>/builds.
+#
+# Use the manual "Run workflow" button to pick a different profile (e.g.
+# `production` for a Play Store AAB) without committing.
+on:
+  push:
+    branches: [release]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/build-android.yml"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        type: choice
+        required: true
+        default: preview
+        options:
+          - preview
+          - production
+          - development
+
+concurrency:
+  group: build-android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: EAS Android build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Verify EXPO_TOKEN is set
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "::error::Set EXPO_TOKEN in repo Settings → Secrets and variables → Actions. Generate it at https://expo.dev/accounts/<you>/settings/access-tokens."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Pick build profile
+        id: profile
+        run: |
+          PROFILE="${{ github.event.inputs.profile }}"
+          if [ -z "$PROFILE" ]; then PROFILE="preview"; fi
+          echo "value=$PROFILE" >> "$GITHUB_OUTPUT"
+          echo "::notice::Using EAS profile: $PROFILE"
+
+      - name: Trigger EAS build (Android, ${{ steps.profile.outputs.value }})
+        working-directory: mobile
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ steps.profile.outputs.value }} \
+            --non-interactive \
+            --no-wait

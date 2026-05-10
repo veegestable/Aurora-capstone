@@ -1,0 +1,58 @@
+name: Deploy Firestore + Storage rules
+
+# Auto-deploys mobile/firestore.rules + mobile/storage.rules whenever they
+# change on the `release` branch. The dry-run in ci.yml has already validated
+# them on the PR into `release`, so this job just publishes. Casual pushes to
+# `main` never touch live rules; promotion happens via PR `main` → `release`.
+# `workflow_dispatch` lets you publish on demand from the Actions tab.
+on:
+  push:
+    branches: [release]
+    paths:
+      - "mobile/firestore.rules"
+      - "mobile/storage.rules"
+      - "mobile/firebase.json"
+      - "mobile/.firebaserc"
+      - ".github/workflows/deploy-rules.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-rules-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Publish rules to Firebase
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify credentials present
+        run: |
+          if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ] && [ -z "${{ secrets.FIREBASE_TOKEN }}" ]; then
+            echo "::error::Set either FIREBASE_SERVICE_ACCOUNT or FIREBASE_TOKEN in repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Write service account file
+        if: env.FIREBASE_SERVICE_ACCOUNT != ''
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      - name: Deploy
+        working-directory: mobile
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          npx --yes firebase-tools@latest deploy \
+            --only firestore:rules,storage:rules \
+            --non-interactive \
+            --message "ci: deploy rules from ${GITHUB_SHA::7}"

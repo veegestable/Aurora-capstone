@@ -9,15 +9,17 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./src/assets/logos/logomark dark gradient.png",
+      "image": "./src/assets/logos/logomark light gradient.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0F172A"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.aurora.mobile"
     },
     "android": {
+      "package": "com.aurora.mobile",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/logos/logotype dark.png",
         "backgroundColor": "#ffffff"
@@ -50,6 +52,11 @@
         }
       ],
       "@react-native-community/datetimepicker"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "797ad4cd-1753-4380-9052-8332a31722e1"
+      }
+    }
   }
 }

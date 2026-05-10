@@ -1,6 +1,12 @@
-import React from "react";
-import { View, ScrollView, Image, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
-import { BlurView } from "expo-blur";
+import React, { useCallback, useRef } from "react";
+import {
+  View,
+  ScrollView,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+} from "react-native";
 import { Heart, Brain, Users } from "lucide-react-native";
 import { Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,6 +21,15 @@ const FEATURES = [
 
 export default function LoginScreen() {
   const isWeb = Platform.OS === "web";
+  const scrollRef = useRef<ScrollView>(null);
+
+  const scrollAuthIntoView = useCallback(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, 120);
+    });
+  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -25,6 +40,7 @@ export default function LoginScreen() {
       <SafeAreaView className="flex-1 bg-primary">
         <Stack.Screen options={{ headerShown: false }} />
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
             isWeb ? styles.scrollContentWeb : styles.scrollContentNative,
@@ -59,7 +75,9 @@ export default function LoginScreen() {
                 style={styles.taglineNative}
                 numberOfLines={4}
               >
-                {"Small check-ins. Bigger conversations.\nClarity for students. Context for counselors."}
+                {
+                  "Small check-ins. Bigger conversations.\nClarity for students. Context for counselors."
+                }
               </Text>
             )}
           </View>
@@ -74,41 +92,30 @@ export default function LoginScreen() {
           >
             {FEATURES.map((item, index) => (
               <View key={index} style={styles.featureCard}>
-                {isWeb ? (
+                <View
+                  style={[
+                    styles.featureGlass,
+                    !isWeb && styles.featureGlassNative,
+                  ]}
+                >
                   <View
-                    style={[styles.featureGlass, styles.featureFallback]}
+                    style={[styles.featureIcon, !isWeb && styles.featureIconNative]}
                   >
-                    <View style={styles.featureIcon}>
-                      <item.icon size={22} color={item.color} />
-                    </View>
-                    <Text style={styles.featureLabel} numberOfLines={2}>
-                      {item.label}
-                    </Text>
+                    <item.icon size={isWeb ? 22 : 16} color={item.color} />
                   </View>
-                ) : (
-                  <BlurView
-                    intensity={40}
-                    tint="dark"
-                    style={[styles.featureGlass, styles.featureGlassNative]}
+                  <Text
+                    style={[styles.featureLabel, !isWeb && styles.featureLabelNative]}
+                    numberOfLines={2}
                   >
-                    <View style={styles.featureOverlay} />
-                    <View style={[styles.featureIcon, styles.featureIconNative]}>
-                      <item.icon size={16} color={item.color} />
-                    </View>
-                    <Text
-                      style={[styles.featureLabel, styles.featureLabelNative]}
-                      numberOfLines={2}
-                    >
-                      {item.label}
-                    </Text>
-                  </BlurView>
-                )}
+                    {item.label}
+                  </Text>
+                </View>
               </View>
             ))}
           </View>
 
           {/* Auth Form */}
-          <LoginForm />
+          <LoginForm onSwitchToSignUp={scrollAuthIntoView} />
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>
@@ -152,9 +159,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   logoNative: {
-    width: 204,
-    height: 204,
+    width: 210,
+    height: 210,
     marginBottom: 6,
+    marginTop: 40,
   },
   taglineWeb: {
     fontSize: 16,
@@ -168,7 +176,11 @@ const styles = StyleSheet.create({
     color: "#A8B4C8",
     marginTop: 4,
   },
-  features: { flexDirection: "row", gap: 12, marginBottom: 24 },
+  features: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 24,
+  },
   featuresNative: {
     gap: 8,
     marginBottom: 8,
@@ -186,11 +198,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 4,
     borderRadius: 11,
-  },
-  featureFallback: { backgroundColor: "rgba(255,255,255,0.06)" },
-  featureOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15,23,42,0.3)",
   },
   featureIcon: {
     alignItems: "center",
