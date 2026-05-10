@@ -1,6 +1,37 @@
 import { LetterAvatar } from '../LetterAvatar'
 import { usePeerPresence } from '../../hooks/usePeerPresence'
 import type { CounselorContact, StudentContact } from '../../types/message.types'
+import type { ConversationPreviewKind } from '../../types/message.types'
+
+const PREVIEW_BADGE_LABEL: Partial<Record<ConversationPreviewKind, string>> = {
+  session_request: 'Session request',
+  session_invite: 'Invite',
+  session_topic: 'Session',
+  conversation_started: 'Started',
+}
+
+const PREVIEW_BADGE_CLASS: Partial<Record<ConversationPreviewKind, string>> = {
+  session_request: 'bg-[rgba(124,58,237,0.2)] border-[rgba(124,58,237,0.35)] text-aurora-purple',
+  session_invite: 'bg-[rgba(45,107,255,0.18)] border-[rgba(45,107,255,0.38)] text-aurora-blue',
+  session_topic:
+    'bg-[rgba(245,158,11,0.15)] border-[rgba(245,158,11,0.35)] text-amber-300',
+  conversation_started: 'bg-white/10 border-white/14 text-[#7B8EC8]',
+}
+
+function truncatePreviewSubtitle(previewKind: ConversationPreviewKind | undefined, preview: string) {
+  if (!previewKind || previewKind === 'plain') return preview
+  let t = preview
+
+  const strip = [
+    /^Session request\s*:?\s*/i,
+    /^Session Invite\s*:?\s*/i,
+    /^Conversation started\s*:?\s*/i,
+    /^Session:\s*/i,
+  ]
+  for (const re of strip) t = t.replace(re, '').trim()
+
+  return t || preview
+}
 
 interface ContactRowProps {
   contact: CounselorContact | StudentContact
@@ -43,7 +74,22 @@ export function ContactRow({ contact, onSelect }: ContactRowProps) {
             {contact.time}
           </span>
         </div>
-        <p className="text-sm text-[#7B8EC8] truncate">{contact.preview}</p>
+        <div className="flex items-center gap-2 min-w-0">
+          {contact.previewKind && contact.previewKind !== 'plain' && (
+            <span
+              className={`shrink-0 px-2 py-0.5 rounded-md border text-[10px] font-extrabold uppercase tracking-wide ${PREVIEW_BADGE_CLASS[contact.previewKind] ?? ''}`}
+              aria-hidden
+            >
+              {PREVIEW_BADGE_LABEL[contact.previewKind] ?? 'Update'}
+            </span>
+          )}
+          <p
+            className="text-sm text-[#7B8EC8] truncate min-w-0"
+            title={contact.preview}
+          >
+            {truncatePreviewSubtitle(contact.previewKind, contact.preview)}
+          </p>
+        </div>
       </div>
     </button>
   )

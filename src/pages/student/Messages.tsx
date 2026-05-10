@@ -3,7 +3,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import { ContactRow } from '../../components/messages/ContactRow'
 import { DirectMessageView } from '../../components/messages/DirectMessageView'
+import { SessionRequestModal } from '../../components/sessions/SessionRequestModal'
 import type { CounselorContact } from '../../types/message.types'
+import { CalendarPlus } from 'lucide-react'
 
 type TabType = 'All messages' | 'Unread'
 
@@ -15,6 +17,7 @@ export default function Messages() {
   const [selectedContact, setSelectedContact] = useState<CounselorContact | null>(null)
   const [contacts, setContacts] = useState<CounselorContact[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [sessionModalOpen, setSessionModalOpen] = useState(false)
 
   useEffect(() => {
     if (!user?.id) {
@@ -33,7 +36,9 @@ export default function Messages() {
       .finally(() => {
         if (!isCancelled) setIsLoading(false)
       })
-    return () => { isCancelled = true }
+    return () => {
+      isCancelled = true
+    }
   }, [user?.id])
 
   const refreshConversations = () => {
@@ -44,7 +49,6 @@ export default function Messages() {
       .catch(() => setContacts([]))
   }
 
-  // Chat View 
   if (selectedContact) {
     return (
       <DirectMessageView
@@ -57,16 +61,13 @@ export default function Messages() {
     )
   }
 
-  // Filter contacts
   const filtered =
     activeTab === 'All messages'
       ? contacts
       : contacts.filter((c) => c.isUnread)
 
-  // Contact List View 
   return (
-    <div className="space-y-5">
-      {/* Header */}
+    <div className="space-y-5 relative pb-24">
       <div>
         <p className="text-[10px] font-bold tracking-[0.15em] text-aurora-blue uppercase mb-1">
           Counselor Conversations
@@ -79,11 +80,11 @@ export default function Messages() {
         </p>
       </div>
 
-      {/* Tab Pills */}
       <div className="flex gap-2">
         {TABS.map((tab) => (
           <button
             key={tab}
+            type="button"
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors cursor-pointer ${
               activeTab === tab
@@ -96,7 +97,6 @@ export default function Messages() {
         ))}
       </div>
 
-      {/* Contact List */}
       <div>
         {isLoading ? (
           <div className="flex flex-col items-center py-16">
@@ -117,12 +117,32 @@ export default function Messages() {
           <div className="text-center py-16">
             <p className="text-[#4B5693] text-sm">
               {contacts.length === 0
-                ? 'No conversations yet. Your counselor will invite you when they\'re ready to connect.'
+                ? 'No conversations yet. Use the + button to request a session with a counselor.'
                 : 'No unread conversations.'}
             </p>
           </div>
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setSessionModalOpen(true)}
+        aria-label="Request a session"
+        className="fixed bottom-24 right-6 lg:bottom-8 lg:right-10 z-40 w-14 h-14 rounded-full bg-aurora-blue hover:bg-blue-600 text-white shadow-aurora-lg flex items-center justify-center transition-colors cursor-pointer"
+      >
+        <CalendarPlus className="w-5 h-5" />
+      </button>
+
+      <SessionRequestModal
+        visible={sessionModalOpen}
+        studentId={user?.id ?? ''}
+        studentName={user?.full_name}
+        studentAvatar={user?.avatar_url ?? undefined}
+        onClose={() => setSessionModalOpen(false)}
+        onSuccess={() => {
+          refreshConversations()
+        }}
+      />
     </div>
   )
 }

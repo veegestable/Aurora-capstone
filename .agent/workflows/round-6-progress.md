@@ -47,11 +47,9 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Touched:** `src/components/sessions/SessionRequestModal.tsx`, `src/services/sessions/post/createSessionRequest.ts`
 - **Notes:** `datetime-local` → formatted `preferredTime`; session doc + `sessionData` + `lastMessage` summary already handled in service.
 
-### [ ] Batch 5 — Student Messages: “Request session” entry point
-
-- Covers [round6_parity.md §6](../round6_parity.md): FAB or header CTA on `student/Messages.tsx` + `SessionRequestModal` (mirror counselor `Messages.tsx`).
-- **Touched:** _(fill when done)_
-- **Notes:** _(fill when done)_
+### [x] Batch 5 — Student Messages: “Request session” entry point
+- **Touched:** `src/pages/student/Messages.tsx`
+- **Notes:** Fixed FAB opens `SessionRequestModal`; list container `relative pb-24`; `onSuccess` refreshes conversations; empty state mentions FAB.
 
 ### [ ] Batch 6 — Mood check-in: 3D PNG parity
 

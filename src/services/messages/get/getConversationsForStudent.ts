@@ -2,6 +2,7 @@ import { collection, query, where, orderBy, getDocs, doc, getDoc } from 'firebas
 import { db } from '../../../config/firebase'
 import { formatMessageTime } from '../formatMessageTime'
 import { formatConversationPreview } from '../sanitizeMessageText'
+import { inferConversationPreviewKind } from '../classifyConversationPreview'
 import type { CounselorContact } from '../../../types/message.types'
 
 const isPlaceholderAvatar = (url: string) => !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url)
@@ -38,6 +39,7 @@ export async function getConversationsForStudent(
           conversationId: d.id,
           name: data.counselor_name ?? 'Counselor',
           preview: formatConversationPreview(data.lastMessage),
+          previewKind: inferConversationPreviewKind(data.lastMessage),
           time: data.lastMessageAt?.toDate 
             ? formatMessageTime(data.lastMessageAt.toDate()) 
             : 'Just now',

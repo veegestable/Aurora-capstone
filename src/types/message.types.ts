@@ -1,8 +1,16 @@
+export type ConversationPreviewKind =
+  | 'plain'
+  | 'session_request'
+  | 'session_invite'
+  | 'session_topic'
+  | 'conversation_started'
+
 export interface CounselorContact {
   id: string
   conversationId: string
   name: string
   preview: string
+  previewKind?: ConversationPreviewKind
   time: string
   avatar: string
   isOnline: boolean
@@ -14,6 +22,7 @@ export interface StudentContact {
   conversationId: string
   name: string
   preview: string
+  previewKind?: ConversationPreviewKind
   time: string
   avatar: string
   isOnline: boolean
