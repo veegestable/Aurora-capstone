@@ -27,15 +27,15 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 
 ### [x] Batch 1 — Scrollbar utility + Counselor Sessions pane
 
-- Covers [round6_parity.md §3](../round6_parity.md): define `.scrollbar-hide` (or `@utility`) in `src/index.css`; apply to `CounselorSessionsPane.tsx` tab strip + scrollable body; optionally counselor `Students.tsx` filter row.
-- **Touched:** _(fill when done)_
-- **Notes:** _(fill when done)_
+- Covers [round6_parity.md §3](../round6_parity.md): define `.scrollbar-hide` in `src/index.css`; apply to Sessions tab strip + scrollable regions; optional counselor Students filter row + Session History chip row.
+- **Touched:** `src/index.css`, `src/components/counselor/CounselorSessionsPane.tsx`, `src/pages/counselor/Students.tsx`, `src/pages/counselor/SessionHistory.tsx`
+- **Notes:** Utility hides native scrollbars (webkit + Firefox) on horizontal tab/filter rows and vertical session lists so Windows no longer shows persistent bars; pane body uses the same class where overflow scrolls.
 
-### [ ] Batch 2 — `__AUTO_ACCEPTED__` conversation preview + thread text
+### [x] Batch 2 — `__AUTO_ACCEPTED__` conversation preview + thread text
 
-- Covers [round6_parity.md §2](../round6_parity.md): new sanitizer module under `src/services/messages/`; use in `getConversationsForStudent.ts`, `getConversationsForCounselor.ts`; strip prefix in `getMessagesForStudent.ts` for text messages.
-- **Touched:** _(fill when done)_
-- **Notes:** _(fill when done)_
+- Covers [round6_parity.md §2](../round6_parity.md): sanitizer module + conversation getters + DM text mapping.
+- **Touched:** `src/services/messages/sanitizeMessageText.ts`, `src/services/messages/get/getConversationsForStudent.ts`, `src/services/messages/get/getConversationsForCounselor.ts`, `src/services/messages/get/getMessagesForStudent.ts`
+- **Notes:** `formatConversationPreview` strips `__AUTO_ACCEPTED__` for inbox previews; `stripAutoAcceptedPrefix` applied to plain `content` in `getMessagesForStudent` so thread bubbles match mobile behavior.
 
 ### [ ] Batch 3 — Student profile photos + Student Directory + dashboard chips
 

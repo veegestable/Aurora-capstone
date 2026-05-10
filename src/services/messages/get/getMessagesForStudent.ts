@@ -1,6 +1,7 @@
 import { collection, query, orderBy, getDocs } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
 import { formatMessageTime } from '../formatMessageTime'
+import { stripAutoAcceptedPrefix } from '../sanitizeMessageText'
 import type { ChatMessage } from '../../../types/message.types'
 
 export async function getMessagesForStudent(
@@ -55,7 +56,7 @@ export async function getMessagesForStudent(
         id: d.id,
         senderId,
         type: 'text' as const,
-        text: data.content ?? '',
+        text: stripAutoAcceptedPrefix(data.content ?? ''),
         time: formatMessageTime(createdAt)
       }
     })

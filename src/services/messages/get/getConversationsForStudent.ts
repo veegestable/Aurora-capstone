@@ -1,6 +1,7 @@
 import { collection, query, where, orderBy, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
 import { formatMessageTime } from '../formatMessageTime'
+import { formatConversationPreview } from '../sanitizeMessageText'
 import type { CounselorContact } from '../../../types/message.types'
 
 const isPlaceholderAvatar = (url: string) => !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url)
@@ -36,7 +37,7 @@ export async function getConversationsForStudent(
           id: data.counselorId,
           conversationId: d.id,
           name: data.counselor_name ?? 'Counselor',
-          preview: data.lastMessage ?? 'No messages yet',
+          preview: formatConversationPreview(data.lastMessage),
           time: data.lastMessageAt?.toDate 
             ? formatMessageTime(data.lastMessageAt.toDate()) 
             : 'Just now',
