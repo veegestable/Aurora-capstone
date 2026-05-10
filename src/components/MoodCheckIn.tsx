@@ -14,12 +14,14 @@ import { useMoodCheckIn, CONTEXT_CATEGORIES } from '../hooks/useMoodCheckIn'
 import type { SleepQuality } from '../services/mood/types'
 import { moodService } from '../services/mood'
 import { computeStreak } from '../utils/analytics'
+import { getBlendedColorWeighted, getColorWithAlpha } from '../utils/moodColors'
 import {
   getSchoolWorkloadBand,
   getSchoolWorkloadCaption,
   getDurationCategoryLabel,
 } from '../constants/mood/journalTemplates'
 import { MoodIcon } from './student/MoodIcon'
+import type { MoodIconName } from '../constants/mood/moodIconPng'
 import { QuickResetBreathing } from './student/QuickResetBreathing'
 
 type HintKey =
@@ -199,6 +201,16 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
     Intense: 'bg-[rgba(239,68,68,0.15)] border-[rgba(239,68,68,0.4)] text-aurora-red',
   }
 
+  const moodAccent = useMemo(() => {
+    if (selectedEmotions.length === 0) return null
+    return getBlendedColorWeighted(
+      selectedEmotions.map((e) => ({
+        color: e.color,
+        confidence: Math.max(0.05, e.confidence || 1)
+      }))
+    )
+  }, [selectedEmotions])
+
   const [doneStats, setDoneStats] = useState<{ streak: number; todayCheckIns: number } | null>(null)
 
   // Pull fresh streak + today's check-in count whenever the wizard reaches Step 4.
@@ -284,10 +296,14 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
               onClick={() => startCheckIn(emotion.name)}
               className="group flex flex-col items-center gap-2 transition-all hover:scale-110 cursor-pointer"
             >
-              <div 
-                className="w-12 h-12 rounded-full flex items-center justify-center text-2xl bg-white/5 border border-white/10 group-hover:border-white/30 transition-colors shadow-lg"
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center bg-white/5 border border-white/10 group-hover:border-white/30 transition-colors shadow-lg overflow-hidden"
               >
-                {emotion.emoji}
+                <MoodIcon
+                  name={emotion.name as MoodIconName}
+                  size={40}
+                  ariaLabel={emotion.label}
+                />
               </div>
               <span className="text-[10px] text-aurora-text-sec group-hover:text-white transition-colors">
                 {emotion.label}
@@ -300,7 +316,16 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
       {/* FULL SCREEN WIZARD MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-100 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-[#0f0f11] w-full max-w-xl h-[90vh] sm:h-[85vh] sm:rounded-3xl rounded-t-3xl border-t sm:border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+          <div
+            className="bg-[#0f0f11] w-full max-w-xl h-[90vh] sm:h-[85vh] sm:rounded-3xl rounded-t-3xl border-t sm:border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300 transition-shadow"
+            style={
+              moodAccent
+                ? {
+                    boxShadow: `0 0 0 1px ${getColorWithAlpha(moodAccent, 0.28)}, 0 24px 48px -12px rgba(0,0,0,0.55)`,
+                  }
+                : undefined
+            }
+          >
             
             {/* Modal Header & Progress */}
             {currentStep < 4 && (
@@ -319,10 +344,15 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                 </div>
                 
                 <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-linear-to-r from-aurora-blue to-aurora-purple transition-all duration-500 rounded-full"
-                    style={{ width: `${progress}%` }}
-                  />
+                <div
+                  className={`h-full transition-all duration-500 rounded-full ${moodAccent ? '' : 'bg-linear-to-r from-aurora-blue to-aurora-purple'}`}
+                  style={{
+                    width: `${progress}%`,
+                    ...(moodAccent
+                      ? { background: `linear-gradient(90deg, ${moodAccent} 0%, #7C3AED 100%)` }
+                      : {}),
+                  }}
+                />
                 </div>
               </div>
             )}
@@ -342,16 +372,52 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                   <div className="flex justify-center">
                     <div className="relative flex bg-white/5 p-1 rounded-full border border-white/8">
                       <button
+                        type="button"
                         onClick={() => setMoodInputMode('manual')}
-                        className={`relative z-10 flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 cursor-pointer ${moodInputMode === 'manual' ? 'bg-[rgba(45,107,255,0.2)] text-aurora-blue border border-[rgba(45,107,255,0.3)]' : 'text-aurora-text-muted hover:text-white'}`}
+                        className={`relative z-10 flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 cursor-pointer border ${
+                          moodInputMode === 'manual'
+                            ? 'text-white border-transparent'
+                            : 'text-aurora-text-muted hover:text-white border-transparent'
+                        }`}
+                        style={
+                          moodInputMode === 'manual' && moodAccent
+                            ? {
+                                background: getColorWithAlpha(moodAccent, 0.22),
+                                borderColor: getColorWithAlpha(moodAccent, 0.42),
+                              }
+                            : moodInputMode === 'manual'
+                              ? {
+                                  background: 'rgba(45,107,255,0.2)',
+                                  borderColor: 'rgba(45,107,255,0.3)',
+                                }
+                              : undefined
+                        }
                       >
-                        <MousePointerClick className="w-4 h-4" /> Manual Check-in
+                        <MousePointerClick className="w-4 h-4 shrink-0" /> Manual Check-in
                       </button>
                       <button
+                        type="button"
                         onClick={() => setMoodInputMode('selfie')}
-                        className={`relative z-10 flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 cursor-pointer ${moodInputMode === 'selfie' ? 'bg-[rgba(45,107,255,0.2)] text-aurora-blue border border-[rgba(45,107,255,0.3)]' : 'text-aurora-text-muted hover:text-white'}`}
+                        className={`relative z-10 flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors duration-300 cursor-pointer border ${
+                          moodInputMode === 'selfie'
+                            ? 'text-white border-transparent'
+                            : 'text-aurora-text-muted hover:text-white border-transparent'
+                        }`}
+                        style={
+                          moodInputMode === 'selfie' && moodAccent
+                            ? {
+                                background: getColorWithAlpha(moodAccent, 0.22),
+                                borderColor: getColorWithAlpha(moodAccent, 0.42),
+                              }
+                            : moodInputMode === 'selfie'
+                              ? {
+                                  background: 'rgba(45,107,255,0.2)',
+                                  borderColor: 'rgba(45,107,255,0.3)',
+                                }
+                              : undefined
+                        }
                       >
-                        <Sparkles className="w-4 h-4" /> Daily Selfie
+                        <Sparkles className="w-4 h-4 shrink-0" /> Daily Selfie
                       </button>
                     </div>
                   </div>
@@ -395,7 +461,12 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                                     color: isSelected ? '#FFFFFF' : emotion.color,
                                   }}
                                 >
-                                  <MoodIcon name={emotion.name as 'happy' | 'sad' | 'angry' | 'surprise' | 'neutral'} size={30} />
+                                  <MoodIcon 
+                                    name={emotion.name as MoodIconName} 
+                                    size={36} 
+                                    ariaLabel={emotion.label}
+
+                                  />
                                 </div>
                                 <span className={`text-xs font-medium ${isSelected ? 'text-white' : 'text-aurora-text-sec'}`}>
                                   {emotion.label}
@@ -423,7 +494,7 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                             </label>
                             <HintButton hint="intensity" active={activeHint} onToggle={setActiveHint} ariaLabel="Intensity hint" />
                           </div>
-                          <span className="text-base font-extrabold text-aurora-blue tabular-nums">
+                          <span className="text-base font-extrabold tabular-nums" style={{ color: moodAccent ?? '#2D6BFF' }}>
                             {intensity}<span className="text-aurora-text-muted text-xs font-semibold">/10</span>
                           </span>
                         </div>
@@ -435,7 +506,12 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                           step={1}
                           value={intensity}
                           onChange={(e) => setIntensity(Number(e.target.value))}
-                          className="w-full h-3 rounded-full appearance-none bg-white/10 cursor-pointer accent-aurora-blue mood-intensity-slider"
+                          className="w-full h-3 rounded-full appearance-none bg-white/10 cursor-pointer mood-intensity-slider"
+                          style={
+                            moodAccent
+                              ? { ['--thumb-mood' as string]: moodAccent }
+                              : undefined
+                          }
                           aria-valuemin={1}
                           aria-valuemax={10}
                           aria-valuenow={intensity}
@@ -517,9 +593,14 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                       </span>
                     </div>
                     <input
-                      type="range" min={1} max={5} step={1} value={energyLevel}
+                      type="range"
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={energyLevel}
                       onChange={(e) => setEnergyLevel(Number(e.target.value))}
-                      className="w-full h-2 rounded-lg appearance-none bg-white/10 cursor-pointer accent-aurora-green mb-2"
+                      className="w-full h-3 rounded-full appearance-none bg-white/10 cursor-pointer vital-range-slider mb-2"
+                      style={{ ['--thumb-vital']: '#22C55E' } as React.CSSProperties}
                       aria-label="Energy level"
                     />
                     <div className="flex justify-between text-xs font-medium text-aurora-text-muted">
@@ -544,9 +625,14 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                       </span>
                     </div>
                     <input
-                      type="range" min={1} max={5} step={1} value={stressLevel}
+                      type="range"
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={stressLevel}
                       onChange={(e) => setStressLevel(Number(e.target.value))}
-                      className="w-full h-2 rounded-lg appearance-none bg-white/10 cursor-pointer accent-aurora-red mb-2"
+                      className="w-full h-3 rounded-full appearance-none bg-white/10 cursor-pointer vital-range-slider mb-2"
+                      style={{ ['--thumb-vital']: '#EF4444' } as React.CSSProperties}
                       aria-label="Stress level"
                     />
                     <div className="flex justify-between text-xs font-medium text-aurora-text-muted">

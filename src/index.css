@@ -240,23 +240,54 @@
   animation: aurora-pulse-gradient 4s ease-in-out infinite;
 }
 
-/* Mood Check-in intensity slider — slightly thicker thumb for an "obvious" feel (round 5 plan §1) */
+/* Mood Check-in intensity slider — thumb color from --thumb-mood (set on input) */
 .mood-intensity-slider::-webkit-slider-thumb {
   appearance: none;
   width: 22px;
   height: 22px;
   border-radius: 9999px;
-  background: #2D6BFF;
+  background: var(--thumb-mood, #2D6BFF);
   border: 3px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 0 14px rgba(45, 107, 255, 0.55);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--thumb-mood, #2D6BFF) 35%, transparent),
+    0 0 14px color-mix(in srgb, var(--thumb-mood, #2D6BFF) 55%, transparent);
   cursor: pointer;
 }
+
 .mood-intensity-slider::-moz-range-thumb {
   width: 22px;
   height: 22px;
   border-radius: 9999px;
-  background: #2D6BFF;
+  background: var(--thumb-mood, #2D6BFF);
   border: 3px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 0 14px rgba(45, 107, 255, 0.55);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--thumb-mood, #2D6BFF) 35%, transparent),
+    0 0 14px color-mix(in srgb, var(--thumb-mood, #2D6BFF) 55%, transparent);
+  cursor: pointer;
+}
+
+/* Step 2 vitals — same thumb treatment; set --thumb-vital on each <input type="range"> */
+.vital-range-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--thumb-vital, #94a3b8);
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--thumb-vital, #94a3b8) 35%, transparent),
+    0 0 12px color-mix(in srgb, var(--thumb-vital, #94a3b8) 50%, transparent);
+  cursor: pointer;
+}
+
+.vital-range-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--thumb-vital, #94a3b8);
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--thumb-vital, #94a3b8) 35%, transparent),
+    0 0 12px color-mix(in srgb, var(--thumb-vital, #94a3b8) 50%, transparent);
   cursor: pointer;
 }

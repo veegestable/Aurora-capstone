@@ -1,24 +1,19 @@
-import type { SVGProps } from 'react'
+import { useState, type SVGProps } from 'react'
+import { MOOD_ICON_PNG } from '../../constants/mood/moodIconPng'
+import type { MoodIconName } from '../../constants/mood/moodIconPng'
 
-type MoodName = 'happy' | 'sad' | 'angry' | 'surprise' | 'neutral'
-
-interface MoodIconProps extends SVGProps<SVGSVGElement> {
-  name: MoodName
+type MoodVectorProps = {
+  name: MoodIconName
   size?: number
-}
+} & SVGProps<SVGSVGElement>
 
-/**
- * Vector replacement for the emoji glyphs used in the Mood Check-in.
- * The face stroke inherits `currentColor`, so the caller controls color via
- * Tailwind text classes or inline `style={{ color }}`.
- */
-export function MoodIcon({ name, size = 32, ...rest }: MoodIconProps) {
+function MoodIconVector({ name, size = 32, ...rest }: MoodVectorProps) {
   const common = {
     viewBox: '0 0 32 32',
     width: size,
     height: size,
     fill: 'none',
-    stroke: 'currentColor',
+    stroke: 'currentColor' as const,
     strokeWidth: 2,
     strokeLinecap: 'round' as const,
     strokeLinejoin: 'round' as const,
@@ -72,4 +67,54 @@ export function MoodIcon({ name, size = 32, ...rest }: MoodIconProps) {
         </svg>
       )
   }
+}
+
+type MoodIconProps = {
+  name: MoodIconName
+  size?: number
+  /** Accessible name for PNG `<img>` (recommended whenever `variant` is `asset`) */
+  ariaLabel?: string
+  /** `'asset'` = `public/moodIcon/*.png` (mobile parity); `'vector'` = legacy SVG only */
+  variant?: 'asset' | 'vector'
+} & Omit<SVGProps<SVGSVGElement>, 'width' | 'height' | 'aria-label'>
+
+/**
+ * Mood glyph: **`moodIcon` PNG when `variant="asset"`**, SVG fallback when load fails or `variant="vector"`.
+ */
+export function MoodIcon({
+  name,
+  size = 32,
+  variant = 'asset',
+  ariaLabel,
+  ...svgRest
+}: MoodIconProps) {
+  const [assetFailed, setAssetFailed] = useState(false)
+  const src = MOOD_ICON_PNG[name]
+
+  if (variant === 'vector' || assetFailed || !src) {
+    return <MoodIconVector name={name} size={size} {...svgRest} aria-hidden />
+  }
+
+  const alt =
+    ariaLabel ??
+    ({
+      happy: 'Happy',
+      sad: 'Sad',
+      angry: 'Angry',
+      surprise: 'Surprise',
+      neutral: 'Neutral',
+    }[name] ?? name)
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      width={size}
+      height={size}
+      className="object-contain select-none shrink-0"
+      decoding="async"
+      loading="lazy"
+      onError={() => setAssetFailed(true)}
+    />
+  )
 }

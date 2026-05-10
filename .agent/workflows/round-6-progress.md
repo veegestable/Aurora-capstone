@@ -48,14 +48,14 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Notes:** `datetime-local` → formatted `preferredTime`; session doc + `sessionData` + `lastMessage` summary already handled in service.
 
 ### [x] Batch 5 — Student Messages: “Request session” entry point
-- **Touched:** `src/pages/student/Messages.tsx`
-- **Notes:** Fixed FAB opens `SessionRequestModal`; list container `relative pb-24`; `onSuccess` refreshes conversations; empty state mentions FAB.
+- **Touched:** `src/pages/student/Messages.tsx`, `src/types/message.types.ts`, `src/services/messages/classifyConversationPreview.ts`, `src/services/messages/get/getConversationsForStudent.ts`, `src/services/messages/get/getConversationsForCounselor.ts`, `src/components/messages/ContactRow.tsx`
+- **Notes:** FAB opens `SessionRequestModal`; list `relative pb-24`. Conversation previews use `previewKind` + badges in `ContactRow`; `session_topic` for mobile-style `Session: {title}` (e.g. Academic Guidance), plus session request / invite / started.
 
-### [ ] Batch 6 — Mood check-in: 3D PNG parity
+### [x] Batch 6 — Mood check-in: PNG parity (mobile `moodIcon`) + wizard polish
 
-- Covers [round6_parity.md §4](../round6_parity.md): assets under `public/` or `src/assets/`; `MoodCheckIn` / mood picker uses PNGs; `alt` text.
-- **Touched:** _(fill when done)_
-- **Notes:** _(fill when done)_
+- Covers [round6_parity.md §4](../round6_parity.md): emotion art aligned with mobile; related wizard UX in the same files.
+- **Touched:** `public/images/moodIcon/*.png`, `src/constants/mood/moodIconPng.ts`, `src/components/student/MoodIcon.tsx`, `src/components/MoodCheckIn.tsx`, `src/index.css`
+- **Notes:** PNGs from `mobile/src/assets/moodIcon/` served at `/images/moodIcon/*.png`; `MoodIcon` prefers PNG, vector fallback on error. Dashboard + Step 1 manual grid use `MoodIcon`. **Theming:** `moodAccent` from `getBlendedColorWeighted(selectedEmotions)` for progress bar, modal edge, mode toggle, intensity readout + `--thumb-mood` on intensity slider. **Step 2:** `.vital-range-slider` + `--thumb-vital` on Energy (green) / Stress (red); custom `style` vars cast `as React.CSSProperties`.
 
 ### [ ] Batch 7 — Zen / breathing audio reliability
 
@@ -75,7 +75,7 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 
 | Date | Item | Reason |
 |------|------|--------|
-| _(add rows)_ | | |
+| 2026-05-09 | `/moodIcon/` URL map vs `public/images/moodIcon/` | Fixed by mapping `/images/moodIcon/...` so PNGs load instead of SVG fallback. |
 
 ---
 
@@ -83,4 +83,4 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 
 - [ ] Confirm canonical Firestore field for student photos (`avatar_url` vs fallbacks).
 - [ ] Preferred session time: ISO vs display string — align with mobile.
-- [ ] Mood PNGs: copy from mobile vs new exports — team source of truth.
+- [x] Mood PNGs — **Batch 6:** use `mobile/src/assets/moodIcon/` → `public/images/moodIcon/`.
