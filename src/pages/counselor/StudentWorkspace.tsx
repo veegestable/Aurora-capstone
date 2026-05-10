@@ -54,8 +54,8 @@ export default function StudentWorkspace() {
                 id: match.id,
                 full_name: match.full_name || 'Student',
                 email: match.email,
-                program: (match as any).program,
-                yearLevel: (match as any).yearLevel,
+                program: match.program,
+                yearLevel: match.yearLevel,
               }
             : null
         )

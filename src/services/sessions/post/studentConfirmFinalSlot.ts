@@ -36,7 +36,7 @@ export async function studentConfirmFinalSlot(
 
   if (!authorized) throw new Error('Not authorized')
 
-  const patch: Record<string, unknown> = {
+  const patch: { [field: string]: unknown } = {
     finalSlot: slot,
     confirmedSlot: slot,
     status: 'confirmed',
@@ -45,7 +45,7 @@ export async function studentConfirmFinalSlot(
 
   if (data.studentId == null) patch.studentId = uid
 
-  await updateDoc(sessionRef, patch as any)
+  await updateDoc(sessionRef, patch)
 
   // Special Population: student accepting the counselor's slot grants the
   // counselor journal access (mirrors createSessionRequest behavior).

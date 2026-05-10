@@ -64,11 +64,10 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Notes:** Copied 5 MP3s from mobile assets to `public/sounds/breathing/` with web-safe names; replaced Pixabay CDN URLs with local `/sounds/breathing/` paths. `ZenSoundsService` rewritten with subscribe-based `ZenPlaybackState` (loading/error), `canplaythrough` + `error` listeners, and `NotAllowedError` (autoplay policy) graceful handling. `BreathingExercise` starts paused with a "Tap to Start" CTA so the first `play()` originates from a real user gesture; error banner shown if audio load fails; ambient card shows "Loading audio…" while buffering.
 
 
-### [ ] Batch 8 — Final sweep: cleanup + open questions
-
+### [x] Batch 8 — Final sweep: cleanup + open questions
 - Orphan removal / consistency; align with Round 5 cleanup log style.
-- **Touched:** _(fill when done)_
-- **Notes:** _(fill when done)_
+- **Touched:** `src/components/MoodCheckIn.tsx` (deleted), `src/components/mood-checkin/` (new: `index.ts`, `MoodCheckIn.tsx`, `HintSystem.tsx`, `StepMoodSelection.tsx`, `StepVitals.tsx`, `StepContext.tsx`, `StepSummary.tsx`, `WizardFooter.tsx`), `src/pages/StudentDashboard.tsx`, `src/pages/counselor/StudentWorkspace.tsx`, `src/services/sessions/post/studentConfirmFinalSlot.ts`
+- **Notes:** **Modularization:** Split 1025-line `MoodCheckIn.tsx` into 8 files under `mood-checkin/` folder with barrel export. **`as any` removal:** Removed all `as any` casts — `StudentWorkspace` used unnecessary cast on `StudentInfo` (already typed), `studentConfirmFinalSlot` used cast on Firestore `updateDoc` patch (fixed with index signature). Open questions (avatar field, session time format) deferred as non-blocking design decisions.
 
 ---
 
@@ -77,6 +76,8 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 | Date | Item | Reason |
 |------|------|--------|
 | 2026-05-09 | `/moodIcon/` URL map vs `public/images/moodIcon/` | Fixed by mapping `/images/moodIcon/...` so PNGs load instead of SVG fallback. |
+| 2026-05-11 | `MoodCheckIn.tsx` → `mood-checkin/` | Modularized 1025-line monolith into 8 focused files. |
+| 2026-05-11 | `as any` casts (2 files) | Removed unsafe casts in `StudentWorkspace.tsx` and `studentConfirmFinalSlot.ts`. |
 
 ---
 
