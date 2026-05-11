@@ -8,7 +8,7 @@ import { AppTextInput as TextInput } from "../../src/components/common/AppTextIn
  * Supports appointment scheduling: counselor can invite students to sessions.
  */
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { View, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -94,6 +94,11 @@ type ChatMessage =
 
 const AUTO_ACCEPTED_PREFIX = "__AUTO_ACCEPTED__";
 const SESSION_ACCEPT_NOTICE_TEXT = "Just accepted your request";
+
+function matchesSessionAcceptNoticeText(raw: string): boolean {
+  const t = raw.trim().replace(/\s+/g, " ").toLowerCase();
+  return t === SESSION_ACCEPT_NOTICE_TEXT.toLowerCase();
+}
 
 // ─── Conversation Row ──────────────────────────────────────────────────────────
 function ConversationRow({
@@ -232,6 +237,8 @@ function ChatView({
   const conversationId =
     contact.conversationId || (user?.id ? `${user.id}_${contact.id}` : "");
   const [message, setMessage] = useState("");
+  /** Mirrors the composer so Send uses the latest text (avoids Android RN lag vs `message` state). */
+  const messageDraftRef = useRef("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [sending, setSending] = useState(false);
@@ -257,6 +264,28 @@ function ChatView({
   const [expandedSessionRequestNotes, setExpandedSessionRequestNotes] =
     useState<Record<string, boolean>>({});
   const scrollViewRef = useRef<ScrollView>(null);
+  /** One-shot scroll after switching threads; cleared after first successful scroll. */
+  const pendingScrollToEndRef = useRef(false);
+
+  const scrollChatToEnd = useCallback(() => {
+    const scroller = scrollViewRef.current;
+    if (!scroller) return;
+    const animated = Platform.OS === "ios";
+    requestAnimationFrame(() => {
+      scroller.scrollToEnd({ animated });
+      if (Platform.OS === "android") {
+        requestAnimationFrame(() => {
+          scroller.scrollToEnd({ animated: false });
+        });
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    messageDraftRef.current = "";
+    setMessage("");
+    pendingScrollToEndRef.current = true;
+  }, [conversationId]);
 
   useEffect(() => {
     if (!conversationId || !user?.id) {
@@ -288,18 +317,26 @@ function ChatView({
       .catch(() => {});
   }, [conversationId, user?.id]);
 
-  // Always scroll to the latest message when opening a conversation.
+  // Scroll once messages are loaded (Android: fixed delay is often too early vs layout).
   useEffect(() => {
-    if (!scrollViewRef.current) return;
-    if (loadingMessages) return;
-    if (messages.length === 0) return;
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  }, [loadingMessages, messages.length, conversationId]);
+    if (loadingMessages || messages.length === 0) return;
+    if (!pendingScrollToEndRef.current) return;
+    const t = setTimeout(() => {
+      if (!pendingScrollToEndRef.current) return;
+      scrollChatToEnd();
+      pendingScrollToEndRef.current = false;
+    }, 120);
+    return () => clearTimeout(t);
+  }, [loadingMessages, messages.length, conversationId, scrollChatToEnd]);
+
+  useEffect(() => {
+    if (!loadingMessages && messages.length === 0) {
+      pendingScrollToEndRef.current = false;
+    }
+  }, [loadingMessages, messages.length]);
 
   const sendMessage = async () => {
-    const text = message.trim();
+    const text = messageDraftRef.current.trim();
     if (!text || !user?.id || !conversationId || sending) return;
     setSending(true);
     try {
@@ -312,7 +349,9 @@ function ChatView({
         targetId: user.id,
         metadata: { messageType: "text" },
       });
+      messageDraftRef.current = "";
       setMessage("");
+      setTimeout(scrollChatToEnd, Platform.OS === "android" ? 80 : 50);
     } catch (e) {
       console.error("Failed to send message:", e);
     } finally {
@@ -643,7 +682,14 @@ function ChatView({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        <SafeAreaView style={{ flex: 1 }}>
+        <SafeAreaView
+          style={{ flex: 1 }}
+          edges={
+            Platform.OS === "android"
+              ? (["top", "left", "bottom"] as const)
+              : undefined
+          }
+        >
           {/* Header */}
           <View
             style={{
@@ -728,12 +774,20 @@ function ChatView({
               ref={scrollViewRef}
               style={{ flex: 1 }}
               contentContainerStyle={{
-                paddingHorizontal: 16,
+                ...(Platform.OS === "android"
+                  ? { paddingLeft: 14, paddingRight: 6 }
+                  : { paddingHorizontal: 16 }),
                 paddingVertical: 16,
               }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
+              onContentSizeChange={() => {
+                if (loadingMessages || messages.length === 0) return;
+                if (!pendingScrollToEndRef.current) return;
+                scrollChatToEnd();
+                pendingScrollToEndRef.current = false;
+              }}
             >
               {loadingMessages ? (
                 <View style={{ paddingVertical: 40, alignItems: "center" }}>
@@ -750,10 +804,13 @@ function ChatView({
                   const rawText = msg.type === "text" ? msg.text : "";
                   const hasAcceptMarker =
                     rawText.startsWith(AUTO_ACCEPTED_PREFIX);
+                  const acceptBodyForMatch = hasAcceptMarker
+                    ? rawText.slice(AUTO_ACCEPTED_PREFIX.length).trim()
+                    : rawText.trim();
                   const isAutoAccepted =
                     msg.type === "text" &&
                     (hasAcceptMarker ||
-                      rawText.trim() === SESSION_ACCEPT_NOTICE_TEXT);
+                      matchesSessionAcceptNoticeText(rawText));
                   const isDeletedPlaceholder =
                     msg.type === "text" && rawText.startsWith("[Deleted");
                   const displayText =
@@ -762,6 +819,11 @@ function ChatView({
                         ? rawText.slice(AUTO_ACCEPTED_PREFIX.length).trim()
                         : rawText
                       : "";
+                  const acceptNoticeBubbleText =
+                    isAutoAccepted &&
+                    matchesSessionAcceptNoticeText(acceptBodyForMatch)
+                      ? SESSION_ACCEPT_NOTICE_TEXT
+                      : acceptBodyForMatch;
 
                   const canDeleteText = isMe;
                   const canCopyText =
@@ -812,45 +874,91 @@ function ChatView({
                         }}
                       >
                         <View
+                          collapsable={false}
                           style={{
                             minWidth: 80,
-                            maxWidth: 280,
+                            maxWidth: "100%",
                             alignSelf: isMeForLayout
                               ? "flex-end"
                               : "flex-start",
+                            overflow:
+                              Platform.OS === "android" ? "visible" : undefined,
                             backgroundColor: isMeForLayout
                               ? AURORA.blue
                               : AURORA.card,
                             borderRadius: 18,
                             borderBottomLeftRadius: isMeForLayout ? 18 : 4,
                             borderBottomRightRadius: isMeForLayout ? 4 : 18,
-                            paddingHorizontal: 16,
-                            paddingVertical: 12,
+                            paddingHorizontal:
+                              Platform.OS === "android" ? 10 : 12,
+                            paddingTop: isAutoAccepted ? 10 : 12,
+                            paddingBottom: isAutoAccepted
+                              ? 10
+                              : Platform.OS === "android"
+                                ? 14
+                                : 12,
                           }}
                         >
-                          <Text
-                            style={{
-                              color: isAutoAccepted
-                                ? AURORA.green
-                                : isDeletedPlaceholder
-                                  ? AURORA.textMuted
-                                  : "#FFFFFF",
-                              fontSize: 14,
-                              lineHeight: 20,
-                            }}
-                          >
-                            {displayText}
-                          </Text>
-                          <Text
-                            style={{
-                              color: "rgba(255,255,255,0.7)",
-                              fontSize: 11,
-                              marginTop: 4,
-                              textAlign: "right",
-                            }}
-                          >
-                            {msg.time}
-                          </Text>
+                          {isAutoAccepted ? (
+                            <>
+                              <Text
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                                style={{
+                                  color: AURORA.green,
+                                  fontSize: 14,
+                                  lineHeight: 20,
+                                  maxWidth: "100%",
+                                  ...(Platform.OS === "android"
+                                    ? ({ includeFontPadding: false } as const)
+                                    : null),
+                                }}
+                              >
+                                {acceptNoticeBubbleText}
+                              </Text>
+                              <Text
+                                style={{
+                                  color: "rgba(255,255,255,0.7)",
+                                  fontSize: 11,
+                                  marginTop: 4,
+                                  textAlign: "right",
+                                }}
+                              >
+                                {msg.time}
+                              </Text>
+                            </>
+                          ) : (
+                            <>
+                              <Text
+                                style={{
+                                  color: isDeletedPlaceholder
+                                    ? AURORA.textMuted
+                                    : "#FFFFFF",
+                                  fontSize: 14,
+                                  lineHeight:
+                                    Platform.OS === "android" ? 22 : 20,
+                                  ...(Platform.OS === "android"
+                                    ? ({
+                                        includeFontPadding: false,
+                                        alignSelf: "stretch",
+                                      } as const)
+                                    : null),
+                                }}
+                              >
+                                {displayText}
+                              </Text>
+                              <Text
+                                style={{
+                                  color: "rgba(255,255,255,0.7)",
+                                  fontSize: 11,
+                                  marginTop: 6,
+                                  textAlign: "right",
+                                }}
+                              >
+                                {msg.time}
+                              </Text>
+                            </>
+                          )}
                         </View>
                       </Pressable>
                     ) : msg.type === "session_request" ? (
@@ -1005,24 +1113,41 @@ function ChatView({
                       </Pressable>
                     ) : (
                       <View
+                        collapsable={false}
                         style={{
                           minWidth: 80,
-                          maxWidth: 280,
+                          maxWidth: 340,
+                          alignSelf: isMeForLayout
+                            ? "flex-end"
+                            : "flex-start",
+                          overflow:
+                            Platform.OS === "android" ? "visible" : undefined,
                           backgroundColor: isMeForLayout
                             ? AURORA.blue
                             : AURORA.card,
                           borderRadius: 18,
                           borderBottomLeftRadius: isMeForLayout ? 18 : 4,
                           borderBottomRightRadius: isMeForLayout ? 4 : 18,
-                          paddingHorizontal: 16,
-                          paddingVertical: 12,
+                          paddingHorizontal:
+                            Platform.OS === "android" ? 10 : 12,
+                          paddingTop: 12,
+                          paddingBottom:
+                            Platform.OS === "android"
+                              ? 22
+                              : 12,
                         }}
                       >
                         <Text
                           style={{
                             color: "#FFFFFF",
                             fontSize: 13,
-                            lineHeight: 20,
+                            lineHeight: Platform.OS === "android" ? 22 : 20,
+                            ...(Platform.OS === "android"
+                              ? ({
+                                  includeFontPadding: false,
+                                  alignSelf: "stretch",
+                                } as const)
+                              : null),
                           }}
                         >
                           {(msg as any)?.text ??
@@ -1054,7 +1179,7 @@ function ChatView({
                             ? "flex-end"
                             : "flex-start",
                           alignItems: "flex-end",
-                          gap: 8,
+                          gap: Platform.OS === "android" ? 6 : 8,
                         }}
                       >
                         {!isMeForLayout && (
@@ -1065,13 +1190,24 @@ function ChatView({
                           />
                         )}
 
-                        <View style={{ maxWidth: "78%" }}>
+                        <View
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            maxWidth:
+                              Platform.OS === "android" ? "92%" : "78%",
+                            alignItems: isMeForLayout
+                              ? "flex-end"
+                              : "flex-start",
+                          }}
+                        >
                           <Text
                             style={{
                               color: AURORA.textSec,
                               fontSize: 11,
                               marginBottom: 4,
                               textAlign: isMeForLayout ? "right" : "left",
+                              alignSelf: "stretch",
                             }}
                           >
                             {senderLabel}
@@ -1149,7 +1285,10 @@ function ChatView({
               placeholder="Type a message..."
               placeholderTextColor={AURORA.textMuted}
               value={message}
-              onChangeText={setMessage}
+              onChangeText={(t) => {
+                messageDraftRef.current = t;
+                setMessage(t);
+              }}
             />
             <TouchableOpacity
               onPress={sendMessage}

@@ -6,7 +6,7 @@ import { AppTextInput as TextInput } from "../../components/common/AppTextInput"
  * Loads from Firestore.
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { View, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -59,6 +59,11 @@ type TabType = "All messages" | "Unread";
 /** Matches counselor + Firestore preview sanitization (`firebase-firestore.service`). */
 const AUTO_ACCEPTED_PREFIX = "__AUTO_ACCEPTED__";
 const SESSION_ACCEPT_NOTICE_TEXT = "Just accepted your request";
+
+function matchesSessionAcceptNoticeText(raw: string): boolean {
+  const t = raw.trim().replace(/\s+/g, " ").toLowerCase();
+  return t === SESSION_ACCEPT_NOTICE_TEXT.toLowerCase();
+}
 
 interface CounselorContact {
   id: string;
@@ -220,6 +225,8 @@ function DirectMessageView({
 }) {
   const { user } = useAuth();
   const [message, setMessage] = useState("");
+  /** Mirrors the composer so Send uses the latest text (avoids Android RN lag vs `message` state). */
+  const messageDraftRef = useRef("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [sending, setSending] = useState(false);
@@ -230,8 +237,30 @@ function DirectMessageView({
   const [editingSessionRequest, setEditingSessionRequest] =
     useState<SessionRequestData | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  /** One-shot scroll after switching threads; cleared after first successful scroll. */
+  const pendingScrollToEndRef = useRef(false);
   const peerOnline = usePeerPresence(contact.id);
   const openedByParamRef = useRef(false);
+
+  const scrollChatToEnd = useCallback(() => {
+    const scroller = scrollViewRef.current;
+    if (!scroller) return;
+    const animated = Platform.OS === "ios";
+    requestAnimationFrame(() => {
+      scroller.scrollToEnd({ animated });
+      if (Platform.OS === "android") {
+        requestAnimationFrame(() => {
+          scroller.scrollToEnd({ animated: false });
+        });
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    messageDraftRef.current = "";
+    setMessage("");
+    pendingScrollToEndRef.current = true;
+  }, [contact.conversationId]);
 
   useEffect(() => {
     if (!autoOpenSessionRequestModal) return;
@@ -264,17 +293,30 @@ function DirectMessageView({
     return unsub;
   }, [contact.conversationId, user?.id]);
 
-  // Always scroll to the latest message when opening a conversation.
   useEffect(() => {
-    if (loadingMessages) return;
-    if (messages.length === 0) return;
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    if (loadingMessages || messages.length === 0) return;
+    if (!pendingScrollToEndRef.current) return;
+    const t = setTimeout(() => {
+      if (!pendingScrollToEndRef.current) return;
+      scrollChatToEnd();
+      pendingScrollToEndRef.current = false;
+    }, 120);
+    return () => clearTimeout(t);
+  }, [
+    loadingMessages,
+    messages.length,
+    contact.conversationId,
+    scrollChatToEnd,
+  ]);
+
+  useEffect(() => {
+    if (!loadingMessages && messages.length === 0) {
+      pendingScrollToEndRef.current = false;
+    }
   }, [loadingMessages, messages.length]);
 
   const sendMessage = async () => {
-    const text = message.trim();
+    const text = messageDraftRef.current.trim();
     if (!text || !user?.id || !contact.conversationId || sending) return;
     setSending(true);
     try {
@@ -291,11 +333,9 @@ function DirectMessageView({
         targetId: user.id,
         metadata: { messageType: "text" },
       });
+      messageDraftRef.current = "";
       setMessage("");
-      setTimeout(
-        () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-        100,
-      );
+      setTimeout(scrollChatToEnd, Platform.OS === "android" ? 80 : 50);
     } catch (e) {
       console.error("Failed to send message:", e);
       const msg =
@@ -373,10 +413,7 @@ function DirectMessageView({
         `${AUTO_ACCEPTED_PREFIX}Just accepted your request`,
       );
 
-      setTimeout(
-        () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-        100,
-      );
+      setTimeout(scrollChatToEnd, Platform.OS === "android" ? 120 : 80);
     } catch (e: unknown) {
       const message =
         e instanceof Error
@@ -421,10 +458,7 @@ function DirectMessageView({
 
         setShowSessionRequestModal(false);
         setEditingSessionRequest(null);
-        setTimeout(
-          () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-          100,
-        );
+        setTimeout(scrollChatToEnd, Platform.OS === "android" ? 120 : 80);
         return;
       }
 
@@ -438,10 +472,7 @@ function DirectMessageView({
       await grantCounselorJournalAccess(user.id, contact.id);
 
       setShowSessionRequestModal(false);
-      setTimeout(
-        () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-        100,
-      );
+      setTimeout(scrollChatToEnd, Platform.OS === "android" ? 120 : 80);
     } catch (e) {
       console.error("Failed to send session request:", e);
       const msg =
@@ -504,7 +535,14 @@ function DirectMessageView({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        <SafeAreaView style={{ flex: 1 }}>
+        <SafeAreaView
+          style={{ flex: 1 }}
+          edges={
+            Platform.OS === "android"
+              ? (["top", "left", "bottom"] as const)
+              : undefined
+          }
+        >
           {/* Header */}
           <View
             style={{
@@ -608,13 +646,21 @@ function DirectMessageView({
               ref={scrollViewRef}
               style={{ flex: 1 }}
               contentContainerStyle={{
-                paddingHorizontal: 16,
+                ...(Platform.OS === "android"
+                  ? { paddingLeft: 14, paddingRight: 6 }
+                  : { paddingHorizontal: 16 }),
                 paddingTop: 8,
                 paddingBottom: 20,
               }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
+              onContentSizeChange={() => {
+                if (loadingMessages || messages.length === 0) return;
+                if (!pendingScrollToEndRef.current) return;
+                scrollChatToEnd();
+                pendingScrollToEndRef.current = false;
+              }}
             >
               {loadingMessages ? (
                 <View style={{ paddingVertical: 40, alignItems: "center" }}>
@@ -626,16 +672,24 @@ function DirectMessageView({
                   const rawText = msg.type === "text" ? msg.text : "";
                   const hasAcceptMarker =
                     rawText.startsWith(AUTO_ACCEPTED_PREFIX);
+                  const acceptBodyForMatch = hasAcceptMarker
+                    ? rawText.slice(AUTO_ACCEPTED_PREFIX.length).trim()
+                    : rawText.trim();
                   const isAutoAccepted =
                     msg.type === "text" &&
                     (hasAcceptMarker ||
-                      rawText.trim() === SESSION_ACCEPT_NOTICE_TEXT);
+                      matchesSessionAcceptNoticeText(rawText));
                   const displayText =
                     msg.type === "text"
                       ? hasAcceptMarker
                         ? rawText.slice(AUTO_ACCEPTED_PREFIX.length).trim()
                         : rawText
                       : "";
+                  const acceptNoticeBubbleText =
+                    isAutoAccepted &&
+                    matchesSessionAcceptNoticeText(acceptBodyForMatch)
+                      ? SESSION_ACCEPT_NOTICE_TEXT
+                      : acceptBodyForMatch;
                   const senderName = isMe ? "You" : contact.name;
                   const messageContent =
                     msg.type === "text" ? (
@@ -670,41 +724,87 @@ function DirectMessageView({
                         }}
                       >
                         <View
+                          collapsable={false}
                           style={{
                             minWidth: 80,
-                            maxWidth: 280,
+                            maxWidth: "100%",
                             alignSelf: isMe ? "flex-end" : "flex-start",
+                            overflow:
+                              Platform.OS === "android" ? "visible" : undefined,
                             backgroundColor: isMe ? AURORA.blue : AURORA.card,
                             borderRadius: 18,
                             borderBottomLeftRadius: isMe ? 18 : 4,
                             borderBottomRightRadius: isMe ? 4 : 18,
-                            paddingHorizontal: 16,
-                            paddingVertical: 12,
+                            paddingHorizontal:
+                              Platform.OS === "android" ? 10 : 12,
+                            paddingTop: isAutoAccepted ? 10 : 12,
+                            paddingBottom: isAutoAccepted
+                              ? 10
+                              : Platform.OS === "android"
+                                ? 14
+                                : 12,
                           }}
                         >
-                          <Text
-                            style={{
-                              color: isAutoAccepted
-                                ? AURORA.green
-                                : displayText.startsWith("[Deleted")
-                                  ? AURORA.textMuted
-                                  : "#FFFFFF",
-                              fontSize: 14,
-                              lineHeight: 20,
-                            }}
-                          >
-                            {displayText}
-                          </Text>
-                          <Text
-                            style={{
-                              color: "rgba(255,255,255,0.7)",
-                              fontSize: 11,
-                              marginTop: 4,
-                              textAlign: "right",
-                            }}
-                          >
-                            {msg.time}
-                          </Text>
+                          {isAutoAccepted ? (
+                            <>
+                              <Text
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                                style={{
+                                  color: AURORA.green,
+                                  fontSize: 14,
+                                  lineHeight: 20,
+                                  maxWidth: "100%",
+                                  ...(Platform.OS === "android"
+                                    ? ({ includeFontPadding: false } as const)
+                                    : null),
+                                }}
+                              >
+                                {acceptNoticeBubbleText}
+                              </Text>
+                              <Text
+                                style={{
+                                  color: "rgba(255,255,255,0.7)",
+                                  fontSize: 11,
+                                  marginTop: 4,
+                                  textAlign: "right",
+                                }}
+                              >
+                                {msg.time}
+                              </Text>
+                            </>
+                          ) : (
+                            <>
+                              <Text
+                                style={{
+                                  color: displayText.startsWith("[Deleted")
+                                    ? AURORA.textMuted
+                                    : "#FFFFFF",
+                                  fontSize: 14,
+                                  lineHeight:
+                                    Platform.OS === "android" ? 22 : 20,
+                                  ...(Platform.OS === "android"
+                                    ? ({
+                                        includeFontPadding: false,
+                                        alignSelf: "stretch",
+                                      } as const)
+                                    : null),
+                                }}
+                              >
+                                {displayText}
+                              </Text>
+                              <Text
+                                style={{
+                                  color: "rgba(255,255,255,0.7)",
+                                  fontSize: 11,
+                                  marginTop: 6,
+                                  textAlign: "right",
+                                }}
+                              >
+                                {msg.time}
+                              </Text>
+                            </>
+                          )}
                         </View>
                       </Pressable>
                     ) : msg.type === "session_request" ? (
@@ -812,7 +912,7 @@ function DirectMessageView({
                           flexDirection: "row",
                           justifyContent: isMe ? "flex-end" : "flex-start",
                           alignItems: "flex-end",
-                          gap: 8,
+                          gap: Platform.OS === "android" ? 6 : 8,
                         }}
                       >
                         {!isMe && (
@@ -824,13 +924,22 @@ function DirectMessageView({
                             />
                           </View>
                         )}
-                        <View style={{ maxWidth: "78%" }}>
+                        <View
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            maxWidth:
+                              Platform.OS === "android" ? "92%" : "78%",
+                            alignItems: isMe ? "flex-end" : "flex-start",
+                          }}
+                        >
                           <Text
                             style={{
                               color: AURORA.textSec,
                               fontSize: 11,
                               marginBottom: 3,
                               textAlign: isMe ? "right" : "left",
+                              alignSelf: "stretch",
                             }}
                           >
                             {senderName}
@@ -912,7 +1021,10 @@ function DirectMessageView({
               placeholder="Type a message..."
               placeholderTextColor="#9FB0D4"
               value={message}
-              onChangeText={setMessage}
+              onChangeText={(t) => {
+                messageDraftRef.current = t;
+                setMessage(t);
+              }}
             />
             <TouchableOpacity
               onPress={sendMessage}

@@ -5,6 +5,7 @@ import {
   aggregateByDay,
   aggregateEntriesAsSingleDay,
 } from "../utils/moodAggregates";
+import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 export interface WeekSummaryInput {
@@ -29,7 +30,7 @@ export type WeeklySummaryResult = {
 };
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const functions = getFunctions();
+const functions = getFunctions(getApp(), "asia-southeast2");
 
 export function buildTemplateWeeklySummary(data: WeekSummaryInput): string {
   if (data.totalEntries === 0) {

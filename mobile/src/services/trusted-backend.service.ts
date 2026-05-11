@@ -1,6 +1,8 @@
+import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
-const functions = getFunctions();
+/** Must match every `onCall({ region: 'asia-southeast2' })` in `functions/src/index.ts`. */
+const functions = getFunctions(getApp(), "asia-southeast2");
 
 type TargetRoute = "/(student)/messages" | "/(counselor)/messages";
 

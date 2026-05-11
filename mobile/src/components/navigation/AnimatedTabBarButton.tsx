@@ -64,7 +64,7 @@ export function AnimatedTabBarButton({
       style={[styles.wrapper, style] as object}
       {...(rest as object)}
     >
-      <Animated.View style={[styles.inner, animatedContainerStyle]}>
+      <Animated.View style={[styles.inner]}>
         <Animated.View style={[styles.pill, animatedBgStyle]} />
         <View style={styles.content}>{children as React.ReactNode}</View>
       </Animated.View>
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(45, 107, 255, 0.2)',
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: 'rgba(45, 107, 255, 0.35)',
   },
   content: {

@@ -760,9 +760,17 @@ export const firestoreService = {
     counselorData?: { name: string; avatar?: string },
   ) {
     try {
+      const uid = auth.currentUser?.uid ?? "";
+      if (
+        uid &&
+        uid !== counselorId &&
+        uid !== studentData.id
+      ) {
+        throw new Error("Signed-in user must be the counselor or the student.");
+      }
       const conversationId = `${counselorId}_${studentData.id}`;
       const convRef = doc(db, "conversations", conversationId);
-      const docData: Record<string, any> = {
+      const docData: Record<string, unknown> = {
         counselorId,
         studentId: studentData.id,
         lastMessage: "",
@@ -781,29 +789,13 @@ export const firestoreService = {
         docData.counselor_name = counselorData.name;
         docData.counselor_avatar = counselorData.avatar ?? "";
       }
-      try {
-        await updateDoc(convRef, {
-          counselorId,
-          studentId: studentData.id,
-          student_name: studentData.name,
-          student_avatar: studentData.avatar,
-          student_program: studentData.program ?? "",
-          is_alerted: studentData.isAlerted ?? false,
-          border_color: studentData.borderColor ?? null,
-          ...(counselorData
-            ? {
-                counselor_name: counselorData.name,
-                counselor_avatar: counselorData.avatar ?? "",
-              }
-            : {}),
-        });
-      } catch (err: any) {
-        if (err?.code !== "not-found") throw err;
-        // For strict rules, avoid pre-reading a non-existent doc; create directly.
-        await setDoc(convRef, docData);
-      }
+      // Use merge so one write hits Firestore "create" when missing and "update" when present.
+      // updateDoc-first was unreliable: a missing doc often surfaced as permission-denied
+      // (no resource for update rules), so setDoc never ran and counselors could not start chats.
+      // Do not pre-read the doc: read rules reference resource.data and fail when the doc is absent.
+      await setDoc(convRef, docData, { merge: true });
       return conversationId;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("❌ Error adding conversation:", error);
       throw error;
     }

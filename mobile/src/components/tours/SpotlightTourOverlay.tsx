@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dimensions,
   Modal,
+  Platform,
   Pressable,
+  StatusBar,
   StyleSheet,
   View,
 } from "react-native";
@@ -38,6 +40,11 @@ export function SpotlightTourOverlay({
   onCompleted,
 }: SpotlightTourOverlayProps) {
   const insets = useSafeAreaInsets();
+  /** Android: measureInWindow Y is often short vs the translucent Modal layer (RN #19497; edge-to-edge). */
+  const androidMeasureYAdjustment =
+    Platform.OS === "android"
+      ? (StatusBar.currentHeight ?? 0) || insets.top
+      : 0;
   const { width: winW, height: winH } = Dimensions.get("window");
   const [stepIndex, setStepIndex] = useState(0);
   const [hole, setHole] = useState<{
@@ -62,14 +69,15 @@ export function SpotlightTourOverlay({
         setHole(null);
         return;
       }
+      const yAdj = y + androidMeasureYAdjustment;
       setHole({
         x: Math.max(0, x - pad),
-        y: Math.max(0, y - pad),
+        y: Math.max(0, yAdj - pad),
         w: Math.min(winW, w + pad * 2),
         h: Math.min(winH, h + pad * 2),
       });
     });
-  }, [step, winW, winH]);
+  }, [step, winW, winH, androidMeasureYAdjustment]);
 
   useEffect(() => {
     if (!visible) {
@@ -82,10 +90,14 @@ export function SpotlightTourOverlay({
       return;
     }
     const id = requestAnimationFrame(() => remeasure());
-    const retry = setTimeout(() => remeasure(), 280);
+    // Android can settle layout later (image/font/layout passes), so remeasure
+    // a few times to keep the spotlight aligned with the final position.
+    const retries = [120, 280, 520, 900].map((ms) =>
+      setTimeout(() => remeasure(), ms),
+    );
     return () => {
       cancelAnimationFrame(id);
-      clearTimeout(retry);
+      retries.forEach((t) => clearTimeout(t));
     };
   }, [visible, stepIndex, hasTarget, remeasure]);
 

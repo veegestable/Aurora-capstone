@@ -73,6 +73,8 @@ function StudentTabs() {
           right: 20,
           bottom: STUDENT_TAB_BAR_FLOAT_BOTTOM,
           height: STUDENT_TAB_BAR_HEIGHT,
+          marginLeft: 9,
+          width: "95%",
           paddingTop: 0,
           paddingBottom: 0,
           paddingHorizontal: 4,

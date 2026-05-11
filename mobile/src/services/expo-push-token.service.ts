@@ -7,6 +7,10 @@ import { configureNotificationHandler } from "./push-notifications.service";
 
 const MAX_EXPO_PUSH_TOKENS = 8;
 
+/** After a failed Expo token fetch, skip retries to avoid long timeouts stacking (dev lag + log spam). */
+let expoPushTokenFetchBlockedUntil = 0;
+const EXPO_PUSH_TOKEN_FAIL_COOLDOWN_MS = 2 * 60 * 1000;
+
 export type ExpoPushTokenEntry = {
   token: string;
   platform: "android" | "ios" | "web";
@@ -49,11 +53,16 @@ export async function syncExpoPushTokenToUserDoc(userId: string): Promise<void> 
       perm.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
     if (!granted) return;
 
+    const now = Date.now();
+    if (now < expoPushTokenFetchBlockedUntil) return;
+
     let expoPushToken: string;
     try {
       const res = await Notifications.getExpoPushTokenAsync({ projectId });
       expoPushToken = res.data;
+      expoPushTokenFetchBlockedUntil = 0;
     } catch (e) {
+      expoPushTokenFetchBlockedUntil = now + EXPO_PUSH_TOKEN_FAIL_COOLDOWN_MS;
       if (__DEV__) {
         console.warn("[ExpoPushToken] getExpoPushTokenAsync failed:", e);
       }
