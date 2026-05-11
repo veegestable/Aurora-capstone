@@ -46,7 +46,7 @@ export default function DashboardSessionRequestModal({
     if (visible) {
       setLoading(true);
       firestoreService
-        .getUsersByRole("counselor")
+        .getCounselorsForStudent(studentId)
         .then((users) =>
           setCounselors(
             (users || []).filter((u) =>
@@ -57,7 +57,7 @@ export default function DashboardSessionRequestModal({
         .catch(() => setCounselors([]))
         .finally(() => setLoading(false));
     }
-  }, [visible]);
+  }, [visible, studentId]);
 
   const navigateToMessagesSessionRequest = () => {
     if (!selectedCounselorId || busy) return;

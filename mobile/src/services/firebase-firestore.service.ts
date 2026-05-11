@@ -528,15 +528,107 @@ export const firestoreService = {
   // Users (for admin counselor management)
   async getUsersByRole(role: "counselor" | "student" | "admin") {
     try {
-      const q = query(collection(db, "users"), where("role", "==", role));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(
-        (d) => ({ id: d.id, ...d.data() }) as Record<string, any>,
-      );
+      const usersById: Record<string, Record<string, any>> = {};
+      const collect = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
+        snapshot.docs.forEach((d) => {
+          const data = (d.data() ?? {}) as Record<string, unknown>;
+          usersById[d.id] = { id: d.id, ...data };
+        });
+      };
+
+      const primary = query(collection(db, "users"), where("role", "==", role));
+      collect(await getDocs(primary));
+
+      if (role === "counselor") {
+        const legacy = query(
+          collection(db, "users"),
+          where("role", "==", "Counselor"),
+        );
+        collect(await getDocs(legacy));
+      }
+
+      return Object.values(usersById);
     } catch (error: any) {
       console.error("❌ Error fetching users by role:", error);
       throw error;
     }
+  },
+
+  /**
+   * Counselor picker source for students.
+   * Includes:
+   * - counselors by role query
+   * - counselors already linked through this student's sessions/conversations
+   * so linked counselors still appear even if their profile role field is legacy.
+   */
+  async getCounselorsForStudent(studentId: string) {
+    const byId: Record<string, Record<string, unknown>> = {};
+    const add = (raw: Record<string, unknown> | null | undefined) => {
+      if (!raw) return;
+      const id = String(raw.id ?? "").trim();
+      if (!id) return;
+      byId[id] = { ...byId[id], ...raw, id };
+    };
+
+    const pickCounselorIdFromSession = (
+      row: Record<string, unknown>,
+    ): string => String(row.counselorId ?? "").trim();
+    const pickCounselorIdFromConversation = (
+      row: Record<string, unknown>,
+    ): string => String(row.id ?? "").trim();
+
+    try {
+      const roleCounselors = await this.getUsersByRole("counselor");
+      (roleCounselors as Record<string, unknown>[]).forEach(add);
+    } catch {
+      // keep going with linked counselors fallback
+    }
+
+    const linkedCounselorIds = new Set<string>();
+
+    try {
+      const sessions = await this.getSessionsForStudent(studentId);
+      (sessions as Record<string, unknown>[]).forEach((s) => {
+        const cid = pickCounselorIdFromSession(s);
+        if (cid) linkedCounselorIds.add(cid);
+      });
+    } catch {
+      // ignore
+    }
+
+    try {
+      const conversations = await this.getConversationsForStudent(studentId);
+      (conversations as Record<string, unknown>[]).forEach((c) => {
+        const cid = pickCounselorIdFromConversation(c);
+        if (cid) linkedCounselorIds.add(cid);
+      });
+    } catch {
+      // ignore
+    }
+
+    if (linkedCounselorIds.size > 0) {
+      await Promise.all(
+        [...linkedCounselorIds].map(async (cid) => {
+          if (byId[cid]) return;
+          try {
+            const snap = await getDoc(doc(db, "users", cid));
+            if (!snap.exists()) return;
+            const data = (snap.data() ?? {}) as Record<string, unknown>;
+            add({ id: cid, ...data });
+          } catch {
+            // ignore individual fetch errors
+          }
+        }),
+      );
+    }
+
+    return Object.values(byId).sort((a, b) =>
+      String(a.full_name ?? a.preferred_name ?? "")
+        .toLowerCase()
+        .localeCompare(
+          String(b.full_name ?? b.preferred_name ?? "").toLowerCase(),
+        ),
+    );
   },
 
   async markNotificationAsRead(notificationId: string) {
@@ -572,9 +664,6 @@ export const firestoreService = {
     try {
       const conversationId = `${counselorId}_${studentData.id}`;
       const convRef = doc(db, "conversations", conversationId);
-      const existing = await getDoc(convRef);
-      if (existing.exists()) return conversationId;
-
       const docData: Record<string, any> = {
         counselorId,
         studentId: studentData.id,
@@ -594,7 +683,27 @@ export const firestoreService = {
         docData.counselor_name = counselorData.name;
         docData.counselor_avatar = counselorData.avatar ?? "";
       }
-      await setDoc(convRef, docData);
+      try {
+        await updateDoc(convRef, {
+          counselorId,
+          studentId: studentData.id,
+          student_name: studentData.name,
+          student_avatar: studentData.avatar,
+          student_program: studentData.program ?? "",
+          is_alerted: studentData.isAlerted ?? false,
+          border_color: studentData.borderColor ?? null,
+          ...(counselorData
+            ? {
+                counselor_name: counselorData.name,
+                counselor_avatar: counselorData.avatar ?? "",
+              }
+            : {}),
+        });
+      } catch (err: any) {
+        if (err?.code !== "not-found") throw err;
+        // For strict rules, avoid pre-reading a non-existent doc; create directly.
+        await setDoc(convRef, docData);
+      }
       return conversationId;
     } catch (error: any) {
       console.error("❌ Error adding conversation:", error);

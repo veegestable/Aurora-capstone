@@ -31,17 +31,22 @@ export function counselorApprovalBadgeStatus(
 
 /**
  * Counselors students may message or request sessions with.
- * Excludes pending/rejected admin approval and profiles explicitly marked as unverified.
- * Older user docs without `email_verified` still qualify if approval is not pending/rejected.
+ * Strict policy:
+ * - admin-approved counselors only
+ * - verified email only
+ * Supports legacy values where `approval_status` can be boolean true/"true".
  */
 export function isCounselorSelectableByStudent(
   c: Record<string, unknown>,
 ): boolean {
-  const approval = readCounselorApprovalRaw(c);
-  if (approval === "pending" || approval === "rejected") return false;
+  const approvalRaw = c.approval_status ?? c.approvalStatus;
+  const approvalStr = readCounselorApprovalRaw(c);
+  const isApproved =
+    approvalRaw === true ||
+    approvalStr === "approved" ||
+    String(approvalRaw ?? "").trim().toLowerCase() === "true";
+  if (!isApproved) return false;
 
   const ev = c.email_verified ?? c.emailVerified;
-  if (ev === false) return false;
-
-  return true;
+  return ev === true;
 }

@@ -1361,6 +1361,7 @@ export default function MessagesScreen() {
 
       <SelectCounselorModal
         visible={showSelectCounselorModal}
+        studentId={user?.id ?? ""}
         onClose={() => setShowSelectCounselorModal(false)}
         onSelect={handleSelectCounselor}
       />

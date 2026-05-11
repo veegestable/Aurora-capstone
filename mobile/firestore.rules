@@ -59,7 +59,8 @@ service cloud.firestore {
         isOwner(uid) ||
         isAdmin() ||
         isCounselor() ||
-        resource.data.role == 'counselor'
+        resource.data.role == 'counselor' ||
+        resource.data.role == 'Counselor'
       );
       allow create: if isOwner(uid) || isAdmin();
       allow update: if isOwner(uid) || isAdmin();
@@ -96,6 +97,8 @@ service cloud.firestore {
       allow update: if isAuthed() && (
         resource.data.counselorId == request.auth.uid ||
         resource.data.studentId == request.auth.uid ||
+        request.resource.data.counselorId == request.auth.uid ||
+        request.resource.data.studentId == request.auth.uid ||
         isAdmin()
       );
 

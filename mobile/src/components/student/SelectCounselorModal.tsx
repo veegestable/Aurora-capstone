@@ -20,12 +20,14 @@ export interface Counselor {
 
 interface SelectCounselorModalProps {
     visible: boolean;
+    studentId: string;
     onClose: () => void;
     onSelect: (counselor: Counselor) => void;
 }
 
 export default function SelectCounselorModal({
     visible,
+    studentId,
     onClose,
     onSelect,
 }: SelectCounselorModalProps) {
@@ -36,7 +38,7 @@ export default function SelectCounselorModal({
         if (visible) {
             setLoading(true);
             firestoreService
-                .getUsersByRole('counselor')
+                .getCounselorsForStudent(studentId)
                 .then((users) =>
                     setCounselors(
                         (users || []).filter((u) =>
@@ -47,7 +49,7 @@ export default function SelectCounselorModal({
                 .catch(() => setCounselors([]))
                 .finally(() => setLoading(false));
         }
-    }, [visible]);
+    }, [visible, studentId]);
 
     const handleSelect = (counselor: Counselor) => {
         onSelect(counselor);

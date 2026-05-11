@@ -12,6 +12,13 @@ const withGoogleServiceInfoPlist = require("./plugins/withGoogleServiceInfoPlist
 module.exports = {
   expo: {
     ...appJson.expo,
+    updates: {
+      ...(appJson.expo.updates || {}),
+      url: "https://u.expo.dev/797ad4cd-1753-4380-9052-8332a31722e1",
+    },
+    runtimeVersion: {
+      policy: "appVersion",
+    },
     plugins: [...(appJson.expo.plugins || []), withGoogleServiceInfoPlist],
     extra: {
       ...(appJson.expo.extra || {}),
