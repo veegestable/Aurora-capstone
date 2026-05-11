@@ -55,7 +55,9 @@ export default function SelectStudentModal({
         setLoading(true);
         firestoreService
             .getVerifiedStudents()
-            .then((users) => setStudents((users || []) as StudentRow[]))
+            .then((users) =>
+                setStudents((users || []) as unknown as StudentRow[]),
+            )
             .catch(() => setStudents([]))
             .finally(() => setLoading(false));
     }, [visible]);

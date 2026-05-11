@@ -43,7 +43,7 @@ export default function SelectCounselorModal({
                     setCounselors(
                         (users || []).filter((u) =>
                             isCounselorSelectableByStudent(u as Record<string, unknown>),
-                        ) as Counselor[],
+                        ) as unknown as Counselor[],
                     ),
                 )
                 .catch(() => setCounselors([]))
