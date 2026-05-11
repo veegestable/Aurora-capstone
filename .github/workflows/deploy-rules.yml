@@ -39,8 +39,9 @@ jobs:
             exit 1
           fi
 
+      # Use secrets.* in `if` (not env.*): the secret is only injected for the run step.
       - name: Write service account file
-        if: env.FIREBASE_SERVICE_ACCOUNT != ''
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
