@@ -1,13 +1,12 @@
 import {
   collection,
-  addDoc,
   query,
   orderBy,
   limit,
   getDocs,
-  Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { writeAuditLogTrusted } from "./trusted-backend.service";
 import type {
   AuditEntry,
   EngagementSnapshot7d,
@@ -30,9 +29,11 @@ function bucketRole(role?: string): keyof RoleEngagementCounts {
 
 export const auditLogsService = {
   async write(entry: Omit<AuditEntry, "id" | "createdAt">): Promise<void> {
-    await addDoc(collection(db, "audit_logs"), {
-      ...entry,
-      createdAt: Timestamp.now(),
+    await writeAuditLogTrusted({
+      action: entry.action,
+      targetType: entry.targetType,
+      targetId: entry.targetId,
+      metadata: entry.metadata,
     });
   },
 

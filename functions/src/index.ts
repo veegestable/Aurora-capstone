@@ -72,7 +72,7 @@ function buildTemplateWeeklySummary(data: WeekSummaryInput): string {
   return parts.join(' ');
 }
 
-export const generateWeeklySummaryAi = onCall(async (request) => {
+export const generateWeeklySummaryAi = onCall({ region: 'asia-southeast2' }, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
@@ -140,7 +140,397 @@ export const generateWeeklySummaryAi = onCall(async (request) => {
 
 export { deliverSessionExpoPush } from './deliverSessionExpoPush';
 
-export const migrateOldMoodLogs = onCall(async (request) => {
+type TrustedAuditInput = {
+  action: string;
+  targetType: string;
+  targetId: string;
+  metadata?: Record<string, unknown>;
+};
+
+async function getRoleForUid(uid: string): Promise<string> {
+  const snap = await db.collection('users').doc(uid).get();
+  const role = snap.data()?.role;
+  return typeof role === 'string' ? role : 'unknown';
+}
+
+export const writeAuditLogTrusted = onCall({ region: 'asia-southeast2' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+  const data = (request.data ?? {}) as Partial<TrustedAuditInput>;
+  const action = typeof data.action === 'string' ? data.action.trim() : '';
+  const targetType =
+    typeof data.targetType === 'string' ? data.targetType.trim() : '';
+  const targetId = typeof data.targetId === 'string' ? data.targetId.trim() : '';
+  if (!action || !targetType || !targetId) {
+    throw new HttpsError(
+      'invalid-argument',
+      'action, targetType, and targetId are required.',
+    );
+  }
+  const performedByRole = await getRoleForUid(uid);
+  await db.collection('audit_logs').add({
+    performedBy: uid,
+    performedByRole,
+    action,
+    targetType,
+    targetId,
+    metadata:
+      data.metadata && typeof data.metadata === 'object' ? data.metadata : null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true };
+});
+
+type TrustedSessionNotificationInput = {
+  userId: string;
+  message: string;
+  targetRoute?: '/(student)/messages' | '/(counselor)/messages';
+  eventKey?: string;
+};
+
+async function hasConversationBetween(
+  counselorId: string,
+  studentId: string,
+): Promise<boolean> {
+  const convId = `${counselorId}_${studentId}`;
+  const conv = await db.collection('conversations').doc(convId).get();
+  if (!conv.exists) return false;
+  const d = conv.data() ?? {};
+  return d.counselorId === counselorId && d.studentId === studentId;
+}
+
+async function enforceRateLimit(
+  kind: string,
+  key: string,
+  windowMs: number,
+  maxCount: number,
+): Promise<void> {
+  const nowMs = Date.now();
+  const docId = `${kind}:${key}`.replace(/[^a-zA-Z0-9:_-]/g, '_');
+  const ref = db.collection('_rateLimits').doc(docId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const prev = snap.data() as
+      | { count?: number; windowStartMs?: number }
+      | undefined;
+    const prevStart = typeof prev?.windowStartMs === 'number' ? prev.windowStartMs : 0;
+    const prevCount = typeof prev?.count === 'number' ? prev.count : 0;
+    const inWindow = nowMs - prevStart < windowMs;
+    const nextStart = inWindow ? prevStart : nowMs;
+    const nextCount = inWindow ? prevCount + 1 : 1;
+    if (inWindow && prevCount >= maxCount) {
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((windowMs - (nowMs - prevStart)) / 1000),
+      );
+      throw new HttpsError(
+        'resource-exhausted',
+        `Too many requests. Please wait ${retryAfterSeconds}s and try again.`,
+        { retryAfterSeconds },
+      );
+    }
+    tx.set(
+      ref,
+      {
+        kind,
+        key,
+        count: nextCount,
+        windowStartMs: nextStart,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  });
+}
+
+type SendTextMessageTrustedInput = {
+  conversationId: string;
+  text: string;
+};
+
+export const sendTextMessageTrusted = onCall({ region: 'asia-southeast2' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+  const data = (request.data ?? {}) as Partial<SendTextMessageTrustedInput>;
+  const conversationId =
+    typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
+  const text = typeof data.text === 'string' ? data.text.trim() : '';
+  if (!conversationId || !text) {
+    throw new HttpsError(
+      'invalid-argument',
+      'conversationId and text are required.',
+    );
+  }
+  if (text.length > 2000) {
+    throw new HttpsError('invalid-argument', 'Message is too long.');
+  }
+
+  const convRef = db.collection('conversations').doc(conversationId);
+  const convSnap = await convRef.get();
+  if (!convSnap.exists) throw new HttpsError('not-found', 'Conversation not found.');
+  const conv = convSnap.data() ?? {};
+  const isCounselor = conv.counselorId === uid;
+  const isStudent = conv.studentId === uid;
+  if (!isCounselor && !isStudent) {
+    throw new HttpsError('permission-denied', 'Not a conversation participant.');
+  }
+
+  await enforceRateLimit('msg', `${uid}:${conversationId}`, 10_000, 5);
+
+  const msgRef = await convRef.collection('messages').add({
+    senderId: uid,
+    content: text,
+    type: 'chat',
+    sessionId: null,
+    isRead: false,
+    readAt: null,
+    isUrgent: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await convRef.update({
+    lastMessage: text.length > 80 ? text.slice(0, 80) + '...' : text,
+    lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+    lastSenderId: uid,
+    ...(isCounselor
+      ? { unreadCountStudent: admin.firestore.FieldValue.increment(1) }
+      : { unreadCountCounselor: admin.firestore.FieldValue.increment(1) }),
+  });
+
+  return { ok: true, messageId: msgRef.id };
+});
+
+type SendSessionRequestTrustedInput = {
+  conversationId: string;
+  preferredTime: string;
+  note?: string;
+};
+
+export const sendSessionRequestTrusted = onCall({ region: 'asia-southeast2' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+  const data = (request.data ?? {}) as Partial<SendSessionRequestTrustedInput>;
+  const conversationId =
+    typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
+  const preferredTime =
+    typeof data.preferredTime === 'string' ? data.preferredTime.trim() : '';
+  const note = typeof data.note === 'string' ? data.note.trim() : '';
+  if (!conversationId || !preferredTime) {
+    throw new HttpsError(
+      'invalid-argument',
+      'conversationId and preferredTime are required.',
+    );
+  }
+
+  const convRef = db.collection('conversations').doc(conversationId);
+  const convSnap = await convRef.get();
+  if (!convSnap.exists) throw new HttpsError('not-found', 'Conversation not found.');
+  const conv = convSnap.data() ?? {};
+  const counselorId = typeof conv.counselorId === 'string' ? conv.counselorId : '';
+  const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
+  if (!counselorId || !studentId) {
+    throw new HttpsError('failed-precondition', 'Conversation participants invalid.');
+  }
+  if (studentId !== uid) {
+    throw new HttpsError(
+      'permission-denied',
+      'Only the student can send a session request in this thread.',
+    );
+  }
+
+  await enforceRateLimit('session_request', `${studentId}:${counselorId}`, 30_000, 1);
+
+  const sessionRef = await db.collection('sessions').add({
+    counselorId,
+    studentId,
+    riskFlagId: null,
+    initiatedBy: 'student',
+    studentRequestNote: note,
+    proposedSlots: [],
+    confirmedSlot: null,
+    finalSlot: null,
+    status: 'requested',
+    attendanceNote: null,
+    cancelReason: null,
+    reminderSent: false,
+    sessionHistoryBadge: 'pending',
+    preferredTimeFromStudent: preferredTime,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const msgRef = await convRef.collection('messages').add({
+    senderId: studentId,
+    content: `Session request: ${preferredTime}`,
+    type: 'session_request',
+    sessionId: sessionRef.id,
+    sessionData: {
+      sessionId: sessionRef.id,
+      note,
+      status: 'requested',
+      preferredTime,
+    },
+    isRead: false,
+    readAt: null,
+    isUrgent: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await convRef.update({
+    lastMessage: `Session request: ${preferredTime}`,
+    lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+    lastSenderId: studentId,
+    unreadCountCounselor: admin.firestore.FieldValue.increment(1),
+  });
+
+  await db.collection('notifications').add({
+    user_id: counselorId,
+    type: 'counselor_message',
+    message: `A student requested a counseling session for ${preferredTime}.`,
+    status: 'pending',
+    delivery_mode: 'local_bridge',
+    notification_key: `session:${sessionRef.id}:student_request_created`,
+    target_route: '/(counselor)/messages',
+    scheduled_for: admin.firestore.FieldValue.serverTimestamp(),
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true, messageId: msgRef.id, sessionId: sessionRef.id };
+});
+
+export const createSessionNotificationTrusted = onCall({ region: 'asia-southeast2' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+  const role = await getRoleForUid(uid);
+  const data = (request.data ?? {}) as Partial<TrustedSessionNotificationInput>;
+  const userId = typeof data.userId === 'string' ? data.userId.trim() : '';
+  const message = typeof data.message === 'string' ? data.message.trim() : '';
+  const targetRoute =
+    data.targetRoute === '/(counselor)/messages'
+      ? '/(counselor)/messages'
+      : '/(student)/messages';
+  if (!userId || !message) {
+    throw new HttpsError('invalid-argument', 'userId and message are required.');
+  }
+
+  const isSelf = userId === uid;
+  const isAdmin = role === 'admin';
+  let relationshipAllowed = false;
+  if (role === 'student') {
+    relationshipAllowed = await hasConversationBetween(userId, uid);
+  } else if (role === 'counselor') {
+    relationshipAllowed = await hasConversationBetween(uid, userId);
+  }
+  if (!isSelf && !isAdmin && !relationshipAllowed) {
+    throw new HttpsError(
+      'permission-denied',
+      'No conversation relationship for notification recipient.',
+    );
+  }
+
+  const key = (
+    (typeof data.eventKey === 'string' ? data.eventKey.trim() : '') ||
+    message.slice(0, 80).toLowerCase()
+  ).toLowerCase();
+
+  await db.collection('notifications').add({
+    user_id: userId,
+    type: 'counselor_message',
+    message,
+    status: 'pending',
+    delivery_mode: 'local_bridge',
+    notification_key: key,
+    target_route: targetRoute,
+    scheduled_for: admin.firestore.FieldValue.serverTimestamp(),
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true };
+});
+
+type TrustedGrantJournalInput = {
+  studentId: string;
+  counselorId: string;
+};
+
+export const grantCounselorJournalAccessTrusted = onCall({ region: 'asia-southeast2' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+  const role = await getRoleForUid(uid);
+  if (role !== 'student' && role !== 'admin') {
+    throw new HttpsError(
+      'permission-denied',
+      'Only students or admins can grant counselor access.',
+    );
+  }
+
+  const data = (request.data ?? {}) as Partial<TrustedGrantJournalInput>;
+  const studentId =
+    typeof data.studentId === 'string' ? data.studentId.trim() : '';
+  const counselorId =
+    typeof data.counselorId === 'string' ? data.counselorId.trim() : '';
+  if (!studentId || !counselorId) {
+    throw new HttpsError(
+      'invalid-argument',
+      'studentId and counselorId are required.',
+    );
+  }
+  if (role !== 'admin' && uid !== studentId) {
+    throw new HttpsError('permission-denied', 'Cannot grant for another student.');
+  }
+
+  const counselorSnap = await db.collection('users').doc(counselorId).get();
+  if (!counselorSnap.exists) {
+    throw new HttpsError('not-found', 'Counselor not found.');
+  }
+  const counselor = counselorSnap.data() ?? {};
+  if (
+    !(
+      counselor.role === 'counselor' ||
+      counselor.role === 'Counselor'
+    )
+  ) {
+    throw new HttpsError('failed-precondition', 'Target user is not counselor.');
+  }
+
+  // Relationship check: existing conversation or session between this student and counselor.
+  const hasConversation = await hasConversationBetween(counselorId, studentId);
+  let hasSession = false;
+  if (!hasConversation) {
+    const sessionQ = await db
+      .collection('sessions')
+      .where('studentId', '==', studentId)
+      .where('counselorId', '==', counselorId)
+      .limit(1)
+      .get();
+    hasSession = !sessionQ.empty;
+  }
+  if (!hasConversation && !hasSession) {
+    throw new HttpsError(
+      'permission-denied',
+      'No session/conversation relationship found.',
+    );
+  }
+
+  await db
+    .collection('userSettings')
+    .doc(studentId)
+    .set(
+      {
+        counselorJournalAccess: {
+          [counselorId]: true,
+        },
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  return { ok: true };
+});
+
+export const migrateOldMoodLogs = onCall({ region: 'asia-southeast2' }, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }

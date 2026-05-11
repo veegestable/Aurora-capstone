@@ -54,15 +54,8 @@ export default function SelectStudentModal({
         }
         setLoading(true);
         firestoreService
-            .getUsersByRole('student')
-            .then((users) =>
-                setStudents(
-                    ((users || []) as Record<string, unknown>[]).filter((u) => {
-                        const ev = u.email_verified ?? u.emailVerified;
-                        return ev === true;
-                    }) as StudentRow[],
-                ),
-            )
+            .getVerifiedStudents()
+            .then((users) => setStudents((users || []) as StudentRow[]))
             .catch(() => setStudents([]))
             .finally(() => setLoading(false));
     }, [visible]);

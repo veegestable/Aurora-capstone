@@ -838,7 +838,9 @@ export default function CounselorHomeScreen() {
   const fetchData = useCallback(
     async (isCancelled?: () => boolean) => {
       try {
-        const students = await firestoreService.getUsersByRole("student");
+        const students = await firestoreService.getStudentsForCounselor(
+          user?.id ?? "",
+        );
         if (isCancelled?.()) return;
 
         setStudentCount(students.length);
@@ -847,18 +849,21 @@ export default function CounselorHomeScreen() {
         const limit = Math.min(15, students.length);
         const rosterRows = await Promise.all(
           students.slice(0, limit).map(async (s) => {
+            const student = s as Record<string, unknown>;
+            const studentId = String(student.id ?? "").trim();
+            if (!studentId) return null;
             try {
               let sessionStarted = false;
               let lastLogDate: Date | undefined;
               if (counselorId) {
-                const settings = await getUserSettings(s.id);
+                const settings = await getUserSettings(studentId);
                 sessionStarted =
                   settings.counselorJournalAccess?.[counselorId] === true;
               }
               if (sessionStarted && counselorId) {
                 const { logs } =
                   await fetchStudentCheckInSignalContextForCounselor(
-                    s.id,
+                    studentId,
                     counselorId,
                   );
                 const latest = logs[0] as { log_date?: Date } | undefined;
@@ -868,13 +873,13 @@ export default function CounselorHomeScreen() {
                 ? "session_started"
                 : "no_session_yet";
               return {
-                student: s,
+                student,
                 rosterPill,
                 lastLogDate,
               };
             } catch {
               return {
-                student: s,
+                student,
                 rosterPill: "no_session_yet" as CounselorStudentRosterPill,
                 lastLogDate: undefined as Date | undefined,
               };
@@ -885,14 +890,27 @@ export default function CounselorHomeScreen() {
         if (isCancelled?.()) return;
 
         const flags: FlagItem[] = rosterRows
+          .filter(
+            (row): row is NonNullable<(typeof rosterRows)[number]> => row != null,
+          )
           .map(({ student, rosterPill, lastLogDate }) => ({
-            id: student.id,
-            name: student.full_name || "Student",
+            id: String(student.id ?? ""),
+            name:
+              typeof student.full_name === "string" && student.full_name.trim()
+                ? student.full_name
+                : "Student",
             program:
               formatCounselorStudentSubtitle({
-                department: student.department,
-                program: student.program,
-                year_level: student.year_level,
+                department:
+                  typeof student.department === "string"
+                    ? student.department
+                    : undefined,
+                program:
+                  typeof student.program === "string" ? student.program : undefined,
+                year_level:
+                  typeof student.year_level === "string"
+                    ? student.year_level
+                    : undefined,
               }) || "CCS",
             time:
               rosterPill === "session_started"
@@ -901,7 +919,7 @@ export default function CounselorHomeScreen() {
                   : "No Aurora entries yet"
                 : "No session with you yet",
             rosterPill,
-            avatar: (student as any).avatar_url ?? "",
+            avatar: typeof student.avatar_url === "string" ? student.avatar_url : "",
           }))
           .sort(
             (a, b) =>

@@ -155,17 +155,13 @@ export const authService = {
 
       const userProfile = userDoc.data() as UserProfile;
 
-      try {
-        await updateDoc(doc(db, "users", user.uid), {
-          email_verified: user.emailVerified,
-          updated_at: new Date(),
-        });
-      } catch (syncErr) {
-        console.warn("Could not sync email_verified to Firestore:", syncErr);
-      }
-
       console.log("✅ User signed in successfully");
-      return { ...userProfile, email_verified: user.emailVerified };
+      return {
+        ...userProfile,
+        uid: user.uid,
+        email: userProfile?.email ?? user.email ?? data.email,
+        email_verified: user.emailVerified,
+      };
     } catch (error: any) {
       console.error("❌ Signin error:", error.message);
       throw new Error(error.message);
@@ -256,7 +252,13 @@ export const authService = {
 
     try {
       const userDoc = await getDoc(doc(db, "users", user.uid));
-      return userDoc.exists() ? (userDoc.data() as UserProfile) : null;
+      if (!userDoc.exists()) return null;
+      const profile = userDoc.data() as UserProfile;
+      return {
+        ...profile,
+        uid: user.uid,
+        email: profile?.email ?? user.email ?? "",
+      };
     } catch (error: any) {
       console.error("❌ Get current user error:", error.message);
       return null;

@@ -20,6 +20,11 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import {
+  createSessionNotificationTrusted,
+  sendTextMessageTrusted as sendTextMessageTrustedCallable,
+  sendSessionRequestTrusted as sendSessionRequestTrustedCallable,
+} from "./trusted-backend.service";
+import {
   type SessionHistoryBadge,
   EXPIRED_SESSION_RETENTION_MS,
   computeSessionHistoryBadge,
@@ -203,43 +208,11 @@ async function createSessionNotification(
   eventKey?: string,
 ): Promise<void> {
   try {
-    const key = (
-      eventKey?.trim() || message.slice(0, 80).toLowerCase()
-    ).toLowerCase();
-    const actorUid = auth.currentUser?.uid ?? "";
-    // Under strict rules, clients can only read their own notifications. Skip
-    // dedupe query when creating a notification for another user.
-    if (actorUid && actorUid === userId) {
-      const recentQuery = query(
-        collection(db, "notifications"),
-        where("user_id", "==", userId),
-        where("type", "==", "counselor_message"),
-        where("notification_key", "==", key),
-        orderBy("created_at", "desc"),
-        limit(1),
-      );
-      const recentSnap = await getDocs(recentQuery);
-      const lastCreatedAt = recentSnap.docs[0]?.data()?.created_at?.toDate?.() as
-        | Date
-        | undefined;
-      // Basic anti-spam guard: do not resend near-identical session notices within 10 minutes.
-      if (
-        lastCreatedAt &&
-        Date.now() - lastCreatedAt.getTime() < 10 * 60 * 1000
-      )
-        return;
-    }
-
-    await addDoc(collection(db, "notifications"), {
-      user_id: userId,
-      type: "counselor_message",
+    await createSessionNotificationTrusted({
+      userId,
       message,
-      status: "pending",
-      delivery_mode: "local_bridge",
-      notification_key: key,
-      target_route: targetRoute,
-      scheduled_for: Timestamp.now(),
-      created_at: Timestamp.now(),
+      targetRoute,
+      eventKey,
     });
   } catch (error) {
     console.warn("⚠️ Could not create session notification:", error);
@@ -554,6 +527,122 @@ export const firestoreService = {
     }
   },
 
+  async getVerifiedStudents() {
+    try {
+      const q = query(
+        collection(db, "users"),
+        where("role", "==", "student"),
+        where("email_verified", "==", true),
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(
+        (d) => ({ id: d.id, ...(d.data() ?? {}) }) as Record<string, unknown>,
+      );
+    } catch (error: any) {
+      console.error("❌ Error fetching verified students:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Counselor-facing student directory source.
+   * Includes verified students, plus students already linked to the counselor
+   * via existing conversation/session so "special population" students never disappear.
+   */
+  async getStudentsForCounselor(counselorId: string) {
+    const byId: Record<string, Record<string, unknown>> = {};
+    const add = (row: Record<string, unknown> | null | undefined) => {
+      if (!row) return;
+      const id = String(row.id ?? "").trim();
+      if (!id) return;
+      byId[id] = { ...byId[id], ...row, id };
+    };
+
+    try {
+      const verified = await this.getVerifiedStudents();
+      (verified as Record<string, unknown>[]).forEach(add);
+    } catch {
+      // keep going; linked fallback below
+    }
+
+    const linkedIds = new Set<string>();
+    try {
+      const convos = await this.getConversations(counselorId);
+      (convos as Record<string, unknown>[]).forEach((c) => {
+        const sid = String(c.id ?? c.studentId ?? "").trim();
+        if (sid) linkedIds.add(sid);
+      });
+    } catch {
+      // ignore
+    }
+
+    try {
+      const sessions = await this.getSessionsForCounselor(counselorId);
+      (sessions as Record<string, unknown>[]).forEach((s) => {
+        const sid = String(s.studentId ?? "").trim();
+        if (sid) linkedIds.add(sid);
+      });
+    } catch {
+      // ignore
+    }
+
+    if (linkedIds.size > 0) {
+      await Promise.all(
+        [...linkedIds].map(async (sid) => {
+          if (byId[sid]) return;
+          try {
+            const snap = await getDoc(doc(db, "users", sid));
+            if (!snap.exists()) return;
+            const data = (snap.data() ?? {}) as Record<string, unknown>;
+            const role = String(data.role ?? "").toLowerCase();
+            if (role !== "student") return;
+            add({ id: sid, ...data });
+          } catch {
+            // ignore one-off fetch failures
+          }
+        }),
+      );
+    }
+
+    return Object.values(byId).sort((a, b) =>
+      String(a.full_name ?? "")
+        .toLowerCase()
+        .localeCompare(String(b.full_name ?? "").toLowerCase()),
+    );
+  },
+
+  async getVerifiedApprovedCounselors() {
+    try {
+      const byId: Record<string, Record<string, unknown>> = {};
+      const collect = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
+        snapshot.docs.forEach((d) => {
+          byId[d.id] = { id: d.id, ...(d.data() ?? {}) };
+        });
+      };
+
+      const approvedCounselors = query(
+        collection(db, "users"),
+        where("role", "==", "counselor"),
+        where("email_verified", "==", true),
+        where("approval_status", "==", "approved"),
+      );
+      collect(await getDocs(approvedCounselors));
+
+      const approvedCounselorsLegacyRole = query(
+        collection(db, "users"),
+        where("role", "==", "Counselor"),
+        where("email_verified", "==", true),
+        where("approval_status", "==", "approved"),
+      );
+      collect(await getDocs(approvedCounselorsLegacyRole));
+
+      return Object.values(byId);
+    } catch (error: any) {
+      console.error("❌ Error fetching verified approved counselors:", error);
+      throw error;
+    }
+  },
+
   /**
    * Counselor picker source for students.
    * Includes:
@@ -576,9 +665,17 @@ export const firestoreService = {
     const pickCounselorIdFromConversation = (
       row: Record<string, unknown>,
     ): string => String(row.id ?? "").trim();
+    const passesCounselorPickerPolicy = (row: Record<string, unknown>) => {
+      const approved =
+        String(row.approval_status ?? "")
+          .trim()
+          .toLowerCase() === "approved";
+      const verified = row.email_verified === true;
+      return approved && verified;
+    };
 
     try {
-      const roleCounselors = await this.getUsersByRole("counselor");
+      const roleCounselors = await this.getVerifiedApprovedCounselors();
       (roleCounselors as Record<string, unknown>[]).forEach(add);
     } catch {
       // keep going with linked counselors fallback
@@ -614,7 +711,8 @@ export const firestoreService = {
             const snap = await getDoc(doc(db, "users", cid));
             if (!snap.exists()) return;
             const data = (snap.data() ?? {}) as Record<string, unknown>;
-            add({ id: cid, ...data });
+            const candidate = { id: cid, ...data };
+            if (passesCounselorPickerPolicy(candidate)) add(candidate);
           } catch {
             // ignore individual fetch errors
           }
@@ -940,40 +1038,34 @@ export const firestoreService = {
     text: string,
   ) {
     try {
-      const messagesRef = collection(
-        db,
-        "conversations",
+      if ((auth.currentUser?.uid ?? "") !== senderId) {
+        throw new Error("You can only send messages as the signed-in user.");
+      }
+      const out = await sendTextMessageTrustedCallable({
         conversationId,
-        "messages",
-      );
-      const docRef = await addDoc(messagesRef, {
-        senderId,
-        content: text,
-        type: "chat",
-        sessionId: null,
-        isRead: false,
-        readAt: null,
-        isUrgent: false,
-        createdAt: Timestamp.now(),
+        text,
       });
-      const convRef = doc(db, "conversations", conversationId);
-      const convSnap = await getDoc(convRef);
-      const conv = convSnap.data();
-      const isCounselor = conv?.counselorId === senderId;
-      const updatePayload: Record<string, any> = {
-        lastMessage: text.length > 80 ? text.slice(0, 80) + "..." : text,
-        lastMessageAt: Timestamp.now(),
-        lastSenderId: senderId,
-      };
-      if (isCounselor)
-        updatePayload.unreadCountStudent = (conv?.unreadCountStudent ?? 0) + 1;
-      else
-        updatePayload.unreadCountCounselor =
-          (conv?.unreadCountCounselor ?? 0) + 1;
-      await updateDoc(convRef, updatePayload);
-      return docRef.id;
+      return out.messageId;
     } catch (error: any) {
       console.error("❌ Error sending message:", error);
+      if (String(error?.code ?? "").includes("resource-exhausted")) {
+        const details = error?.customData?.details ?? error?.details;
+        const retryAfter =
+          details &&
+          typeof details === "object" &&
+          typeof (details as { retryAfterSeconds?: unknown }).retryAfterSeconds ===
+            "number"
+            ? Number(
+                (details as { retryAfterSeconds?: number }).retryAfterSeconds,
+              )
+            : null;
+        if (retryAfter && retryAfter > 0) {
+          throw new Error(
+            `You're sending too fast. Please wait ${retryAfter}s and try again.`,
+          );
+        }
+        throw new Error("You're sending too fast. Please wait a moment.");
+      }
       throw error;
     }
   },
@@ -1233,7 +1325,6 @@ export const firestoreService = {
     note: string,
   ) {
     try {
-      const [counselorId] = conversationId.split("_");
       const preferredTimeStr = preferredDate.toLocaleDateString("en-US", {
         month: "long",
         day: "numeric",
@@ -1242,22 +1333,39 @@ export const firestoreService = {
         minute: "2-digit",
         hour12: true,
       });
-      const sessionId = await this.createSessionRequest(
-        studentId,
-        counselorId,
+      if ((auth.currentUser?.uid ?? "") !== studentId) {
+        throw new Error(
+          "You can only request sessions as the signed-in student.",
+        );
+      }
+      const out = await sendSessionRequestTrustedCallable({
+        conversationId,
+        preferredTime: preferredTimeStr,
         note,
-        { preferredTime: preferredTimeStr },
-      );
-      const msgId = await this.addSessionRequestToConversation(
-        counselorId,
-        studentId,
-        sessionId,
-        note,
-        { preferredTime: preferredTimeStr },
-      );
-      return msgId;
+      });
+      return out.messageId;
     } catch (error: any) {
       console.error("❌ Error sending session request:", error);
+      if (String(error?.code ?? "").includes("resource-exhausted")) {
+        const details = error?.customData?.details ?? error?.details;
+        const retryAfter =
+          details &&
+          typeof details === "object" &&
+          typeof (details as { retryAfterSeconds?: unknown }).retryAfterSeconds ===
+            "number"
+            ? Number(
+                (details as { retryAfterSeconds?: number }).retryAfterSeconds,
+              )
+            : null;
+        if (retryAfter && retryAfter > 0) {
+          throw new Error(
+            `Session request sent too recently. Please wait ${retryAfter}s and try again.`,
+          );
+        }
+        throw new Error(
+          "Session request sent too recently. Please wait a moment.",
+        );
+      }
       throw error;
     }
   },

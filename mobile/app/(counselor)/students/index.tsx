@@ -286,13 +286,9 @@ export default function CounselorStudentsScreen() {
     const fetchStudents = async () => {
       const counselorId = user?.id;
       try {
-        const rawAll = await firestoreService.getUsersByRole("student");
-        const raw = (rawAll as Record<string, unknown>[]).filter((s) => {
-          const ev = s.email_verified ?? s.emailVerified;
-          if (ev !== true) return false;
-          const sid = String(s.id ?? "").trim();
-          return sid.length > 0;
-        });
+        const raw = await firestoreService.getStudentsForCounselor(
+          counselorId ?? "",
+        );
         const mapped = await Promise.all(
           raw.map(async (s) => {
             const rec = s as Record<string, unknown>;

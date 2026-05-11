@@ -27,6 +27,99 @@ service cloud.firestore {
       return isAuthed() && request.auth.uid == uid;
     }
 
+    function isCounselorRoleValue(v) {
+      return v == 'counselor' || v == 'Counselor';
+    }
+
+    function isStudentRoleValue(v) {
+      return v == 'student';
+    }
+
+    function userSensitiveFieldsUnchanged() {
+      return request.resource.data.role == resource.data.role &&
+        request.resource.data.approval_status == resource.data.approval_status &&
+        request.resource.data.email_verified == resource.data.email_verified &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.created_at == resource.data.created_at &&
+        request.resource.data.email == resource.data.email;
+    }
+
+    // Owner can edit only profile-safe fields; sensitive identity/role fields stay immutable.
+    function ownerUserUpdateValid() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'full_name',
+        'preferred_name',
+        'department',
+        'program',
+        'year_level',
+        'student_number',
+        'contact_number',
+        'sex',
+        'bio',
+        'avatar_url',
+        'session_push_notifications_enabled',
+        'updated_at'
+      ]);
+    }
+
+    function ownerUserCreateValid(uid) {
+      return request.resource.data.uid == uid &&
+        request.resource.data.email == request.auth.token.email &&
+        (
+          request.resource.data.role == 'student' ||
+          request.resource.data.role == 'counselor'
+        );
+    }
+
+    function conversationStructureValid(data) {
+      return data.counselorId is string &&
+        data.studentId is string &&
+        data.counselorId.size() > 0 &&
+        data.studentId.size() > 0;
+    }
+
+    function conversationIdMatchesBody(convId, data) {
+      return convId == (data.counselorId + '_' + data.studentId);
+    }
+
+    function messageCreateValid(convId) {
+      return request.resource.data.senderId == request.auth.uid &&
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.isRead == false &&
+        isConversationParticipant(convId);
+    }
+
+    function messageUpdateValid() {
+      // Sender cannot be rewritten by another participant.
+      return request.resource.data.senderId == resource.data.senderId &&
+        request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function validSessionStatus(status) {
+      return status in [
+        'requested',
+        'pending',
+        'confirmed',
+        'needs_rescheduling',
+        'expired',
+        'completed',
+        'missed',
+        'rescheduled',
+        'cancelled'
+      ];
+    }
+
+    function sessionTransitionValid() {
+      let old = resource.data.status;
+      let next = request.resource.data.status;
+      return old == next ||
+        (old == 'requested' && (next == 'pending' || next == 'confirmed' || next == 'cancelled' || next == 'expired')) ||
+        (old == 'pending' && (next == 'confirmed' || next == 'needs_rescheduling' || next == 'cancelled' || next == 'expired')) ||
+        (old == 'confirmed' && (next == 'completed' || next == 'missed' || next == 'needs_rescheduling' || next == 'cancelled' || next == 'expired')) ||
+        (old == 'needs_rescheduling' && (next == 'pending' || next == 'cancelled' || next == 'expired')) ||
+        (old == 'rescheduled' && (next == 'pending' || next == 'cancelled' || next == 'expired'));
+    }
+
     function isConversationParticipant(convId) {
       return exists(/databases/$(database)/documents/conversations/$(convId)) && (
         get(/databases/$(database)/documents/conversations/$(convId)).data.counselorId == request.auth.uid ||
@@ -53,17 +146,47 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/conversations/$(convId)).data.studentId == request.auth.uid;
     }
 
+    function canCounselorNotifyStudentRecipient() {
+      let recipient = request.resource.data.user_id;
+      let convId = request.auth.uid + '_' + recipient;
+      return myRole() == 'counselor'
+        && exists(/databases/$(database)/documents/conversations/$(convId))
+        && get(/databases/$(database)/documents/conversations/$(convId)).data.counselorId == request.auth.uid
+        && get(/databases/$(database)/documents/conversations/$(convId)).data.studentId == recipient;
+    }
+
     match /users/{uid} {
-      // Tightened: students cannot scrape every peer profile. Counselor directory stays readable.
+      // Directory policy:
+      // - students can read only verified + admin-approved counselors
+      // - counselors can read only verified students
+      // - owner/admin always allowed
       allow read: if isAuthed() && (
         isOwner(uid) ||
         isAdmin() ||
-        isCounselor() ||
-        resource.data.role == 'counselor' ||
-        resource.data.role == 'Counselor'
+        (
+          myRole() == 'student' &&
+          isCounselorRoleValue(resource.data.role) &&
+          resource.data.email_verified == true &&
+          resource.data.approval_status == 'approved'
+        ) ||
+        (
+          myRole() == 'counselor' &&
+          isStudentRoleValue(resource.data.role) &&
+          resource.data.email_verified == true
+        ) ||
+        (
+          myRole() == 'counselor' &&
+          isCounselorRoleValue(resource.data.role)
+        )
       );
-      allow create: if isOwner(uid) || isAdmin();
-      allow update: if isOwner(uid) || isAdmin();
+      allow create: if isAdmin() || (
+        isOwner(uid) &&
+        ownerUserCreateValid(uid)
+      );
+      allow update: if isAdmin() || (
+        isOwner(uid) &&
+        ownerUserUpdateValid()
+      );
       allow delete: if isAdmin();
 
       /** Expo / FCM routing tokens — owner (+ admin) only; not visible on parent user profile reads. */
@@ -89,23 +212,35 @@ service cloud.firestore {
       );
 
       allow create: if isAuthed() && (
-        request.resource.data.counselorId == request.auth.uid ||
-        request.resource.data.studentId == request.auth.uid ||
-        isAdmin()
+        conversationStructureValid(request.resource.data) &&
+        conversationIdMatchesBody(id, request.resource.data) &&
+        (
+          request.resource.data.counselorId == request.auth.uid ||
+          request.resource.data.studentId == request.auth.uid ||
+          isAdmin()
+        )
       );
 
       allow update: if isAuthed() && (
-        resource.data.counselorId == request.auth.uid ||
-        resource.data.studentId == request.auth.uid ||
-        request.resource.data.counselorId == request.auth.uid ||
-        request.resource.data.studentId == request.auth.uid ||
-        isAdmin()
+        conversationStructureValid(resource.data) &&
+        conversationStructureValid(request.resource.data) &&
+        conversationIdMatchesBody(id, resource.data) &&
+        conversationIdMatchesBody(id, request.resource.data) &&
+        request.resource.data.counselorId == resource.data.counselorId &&
+        request.resource.data.studentId == resource.data.studentId &&
+        (
+          resource.data.counselorId == request.auth.uid ||
+          resource.data.studentId == request.auth.uid ||
+          isAdmin()
+        )
       );
 
       allow delete: if isAdmin();
 
       match /messages/{msgId} {
-        allow read, create, update: if isAuthed() && isConversationParticipant(id);
+        allow read: if isAuthed() && isConversationParticipant(id);
+        allow create: if isAuthed() && messageCreateValid(id);
+        allow update: if isAuthed() && isConversationParticipant(id) && messageUpdateValid();
         allow delete: if isAuthed() && (
           isConversationParticipant(id) ||
           resource.data.senderId == request.auth.uid
@@ -121,16 +256,30 @@ service cloud.firestore {
       );
 
       allow create: if isAuthed() && (
-        request.resource.data.counselorId == request.auth.uid ||
-        request.resource.data.studentId == request.auth.uid ||
-        isAdmin()
+        validSessionStatus(request.resource.data.status) &&
+        request.resource.data.counselorId is string &&
+        request.resource.data.studentId is string &&
+        (
+          request.resource.data.counselorId == request.auth.uid ||
+          request.resource.data.studentId == request.auth.uid ||
+          isAdmin()
+        )
       );
 
       allow update: if isAuthed() && (
-        resource.data.counselorId == request.auth.uid ||
-        resource.data.studentId == request.auth.uid ||
-        (resource.data.studentId == null && request.resource.data.studentId == request.auth.uid) ||
-        isAdmin()
+        validSessionStatus(request.resource.data.status) &&
+        sessionTransitionValid() &&
+        request.resource.data.counselorId == resource.data.counselorId &&
+        (
+          request.resource.data.studentId == resource.data.studentId ||
+          (resource.data.studentId == null && request.resource.data.studentId == request.auth.uid)
+        ) &&
+        (
+          resource.data.counselorId == request.auth.uid ||
+          resource.data.studentId == request.auth.uid ||
+          (resource.data.studentId == null && request.resource.data.studentId == request.auth.uid) ||
+          isAdmin()
+        )
       );
 
       allow delete: if isAdmin();
@@ -191,8 +340,8 @@ service cloud.firestore {
       allow create: if isAuthed() && (
         request.resource.data.user_id == request.auth.uid ||
         isAdmin() ||
-        isCounselor() ||
-        canStudentNotifyCounselorRecipient()
+        canStudentNotifyCounselorRecipient() ||
+        canCounselorNotifyStudentRecipient()
       );
       allow update, delete: if isAuthed() && (
         resource.data.user_id == request.auth.uid || isAdmin()

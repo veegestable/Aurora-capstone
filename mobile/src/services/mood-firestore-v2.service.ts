@@ -14,6 +14,7 @@ import {
   type DocumentData,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { grantCounselorJournalAccessTrusted } from "./trusted-backend.service";
 
 export interface UserSettingsDoc {
   dayResetHour: number;
@@ -244,22 +245,7 @@ export async function grantCounselorJournalAccess(
   studentId: string,
   counselorId: string,
 ): Promise<void> {
-  const ref = doc(db, "userSettings", studentId);
-  const snap = await getDoc(ref);
-  const prev =
-    snap.exists() &&
-    snap.data()?.counselorJournalAccess != null &&
-    typeof snap.data()?.counselorJournalAccess === "object"
-      ? (snap.data()?.counselorJournalAccess as Record<string, boolean>)
-      : {};
-  await setDoc(
-    ref,
-    {
-      counselorJournalAccess: { ...prev, [counselorId]: true },
-      updatedAt: Timestamp.now(),
-    },
-    { merge: true },
-  );
+  await grantCounselorJournalAccessTrusted({ studentId, counselorId });
 }
 
 export async function counselorHasJournalAccessForCounselor(

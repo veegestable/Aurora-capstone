@@ -298,6 +298,9 @@ function DirectMessageView({
       );
     } catch (e) {
       console.error("Failed to send message:", e);
+      const msg =
+        e instanceof Error ? e.message : "Please wait and try again.";
+      Alert.alert("Could not send message", msg);
     } finally {
       setSending(false);
     }
@@ -1102,9 +1105,11 @@ export default function MessagesScreen() {
         );
 
         if (!contact) {
-          const users = await firestoreService.getUsersByRole("counselor");
+          const users = await firestoreService.getCounselorsForStudent(user.id);
           if (cancelled) return;
-          const raw = (users as Counselor[]).find((u) => u.id === counselorId);
+          const raw = (users as Record<string, unknown>[]).find(
+            (u) => String(u.id ?? "") === counselorId,
+          );
           if (
             !raw ||
             !isCounselorSelectableByStudent(raw as unknown as Record<string, unknown>)
@@ -1116,7 +1121,13 @@ export default function MessagesScreen() {
             );
             return;
           }
-          const counselor = raw;
+          const counselor: Counselor = {
+            id: String(raw.id ?? ""),
+            full_name:
+              typeof raw.full_name === "string" ? raw.full_name : undefined,
+            avatar_url:
+              typeof raw.avatar_url === "string" ? raw.avatar_url : undefined,
+          };
 
           await firestoreService.addConversation(
             counselor.id,
