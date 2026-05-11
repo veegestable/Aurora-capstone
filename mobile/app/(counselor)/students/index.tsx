@@ -286,15 +286,23 @@ export default function CounselorStudentsScreen() {
     const fetchStudents = async () => {
       const counselorId = user?.id;
       try {
-        const raw = await firestoreService.getUsersByRole("student");
-        const mapped: StudentEntry[] = await Promise.all(
+        const rawAll = await firestoreService.getUsersByRole("student");
+        const raw = (rawAll as Record<string, unknown>[]).filter((s) => {
+          const ev = s.email_verified ?? s.emailVerified;
+          if (ev !== true) return false;
+          const sid = String(s.id ?? "").trim();
+          return sid.length > 0;
+        });
+        const mapped = await Promise.all(
           raw.map(async (s) => {
+            const rec = s as Record<string, unknown>;
+            const sid = String(rec.id ?? "").trim();
             let rosterPill: CounselorStudentRosterPill = "no_session_yet";
             let activitySummary = "No session with you yet";
             try {
               let sessionStarted = false;
               if (counselorId) {
-                const settings = await getUserSettings(s.id);
+                const settings = await getUserSettings(sid);
                 sessionStarted =
                   settings.counselorJournalAccess?.[counselorId] === true;
               }
@@ -302,7 +310,7 @@ export default function CounselorStudentsScreen() {
                 rosterPill = "session_started";
                 const { logs } =
                   await fetchStudentCheckInSignalContextForCounselor(
-                    s.id,
+                    sid,
                     counselorId,
                   );
                 const latest = logs[0] as { log_date?: Date } | undefined;
@@ -317,12 +325,18 @@ export default function CounselorStudentsScreen() {
               activitySummary = "—";
             }
             return {
-              id: s.id,
-              full_name: s.full_name || "Student",
-              department: s.department,
-              program: s.program,
-              year_level: s.year_level,
-              avatar_url: s.avatar_url,
+              id: sid,
+              full_name:
+                typeof rec.full_name === "string" && rec.full_name.trim()
+                  ? rec.full_name
+                  : "Student",
+              department:
+                typeof rec.department === "string" ? rec.department : undefined,
+              program: typeof rec.program === "string" ? rec.program : undefined,
+              year_level:
+                typeof rec.year_level === "string" ? rec.year_level : undefined,
+              avatar_url:
+                typeof rec.avatar_url === "string" ? rec.avatar_url : undefined,
               rosterPill,
               activitySummary,
             };
