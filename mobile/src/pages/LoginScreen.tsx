@@ -161,8 +161,8 @@ const styles = StyleSheet.create({
   logoNative: {
     width: 210,
     height: 210,
-    marginBottom: 6,
-    marginTop: 40,
+    marginBottom: 0,
+    marginTop: 35,
   },
   taglineWeb: {
     fontSize: 16,
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     width: "100%",
     color: "#A8B4C8",
-    marginTop: 4,
+    marginTop: 0,
   },
   features: {
     flexDirection: "row",
