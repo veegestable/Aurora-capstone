@@ -34,7 +34,7 @@ export const Input = forwardRef<RNTextInput, InputProps>(({
             {label && (
                 <Text
                     className={twMerge(
-                        dense ? "text-xs" : "text-sm",
+                        "text-sm",
                         !labelCentered && "ml-1",
                         !isGlass && "text-gray-700",
                     )}
@@ -54,11 +54,11 @@ export const Input = forwardRef<RNTextInput, InputProps>(({
                     borderWidth: 0.5,
                     // borderColor: 'rgba(255, 255, 255, 0.4)',
                     borderRadius: dense ? 14 : 16,
-                    paddingHorizontal: dense ? 8 : 16,
+                    paddingHorizontal: dense ? 12 : 16,
                     paddingVertical: 0,
-                    height: dense ? 40 : 48,
-                    fontSize: dense ? 12 : 16,
-                    lineHeight: dense ? 16 : 20,
+                    height: dense ? 44 : 48,
+                    fontSize: dense ? 15 : 16,
+                    lineHeight: dense ? 20 : 20,
                     textAlignVertical: 'center',
                     includeFontPadding: false,
                 } : undefined}

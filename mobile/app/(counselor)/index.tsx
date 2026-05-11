@@ -7,7 +7,7 @@ import { AppText as Text } from "../../src/components/common/AppText";
  * Roster chips reflect session scheduling consent only (not whole-roster mood triage).
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, ScrollView, TouchableOpacity, Modal, SectionList, StyleSheet, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +24,7 @@ import {
   LayoutDashboard,
   GraduationCap,
   Megaphone,
+  MapPinned,
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "../../src/stores/AuthContext";
@@ -51,6 +52,14 @@ import {
   COUNSELOR_ROSTER_PILL_SORT,
 } from "../../src/constants/counselor-student-roster-pills";
 import { db } from "../../src/services/firebase";
+import {
+  SpotlightTourOverlay,
+  type SpotlightTourStep,
+} from "../../src/components/tours/SpotlightTourOverlay";
+import {
+  isCounselorHomeTourCompleted,
+  markCounselorHomeTourCompleted,
+} from "../../src/services/counselor-home-tour.storage";
 
 const hiddenCounselorSessionsSheetStorageKey = (counselorId: string) =>
   `aurora.counselorSessionsSheet.hidden:${counselorId}`;
@@ -670,6 +679,107 @@ export default function CounselorHomeScreen() {
   const [studentsPage, setStudentsPage] = useState(1);
   const firstName = user?.full_name?.split(" ")[0] || "Counselor";
 
+  const [showCounselorHomeTour, setShowCounselorHomeTour] = useState(false);
+  const tourWelcomePortalRef = useRef<View>(null);
+  const tourSessionsBtnRef = useRef<View>(null);
+  const tourDashboardRef = useRef<View>(null);
+  const tourStudentsHeaderRef = useRef<View>(null);
+  const tourAnnouncementsRef = useRef<View>(null);
+  const counselorHomeTourAutoKeyRef = useRef<string | null>(null);
+
+  const counselorHomeTourSteps = useMemo<SpotlightTourStep[]>(
+    () => [
+      {
+        title: "Welcome to Home",
+        body: "A quick tour of your counselor dashboard: sessions, stats, roster, and announcements. Tap Next to continue or Skip tour anytime.",
+      },
+      {
+        title: "Your portal header",
+        body: "Your photo and greeting stay here. Replay this tour later from the map icon next to COUNSELOR PORTAL.",
+        targetRef: tourWelcomePortalRef,
+        padding: 10,
+      },
+      {
+        title: "Sessions overview",
+        body: "Open the calendar to see student requests, invites, upcoming visits, and items that need follow-up—all in one sheet.",
+        targetRef: tourSessionsBtnRef,
+        padding: 12,
+      },
+      {
+        title: "Dashboard overview",
+        body: "Counts for total students and upcoming accepted sessions update as you work. Use this row for a fast pulse on your caseload.",
+        targetRef: tourDashboardRef,
+        padding: 8,
+      },
+      {
+        title: "Student roster",
+        body: "Chips show scheduling consent with you—not full clinical triage. Tap a row to open that student in the Students tab, or use View all for the full directory.",
+        targetRef: tourStudentsHeaderRef,
+        padding: 8,
+      },
+      {
+        title: "Announcements",
+        body: "Post updates your students see on their Home screen, alongside school-wide notices from admins.",
+        targetRef: tourAnnouncementsRef,
+        padding: 8,
+      },
+      {
+        title: "Navigate the app",
+        body: "Use the bottom tabs for Home, Students, Messages, and Profile. Session History and other tools are available from Messages and profile workflows. Replay this tour anytime from the map icon beside COUNSELOR PORTAL.",
+      },
+    ],
+    [],
+  );
+
+  const endCounselorHomeTour = useCallback(
+    async (markCompleted: boolean) => {
+      setShowCounselorHomeTour(false);
+      if (markCompleted && user?.id) {
+        try {
+          await markCounselorHomeTourCompleted(user.id);
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [user?.id],
+  );
+
+  const replayCounselorHomeTour = useCallback(() => {
+    triggerHaptic("light");
+    setShowCounselorHomeTour(true);
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      counselorHomeTourAutoKeyRef.current = null;
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || loading) return;
+    if (counselorHomeTourAutoKeyRef.current === user.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (await isCounselorHomeTourCompleted(user.id)) {
+          counselorHomeTourAutoKeyRef.current = user.id;
+          return;
+        }
+      } catch {
+        counselorHomeTourAutoKeyRef.current = user.id;
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+      if (cancelled) return;
+      counselorHomeTourAutoKeyRef.current = user.id;
+      setShowCounselorHomeTour(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, loading]);
+
   useEffect(() => {
     if (!user?.id) {
       setHiddenCounselorSheetSessionIds([]);
@@ -890,90 +1000,128 @@ export default function CounselorHomeScreen() {
           }}
         >
           <View
+            ref={tourWelcomePortalRef}
+            collapsable={false}
             style={{
-              borderWidth: 2,
-              borderColor: AURORA.green,
-              borderRadius: 27,
-            }}
-          >
-            <LetterAvatar
-              name={user?.full_name ?? "Counselor"}
-              size={50}
-              avatarUrl={user?.avatar_url}
-            />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text
-              style={{
-                color: AURORA.textSec,
-                fontSize: 11,
-                fontWeight: "700",
-                letterSpacing: 1.4,
-              }}
-            >
-              COUNSELOR PORTAL
-            </Text>
-            <Text
-              style={{
-                color: "#FFFFFF",
-                fontSize: 22,
-                fontWeight: "800",
-                marginTop: 2,
-              }}
-            >
-              Hello, {firstName}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => {
-              triggerHaptic("light");
-              setPendingSessionsModalVisible(true);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Sessions overview"
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: AURORA.card,
+              flex: 1,
+              flexDirection: "row",
               alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 1,
-              borderColor: AURORA.border,
+              minWidth: 0,
+              marginRight: 8,
             }}
           >
-            <CalendarClock size={22} color={AURORA.textSec} />
-            {visiblePendingSessions.length > 0 ? (
+            <View
+              style={{
+                borderWidth: 2,
+                borderColor: AURORA.green,
+                borderRadius: 27,
+              }}
+            >
+              <LetterAvatar
+                name={user?.full_name ?? "Counselor"}
+                size={50}
+                avatarUrl={user?.avatar_url}
+              />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12, minWidth: 0 }}>
               <View
                 style={{
-                  position: "absolute",
-                  top: 6,
-                  right: 6,
-                  minWidth: 18,
-                  height: 18,
-                  borderRadius: 9,
-                  paddingHorizontal: 4,
-                  backgroundColor: AURORA.orange,
+                  flexDirection: "row",
                   alignItems: "center",
-                  justifyContent: "center",
-                  borderWidth: 2,
-                  borderColor: AURORA.card,
+                  gap: 8,
+                  flexWrap: "wrap",
                 }}
               >
                 <Text
                   style={{
-                    color: "#FFFFFF",
-                    fontSize: 10,
-                    fontWeight: "800",
+                    color: AURORA.textSec,
+                    fontSize: 11,
+                    fontWeight: "700",
+                    letterSpacing: 1.4,
                   }}
                 >
-                  {visiblePendingSessions.length > 99
-                    ? "99+"
-                    : visiblePendingSessions.length}
+                  COUNSELOR PORTAL
                 </Text>
+                <TouchableOpacity
+                  onPress={replayCounselorHomeTour}
+                  hitSlop={{ top: 10, bottom: 10, left: 8, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Replay counselor home tour"
+                  style={{
+                    padding: 5,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(148,163,184,0.12)",
+                    borderWidth: 1,
+                    borderColor: "rgba(148,163,184,0.22)",
+                  }}
+                >
+                  <MapPinned size={15} color={AURORA.textMuted} />
+                </TouchableOpacity>
               </View>
-            ) : null}
-          </TouchableOpacity>
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 22,
+                  fontWeight: "800",
+                  marginTop: 2,
+                }}
+              >
+                Hello, {firstName}
+              </Text>
+            </View>
+          </View>
+          <View ref={tourSessionsBtnRef} collapsable={false}>
+            <TouchableOpacity
+              onPress={() => {
+                triggerHaptic("light");
+                setPendingSessionsModalVisible(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Sessions overview"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: AURORA.card,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: AURORA.border,
+              }}
+            >
+              <CalendarClock size={22} color={AURORA.textSec} />
+              {visiblePendingSessions.length > 0 ? (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    minWidth: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    paddingHorizontal: 4,
+                    backgroundColor: AURORA.orange,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 2,
+                    borderColor: AURORA.card,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 10,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {visiblePendingSessions.length > 99
+                      ? "99+"
+                      : visiblePendingSessions.length}
+                  </Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── Scrollable Content ───────────────────────────────── */}
@@ -981,58 +1129,64 @@ export default function CounselorHomeScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
         >
-          {/* Dashboard Overview */}
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 14,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <LayoutDashboard size={18} color="#F59E0B" />
-              <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
-                Dashboard Overview
-              </Text>
+          <View ref={tourDashboardRef} collapsable={false}>
+            {/* Dashboard Overview */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 14,
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <LayoutDashboard size={18} color="#F59E0B" />
+                <Text
+                  style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}
+                >
+                  Dashboard Overview
+                </Text>
+              </View>
             </View>
-          </View>
 
-          {/* Stat Cards Row 1 */}
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
-            <StatCard
-              icon={
-                <View
-                  style={{
-                    width: 38,
-                    height: 38,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Users size={18} color={AURORA.blue} />
-                </View>
-              }
-              count={studentCount}
-              label="Total Students"
-            />
-            <StatCard
-              icon={
-                <View
-                  style={{
-                    width: 38,
-                    height: 38,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Calendar size={18} color={AURORA.green} />
-                </View>
-              }
-              count={upcomingAcceptedSessions}
-              label="Upcoming Sessions"
-              cardBg="rgba(5,67,52,0.5)"
-            />
+            {/* Stat Cards Row 1 */}
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+              <StatCard
+                icon={
+                  <View
+                    style={{
+                      width: 38,
+                      height: 38,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Users size={18} color={AURORA.blue} />
+                  </View>
+                }
+                count={studentCount}
+                label="Total Students"
+              />
+              <StatCard
+                icon={
+                  <View
+                    style={{
+                      width: 38,
+                      height: 38,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Calendar size={18} color={AURORA.green} />
+                  </View>
+                }
+                count={upcomingAcceptedSessions}
+                label="Upcoming Sessions"
+                cardBg="rgba(5,67,52,0.5)"
+              />
+            </View>
           </View>
           {/* <View style={{ marginBottom: 10 }}>
                         <View
@@ -1062,6 +1216,8 @@ export default function CounselorHomeScreen() {
 
           {/* Student roster (session consent chips only) */}
           <View
+            ref={tourStudentsHeaderRef}
+            collapsable={false}
             style={{
               flexDirection: "row",
               justifyContent: "space-between",
@@ -1069,9 +1225,13 @@ export default function CounselorHomeScreen() {
               marginBottom: 14,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
               <GraduationCap size={18} color="#F59E0B" />
-              <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
+              <Text
+                style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}
+              >
                 Students
               </Text>
             </View>
@@ -1183,11 +1343,13 @@ export default function CounselorHomeScreen() {
           )}
 
           {/* ── Announcements (dynamic, from admin/counselor) ───────── */}
-          <AnnouncementSection
-            role="counselor"
-            showAddButton
-            titleIcon={<Megaphone size={18} color="#F59E0B" />}
-          />
+          <View ref={tourAnnouncementsRef} collapsable={false}>
+            <AnnouncementSection
+              role="counselor"
+              showAddButton
+              titleIcon={<Megaphone size={18} color="#F59E0B" />}
+            />
+          </View>
         </ScrollView>
 
         <Modal
@@ -1384,6 +1546,13 @@ export default function CounselorHomeScreen() {
           </View>
         </Modal>
       </SafeAreaView>
+
+      <SpotlightTourOverlay
+        visible={showCounselorHomeTour}
+        steps={counselorHomeTourSteps}
+        onRequestClose={() => void endCounselorHomeTour(true)}
+        onCompleted={() => void endCounselorHomeTour(true)}
+      />
     </View>
   );
 }

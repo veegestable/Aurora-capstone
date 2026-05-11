@@ -204,7 +204,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
   const formContent = (
     <>
       <Text
-        className={`font-bold text-white text-center ${compact ? "text-lg mb-1.5" : "text-2xl mb-2"}`}
+        className={`font-bold text-white text-center ${compact ? "text-xl mb-1.5" : "text-2xl mb-2"}`}
       >
         {showRegistrationVerifyStep
           ? "Verify your email"
@@ -214,7 +214,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       </Text>
       <Text
         style={{ color: "#E2E8F0" }}
-        className={`text-center ${compact ? "mb-4 text-xs" : "mb-6 text-base"}`}
+        className={`text-center ${compact ? "mb-4 text-sm" : "mb-6 text-base"}`}
       >
         {showRegistrationVerifyStep
           ? `We sent a message to ${formData.email.trim()}`
@@ -243,7 +243,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
               loading={resendLoading}
               disabled={resendCooldownSeconds > 0}
               variant="outline"
-              size={compact ? "sm" : "md"}
+              size="md"
               className={compact ? "mt-1 py-3" : "mt-2"}
             >
               Send verification email again
@@ -251,7 +251,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
             <Button
               onPress={handleContinueAfterRegistrationEmail}
               disabled={resendLoading}
-              size={compact ? "sm" : "md"}
+              size="md"
               className={compact ? "mt-2 py-3" : "mt-2"}
             >
               Continue to sign in
@@ -335,7 +335,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
                   </View>
                   {formData.role === "counselor" && (
                     <Text
-                      className={`text-amber-300 ${compact ? "mt-0.5 text-[10px] leading-[14px]" : "text-xs mt-1"}`}
+                      className={`text-amber-300 ${compact ? "mt-0.5 text-xs leading-[16px]" : "text-xs mt-1"}`}
                     >
                       {compact
                         ? "Counselor accounts require admin approval."
@@ -370,7 +370,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
                 secureTextEntry={!isPasswordVisible}
               />
               <TouchableOpacity
-                style={[styles.passwordToggle, { top: compact ? 32 : 40 }]}
+                style={[styles.passwordToggle, { top: compact ? 36 : 40 }]}
                 onPress={() => {
                   triggerHaptic("light");
                   setIsPasswordVisible(!isPasswordVisible);
@@ -427,7 +427,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
             <Button
               onPress={handleSubmit}
               loading={loading}
-              size={compact ? "sm" : "md"}
+              size="md"
               className={compact ? "mt-3 py-3" : "mt-2"}
             >
               {isSignUp ? "Create Account" : "Sign In"}
@@ -459,7 +459,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       >
         <Text
           style={{ color: "#93C5FD" }}
-          className={`font-medium ${compact ? "text-sm" : "text-base"}`}
+          className="font-medium text-base"
         >
           {isSignUp
             ? "Already have an account? Sign in"
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#E2E8F0",
   },
-  trustTextCompact: { fontSize: 10 },
+  trustTextCompact: { fontSize: 12 },
   trustDotCompact: {
     width: 5,
     height: 5,
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
     color: "#93C5FD",
   },
   roleLabelCompact: {
-    fontSize: 11,
+    fontSize: 13,
     marginBottom: 6,
   },
   roleRowCompact: { gap: 8 },
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   roleBtnTextCompact: {
-    fontSize: 12,
+    fontSize: 14,
   },
   verifyBody: {
     fontSize: 14,
@@ -637,8 +637,8 @@ const styles = StyleSheet.create({
     color: "#E2E8F0",
   },
   verifyBodyCompact: {
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 14,
+    lineHeight: 20,
   },
   signInResendWrap: {
     marginTop: 4,
@@ -651,10 +651,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   signInResendHintCompact: {
-    fontSize: 10,
+    fontSize: 12,
   },
   signInResendLink: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
     color: "#93C5FD",
     textDecorationLine: "underline",

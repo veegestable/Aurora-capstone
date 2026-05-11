@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { View, ScrollView, TouchableOpacity, Image, Modal, Platform, ActivityIndicator, StyleSheet, Alert } from "react-native";
 import { AppText as Text } from "../../components/common/AppText";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -16,6 +16,7 @@ import {
   CircleHelp,
   CalendarClock,
   Trash2,
+  MapPinned,
 } from "lucide-react-native";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "../../stores/AuthContext";
@@ -54,6 +55,14 @@ import {
   InfoGuideModal,
   type InfoGuideContent,
 } from "../../components/common/InfoGuideModal";
+import {
+  SpotlightTourOverlay,
+  type SpotlightTourStep,
+} from "../../components/tours/SpotlightTourOverlay";
+import {
+  isStudentHomeTourCompleted,
+  markStudentHomeTourCompleted,
+} from "../../services/student-home-tour.storage";
 import { COUNSELOR_CHECKIN_WINDOW_DAYS } from "../../constants/counselor-checkin-policy";
 import {
   getConfirmedFinalSlot,
@@ -633,6 +642,51 @@ export default function MoodLogScreen() {
   const [hiddenSessionIds, setHiddenSessionIds] = useState<string[]>([]);
   const [showCheckInSharingBriefing, setShowCheckInSharingBriefing] =
     useState(false);
+  const [sharingBriefingLoaded, setSharingBriefingLoaded] = useState(false);
+  const [showStudentHomeTour, setShowStudentHomeTour] = useState(false);
+
+  const tourWelcomeBlockRef = useRef<View>(null);
+  const tourMoodCardRef = useRef<View>(null);
+  const tourSessionsBtnRef = useRef<View>(null);
+  const tourQuickActionsRef = useRef<View>(null);
+
+  const studentHomeTourSteps = useMemo<SpotlightTourStep[]>(
+    () => [
+      {
+        title: "Welcome home",
+        body: "This short tour highlights the main areas on your Home screen. Tap Next to continue, or Skip tour if you prefer to explore on your own.",
+      },
+      {
+        title: "Your welcome area",
+        body: "Your avatar and name show here so you always know you are on your own Home tab.",
+        targetRef: tourWelcomeBlockRef,
+        padding: 10,
+      },
+      {
+        title: "Mood check-in",
+        body: "Tap a face to log how you feel. Regular check-ins power your streak, stability, and daily note on this screen.",
+        targetRef: tourMoodCardRef,
+        padding: 10,
+      },
+      {
+        title: "My sessions",
+        body: "Open this calendar to see upcoming appointments, counselor invites, and anything that still needs your action.",
+        targetRef: tourSessionsBtnRef,
+        padding: 12,
+      },
+      {
+        title: "Quick shortcuts",
+        body: "Request a counseling session, open Messages, or browse Zen resources without hunting through menus.",
+        targetRef: tourQuickActionsRef,
+        padding: 8,
+      },
+      {
+        title: "Move around the app",
+        body: "Use the bottom bar for Journal, Messages, Zen, and Profile. Replay this tour anytime from the map icon beside Welcome back.",
+      },
+    ],
+    [],
+  );
   const [stats, setStats] = useState({
     streak: 0,
     todayStability: 0,
@@ -679,8 +733,12 @@ export default function MoodLogScreen() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setSharingBriefingLoaded(false);
+      return;
+    }
     let cancelled = false;
+    setSharingBriefingLoaded(false);
     (async () => {
       try {
         const s = await getUserSettings(user.id);
@@ -689,12 +747,51 @@ export default function MoodLogScreen() {
         }
       } catch {
         /* ignore */
+      } finally {
+        if (!cancelled) setSharingBriefingLoaded(true);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [user?.id]);
+
+  const endStudentHomeTour = useCallback(
+    async (markCompleted: boolean) => {
+      setShowStudentHomeTour(false);
+      if (markCompleted && user?.id) {
+        try {
+          await markStudentHomeTourCompleted(user.id);
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [user?.id],
+  );
+
+  const replayStudentHomeTour = useCallback(() => {
+    triggerHaptic("light");
+    setShowStudentHomeTour(true);
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id || !sharingBriefingLoaded) return;
+    if (showCheckInSharingBriefing) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (await isStudentHomeTourCompleted(user.id)) return;
+      } catch {
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 450));
+      if (!cancelled) setShowStudentHomeTour(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, sharingBriefingLoaded, showCheckInSharingBriefing]);
 
   const loadStats = async () => {
     if (!user) return;
@@ -1055,6 +1152,8 @@ export default function MoodLogScreen() {
             }}
           >
             <View
+              ref={tourWelcomeBlockRef}
+              collapsable={false}
               style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
             >
               <LetterAvatar
@@ -1063,15 +1162,38 @@ export default function MoodLogScreen() {
                 avatarUrl={user?.avatar_url}
               />
               <View>
-                <Text
+                <View
                   style={{
-                    color: UI_TEXT_MUTED,
-                    fontSize: 12,
-                    letterSpacing: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
                   }}
                 >
-                  WELCOME BACK
-                </Text>
+                  <Text
+                    style={{
+                      color: UI_TEXT_MUTED,
+                      fontSize: 12,
+                      letterSpacing: 1,
+                    }}
+                  >
+                    WELCOME BACK
+                  </Text>
+                  <TouchableOpacity
+                    onPress={replayStudentHomeTour}
+                    hitSlop={{ top: 10, bottom: 10, left: 8, right: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Replay home screen tour"
+                    style={{
+                      padding: 5,
+                      borderRadius: 10,
+                      backgroundColor: "rgba(148,163,184,0.12)",
+                      borderWidth: 1,
+                      borderColor: "rgba(148,163,184,0.22)",
+                    }}
+                  >
+                    <MapPinned size={15} color={AURORA.textMuted} />
+                  </TouchableOpacity>
+                </View>
                 <Text
                   style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "700" }}
                 >
@@ -1079,55 +1201,59 @@ export default function MoodLogScreen() {
                 </Text>
               </View>
             </View>
-            <TouchableOpacity
-              onPress={openSessionsSheet}
-              accessibilityRole="button"
-              accessibilityLabel="View session requests and confirmed sessions"
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: AURORA.card,
-                alignItems: "center",
-                justifyContent: "center",
-                borderWidth: 1,
-                borderColor: AURORA.border,
-              }}
-            >
-              <CalendarClock size={21} color={AURORA.blue} />
-              {pendingSessionsCount > 0 ? (
-                <View
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    right: 6,
-                    minWidth: 16,
-                    height: 16,
-                    paddingHorizontal: pendingSessionsCount > 9 ? 4 : 0,
-                    borderRadius: 8,
-                    backgroundColor: AURORA.amber,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderWidth: 2,
-                    borderColor: AURORA.bg,
-                  }}
-                >
-                  <Text
+            <View ref={tourSessionsBtnRef} collapsable={false}>
+              <TouchableOpacity
+                onPress={openSessionsSheet}
+                accessibilityRole="button"
+                accessibilityLabel="View session requests and confirmed sessions"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: AURORA.card,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: AURORA.border,
+                }}
+              >
+                <CalendarClock size={21} color={AURORA.blue} />
+                {pendingSessionsCount > 0 ? (
+                  <View
                     style={{
-                      color: "#0F172A",
-                      fontSize: 10,
-                      fontWeight: "800",
+                      position: "absolute",
+                      top: 6,
+                      right: 6,
+                      minWidth: 16,
+                      height: 16,
+                      paddingHorizontal: pendingSessionsCount > 9 ? 4 : 0,
+                      borderRadius: 8,
+                      backgroundColor: AURORA.amber,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 2,
+                      borderColor: AURORA.bg,
                     }}
                   >
-                    {pendingSessionsCount > 99 ? "99+" : pendingSessionsCount}
-                  </Text>
-                </View>
-              ) : null}
-            </TouchableOpacity>
+                    <Text
+                      style={{
+                        color: "#0F172A",
+                        fontSize: 10,
+                        fontWeight: "800",
+                      }}
+                    >
+                      {pendingSessionsCount > 99 ? "99+" : pendingSessionsCount}
+                    </Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* ── How Are You Feeling Card ────────────────────────────── */}
           <View
+            ref={tourMoodCardRef}
+            collapsable={false}
             style={{
               backgroundColor: AURORA.card,
               borderRadius: 24,
@@ -1176,6 +1302,8 @@ export default function MoodLogScreen() {
 
           {/* ── Quick Actions ──────────────────────────────────────── */}
           <View
+            ref={tourQuickActionsRef}
+            collapsable={false}
             style={{
               flexDirection: "row",
               gap: 10,
@@ -1615,6 +1743,13 @@ export default function MoodLogScreen() {
       </Modal>
 
       <InfoGuideModal guide={activeGuide} onClose={() => setActiveGuide(null)} />
+
+      <SpotlightTourOverlay
+        visible={showStudentHomeTour}
+        steps={studentHomeTourSteps}
+        onRequestClose={() => void endStudentHomeTour(true)}
+        onCompleted={() => void endStudentHomeTour(true)}
+      />
 
       {showLogModal && (
         <Modal
