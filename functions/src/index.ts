@@ -138,6 +138,8 @@ export const generateWeeklySummaryAi = onCall(async (request) => {
   }
 });
 
+export { deliverSessionExpoPush } from './deliverSessionExpoPush';
+
 export const migrateOldMoodLogs = onCall(async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');

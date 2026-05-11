@@ -64,6 +64,11 @@ service cloud.firestore {
       allow create: if isOwner(uid) || isAdmin();
       allow update: if isOwner(uid) || isAdmin();
       allow delete: if isAdmin();
+
+      /** Expo / FCM routing tokens — owner (+ admin) only; not visible on parent user profile reads. */
+      match /private/{docId} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
     }
 
     match /announcements/{id} {

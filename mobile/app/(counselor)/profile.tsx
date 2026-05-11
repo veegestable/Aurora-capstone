@@ -31,6 +31,7 @@ import { useAuth } from "../../src/stores/AuthContext";
 import { AURORA } from "../../src/constants/aurora-colors";
 import { LetterAvatar } from "../../src/components/common/LetterAvatar";
 import { hasNotificationPermission } from "../../src/services/push-notifications.service";
+import { syncExpoPushTokenToUserDoc } from "../../src/services/expo-push-token.service";
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 function SectionLabel({ text }: { text: string }) {
@@ -582,6 +583,7 @@ export default function CounselorProfileScreen() {
     setSavingPushPreference(true);
     try {
       await updateUser({ session_push_notifications_enabled: value });
+      if (value && user?.id) void syncExpoPushTokenToUserDoc(user.id);
     } catch {
       setPushNotifications(previous);
       Alert.alert("Could not update setting", "Please try again.");

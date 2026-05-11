@@ -32,6 +32,7 @@ import {
   scheduleDailyCheckInReminder,
   sendTestDailyCheckInNotification,
 } from "../../services/push-notifications.service";
+import { syncExpoPushTokenToUserDoc } from "../../services/expo-push-token.service";
 import {
   CCS_COLLEGE_DEPARTMENT,
   DEGREE_PROGRAM_OPTIONS,
@@ -1169,6 +1170,7 @@ export default function ProfileScreen() {
     setSavingSessionPushPreference(true);
     try {
       await updateUser({ session_push_notifications_enabled: value });
+      if (value && user?.id) void syncExpoPushTokenToUserDoc(user.id);
     } catch {
       setSessionPushEnabled(previous);
       Alert.alert("Could not update setting", "Please try again.");

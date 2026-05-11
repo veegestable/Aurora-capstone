@@ -13,6 +13,7 @@ import { AuthProvider } from "../src/stores/AuthContext";
 import { UserActivityLogger } from "../src/components/UserActivityLogger";
 import { UserDaySettingsProvider } from "../src/stores/UserDaySettingsContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { AppState } from "react-native";
 import {
   configureNotificationHandler,
   sendSessionDeviceNotification,
@@ -26,13 +27,40 @@ import {
   where,
   orderBy,
   doc,
+  getDoc,
   updateDoc,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../src/services/firebase";
 import { AuroraAnimatedSplash } from "../src/components/AuroraAnimatedSplash";
+import { syncExpoPushTokenToUserDoc } from "../src/services/expo-push-token.service";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const REMOTE_EXPO_SESSION_WAIT_MS = 3500;
+
+async function userHasExpoPushTokens(uid: string): Promise<boolean> {
+  try {
+    const pushSnap = await getDoc(doc(db, "users", uid, "private", "push"));
+    const raw = pushSnap.data()?.expo_push_tokens as unknown;
+    if (!Array.isArray(raw)) return false;
+    return raw.some(
+      (row) =>
+        row &&
+        typeof row === "object" &&
+        typeof (row as { token?: unknown }).token === "string" &&
+        String((row as { token: string }).token).startsWith(
+          "ExponentPushToken",
+        ),
+    );
+  } catch {
+    return false;
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function NotificationRouterBridge() {
   const router = useRouter();
@@ -143,6 +171,18 @@ function SessionNotificationBridge() {
                 ? "/(counselor)/messages"
                 : "/(student)/messages";
 
+            const likelyRemote =
+              await userHasExpoPushTokens(user.id);
+            if (likelyRemote) {
+              await delay(REMOTE_EXPO_SESSION_WAIT_MS);
+              const refreshed = await getDoc(
+                doc(db, "notifications", notifId),
+              );
+              if (refreshed.data()?.status !== "pending") {
+                continue;
+              }
+            }
+
             const ok = await sendSessionDeviceNotification({
               title: "Session update",
               body,
@@ -178,6 +218,32 @@ function SessionNotificationBridge() {
       unsub();
       processingIdsRef.current.clear();
     };
+  }, [user?.id, user?.session_push_notifications_enabled]);
+
+  return null;
+}
+
+/** Optional Expo push token sync for future remote session alerts (no-op if unavailable). */
+function ExpoPushTokenSync() {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    void syncExpoPushTokenToUserDoc(user.id);
+
+    const appSub = AppState.addEventListener("change", (next) => {
+      if (next === "active") void syncExpoPushTokenToUserDoc(user.id);
+    });
+
+    const tokenSub = Notifications.addPushTokenListener(() => {
+      void syncExpoPushTokenToUserDoc(user.id);
+    });
+
+    return () => {
+      appSub.remove();
+      tokenSub.remove();
+    };
   }, [user?.id]);
 
   return null;
@@ -202,6 +268,7 @@ export default function RootLayout() {
       <AuthProvider>
         <UserDaySettingsProvider>
           <NotificationRouterBridge />
+          <ExpoPushTokenSync />
           <SessionNotificationBridge />
           <UserActivityLogger />
           <Stack>
