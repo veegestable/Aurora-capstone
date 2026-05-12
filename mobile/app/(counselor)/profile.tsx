@@ -162,16 +162,12 @@ function EditProfileModal({
   onSave: (data: {
     fullName: string;
     sex?: SexOption;
-    counselorNumber: string;
     contactNumber: string;
   }) => Promise<void>;
   onPickAvatar: (imageUri: string) => Promise<void>;
 }) {
   const [name, setName] = useState(user?.full_name || "");
   const [sex, setSex] = useState<SexOption | undefined>(user?.sex);
-  const [counselorNumber, setCounselorNumber] = useState(
-    user?.student_number || "",
-  );
   const [contactNumber, setContactNumber] = useState(
     user?.contact_number || "",
   );
@@ -182,7 +178,6 @@ function EditProfileModal({
     if (visible && user) {
       setName(user.full_name || "");
       setSex(user.sex ?? undefined);
-      setCounselorNumber(user.student_number || "");
       setContactNumber(user.contact_number || "");
     }
   }, [visible, user]);
@@ -934,7 +929,7 @@ export default function CounselorProfileScreen() {
             await updateUser({
               full_name: data.fullName,
               sex: data.sex,
-              student_number: data.counselorNumber,
+              // student_number: data.counselorNumber,
               contact_number: data.contactNumber,
             });
           }}
