@@ -48,7 +48,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./src/assets/icon.png",
+          "icon": "./src/assets/logos/logomark dark gradient.png",
           "color": "#2D6BFF"
         }
       ],
