@@ -84,7 +84,7 @@ export default function CounselorProfile() {
           </button>
         </div>
         <h3 className="text-[22px] font-extrabold text-white mb-1">{displayName}</h3>
-        <p className="text-sm text-aurora-text-sec mb-1.5">{counselorId}</p>
+        {/* <p className="text-sm text-aurora-text-sec mb-1.5">{counselorId}</p> */}
         <p className="text-sm text-aurora-text-sec">Guidance Counselor</p>
       </div>
 

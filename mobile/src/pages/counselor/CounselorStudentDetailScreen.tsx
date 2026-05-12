@@ -10,7 +10,15 @@ import { View, TouchableOpacity, ActivityIndicator, ScrollView, Alert } from "re
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
-import { ArrowLeft, Mail, Phone, CircleHelp } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Mail,
+  Phone,
+  CircleHelp,
+  Hash,
+  User,
+  VenusAndMars,
+} from "lucide-react-native";
 import { db } from "../../services/firebase";
 import { AURORA } from "../../constants/aurora-colors";
 import { LetterAvatar } from "../../components/common/LetterAvatar";
@@ -29,6 +37,8 @@ import {
 
 type StudentDoc = {
   full_name?: string;
+  sex?: string;
+  student_number?: string;
   email?: string;
   contact_number?: string;
   department?: string;
@@ -423,7 +433,47 @@ export default function CounselorStudentDetailScreen() {
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    marginTop: 6,
+                    marginTop: 4,
+                    gap: 6,
+                  }}
+                >
+                  <VenusAndMars size={13} color="#BFD2FF" />
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: "#C9D8FF",
+                      fontSize: 12,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {student.sex?.trim() || "No sex provided"}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 4,
+                    gap: 6,
+                  }}
+                >
+                  <User size={13} color="#BFD2FF" />
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: "#C9D8FF",
+                      fontSize: 12,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {student.student_number?.trim() || "No student ID provided"}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 4,
                     gap: 6,
                   }}
                 >

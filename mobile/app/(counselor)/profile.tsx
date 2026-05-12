@@ -218,13 +218,13 @@ function EditProfileModal({
   };
 
   const handleSave = async () => {
-    const numTrim = counselorNumber.trim();
+    // const numTrim = counselorNumber.trim();
     const contactTrim = contactNumber.trim();
 
-    if (!numTrim) {
-      Alert.alert("Required field", "Please enter your counselor number.");
-      return;
-    }
+    // if (!numTrim) {
+    //   Alert.alert("Required field", "Please enter your counselor number.");
+    //   return;
+    // }
     if (!contactTrim) {
       Alert.alert("Required field", "Please enter your contact number.");
       return;
@@ -241,7 +241,7 @@ function EditProfileModal({
       await onSave({
         fullName: name.trim() || user?.full_name || "Counselor",
         sex,
-        counselorNumber: numTrim,
+        // counselorNumber: numTrim,
         contactNumber: contactTrim,
       });
       onClose();
@@ -448,7 +448,7 @@ function EditProfileModal({
               </TouchableOpacity>
             </View>
 
-            <Text
+            {/* <Text
               style={{
                 color: "#FFFFFF",
                 fontSize: 14,
@@ -483,7 +483,7 @@ function EditProfileModal({
                 placeholderTextColor={AURORA.textMuted}
                 keyboardType="default"
               />
-            </View>
+            </View> */}
 
             <Text
               style={{
@@ -609,9 +609,9 @@ export default function CounselorProfileScreen() {
 
   // Derive display name and title from user data
   const displayName = user?.full_name || "Counselor";
-  const counselorId = user?.student_number
-    ? `MSU-IIT ID: ${user.student_number}`
-    : "MSU-IIT";
+  // const counselorId = user?.student_number
+  //   ? `MSU-IIT ID: ${user.student_number}`
+  //   : "MSU-IIT";
   const counselorTitle = "Guidance Counselor";
   return (
     <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
@@ -692,11 +692,11 @@ export default function CounselorProfileScreen() {
             >
               {displayName}
             </Text>
-            <Text
+            {/* <Text
               style={{ color: AURORA.textSec, fontSize: 13, marginBottom: 6 }}
             >
               {counselorId}
-            </Text>
+            </Text> */}
             <Text
               style={{
                 color: AURORA.textSec,
@@ -734,10 +734,10 @@ export default function CounselorProfileScreen() {
                   : "Not set"
               }
             />
-            <InfoRow
+            {/* <InfoRow
               label="Counselor Number"
               value={user?.student_number || "Not set"}
-            />
+            /> */}
             <InfoRow
               label="Contact number"
               value={user?.contact_number || "Not set"}
