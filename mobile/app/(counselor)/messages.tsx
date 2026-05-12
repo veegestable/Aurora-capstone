@@ -1322,7 +1322,6 @@ function ChatView({
           name: contact.name,
           avatar: contact.avatar,
           program: contact.program,
-          studentId: contact.studentId,
         }}
         counselorName={user?.full_name}
         onClose={() => setShowInviteModal(false)}
@@ -1339,7 +1338,6 @@ function ChatView({
             name: contact.name,
             avatar: contact.avatar,
             program: contact.program,
-            studentId: contact.studentId,
           }}
           counselorName={user?.full_name}
           initialData={initialRescheduleData}
