@@ -11,7 +11,7 @@ export const COUNSELOR_ROSTER_PILL_LABEL: Record<
   string
 > = {
   /** Student started a session flow with you (request or accepted time) — factual, non-clinical. */
-  session_started: "Scheduling with you",
+  session_started: "Guidance session",
   /** No session request / accepted time with you yet — neutral, not a judgment. */
   no_session_yet: "No session yet",
 };

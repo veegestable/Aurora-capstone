@@ -32,7 +32,7 @@ export function LetterAvatar({
                 style={[
                     styles.avatar,
                     styles.image,
-                    { width: size, height: size, borderRadius: size / 2 },
+                    { width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: AURORA.blue },
                 ]}
                 resizeMode="cover"
             />

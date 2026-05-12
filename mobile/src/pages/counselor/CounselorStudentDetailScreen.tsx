@@ -526,7 +526,7 @@ export default function CounselorStudentDetailScreen() {
                 lineHeight: 18,
               }}
             >
-              Baseline view for every student; full journal only for your special population after
+              Full journal only for your special population after
               session consent flows above.
             </Text>
 

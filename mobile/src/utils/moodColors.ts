@@ -28,6 +28,22 @@ const EMOTION_ALIASES: Record<string, keyof typeof EMOTION_LABELS> = {
   neutral: "neutral",
 };
 
+/**
+ * Single bucket per Aurora mood family so analytics (counts, donut keys) do not
+ * split "joy" vs "happy" vs "happiness" into duplicate "Happy" rows.
+ */
+export function canonicalMoodKey(raw: string): string {
+  const key =
+    String(raw || "")
+      .toLowerCase()
+      .replace(/_/g, " ")
+      .trim() || "neutral";
+  const mapped = EMOTION_ALIASES[key];
+  if (mapped) return mapped;
+  if (key in EMOTION_LABELS) return key;
+  return key;
+}
+
 export function getEmotionColor(emotion: string): string {
   const key = (emotion || "").toLowerCase().replace(/_/g, " ");
   const mapped = EMOTION_ALIASES[key];

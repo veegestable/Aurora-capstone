@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { View, ScrollView, TouchableOpacity, Image, Modal, Platform, ActivityIndicator, StyleSheet, Alert } from "react-native";
+import { View, ScrollView, TouchableOpacity, Image, Modal, Platform, ActivityIndicator, StyleSheet, Alert, Animated, Easing } from "react-native";
 import { AppText as Text } from "../../components/common/AppText";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -649,6 +649,49 @@ export default function MoodLogScreen() {
   const tourMoodCardRef = useRef<View>(null);
   const tourSessionsBtnRef = useRef<View>(null);
   const tourQuickActionsRef = useRef<View>(null);
+  const tourReplayGlowPhase = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(tourReplayGlowPhase, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(tourReplayGlowPhase, {
+          toValue: 0,
+          duration: 1000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      tourReplayGlowPhase.setValue(0);
+    };
+  }, [tourReplayGlowPhase]);
+
+  const tourReplayGlowRingStyle = useMemo(
+    () => ({
+      opacity: tourReplayGlowPhase.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.2, 0.6],
+      }),
+      transform: [
+        {
+          scale: tourReplayGlowPhase.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 1.1],
+          }),
+        },
+      ],
+    }),
+    [tourReplayGlowPhase],
+  );
 
   const studentHomeTourSteps = useMemo<SpotlightTourStep[]>(
     () => [
@@ -1178,21 +1221,54 @@ export default function MoodLogScreen() {
                   >
                     WELCOME BACK
                   </Text>
-                  <TouchableOpacity
-                    onPress={replayStudentHomeTour}
-                    hitSlop={{ top: 10, bottom: 10, left: 8, right: 10 }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Replay home screen tour"
+                  <View
                     style={{
-                      padding: 5,
-                      borderRadius: 10,
-                      backgroundColor: "rgba(148,163,184,0.12)",
-                      borderWidth: 1,
-                      borderColor: "rgba(148,163,184,0.22)",
+                      position: "relative",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    <MapPinned size={15} color={AURORA.textMuted} />
-                  </TouchableOpacity>
+                    <Animated.View
+                      pointerEvents="none"
+                      importantForAccessibility="no-hide-descendants"
+                      style={[
+                        {
+                          position: "absolute",
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor: "rgba(45, 107, 255, 0.5)",
+                        },
+                        tourReplayGlowRingStyle,
+                      ]}
+                    />
+                    <TouchableOpacity
+                      onPress={replayStudentHomeTour}
+                      hitSlop={{ top: 10, bottom: 10, left: 8, right: 10 }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Replay home screen tour"
+                      style={{
+                        zIndex: 1,
+                        padding: 6,
+                        borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor: "rgba(45, 107, 255, 0.45)",
+                        backgroundColor: AURORA.card,
+                        ...(Platform.OS === "ios"
+                          ? {
+                              shadowColor: AURORA.blue,
+                              shadowOpacity: 0.45,
+                              shadowRadius: 8,
+                              shadowOffset: { width: 0, height: 0 },
+                            }
+                          : {
+                              elevation: 6,
+                            }),
+                      }}
+                    >
+                      <MapPinned size={15} color={AURORA.blueLight} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <Text
                   style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "700" }}
@@ -1213,8 +1289,7 @@ export default function MoodLogScreen() {
                   backgroundColor: AURORA.card,
                   alignItems: "center",
                   justifyContent: "center",
-                  borderWidth: 1,
-                  borderColor: AURORA.border,
+                 
                 }}
               >
                 <CalendarClock size={21} color={AURORA.blue} />

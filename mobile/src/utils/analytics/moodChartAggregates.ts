@@ -5,7 +5,11 @@
  */
 
 import type { MoodData } from "../../services/firebase-firestore.service";
-import { getEmotionColor, getEmotionLabel } from "../moodColors";
+import {
+  canonicalMoodKey,
+  getEmotionColor,
+  getEmotionLabel,
+} from "../moodColors";
 
 export type MoodChartAggregate = {
   mood: string;
@@ -23,7 +27,7 @@ function getMoodFromLog(
   log: MoodData & { mood?: string; emotions?: Array<{ emotion?: string }> },
 ): string {
   const raw = log.mood || log.emotions?.[0]?.emotion || "neutral";
-  return String(raw).toLowerCase().trim() || "neutral";
+  return canonicalMoodKey(String(raw));
 }
 
 function getIntensityFromLog(log: MoodData): number | null {

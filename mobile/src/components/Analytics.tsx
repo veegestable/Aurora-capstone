@@ -4,7 +4,7 @@ import { AppText as Text } from "./common/AppText";
  * stagger + count-up animations (respects Reduce Motion).
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"; import {   View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, AppState, useWindowDimensions, Platform, type AppStateStatus, type LayoutChangeEvent } from "react-native";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"; import {   View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, AppState, useWindowDimensions, Platform, type AppStateStatus, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
 import * as Animatable from "react-native-animatable";
 import Animated, {
   Easing,
@@ -59,7 +59,11 @@ import { useReducedMotion } from "../hooks/useReducedMotion";
 import { useCountUp } from "../hooks/useCountUp";
 import { AURORA } from "../constants/aurora-colors";
 import { InfoGuideModal, type InfoGuideContent } from "./common/InfoGuideModal";
-import { getEmotionColor, getEmotionLabel } from "../utils/moodColors";
+import {
+  canonicalMoodKey,
+  getEmotionColor,
+  getEmotionLabel,
+} from "../utils/moodColors";
 import {
   moodCategoryFromFive,
   stressCategoryFromFive,
@@ -85,14 +89,89 @@ function isPermissionDeniedError(error: unknown): boolean {
     : message.includes("missing or insufficient permissions");
 }
 
-/** Staggered fade-in-up for analytics panels (skipped when reduce motion is on). */
-function analyticsPanelEnter(reduceMotion: boolean, delayMs: number) {
-  return {
-    animation: reduceMotion ? undefined : ("fadeInUp" as const),
-    duration: reduceMotion ? 0 : 420,
-    delay: reduceMotion ? 0 : delayMs,
-    useNativeDriver: true as const,
-  };
+/**
+ * Android: animated children inside ScrollView often flicker when the scroll view
+ * aggressively clips off-screen subtrees. `collapsable={false}` keeps the wrapper
+ * in the native hierarchy.
+ *
+ * Panel motion is centralized in `AnalyticsPanel`: Android uses a short
+ * **translateY-only** slide (opacity stays 1) to avoid compositor bugs from
+ * fading large subtrees; iOS keeps `fadeInUp`.
+ */
+const ANDROID_ANIMATABLE_STABILITY =
+  Platform.OS === "android" ? ({ collapsable: false } as const) : {};
+
+type AnalyticsPanelProps = {
+  reduceMotion: boolean;
+  delayMs: number;
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  /** iOS `fadeInUp` duration (default 420). */
+  iosFadeDuration?: number;
+};
+
+/**
+ * Cross-platform panel entrance: iOS = fadeInUp; Android = subtle slide-up
+ * (transform only, native driver); reduce motion = plain View.
+ */
+function AnalyticsPanel({
+  reduceMotion,
+  delayMs,
+  children,
+  style,
+  iosFadeDuration = 420,
+}: AnalyticsPanelProps) {
+  const translateY = useSharedValue(
+    !reduceMotion && Platform.OS === "android" ? 10 : 0,
+  );
+
+  useEffect(() => {
+    if (reduceMotion) {
+      translateY.value = 0;
+      return;
+    }
+    if (Platform.OS === "android") {
+      translateY.value = 10;
+      const t = setTimeout(() => {
+        translateY.value = withTiming(0, {
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+        });
+      }, delayMs);
+      return () => clearTimeout(t);
+    }
+    translateY.value = 0;
+  }, [delayMs, reduceMotion, translateY]);
+
+  const slideStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  if (reduceMotion) {
+    return <View style={style}>{children}</View>;
+  }
+  if (Platform.OS === "android") {
+    return (
+      <Animated.View
+        {...ANDROID_ANIMATABLE_STABILITY}
+        style={[style, slideStyle]}
+      >
+        {children}
+      </Animated.View>
+    );
+  }
+  return (
+    <Animatable.View
+      {...ANDROID_ANIMATABLE_STABILITY}
+      animation="fadeInUp"
+      duration={iosFadeDuration}
+      delay={delayMs}
+      useNativeDriver
+      style={style}
+    >
+      {children}
+    </Animatable.View>
+  );
 }
 const SCHOOL_EVENT_TAGS = new Set([
   "classes",
@@ -166,7 +245,7 @@ function getMoodFromLog(
   log: MoodData & { mood?: string; emotions?: Array<{ emotion?: string }> },
 ): string {
   const raw = log.mood || log.emotions?.[0]?.emotion || "neutral";
-  return String(raw).toLowerCase().trim() || "neutral";
+  return canonicalMoodKey(String(raw));
 }
 
 function getIntensityFromLog(log: MoodData): number | null {
@@ -555,6 +634,10 @@ function SkeletonLine({
       opacity.value = 0.55;
       return;
     }
+    if (Platform.OS === "android") {
+      opacity.value = 0.52;
+      return;
+    }
     const start = setTimeout(() => {
       opacity.value = withRepeat(
         withSequence(
@@ -576,6 +659,7 @@ function SkeletonLine({
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return (
     <Animated.View
+      {...ANDROID_ANIMATABLE_STABILITY}
       style={[
         {
           height: 13,
@@ -604,6 +688,10 @@ function AISummarySkeleton({ reduceMotion }: { reduceMotion: boolean }) {
 function BreathingEmptyState() {
   const scale = useSharedValue(1);
   useEffect(() => {
+    if (Platform.OS === "android") {
+      scale.value = 1;
+      return;
+    }
     scale.value = withRepeat(
       withSequence(
         withTiming(1.06, { duration: 2800, easing: Easing.inOut(Easing.ease) }),
@@ -616,13 +704,8 @@ function BreathingEmptyState() {
   const style = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
-  return (
-    <Animated.View
-      style={[
-        { alignItems: "center", paddingVertical: 24, marginBottom: 8 },
-        style,
-      ]}
-    >
+  const content = (
+    <>
       <Text style={{ fontSize: 44 }}>🌿</Text>
       <Text
         style={{
@@ -634,6 +717,26 @@ function BreathingEmptyState() {
       >
         Start logging to see your week come to life.
       </Text>
+    </>
+  );
+  if (Platform.OS === "android") {
+    return (
+      <View
+        style={{ alignItems: "center", paddingVertical: 24, marginBottom: 8 }}
+      >
+        {content}
+      </View>
+    );
+  }
+  return (
+    <Animated.View
+      {...ANDROID_ANIMATABLE_STABILITY}
+      style={[
+        { alignItems: "center", paddingVertical: 24, marginBottom: 8 },
+        style,
+      ]}
+    >
+      {content}
     </Animated.View>
   );
 }
@@ -737,23 +840,23 @@ export default function Analytics() {
     if (seg.w <= 0) return;
     const dur = reduceMotion ? 0 : 240;
     const easing = Easing.out(Easing.cubic);
-    analyticsViewThumbX.value = withTiming(seg.x, { duration: dur, easing });
-    analyticsViewThumbW.value = withTiming(seg.w, { duration: dur, easing });
+    if (reduceMotion) {
+      analyticsViewThumbX.value = seg.x;
+      analyticsViewThumbW.value = seg.w;
+      return;
+    }
+    /*
+     * Android: animating `width` on a child of `overflow: "hidden"` + elevation
+     * often produces visible flicker. Snap width to layout; only slide on X.
+     */
+    if (Platform.OS === "android") {
+      analyticsViewThumbW.value = seg.w;
+      analyticsViewThumbX.value = withTiming(seg.x, { duration: dur, easing });
+    } else {
+      analyticsViewThumbW.value = withTiming(seg.w, { duration: dur, easing });
+      analyticsViewThumbX.value = withTiming(seg.x, { duration: dur, easing });
+    }
   }, [analyticsView, analyticsViewSegments, reduceMotion]);
-
-  const prevAnalyticsViewPanelRef = useRef<"today" | "week" | null>(null);
-  const [todayPanelAnimKey, setTodayPanelAnimKey] = useState(0);
-  const [weekPanelAnimKey, setWeekPanelAnimKey] = useState(0);
-  useEffect(() => {
-    const prev = prevAnalyticsViewPanelRef.current;
-    if (analyticsView === "today" && prev !== "today") {
-      setTodayPanelAnimKey((k) => k + 1);
-    }
-    if (analyticsView === "week" && prev !== "week") {
-      setWeekPanelAnimKey((k) => k + 1);
-    }
-    prevAnalyticsViewPanelRef.current = analyticsView;
-  }, [analyticsView]);
 
   const refreshMoodLogs = useCallback(
     async (opts?: {
@@ -1441,6 +1544,7 @@ export default function Analytics() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 72 }}
+        removeClippedSubviews={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1488,12 +1592,15 @@ export default function Analytics() {
               shadowOpacity: 0.22,
               shadowRadius: 10,
               shadowOffset: { width: 0, height: 6 },
-              elevation: 4,
+              ...(Platform.OS === "android"
+                ? { elevation: 0 }
+                : { elevation: 4 }),
               position: "relative",
               overflow: "hidden",
             }}
           >
             <Animated.View
+              {...ANDROID_ANIMATABLE_STABILITY}
               pointerEvents="none"
               style={analyticsViewThumbStyle}
             />
@@ -1562,8 +1669,8 @@ export default function Analytics() {
         </View>
 
         {analyticsView === "today" ? (
-          <View key={`today-open-${todayPanelAnimKey}`}>
-            <Animatable.View {...analyticsPanelEnter(reduceMotion, 0)}>
+          <View key="analytics-today">
+            <AnalyticsPanel reduceMotion={reduceMotion} delayMs={0}>
               <Text
                 style={{
                   color: AURORA.textPrimary,
@@ -1584,19 +1691,19 @@ export default function Analytics() {
               >
                 Focused insights from your current day.
               </Text>
-            </Animatable.View>
+            </AnalyticsPanel>
 
             <ChartSection>
               {todayEntries.length === 0 ? (
-                <Animatable.View {...analyticsPanelEnter(reduceMotion, 70)}>
+                <AnalyticsPanel reduceMotion={reduceMotion} delayMs={70}>
                   <Text style={{ color: AURORA.textSec, fontSize: 14 }}>
                     No check-ins yet today. Log your mood to unlock daily
                     analytics.
                   </Text>
-                </Animatable.View>
+                </AnalyticsPanel>
               ) : (
                 <>
-                  <Animatable.View {...analyticsPanelEnter(reduceMotion, 60)}>
+                  <AnalyticsPanel reduceMotion={reduceMotion} delayMs={60}>
                     <View
                       style={{
                         flexDirection: "row",
@@ -1696,8 +1803,8 @@ export default function Analytics() {
                         </Text>
                       </View>
                     </View>
-                  </Animatable.View>
-                  <Animatable.View {...analyticsPanelEnter(reduceMotion, 130)}>
+                  </AnalyticsPanel>
+                  <AnalyticsPanel reduceMotion={reduceMotion} delayMs={130}>
                     <View
                       style={{
                         backgroundColor: AURORA.cardAlt,
@@ -1763,11 +1870,9 @@ export default function Analytics() {
                         </Text>
                       </View>
                     </View>
-                  </Animatable.View>
+                  </AnalyticsPanel>
                   {todaySchoolAnalysis ? (
-                    <Animatable.View
-                      {...analyticsPanelEnter(reduceMotion, 200)}
-                    >
+                    <AnalyticsPanel reduceMotion={reduceMotion} delayMs={200}>
                       <View
                         style={{
                           backgroundColor: AURORA.cardAlt,
@@ -1953,9 +2058,9 @@ export default function Analytics() {
                           </View>
                         ) : null}
                       </View>
-                    </Animatable.View>
+                    </AnalyticsPanel>
                   ) : null}
-                  <Animatable.View {...analyticsPanelEnter(reduceMotion, 270)}>
+                  <AnalyticsPanel reduceMotion={reduceMotion} delayMs={270}>
                     <View
                       style={{
                         backgroundColor: AURORA.cardAlt,
@@ -2089,8 +2194,8 @@ export default function Analytics() {
                         </Text>
                       )}
                     </View>
-                  </Animatable.View>
-                  <Animatable.View {...analyticsPanelEnter(reduceMotion, 340)}>
+                  </AnalyticsPanel>
+                  <AnalyticsPanel reduceMotion={reduceMotion} delayMs={340}>
                     <View
                       style={{
                         backgroundColor: AURORA.cardAlt,
@@ -2193,8 +2298,8 @@ export default function Analytics() {
                         </TouchableOpacity>
                       ) : null}
                     </View>
-                  </Animatable.View>
-                  <Animatable.View {...analyticsPanelEnter(reduceMotion, 390)}>
+                  </AnalyticsPanel>
+                  <AnalyticsPanel reduceMotion={reduceMotion} delayMs={390}>
                     <View
                       style={{
                         backgroundColor: AURORA.cardAlt,
@@ -2315,8 +2420,8 @@ export default function Analytics() {
                         </View>
                       )}
                     </View>
-                  </Animatable.View>
-                  <Animatable.View {...analyticsPanelEnter(reduceMotion, 440)}>
+                  </AnalyticsPanel>
+                  <AnalyticsPanel reduceMotion={reduceMotion} delayMs={440}>
                     <View
                       style={{
                         backgroundColor: AURORA.cardAlt,
@@ -2482,8 +2587,8 @@ export default function Analytics() {
                         </View>
                       )}
                     </View>
-                  </Animatable.View>
-                  <Animatable.View {...analyticsPanelEnter(reduceMotion, 490)}>
+                  </AnalyticsPanel>
+                  <AnalyticsPanel reduceMotion={reduceMotion} delayMs={490}>
                     {todayStressPointCount >= 2 ||
                     todayEnergyPointCount >= 2 ? (
                       <View
@@ -2900,7 +3005,7 @@ export default function Analytics() {
                         </Text>
                       </View>
                     )}
-                  </Animatable.View>
+                  </AnalyticsPanel>
                 </>
               )}
             </ChartSection>
@@ -2908,8 +3013,8 @@ export default function Analytics() {
         ) : null}
 
         {analyticsView === "week" ? (
-          <View key={`week-open-${weekPanelAnimKey}`}>
-            <Animatable.View {...analyticsPanelEnter(reduceMotion, 0)}>
+          <View key="analytics-week">
+            <AnalyticsPanel reduceMotion={reduceMotion} delayMs={0}>
               <Text
                 style={{
                   color: AURORA.textPrimary,
@@ -2931,10 +3036,10 @@ export default function Analytics() {
                 Quick mood highlights from your last 7 days.
               </Text>
               {/* <EthicsLine /> */}
-            </Animatable.View>
+            </AnalyticsPanel>
 
             <View style={{ marginTop: 18, marginBottom: 8 }}>
-              <Animatable.View {...analyticsPanelEnter(reduceMotion, 80)}>
+              <AnalyticsPanel reduceMotion={reduceMotion} delayMs={80}>
                 {(() => {
                   const weekPills = [
                     {
@@ -3066,14 +3171,13 @@ export default function Analytics() {
                     </>
                   );
                 })()}
-              </Animatable.View>
+              </AnalyticsPanel>
 
-              <Animatable.View
-                animation={reduceMotion ? undefined : "fadeInUp"}
-                duration={reduceMotion ? 0 : 520}
-                delay={reduceMotion ? 0 : 160}
-                useNativeDriver
+              <AnalyticsPanel
+                reduceMotion={reduceMotion}
+                delayMs={160}
                 style={{ width: "100%", marginBottom: 20 }}
+                iosFadeDuration={520}
               >
                 {/* Android: avoid translucent fill + elevation on the native-driver parent (sharp dark backing). */}
                 <View
@@ -3151,7 +3255,7 @@ export default function Analytics() {
                     {`Mood trend: ${weekMoodMeta.label}`}
                   </Text>
                 </View>
-              </Animatable.View>
+              </AnalyticsPanel>
 
               {totalCheckIns > 0 ? (
                 <ChartSection>
@@ -3160,7 +3264,7 @@ export default function Analytics() {
                   />
                 </ChartSection>
               ) : null}
-              <Animatable.View {...analyticsPanelEnter(reduceMotion, 220)}>
+              <AnalyticsPanel reduceMotion={reduceMotion} delayMs={220}>
                 <View
                   style={{
                     backgroundColor: AURORA.cardAlt,
@@ -3261,8 +3365,8 @@ export default function Analytics() {
                     </TouchableOpacity>
                   ) : null}
                 </View>
-              </Animatable.View>
-              <Animatable.View {...analyticsPanelEnter(reduceMotion, 260)}>
+              </AnalyticsPanel>
+              <AnalyticsPanel reduceMotion={reduceMotion} delayMs={260}>
                 <View
                   style={{
                     backgroundColor: AURORA.cardAlt,
@@ -3287,7 +3391,6 @@ export default function Analytics() {
                         color: AURORA.textPrimary,
                         fontSize: 16,
                         fontWeight: "700",
-                        
                       }}
                     >
                       MOOD DURATION
@@ -3382,8 +3485,8 @@ export default function Analytics() {
                     </View>
                   )}
                 </View>
-              </Animatable.View>
-              <Animatable.View {...analyticsPanelEnter(reduceMotion, 300)}>
+              </AnalyticsPanel>
+              <AnalyticsPanel reduceMotion={reduceMotion} delayMs={300}>
                 <View
                   style={{
                     backgroundColor: AURORA.cardAlt,
@@ -3520,33 +3623,58 @@ export default function Analytics() {
                     </View>
                   )}
                 </View>
-              </Animatable.View>
+              </AnalyticsPanel>
             </View>
 
             {celebrateMilestone ? (
-              <Animatable.View
-                animation="fadeInDown"
-                duration={450}
-                style={{
-                  marginBottom: 14,
-                  padding: 14,
-                  borderRadius: 14,
-                  backgroundColor: "rgba(254, 189, 3, 0.14)",
-                  borderWidth: 1,
-                  borderColor: "rgba(254, 189, 3, 0.35)",
-                }}
-              >
-                <Text
+              Platform.OS === "android" ? (
+                <View
                   style={{
-                    color: AURORA.amber,
-                    fontSize: 15,
-                    fontWeight: "800",
-                    textAlign: "center",
+                    marginBottom: 14,
+                    padding: 14,
+                    borderRadius: 14,
+                    backgroundColor: "rgba(254, 189, 3, 0.14)",
+                    borderWidth: 1,
+                    borderColor: "rgba(254, 189, 3, 0.35)",
                   }}
                 >
-                  Nice milestone — keep caring for yourself!
-                </Text>
-              </Animatable.View>
+                  <Text
+                    style={{
+                      color: AURORA.amber,
+                      fontSize: 15,
+                      fontWeight: "800",
+                      textAlign: "center",
+                    }}
+                  >
+                    Nice milestone — keep caring for yourself!
+                  </Text>
+                </View>
+              ) : (
+                <Animatable.View
+                  animation="fadeInDown"
+                  duration={450}
+                  useNativeDriver
+                  style={{
+                    marginBottom: 14,
+                    padding: 14,
+                    borderRadius: 14,
+                    backgroundColor: "rgba(254, 189, 3, 0.14)",
+                    borderWidth: 1,
+                    borderColor: "rgba(254, 189, 3, 0.35)",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: AURORA.amber,
+                      fontSize: 15,
+                      fontWeight: "800",
+                      textAlign: "center",
+                    }}
+                  >
+                    Nice milestone — keep caring for yourself!
+                  </Text>
+                </Animatable.View>
+              )
             ) : null}
 
             <View
@@ -3571,8 +3699,9 @@ export default function Analytics() {
                   marginBottom: 10,
                 }}
               >
-                {aiLoading && !reduceMotion ? (
+                {aiLoading && !reduceMotion && Platform.OS !== "android" ? (
                   <Animatable.View
+                    {...ANDROID_ANIMATABLE_STABILITY}
                     animation="pulse"
                     iterationCount="infinite"
                     duration={1400}
