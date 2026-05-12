@@ -26,7 +26,7 @@ import type { MoodData } from "../../services/firebase-firestore.service";
 import { firestoreService } from "../../services/firebase-firestore.service";
 import { db } from "../../services/firebase";
 import { AURORA } from "../../constants/aurora-colors";
-import { LetterAvatar } from "../../components/common/LetterAvatar";
+import { LetterAvatar, LetterAvatarWithBorder } from "../../components/common/LetterAvatar";
 import { MoodCheckIn } from "../../components/MoodCheckIn";
 import DashboardSessionRequestModal from "../../components/student/DashboardSessionRequestModal";
 import { AnnouncementSection } from "../../components/announcements/AnnouncementSection";
@@ -1199,7 +1199,7 @@ export default function MoodLogScreen() {
               collapsable={false}
               style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
             >
-              <LetterAvatar
+              <LetterAvatarWithBorder
                 name={user?.full_name ?? user?.preferred_name ?? "Student"}
                 size={44}
                 avatarUrl={user?.avatar_url}

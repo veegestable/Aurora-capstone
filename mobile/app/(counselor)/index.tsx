@@ -695,7 +695,7 @@ export default function CounselorHomeScreen() {
       },
       {
         title: "Your portal header",
-        body: "Your photo and greeting stay here. Replay this tour later from the map icon next to COUNSELOR PORTAL.",
+        body: "Your photo and greeting stay here. Replay this tour later from the map icon next to counselor portal.",
         targetRef: tourWelcomePortalRef,
         padding: 10,
       },

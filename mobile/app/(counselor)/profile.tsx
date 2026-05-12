@@ -658,24 +658,6 @@ export default function CounselorProfileScreen() {
                   avatarUrl={user?.avatar_url}
                 />
               </View>
-              <TouchableOpacity
-                onPress={() => setShowEditProfile(true)}
-                style={{
-                  position: "absolute",
-                  bottom: 2,
-                  right: 2,
-                  width: 32,
-                  height: 32,
-                  borderRadius: 16,
-                  backgroundColor: AURORA.blue,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderWidth: 2.5,
-                  borderColor: AURORA.bgDeep,
-                }}
-              >
-                <Pencil size={14} color="#FFFFFF" />
-              </TouchableOpacity>
             </View>
             <Text
               style={{
@@ -903,6 +885,7 @@ export default function CounselorProfileScreen() {
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
+                marginBottom: 40,
                 gap: 10,
                 shadowColor: AURORA.blue,
                 shadowOffset: { width: 0, height: 4 },

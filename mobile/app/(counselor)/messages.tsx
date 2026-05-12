@@ -1252,6 +1252,7 @@ function ChatView({
               style={{
                 width: 40,
                 height: 40,
+                marginBottom: 40,
                 borderRadius: 20,
                 backgroundColor: AURORA.card,
                 alignItems: "center",
@@ -1269,6 +1270,7 @@ function ChatView({
                 borderRadius: 24,
                 paddingHorizontal: 16,
                 paddingVertical: 10,
+                marginBottom: 40,
                 color: "#FFFFFF",
                 fontSize: 14,
                 borderWidth: 1,
@@ -1292,6 +1294,7 @@ function ChatView({
                 backgroundColor: AURORA.blue,
                 alignItems: "center",
                 justifyContent: "center",
+                marginBottom: 40,
               }}
             >
               <Send size={18} color="#FFFFFF" />
