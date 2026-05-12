@@ -746,6 +746,61 @@ export const firestoreService = {
   // ─── Messaging (conversation-based, one-to-one counselor-student) ─────────────
   // conversations/{conversationId}: counselorId, studentId, lastMessage, lastMessageAt, lastSenderId, unreadCountCounselor, unreadCountStudent, createdAt
   // conversations/{conversationId}/messages/{messageId}: senderId, content, type, sessionId, sessionData, isRead, readAt, isUrgent, createdAt
+  // users/{counselorId}/private/conv_arch__{conversationId}: counselor hides thread from inbox (owner-only; see firestore.rules private match)
+
+  async getCounselorArchivedConversationIds(counselorId: string): Promise<Set<string>> {
+    const out = new Set<string>();
+    const PREFIX = "conv_arch__";
+    try {
+      const priv = await getDocs(
+        collection(db, "users", counselorId, "private"),
+      );
+      priv.docs.forEach((d) => {
+        if (d.id.startsWith(PREFIX)) {
+          out.add(d.id.slice(PREFIX.length));
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+    try {
+      const legacy = await getDocs(
+        collection(db, "users", counselorId, "archived_conversations"),
+      );
+      legacy.docs.forEach((d) => out.add(d.id));
+    } catch {
+      /* ignore — subcollection may be denied if rules not deployed */
+    }
+    return out;
+  },
+
+  /** Hides the thread from this counselor's Messages list only; student still has the conversation. */
+  async counselorArchiveConversation(
+    counselorId: string,
+    conversationId: string,
+  ): Promise<void> {
+    const uid = auth.currentUser?.uid ?? "";
+    if (uid && uid !== counselorId) {
+      throw new Error("Only the counselor can archive their inbox view.");
+    }
+    const docId = `conv_arch__${conversationId}`;
+    await setDoc(
+      doc(db, "users", counselorId, "private", docId),
+      { archivedAt: Timestamp.now() },
+      { merge: true },
+    );
+  },
+
+  /** Restores the thread to the counselor inbox (no-op if not archived). */
+  async counselorClearInboxArchive(
+    counselorId: string,
+    conversationId: string,
+  ): Promise<void> {
+    const docId = `conv_arch__${conversationId}`;
+    await deleteDoc(
+      doc(db, "users", counselorId, "private", docId),
+    ).catch(() => {});
+  },
 
   async addConversation(
     counselorId: string,
@@ -754,8 +809,6 @@ export const firestoreService = {
       name: string;
       avatar: string;
       program?: string;
-      isAlerted?: boolean;
-      borderColor?: string;
     },
     counselorData?: { name: string; avatar?: string },
   ) {
@@ -770,30 +823,50 @@ export const firestoreService = {
       }
       const conversationId = `${counselorId}_${studentData.id}`;
       const convRef = doc(db, "conversations", conversationId);
-      const docData: Record<string, unknown> = {
+      const profileFields: Record<string, unknown> = {
         counselorId,
         studentId: studentData.id,
-        lastMessage: "",
-        lastMessageAt: Timestamp.now(),
-        lastSenderId: null,
-        unreadCountCounselor: 0,
-        unreadCountStudent: 0,
-        createdAt: Timestamp.now(),
         student_name: studentData.name,
         student_avatar: studentData.avatar,
         student_program: studentData.program ?? "",
-        is_alerted: studentData.isAlerted ?? false,
-        border_color: studentData.borderColor ?? null,
       };
       if (counselorData) {
-        docData.counselor_name = counselorData.name;
-        docData.counselor_avatar = counselorData.avatar ?? "";
+        profileFields.counselor_name = counselorData.name;
+        profileFields.counselor_avatar = counselorData.avatar ?? "";
       }
-      // Use merge so one write hits Firestore "create" when missing and "update" when present.
-      // updateDoc-first was unreliable: a missing doc often surfaced as permission-denied
-      // (no resource for update rules), so setDoc never ran and counselors could not start chats.
-      // Do not pre-read the doc: read rules reference resource.data and fail when the doc is absent.
-      await setDoc(convRef, docData, { merge: true });
+      // Existing thread: only refresh roster fields. setDoc(..., merge) with lastMessage: ""
+      // was wiping real previews after invite / add-student on an existing conversation.
+      // Cannot getDoc a missing conversation (rules use resource.data). Try update first.
+      try {
+        await updateDoc(convRef, profileFields);
+      } catch (e: unknown) {
+        const code =
+          e && typeof e === "object" && "code" in e
+            ? String((e as { code: unknown }).code)
+            : "";
+        const isMissingDoc =
+          code === "not-found" ||
+          code === "5" ||
+          /no document to update/i.test(
+            e && typeof e === "object" && "message" in e
+              ? String((e as { message: unknown }).message)
+              : "",
+          );
+        if (!isMissingDoc) throw e;
+        await setDoc(convRef, {
+          ...profileFields,
+          lastMessage: "",
+          lastMessageAt: Timestamp.now(),
+          lastSenderId: null,
+          unreadCountCounselor: 0,
+          unreadCountStudent: 0,
+          createdAt: Timestamp.now(),
+        });
+      }
+      const clearingUid = auth.currentUser?.uid ?? "";
+      if (clearingUid === counselorId) {
+        await this.counselorClearInboxArchive(counselorId, conversationId);
+      }
       return conversationId;
     } catch (error: unknown) {
       console.error("❌ Error adding conversation:", error);
@@ -812,8 +885,13 @@ export const firestoreService = {
         orderBy("lastMessageAt", "desc"),
       );
       const snapshot = await getDocs(q);
+      const archivedIds = await this.getCounselorArchivedConversationIds(
+        counselorId,
+      );
       const results = await Promise.all(
-        snapshot.docs.map(async (d) => {
+        snapshot.docs
+          .filter((d) => !archivedIds.has(d.id))
+          .map(async (d) => {
           const data = d.data();
           let avatar = data.student_avatar ?? "";
           if ((!avatar || isPlaceholderAvatar(avatar)) && data.studentId) {
@@ -844,8 +922,6 @@ export const firestoreService = {
             avatar,
             isOnline: false,
             isUnread: (data.unreadCountCounselor ?? 0) > 0,
-            isAlerted: data.is_alerted ?? false,
-            borderColor: data.border_color ?? undefined,
             program: data.student_program ?? undefined,
             studentId: data.studentId,
           };
@@ -1037,6 +1113,9 @@ export const firestoreService = {
         conversationId,
         text,
       });
+      if (conversationId.startsWith(`${senderId}_`)) {
+        await this.counselorClearInboxArchive(senderId, conversationId);
+      }
       return out.messageId;
     } catch (error: any) {
       console.error("❌ Error sending message:", error);
@@ -1153,9 +1232,10 @@ export const firestoreService = {
         lastMessageAt: Timestamp.now(),
         lastSenderId: senderId,
       };
-      if (isCounselor)
+      if (isCounselor) {
         updatePayload.unreadCountStudent = (conv?.unreadCountStudent ?? 0) + 1;
-      else
+        await this.counselorClearInboxArchive(senderId, conversationId);
+      } else
         updatePayload.unreadCountCounselor =
           (conv?.unreadCountCounselor ?? 0) + 1;
       await updateDoc(convRef, updatePayload);
@@ -1217,8 +1297,9 @@ export const firestoreService = {
       const convRef = doc(db, "conversations", conversationId);
       const convSnap = await getDoc(convRef);
       const conv = convSnap.data();
-      const isCounselor = conv?.counselorId === senderId;
-      void isCounselor;
+      if (conv?.counselorId === senderId) {
+        await this.counselorClearInboxArchive(senderId, conversationId);
+      }
 
       await updateDoc(convRef, {
         lastMessage: `Session: ${session.title ?? "Appointment"}`,

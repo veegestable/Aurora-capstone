@@ -8,8 +8,6 @@ export interface MessageContact {
   avatar: string;
   isOnline: boolean;
   isUnread: boolean;
-  isAlerted: boolean;
-  borderColor?: string;
   program?: string;
   studentId?: string;
   /** Firestore conversation doc ID (counselorId_studentId) */
@@ -22,11 +20,9 @@ interface MessagesContactStore {
   addContact: (
     contact: Omit<
       MessageContact,
-      "preview" | "time" | "isOnline" | "isUnread" | "isAlerted"
+      "preview" | "time" | "isOnline" | "isUnread"
     > &
-      Partial<
-        Pick<MessageContact, "preview" | "time" | "isAlerted" | "borderColor">
-      >,
+      Partial<Pick<MessageContact, "preview" | "time">>,
   ) => void;
 }
 
@@ -43,7 +39,6 @@ export const useMessagesContactStore = create<MessagesContactStore>((set) => ({
         time: contact.time ?? "Just now",
         isOnline: false,
         isUnread: false,
-        isAlerted: contact.isAlerted ?? false,
       };
       return { contacts: [full, ...state.contacts] };
     }),

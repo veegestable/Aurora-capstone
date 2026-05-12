@@ -4,7 +4,7 @@ import { AppText as Text } from "./common/AppText";
  * stagger + count-up animations (respects Reduce Motion).
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"; import {   View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, AppState, useWindowDimensions, type AppStateStatus, type LayoutChangeEvent } from "react-native";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"; import {   View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, AppState, useWindowDimensions, Platform, type AppStateStatus, type LayoutChangeEvent } from "react-native";
 import * as Animatable from "react-native-animatable";
 import Animated, {
   Easing,
@@ -1621,7 +1621,7 @@ export default function Analytics() {
                             fontWeight: "700",
                           }}
                         >
-                          TODAY MOOD
+                          AVERAGE MOOD
                         </Text>
                         <View
                           style={{
@@ -2967,6 +2967,10 @@ export default function Analytics() {
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         style={{ marginBottom: 14 }}
+                        contentContainerStyle={{
+                          flexGrow: 1,
+                          justifyContent: "center",
+                        }}
                       >
                         <View style={{ flexDirection: "row", gap: 10 }}>
                           {weekPills.map((pill) => (
@@ -3069,100 +3073,84 @@ export default function Analytics() {
                 duration={reduceMotion ? 0 : 520}
                 delay={reduceMotion ? 0 : 160}
                 useNativeDriver
-                style={{
-                  width: "100%",
-                  backgroundColor: hexToRgba(weekAverageMoodColor, 0.14),
-                  padding: 20,
-                  borderRadius: 22,
-                  marginBottom: 20,
-                  borderWidth: 1.5,
-                  borderColor: hexToRgba(weekAverageMoodColor, 0.75),
-                  shadowColor: weekAverageMoodColor,
-                  shadowOpacity: 0.26,
-                  shadowRadius: 16,
-                  shadowOffset: { width: 0, height: 10 },
-                  elevation: 7,
-                }}
+                style={{ width: "100%", marginBottom: 20 }}
               >
+                {/* Android: avoid translucent fill + elevation on the native-driver parent (sharp dark backing). */}
                 <View
                   style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
+                    width: "100%",
+                    borderRadius: 22,
+                    overflow: "hidden",
+                    backgroundColor: hexToRgba(weekAverageMoodColor, 0.14),
+                    padding: 20,
+                    borderWidth: 1.5,
+                    borderColor: hexToRgba(weekAverageMoodColor, 0.75),
+                    ...(Platform.OS === "ios"
+                      ? {
+                          shadowColor: weekAverageMoodColor,
+                          shadowOpacity: 0.26,
+                          shadowRadius: 16,
+                          shadowOffset: { width: 0, height: 10 },
+                        }
+                      : { elevation: 0 }),
                   }}
                 >
                   <View
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      gap: 10,
+                      justifyContent: "space-between",
                     }}
                   >
-                    <TrendingUp size={22} color={weekAverageMoodColor} />
-                    <Text
+                    <View
                       style={{
-                        color: AURORA.textPrimary,
-                        fontSize: 11,
-                        fontWeight: "800",
-                        letterSpacing: 0.6,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 10,
                       }}
                     >
-                      AVERAGE MOOD
-                    </Text>
+                      <TrendingUp size={22} color={weekAverageMoodColor} />
+                      <Text
+                        style={{
+                          color: AURORA.textPrimary,
+                          fontSize: 11,
+                          fontWeight: "800",
+                          letterSpacing: 0.6,
+                        }}
+                      >
+                        AVERAGE MOOD
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        backgroundColor: hexToRgba(weekAverageMoodColor, 0.22),
+                        borderRadius: 999,
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: weekAverageMoodColor,
+                          fontSize: 11,
+                          fontWeight: "800",
+                        }}
+                      >
+                        {weekWellnessStats.emotionLabel}
+                      </Text>
+                    </View>
                   </View>
-                  <View
+                  <Text
                     style={{
-                      backgroundColor: hexToRgba(weekAverageMoodColor, 0.22),
-                      borderRadius: 999,
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
+                      color: AURORA.textPrimary,
+                      fontSize: 32,
+                      fontWeight: "900",
+                      marginTop: 4,
                     }}
                   >
-                    <Text
-                      style={{
-                        color: weekAverageMoodColor,
-                        fontSize: 11,
-                        fontWeight: "800",
-                      }}
-                    >
-                      {weekWellnessStats.emotionLabel}
-                    </Text>
-                  </View>
+                    {`Mood trend: ${weekMoodMeta.label}`}
+                  </Text>
                 </View>
-                {/* <Text
-                  style={{
-                    color: AURORA.textMuted,
-                    fontSize: 10,
-                    fontWeight: "700",
-                    marginTop: 14,
-                  }}
-                >
-                  Weekly trend
-                </Text> */}
-                <Text
-                  style={{
-                    color: AURORA.textPrimary,
-                    fontSize: 32,
-                    fontWeight: "900",
-                    marginTop: 4,
-                  }}
-                >
-                  {`Mood trend: ${weekMoodMeta.label}`}
-                </Text>
-                {/* <Text
-                  style={{
-                    color: weekAverageMoodColor,
-                    fontSize: 15,
-                    fontWeight: "800",
-                    marginTop: 8,
-                    lineHeight: 20,
-                  }}
-                >
-                  {`average mood: ${weekWellnessStats.emotionLabel}`}
-                </Text> */}
-                {/* <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 10, lineHeight: 19 }}>
-                        {averageMoodPlainLine(displayWeekAvgMood)}
-                    </Text> */}
               </Animatable.View>
 
               {totalCheckIns > 0 ? (

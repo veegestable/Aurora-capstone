@@ -1268,17 +1268,7 @@ export default function CounselorHomeScreen() {
               <ChevronRight size={14} color={AURORA.blue} />
             </TouchableOpacity>
           </View>
-          {/* <Text
-            style={{
-              color: AURORA.textMuted,
-              fontSize: 11,
-              marginTop: -8,
-              marginBottom: 10,
-            }}
-          >
-            Scheduling with you first • Updated{" "}
-            {lastUpdatedAt ? formatTimeAgo(lastUpdatedAt) : "just now"}
-          </Text> */}
+       
 
           {loading ? (
             <View style={{ paddingVertical: 24, alignItems: "center" }}>

@@ -4,18 +4,17 @@ import { AppTextInput as TextInput } from "../../src/components/common/AppTextIn
  * Counselor Messages - messages.tsx
  * ====================================
  * Route: /(counselor)/messages
- * Shows student conversations with unread/priority indicators.
+ * Shows student conversations with unread indicators.
  * Supports appointment scheduling: counselor can invite students to sessions.
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { View, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
+import { View, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable, Modal, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Search,
   ArrowLeft,
-  AlertTriangle,
   Info,
   Plus,
   Send,
@@ -52,7 +51,7 @@ import { usePeerPresence } from "../../src/hooks/usePeerPresence";
 import { auth } from "../../src/services/firebase";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type FilterTab = "All Messages" | "Unread" | "Priority";
+type FilterTab = "All Messages" | "Unread";
 type Conversation = MessageContact;
 
 interface TextChatMessage {
@@ -104,9 +103,11 @@ function matchesSessionAcceptNoticeText(raw: string): boolean {
 function ConversationRow({
   item,
   onPress,
+  onLongPress,
 }: {
   item: Conversation;
   onPress: () => void;
+  onLongPress: () => void;
 }) {
   const previewIsSessionMeta = item.preview
     ?.toLowerCase()
@@ -114,6 +115,8 @@ function ConversationRow({
   return (
     <TouchableOpacity
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={450}
       activeOpacity={0.85}
       style={{
         flexDirection: "row",
@@ -173,9 +176,6 @@ function ConversationRow({
             >
               {item.name}
             </Text>
-            {item.isAlerted && (
-              <AlertTriangle size={13} color={AURORA.orange} />
-            )}
           </View>
           <Text
             style={{
@@ -190,17 +190,9 @@ function ConversationRow({
         <Text
           numberOfLines={1}
           style={{
-            color: item.isAlerted
-              ? AURORA.orange
-              : previewIsSessionMeta
-                ? "#AFC0E8"
-                : AURORA.textSec,
+            color: previewIsSessionMeta ? "#AFC0E8" : AURORA.textSec,
             fontSize: previewIsSessionMeta ? 12 : 13,
-            fontWeight: previewIsSessionMeta
-              ? "500"
-              : item.isAlerted
-                ? "500"
-                : "400",
+            fontWeight: previewIsSessionMeta ? "500" : "400",
           }}
         >
           {item.preview}
@@ -1399,11 +1391,20 @@ export default function CounselorMessagesScreen() {
   );
   const [loading, setLoading] = useState(true);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
-  const { studentId } = useLocalSearchParams<{ studentId?: string }>();
+  const params = useLocalSearchParams<{ studentId?: string | string[] }>();
+  const studentId =
+    params.studentId == null || params.studentId === ""
+      ? undefined
+      : Array.isArray(params.studentId)
+        ? params.studentId[0]
+        : params.studentId;
   const [autoOpenLocked, setAutoOpenLocked] = useState(false);
   const [onlineByStudentId, setOnlineByStudentId] = useState<
     Record<string, boolean>
   >({});
+  const [archiveModalContact, setArchiveModalContact] =
+    useState<Conversation | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
 
   useEffect(() => {
     if (contacts.length === 0) {
@@ -1436,6 +1437,9 @@ export default function CounselorMessagesScreen() {
       return;
     }
     let cancelled = false;
+    // Deep link / invite-from-profile: inbox must refetch so archived→visible and
+    // newly-created threads appear (zustand can be stale if this screen stayed mounted).
+    if (studentId) setLoading(true);
     firestoreService
       .getConversations(currentUserId)
       .then((convos) => {
@@ -1450,14 +1454,16 @@ export default function CounselorMessagesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [currentUserId, setContacts]);
+  }, [currentUserId, setContacts, studentId]);
 
   useEffect(() => {
     if (loading) return;
     if (!studentId) return;
     if (autoOpenLocked) return;
     if (selectedContact) return;
-    const found = contactsWithPresence.find((c) => c.id === studentId);
+    const found = contactsWithPresence.find(
+      (c) => c.id === studentId || c.studentId === studentId,
+    );
     if (found) {
       setSelectedContact(found);
       setAutoOpenLocked(true); // prevent immediate re-opening after user presses back
@@ -1470,13 +1476,13 @@ export default function CounselorMessagesScreen() {
     autoOpenLocked,
   ]);
 
-  const refreshConversations = () => {
+  const refreshConversations = useCallback(() => {
     if (!currentUserId) return;
     firestoreService
       .getConversations(currentUserId)
       .then(setContacts)
       .catch(() => setContacts([]));
-  };
+  }, [currentUserId, setContacts]);
 
   const handleConversationCreated = async (studentId: string) => {
     if (!currentUserId) return;
@@ -1489,6 +1495,42 @@ export default function CounselorMessagesScreen() {
       refreshConversations();
     }
   };
+
+  const conversationIdFor = useCallback((c: Conversation) => {
+    return (
+      c.conversationId ||
+      (currentUserId ? `${currentUserId}_${c.id}` : "")
+    );
+  }, [currentUserId]);
+
+  const confirmArchiveConversation = useCallback(async () => {
+    if (!currentUserId || !archiveModalContact) return;
+    const convId = conversationIdFor(archiveModalContact);
+    if (!convId) {
+      Alert.alert(
+        "Could not archive",
+        "Missing conversation id. Try again after the list refreshes.",
+      );
+      return;
+    }
+    setArchiveBusy(true);
+    try {
+      await firestoreService.counselorArchiveConversation(
+        currentUserId,
+        convId,
+      );
+      setArchiveModalContact(null);
+      refreshConversations();
+    } catch (e) {
+      console.error("Archive conversation failed:", e);
+      Alert.alert(
+        "Could not archive",
+        "Please check your connection and try again.",
+      );
+    } finally {
+      setArchiveBusy(false);
+    }
+  }, [archiveModalContact, currentUserId, conversationIdFor, refreshConversations]);
 
   if (selectedContact) {
     return (
@@ -1509,9 +1551,7 @@ export default function CounselorMessagesScreen() {
   const filtered =
     activeTab === "All Messages"
       ? contactsWithPresence
-      : activeTab === "Unread"
-        ? contactsWithPresence.filter((c) => c.isUnread)
-        : contactsWithPresence.filter((c) => c.isAlerted);
+      : contactsWithPresence.filter((c) => c.isUnread);
 
   const unreadCount = contactsWithPresence.filter((c) => c.isUnread).length;
 
@@ -1687,6 +1727,7 @@ export default function CounselorMessagesScreen() {
                 key={item.id}
                 item={item}
                 onPress={() => setSelectedContact(item)}
+                onLongPress={() => setArchiveModalContact(item)}
               />
             ))
           )}
@@ -1726,6 +1767,114 @@ export default function CounselorMessagesScreen() {
             onConversationCreated={handleConversationCreated}
           />
         ) : null}
+
+        <Modal
+          visible={archiveModalContact !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => !archiveBusy && setArchiveModalContact(null)}
+        >
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              paddingHorizontal: 24,
+              backgroundColor: "rgba(0,0,0,0.55)",
+            }}
+          >
+            <Pressable
+              style={StyleSheet.absoluteFillObject}
+              onPress={() => !archiveBusy && setArchiveModalContact(null)}
+            />
+            <View
+              style={{
+                backgroundColor: AURORA.card,
+                borderRadius: 16,
+                padding: 20,
+                borderWidth: 1,
+                borderColor: AURORA.border,
+                zIndex: 1,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 18,
+                  fontWeight: "800",
+                  marginBottom: 8,
+                }}
+              >
+                Hide conversation?
+              </Text>
+              <Text
+                style={{
+                  color: AURORA.textSec,
+                  fontSize: 14,
+                  lineHeight: 20,
+                  marginBottom: 18,
+                }}
+              >
+                This removes{" "}
+                <Text style={{ fontWeight: "700", color: AURORA.textPrimary }}>
+                  {archiveModalContact?.name ?? "this student"}
+                </Text>{" "}
+                from your list. It does not delete messages or the student’s
+                chat.
+              </Text>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity
+                  onPress={() => !archiveBusy && setArchiveModalContact(null)}
+                  disabled={archiveBusy}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: AURORA.border,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: AURORA.textPrimary,
+                      fontSize: 15,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={confirmArchiveConversation}
+                  disabled={archiveBusy}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    backgroundColor: "rgba(245,158,11,0.22)",
+                    borderWidth: 1,
+                    borderColor: "rgba(245,158,11,0.55)",
+                    alignItems: "center",
+                  }}
+                >
+                  {archiveBusy ? (
+                    <ActivityIndicator color={AURORA.orange} />
+                  ) : (
+                    <Text
+                      style={{
+                        color: AURORA.orange,
+                        fontSize: 15,
+                        fontWeight: "800",
+                      }}
+                    >
+                      Archive message
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );

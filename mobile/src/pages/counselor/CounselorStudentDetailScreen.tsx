@@ -26,8 +26,6 @@ import { formatCounselorStudentSubtitle } from "../../constants/ccs-student-prog
 import { fetchStudentCounselorDetailedContext } from "../../services/counselor-checkin-context.service";
 import { firestoreService } from "../../services/firebase-firestore.service";
 import { useAuth } from "../../stores/AuthContext";
-import type { CounselorSignalPill } from "../../constants/counselor-checkin-signals";
-import { counselorSignalFromLogs } from "../../constants/counselor-checkin-signals";
 import { CounselorStudentJournalCalendar } from "../../components/counselor/CounselorStudentJournalCalendar";
 import { CounselorStudentLast7Charts } from "../../components/counselor/CounselorStudentLast7Charts";
 import {
@@ -140,26 +138,11 @@ export default function CounselorStudentDetailScreen() {
       year_level: student?.year_level,
     }) || "CCS";
 
-  const signalRiskLevel: CounselorSignalPill = journalAccessGranted
-    ? counselorSignalFromLogs(logs)
-    : "typical_self_report";
-
   const handleInviteToSession = async () => {
     if (!counselorId || !student?.id) {
       Alert.alert("Sign in required", "Please sign in again as a counselor.");
       return;
     }
-    const isAlerted =
-      journalAccessGranted &&
-      (signalRiskLevel === "higher_self_report" ||
-        signalRiskLevel === "moderate_self_report");
-    const borderColor =
-      journalAccessGranted && signalRiskLevel === "higher_self_report"
-        ? AURORA.red
-        : journalAccessGranted && signalRiskLevel === "moderate_self_report"
-          ? AURORA.orange
-          : undefined;
-
     setInviteBusy(true);
     try {
       await firestoreService.addConversation(
@@ -169,12 +152,13 @@ export default function CounselorStudentDetailScreen() {
           name: student.full_name ?? "Student",
           avatar: student.avatar_url ?? "",
           program: programLine,
-          isAlerted,
-          borderColor,
         },
         { name: user?.full_name || "Counselor", avatar: user?.avatar_url },
       );
-      router.push("/(counselor)/messages");
+      router.push({
+        pathname: "/(counselor)/messages",
+        params: { studentId: student.id },
+      });
     } catch (e) {
       console.error("Invite to session failed:", e);
       Alert.alert("Could not start chat", "Please try again in a moment.");

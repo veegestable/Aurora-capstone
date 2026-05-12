@@ -134,6 +134,7 @@ function ContactRow({
       style={{
         flexDirection: "row",
         alignItems: "center",
+        marginTop: 10,
         paddingVertical: 14,
         paddingHorizontal: 10,
         borderRadius: 14,
