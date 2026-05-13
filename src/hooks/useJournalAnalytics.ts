@@ -332,3 +332,5 @@ export function useJournalAnalytics() {
     weekIntensityBars,
   }
 }
+
+export type JournalAnalyticsModel = ReturnType<typeof useJournalAnalytics>
