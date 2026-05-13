@@ -59,7 +59,6 @@ export default function CounselorProfile() {
   }
 
   const displayName = user?.full_name || 'Counselor'
-  const counselorId = user?.student_number ? `MSU-IIT ID: ${user.student_number}` : 'MSU-IIT'
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-10">

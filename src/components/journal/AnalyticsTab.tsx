@@ -1,7 +1,16 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useJournalAnalytics } from '../../hooks/useJournalAnalytics'
 import { getEmotionColor } from '../../utils/moodColors'
-import { TrendingUp, HelpCircle, Sparkles } from 'lucide-react'
+import { HelpCircle, Sparkles, TrendingUp } from 'lucide-react'
 import { ProgressBarList } from './ProgressBarList'
+import { JournalMoodChartsSection } from './JournalMoodChartsSection'
+import {
+  GUIDE_MOOD_DURATION,
+  GUIDE_MOOD_FREQUENCY_TODAY,
+  GUIDE_MOOD_FREQUENCY_WEEK,
+  GUIDE_MOOD_INTENSITY,
+} from '../../constants/mood/journalAnalyticsGuideCopy'
+import { AnalyticsInfoModal } from './AnalyticsInfoModal'
 
 const CATEGORY_EMOJI: Record<string, string> = {
   school: '📚', health: '🏥', social: '👥', fun: '🎮', productivity: '💼',
@@ -9,6 +18,32 @@ const CATEGORY_EMOJI: Record<string, string> = {
 
 export function AnalyticsTab() {
   const a = useJournalAnalytics()
+
+  const [todayChartMood, setTodayChartMood] = useState<string | null>(null)
+  const [weekChartMood, setWeekChartMood] = useState<string | null>(null)
+  const [guide, setGuide] = useState<{ title: string; body: string } | null>(null)
+
+  useEffect(() => {
+    setTodayChartMood(null)
+    setWeekChartMood(null)
+  }, [a.timeView])
+
+  const todayDonutCenter = useMemo(() => {
+    if (!todayChartMood) return 'check-ins'
+    const row = a.todayMoodCharts.byMood.find((x) => x.mood === todayChartMood)
+    return row ? `${row.label} selected` : 'check-ins'
+  }, [todayChartMood, a.todayMoodCharts.byMood])
+
+  const weekDonutCenter = useMemo(() => {
+    if (!weekChartMood) return 'check-ins'
+    const row = a.weekMoodCharts.byMood.find((x) => x.mood === weekChartMood)
+    return row ? `${row.label} selected` : 'check-ins'
+  }, [weekChartMood, a.weekMoodCharts.byMood])
+
+  const openFrequencyGuideToday = () => setGuide({ title: 'Mood frequency', body: GUIDE_MOOD_FREQUENCY_TODAY })
+  const openFrequencyGuideWeek = () => setGuide({ title: 'Mood frequency', body: GUIDE_MOOD_FREQUENCY_WEEK })
+  const openDurationGuide = () => setGuide({ title: 'Mood duration', body: GUIDE_MOOD_DURATION })
+  const openIntensityGuide = () => setGuide({ title: 'Average intensity', body: GUIDE_MOOD_INTENSITY })
 
   if (a.loading) {
     return (
@@ -40,14 +75,61 @@ export function AnalyticsTab() {
         Updated {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
       </p>
 
-      {a.timeView === 'today' ? <TodayView a={a} /> : <WeekView a={a} />}
+      {a.timeView === 'today' ? (
+        <TodayView
+          a={a}
+          chartMood={todayChartMood}
+          onSelectChartMood={setTodayChartMood}
+          donutCenterLabel={todayDonutCenter}
+          chartGuides={{
+            frequency: openFrequencyGuideToday,
+            duration: openDurationGuide,
+            intensity: openIntensityGuide,
+          }}
+        />
+      ) : (
+        <WeekView
+          a={a}
+          chartMood={weekChartMood}
+          onSelectChartMood={setWeekChartMood}
+          donutCenterLabel={weekDonutCenter}
+          chartGuides={{
+            frequency: openFrequencyGuideWeek,
+            duration: openDurationGuide,
+            intensity: openIntensityGuide,
+          }}
+        />
+      )}
+
+      <AnalyticsInfoModal
+        open={guide !== null}
+        title={guide?.title ?? ''}
+        body={guide?.body ?? ''}
+        onClose={() => setGuide(null)}
+      />
     </div>
   )
 }
 
 // TODAY VIEW
 
-function TodayView({ a }: { a: ReturnType<typeof useJournalAnalytics> }) {
+function TodayView({
+  a,
+  chartMood,
+  onSelectChartMood,
+  donutCenterLabel,
+  chartGuides
+}: {
+  a: ReturnType<typeof useJournalAnalytics>
+  chartMood: string | null
+  onSelectChartMood: (mood: string | null) => void
+  donutCenterLabel: string
+  chartGuides: {
+    frequency: () => void
+    duration: () => void
+    intensity: () => void
+  }
+}) {
   const moodColor = a.todayMood ? getEmotionColor(a.todayMood) : '#94A3B8'
 
   return (
@@ -118,7 +200,7 @@ function TodayView({ a }: { a: ReturnType<typeof useJournalAnalytics> }) {
         </div>
       </div>
 
-      {/* Section 4: Event Focus + Hourly Trend */}
+      {/* Section 4: Event Focus */}
       {a.todayEventFocus && (
         <div className="card-aurora p-6">
           <p className="text-[10px] font-bold tracking-widest text-aurora-purple uppercase mb-3">Today Event Focus</p>
@@ -137,90 +219,41 @@ function TodayView({ a }: { a: ReturnType<typeof useJournalAnalytics> }) {
         </div>
       )}
 
-      {/* Hourly Trend Graph */}
-      <div className="card-aurora p-6">
-        <p className="text-[10px] font-bold tracking-widest text-aurora-purple uppercase mb-1">Hourly Trend</p>
-        <h4 className="text-lg font-bold text-white mb-1">Mood spikes in 24 hours</h4>
-        <p className="text-xs text-aurora-text-sec mb-6">Higher points show hours where your mood intensity peaked.</p>
-
-        <div className="flex">
-          {/* Y-axis title */}
-          <div className="flex items-center mr-1">
-            <span className="text-[9px] font-bold text-aurora-text-muted uppercase tracking-widest [writing-mode:vertical-lr] rotate-180">
-              Intensity
-            </span>
-          </div>
-
-          {/* Y-axis labels */}
-          <div className="flex flex-col justify-between h-48 pr-2 py-0.5">
-            {[10, 8, 6, 4, 2].map(v => (
-              <span key={v} className="text-[9px] text-aurora-text-muted font-bold leading-none">{v}</span>
-            ))}
-          </div>
-
-          {/* Graph area */}
-          <div className="flex-1 flex flex-col">
-            <div className="relative h-48 border-b border-l border-white/10">
-              {/* Grid lines */}
-              {[2, 4, 6, 8, 10].map(v => (
-                <div key={v} className="absolute w-full border-t border-dashed border-white/5" style={{ bottom: `${(v / 10) * 100}%` }} />
-              ))}
-              {/* Dots */}
-              {a.hourlyDots.map((dot, i) => (
-                <div
-                  key={i}
-                  className="absolute group cursor-pointer"
-                  style={{
-                    left: `${((dot.hour) / 24) * 100}%`,
-                    bottom: `${(dot.intensity / 10) * 100}%`,
-                    transform: 'translate(-50%, 50%)',
-                  }}
-                >
-                  {/* The dot */}
-                  <div
-                    className="w-3.5 h-3.5 rounded-full border-2 shadow-lg transition-transform group-hover:scale-150"
-                    style={{ backgroundColor: dot.color, borderColor: `${dot.color}60`, boxShadow: `0 0 8px ${dot.color}50` }}
-                  />
-                  {/* Hover tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 z-20">
-                    <div className="bg-[#1a1a2e] border border-white/10 rounded-xl px-3 py-2 shadow-xl whitespace-nowrap">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: dot.color }} />
-                        <span className="text-xs font-bold text-white capitalize">{dot.mood}</span>
-                      </div>
-                      <p className="text-[10px] text-aurora-text-sec font-semibold">{dot.hour}:00 · Intensity {dot.intensity}/10</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* X-axis hour labels — all 24h marks */}
-            <div className="flex justify-between mt-2 px-0.5">
-              {Array.from({ length: 13 }, (_, i) => i * 2).map(h => (
-                <span key={h} className="text-[8px] text-aurora-text-muted font-bold">{String(h).padStart(2, '0')}h</span>
-              ))}
-            </div>
-
-            {/* X-axis title */}
-            <p className="text-[9px] font-bold text-aurora-text-muted uppercase tracking-widest text-center mt-1.5">Time of Day</p>
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="flex items-center gap-4 mt-5 text-[10px] text-aurora-text-sec font-semibold">
-          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-aurora-text-sec" /> Logged</div>
-          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full border border-aurora-text-muted" /> No check-in</div>
-        </div>
-        <p className="text-[10px] text-aurora-text-muted mt-2">Only hours you checked in are shown. Gaps mean no log was recorded.</p>
-      </div>
+      <JournalMoodChartsSection
+        frequencySegments={a.todayFrequencySegments}
+        totalCheckIns={a.todayMoodCharts.totalCheckIns}
+        donutCenterLabel={donutCenterLabel}
+        chartMood={chartMood}
+        onSelectChartMood={onSelectChartMood}
+        durationBars={a.todayDurationBars}
+        durationEmptyMessage="No duration entries yet for today."
+        intensityBars={a.todayIntensityBars}
+        intensityEmptyMessage="No intensity entries yet for today."
+        chartGuides={chartGuides}
+      />
     </div>
   )
 }
 
 // WEEK VIEW
 
-function WeekView({ a }: { a: ReturnType<typeof useJournalAnalytics> }) {
+function WeekView({
+  a,
+  chartMood,
+  onSelectChartMood,
+  donutCenterLabel,
+  chartGuides,
+}: {
+  a: ReturnType<typeof useJournalAnalytics>
+  chartMood: string | null
+  onSelectChartMood: (mood: string | null) => void
+  donutCenterLabel: string
+  chartGuides: {
+    frequency: () => void
+    duration: () => void
+    intensity: () => void
+  }
+}) {
   const moodColor = a.weekAvgMood ? getEmotionColor(a.weekAvgMood) : '#94A3B8'
   const stability = a.stabilityRange === '7days' ? a.weekStability : a.monthStability
   const bars = a.stabilityMetric === 'stress' ? a.dailyStress : a.dailyEnergy
@@ -273,7 +306,20 @@ function WeekView({ a }: { a: ReturnType<typeof useJournalAnalytics> }) {
         <p className="text-sm text-aurora-text-sec">Most common mood: <span className="text-white font-semibold capitalize">{a.weekAvgMood || 'N/A'}</span></p>
       </div>
 
-      {/* Section 6: Mood Stability */}
+      <JournalMoodChartsSection
+        frequencySegments={a.weekFrequencySegments}
+        totalCheckIns={a.weekMoodCharts.totalCheckIns}
+        donutCenterLabel={donutCenterLabel}
+        chartMood={chartMood}
+        onSelectChartMood={onSelectChartMood}
+        durationBars={a.weekDurationBars}
+        durationEmptyMessage="No duration entries yet for the last 7 days."
+        intensityBars={a.weekIntensityBars}
+        intensityEmptyMessage="No intensity entries yet for the last 7 days."
+        chartGuides={chartGuides}
+      />
+
+      {/* Section 7: Mood Stability */}
       <div className="card-aurora p-6 space-y-5">
         <div className="flex items-center justify-between">
           <h4 className="text-base font-bold text-white">Mood stability</h4>
@@ -368,7 +414,7 @@ function WeekView({ a }: { a: ReturnType<typeof useJournalAnalytics> }) {
         </div>
       </div>
 
-      {/* Section 7: Written Summary */}
+      {/* Section 8: Written Summary */}
       <div className="rounded-2xl p-6 border border-aurora-blue/30 bg-linear-to-br from-[rgba(45,107,255,0.08)] to-[rgba(124,58,237,0.05)] shadow-[0_0_20px_rgba(45,107,255,0.08)]">
         <div className="flex items-center gap-2 mb-3">
           <Sparkles className="w-5 h-5 text-aurora-blue" />

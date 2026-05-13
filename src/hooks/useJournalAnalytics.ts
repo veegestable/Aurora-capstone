@@ -1,18 +1,30 @@
-// src/hooks/useJournalAnalytics.ts
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { moodService } from '../services/mood'
 import type { MoodLogEntryRow } from '../services/mood/types'
-import type { HourlyDot, DayBar, WeekSummary } from '../types/journalAnalytics.types'
+import type { DayBar, WeekSummary } from '../types/journalAnalytics.types'
+import {
+  buildMoodChartAggregates,
+  filterLogsToLast7CalendarDays,
+  rollingSevenDayRangeMs,
+} from '../utils/analytics/buildMoodChartAggregates'
 import { computeStreak } from '../utils/analytics/computeStreak'
 import { computeStability } from '../utils/analytics/computeStability'
-import { getEmotionColor } from '../utils/moodColors'
 
 // HELPERS
 
 /** Returns "YYYY-MM-DD" in local time — used for date-matching logs to calendar days */
 function toLocalDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Returns the start and end of a day in milliseconds */
+function localDayBoundsMs(d: Date): { startMs: number; endMs: number } {
+  const start = new Date(d)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(d)
+  end.setHours(23, 59, 59, 999)
+  return { startMs: start.getTime(), endMs: end.getTime() }
 }
 
 /** Returns "Mon", "Tue", etc. — used for bar chart x-axis labels */
@@ -130,14 +142,6 @@ function computeCategoryFrequency(logs: MoodLogEntryRow[]): { category: string; 
 }
 
 // CHART DATA BUILDERS
-
-function computeHourlyDots(logs: MoodLogEntryRow[]): HourlyDot[] {
-  return logs.map(l => {
-    const t = l.timestamp instanceof Date ? l.timestamp : new Date(l.timestamp)
-    return { hour: t.getHours(), intensity: l.intensity, color: getEmotionColor(l.mood), mood: l.mood }
-  })
-}
-
 function computeDailyMetric(
   logs: MoodLogEntryRow[], field: 'stress' | 'energy', days: number, colorFn: (avg: number) => string
 ): DayBar[] {
@@ -206,13 +210,7 @@ export function useJournalAnalytics() {
     return toLocalDateStr(t) === todayStr
   }), [allLogs, todayStr])
 
-  const weekLogs = useMemo(() => {
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7); cutoff.setHours(0, 0, 0, 0)
-    return allLogs.filter(l => {
-      const t = l.timestamp instanceof Date ? l.timestamp : new Date(l.timestamp)
-      return t >= cutoff
-    })
-  }, [allLogs])
+  const weekLogs = useMemo(() => filterLogsToLast7CalendarDays(allLogs), [allLogs])
 
   // Today
   const todayMood = useMemo(() => mostCommon(todayLogs.map(l => l.mood)) || null, [todayLogs])
@@ -223,7 +221,45 @@ export function useJournalAnalytics() {
   const todayTopStressors = useMemo(() => computeTagFrequency(todayLogs).slice(0, 5), [todayLogs])
   const todayEventFocus = useMemo(() => { const c = computeCategoryFrequency(todayLogs); return c.length > 0 ? c[0] : null }, [todayLogs])
   const todayCategoryBreakdown = useMemo(() => computeCategoryFrequency(todayLogs), [todayLogs])
-  const hourlyDots = useMemo(() => computeHourlyDots(todayLogs), [todayLogs])
+
+  const todayMoodCharts = useMemo(() => {
+    const { startMs, endMs } = localDayBoundsMs(new Date())
+    return buildMoodChartAggregates(todayLogs, startMs, endMs)
+  }, [todayLogs])
+
+  const todayFrequencySegments = useMemo(
+    () =>
+      todayMoodCharts.byMood
+        .filter((x) => x.count > 0)
+        .map((x) => ({
+          label: x.label,
+          mood: x.mood,
+          value: x.count,
+          color: x.color,
+          hint: `${x.count} check-in${x.count === 1 ? '' : 's'}`,
+        })),
+    [todayMoodCharts],
+  )
+
+  const todayDurationBars = useMemo(
+    () =>
+      [...todayMoodCharts.byMood]
+        .filter((x) => x.totalMinutes > 0)
+        .sort((a, b) => b.totalMinutes - a.totalMinutes || b.count - a.count),
+    [todayMoodCharts],
+  )
+
+  const todayIntensityBars = useMemo(
+    () =>
+      [...todayMoodCharts.byMood]
+        .filter((x) => x.intensitySamples > 0)
+        .sort(
+          (a, b) =>
+            b.averageIntensity - a.averageIntensity ||
+            b.intensitySamples - a.intensitySamples,
+        ),
+    [todayMoodCharts],
+  )
 
   // 7 Days
   const daysLogged = useMemo(() => new Set(weekLogs.map(l => { const t = l.timestamp instanceof Date ? l.timestamp : new Date(l.timestamp); return toLocalDateStr(t) })).size, [weekLogs])
@@ -238,16 +274,61 @@ export function useJournalAnalytics() {
   const dailyEnergy30 = useMemo(() => computeDailyMetric(allLogs, 'energy', 30, energyBarColor), [allLogs])
   const weekSummary = useMemo(() => computeWeekSummary(weekLogs), [weekLogs])
 
+  const weekMoodCharts = useMemo(() => {
+    const { startMs, endMs } = rollingSevenDayRangeMs()
+    return buildMoodChartAggregates(weekLogs, startMs, endMs)
+  }, [weekLogs])
+
+  const weekFrequencySegments = useMemo(
+    () =>
+      weekMoodCharts.byMood
+        .filter((x) => x.count > 0)
+        .map((x) => ({
+          label: x.label,
+          mood: x.mood,
+          value: x.count,
+          color: x.color,
+          hint: `${x.count} check-in${x.count === 1 ? '' : 's'}`,
+        })),
+    [weekMoodCharts],
+  )
+
+  const weekDurationBars = useMemo(
+    () =>
+      [...weekMoodCharts.byMood]
+        .filter((x) => x.totalMinutes > 0)
+        .sort((a, b) => b.totalMinutes - a.totalMinutes || b.count - a.count),
+    [weekMoodCharts],
+  )
+
+  const weekIntensityBars = useMemo(
+    () =>
+      [...weekMoodCharts.byMood]
+        .filter((x) => x.intensitySamples > 0)
+        .sort(
+          (a, b) =>
+            b.averageIntensity - a.averageIntensity ||
+            b.intensitySamples - a.intensitySamples,
+        ),
+    [weekMoodCharts],
+  )
+
   return {
     loading, timeView, setTimeView, stabilityRange, setStabilityRange, stabilityMetric, setStabilityMetric,
-    // Today
     todayLogs, todayMood, todayAvgIntensity, todayCheckIns: todayLogs.length,
-    todayStability, todayInsight, todaySignals, todayTopStressors, todayEventFocus, todayCategoryBreakdown, hourlyDots,
-    // 7 Days
+    todayStability, todayInsight, todaySignals, todayTopStressors, todayEventFocus, todayCategoryBreakdown,
+    todayMoodCharts,
+    todayFrequencySegments,
+    todayDurationBars,
+    todayIntensityBars,
     weekLogs, daysLogged, weekCheckIns: weekLogs.length, streak, weekAvgMood, weekTrendLabel,
     weekStability, monthStability,
     dailyStress: stabilityRange === '7days' ? dailyStress7 : dailyStress30,
     dailyEnergy: stabilityRange === '7days' ? dailyEnergy7 : dailyEnergy30,
     weekSummary,
+    weekMoodCharts,
+    weekFrequencySegments,
+    weekDurationBars,
+    weekIntensityBars,
   }
 }

@@ -1,5 +1,3 @@
-import { doc, getDoc } from 'firebase/firestore'
-import { db } from '../../../config/firebase'
 import { moodService } from '../../mood'
 import { counselorCheckInWindowStart } from '../../../constants/counselor/counselor-checkin-policy'
 

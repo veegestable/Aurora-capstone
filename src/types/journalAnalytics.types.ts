@@ -1,10 +1,3 @@
-export interface HourlyDot  {
-  hour: number
-  intensity: number
-  color: string
-  mood: string
-}
-
 export interface DayBar {
   dayLabel: string
   avg: number
