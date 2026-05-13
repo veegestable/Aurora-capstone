@@ -9,7 +9,7 @@ import {
   rollingSevenDayRangeMs,
 } from '../utils/analytics/buildMoodChartAggregates'
 import { computeStreak } from '../utils/analytics/computeStreak'
-import { computeStability } from '../utils/analytics/computeStability'
+import { computeStability, filterLogsForStabilityWindow, type StabilityMetrics } from '../utils/analytics/computeStability'
 
 // HELPERS
 
@@ -163,20 +163,27 @@ function computeDailyMetric(
 
 // DETERMINISTIC WEEKLY SUMMARY (designed for future AI replacement)
 
-function computeWeekSummary(logs: MoodLogEntryRow[]): WeekSummary {
+function computeWeekSummary(logs: MoodLogEntryRow[], stability: StabilityMetrics): WeekSummary {
   const avgStress = logs.length > 0 ? logs.reduce((s, l) => s + l.stress, 0) / logs.length : 0
   const avgEnergy = logs.length > 0 ? logs.reduce((s, l) => s + l.energy, 0) / logs.length : 0
-  const stability = computeStability(logs)
   const stressors = computeTagFrequency(logs).slice(0, 5)
-  const mood = mostCommon(logs.map(l => l.mood)) || 'neutral'
-  const hasSchool = logs.some(l => l.eventCategories?.includes('school'))
+  const mood = mostCommon(logs.map((l) => l.mood)) || 'neutral'
+  const hasSchool = logs.some((l) => l.eventCategories?.includes('school'))
   const band = stressLevelLabel(avgStress).toLowerCase()
 
   const pattern = hasSchool
     ? `Busy load: ${mood} mood with ${band} stress suggests a steady but effort-heavy school day.`
     : `${mood.charAt(0).toUpperCase() + mood.slice(1)} mood with ${band} stress.`
 
-  return { stress: stressLevelLabel(avgStress), energy: energyLevelLabel(avgEnergy), sleep: sleepSummaryLabel(logs), stabilityPct: stability.percentage, stabilityLabel: stability.label, pattern, topStressors: stressors }
+  return {
+    stress: stressLevelLabel(avgStress),
+    energy: energyLevelLabel(avgEnergy),
+    sleep: sleepSummaryLabel(logs),
+    stabilityPct: stability.percentage,
+    stabilityLabel: stability.label,
+    pattern,
+    topStressors: stressors,
+  }
 }
 
 // MAIN HOOK
@@ -195,9 +202,14 @@ export function useJournalAnalytics() {
     if (!user?.id) return
     setLoading(true)
     try {
-      const start = new Date(); start.setDate(start.getDate() - 30)
-      const end = new Date(); end.setHours(23, 59, 59, 999)
-      const logs = await moodService.getMoodLogs(user.id, start.toISOString(), end.toISOString())
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - 45)
+      const logs = await moodService.getMoodLogs(
+        user.id,
+        startDate.toISOString(),
+        endDate.toISOString(),
+      )
       setAllLogs(Array.isArray(logs) ? logs : [])
     } catch { setAllLogs([]) }
     finally { setLoading(false) }
@@ -211,6 +223,8 @@ export function useJournalAnalytics() {
   }), [allLogs, todayStr])
 
   const weekLogs = useMemo(() => filterLogsToLast7CalendarDays(allLogs), [allLogs])
+  const logs7dStability = useMemo(() => filterLogsForStabilityWindow(allLogs, 7), [allLogs])
+  const logs30dStability = useMemo(() => filterLogsForStabilityWindow(allLogs, 30), [allLogs])
 
   // Today
   const todayMood = useMemo(() => mostCommon(todayLogs.map(l => l.mood)) || null, [todayLogs])
@@ -266,13 +280,16 @@ export function useJournalAnalytics() {
   const streak = useMemo(() => computeStreak(allLogs), [allLogs])
   const weekAvgMood = useMemo(() => mostCommon(weekLogs.map(l => l.mood)) || null, [weekLogs])
   const weekTrendLabel = useMemo(() => computeTrendLabel(weekLogs), [weekLogs])
-  const weekStability = useMemo(() => computeStability(weekLogs), [weekLogs])
-  const monthStability = useMemo(() => computeStability(allLogs), [allLogs])
+  const weekStability = useMemo(() => computeStability(logs7dStability), [logs7dStability])
+  const monthStability = useMemo(() => computeStability(logs30dStability), [logs30dStability])
   const dailyStress7 = useMemo(() => computeDailyMetric(allLogs, 'stress', 7, stressBarColor), [allLogs])
   const dailyEnergy7 = useMemo(() => computeDailyMetric(allLogs, 'energy', 7, energyBarColor), [allLogs])
   const dailyStress30 = useMemo(() => computeDailyMetric(allLogs, 'stress', 30, stressBarColor), [allLogs])
   const dailyEnergy30 = useMemo(() => computeDailyMetric(allLogs, 'energy', 30, energyBarColor), [allLogs])
-  const weekSummary = useMemo(() => computeWeekSummary(weekLogs), [weekLogs])
+  const weekSummary = useMemo(
+    () => computeWeekSummary(weekLogs, weekStability),
+    [weekLogs, weekStability],
+  )
 
   const weekMoodCharts = useMemo(() => {
     const { startMs, endMs } = rollingSevenDayRangeMs()
@@ -313,6 +330,23 @@ export function useJournalAnalytics() {
     [weekMoodCharts],
   )
 
+  const last30LoggedDayCount = useMemo(
+    () => dailyStress30.filter((b) => b.hasData).length,
+    [dailyStress30],
+  )
+
+  const last30AvgStressAmongLoggedDays = useMemo(() => {
+    const withData = dailyStress30.filter((b) => b.hasData)
+    if (withData.length === 0) return null
+    return withData.reduce((s, b) => s + b.avg, 0) / withData.length
+  }, [dailyStress30])
+
+  const last30AvgEnergyAmongLoggedDays = useMemo(() => {
+    const withData = dailyEnergy30.filter((b) => b.hasData)
+    if (withData.length === 0) return null
+    return withData.reduce((s, b) => s + b.avg, 0) / withData.length
+  }, [dailyEnergy30])
+
   return {
     loading, timeView, setTimeView, stabilityRange, setStabilityRange, stabilityMetric, setStabilityMetric,
     todayLogs, todayMood, todayAvgIntensity, todayCheckIns: todayLogs.length,
@@ -330,6 +364,9 @@ export function useJournalAnalytics() {
     weekFrequencySegments,
     weekDurationBars,
     weekIntensityBars,
+    last30LoggedDayCount,
+    last30AvgStressAmongLoggedDays,
+    last30AvgEnergyAmongLoggedDays,
   }
 }
 

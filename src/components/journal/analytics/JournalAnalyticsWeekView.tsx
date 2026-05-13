@@ -1,8 +1,11 @@
-import { Sparkles, TrendingUp } from 'lucide-react'
-import { getEmotionColor } from '../../../utils/moodColors'
+import { HelpCircle, Sparkles, TrendingUp } from 'lucide-react'
 import { JournalMoodChartsSection } from '../JournalMoodChartsSection'
 import { ProgressBarList } from '../ProgressBarList'
 import type { JournalAnalyticsSceneProps } from './journalAnalyticsTypes'
+import {
+  energyCategoryLabelFromFive,
+  stressCategoryLabelFromFive,
+} from '../../../utils/analytics/metricCategories'
 
 export function JournalAnalyticsWeekView({
   a,
@@ -11,7 +14,6 @@ export function JournalAnalyticsWeekView({
   donutCenterLabel,
   chartGuides,
 }: JournalAnalyticsSceneProps) {
-  const moodColor = a.weekAvgMood ? getEmotionColor(a.weekAvgMood) : '#94A3B8'
   const stability = a.stabilityRange === '7days' ? a.weekStability : a.monthStability
   const bars = a.stabilityMetric === 'stress' ? a.dailyStress : a.dailyEnergy
 
@@ -45,121 +47,98 @@ export function JournalAnalyticsWeekView({
 
       <p className="text-xs text-aurora-text-muted">Based on your last 7 days of check-ins.</p>
 
-      <div className="rounded-2xl border border-white/10 bg-linear-to-br from-[#1a1a2e] to-[#0f0f1a] p-6 shadow-lg">
-        <div className="mb-2 flex items-center justify-between">
+      <div className="rounded-2xl border border-aurora-blue/35 bg-linear-to-br from-[#1a1a2e] to-[#0f0f1a] p-6 shadow-[0_0_24px_rgba(45,107,255,0.12)]">
+        <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-aurora-text-sec" />
-            <p className="text-[10px] font-bold tracking-widest text-aurora-text-sec uppercase">
-              Average Mood (7 Days)
-            </p>
+            <TrendingUp className="h-4 w-4 text-aurora-text-sec" aria-hidden />
+            <p className="text-[10px] font-bold tracking-widest text-white uppercase">Average mood</p>
           </div>
-          {a.weekAvgMood && (
-            <span
-              className="rounded-full px-3 py-1 text-xs font-bold capitalize"
-              style={{ backgroundColor: `${moodColor}25`, color: moodColor }}
-            >
+          {a.weekAvgMood ? (
+            <span className="rounded-full border border-aurora-blue/40 bg-[rgba(45,107,255,0.15)] px-3 py-1 text-xs font-bold capitalize text-white">
               {a.weekAvgMood}
             </span>
-          )}
+          ) : null}
         </div>
-        <p className="mb-2 text-xs font-semibold text-aurora-purple">Weekly trend</p>
-        <h4 className="mb-3 text-2xl leading-tight font-extrabold text-white sm:text-3xl">
+        <h4 className="text-2xl leading-tight font-extrabold text-white sm:text-3xl">
           Mood trend: {a.weekTrendLabel}
         </h4>
-        <p className="text-sm text-aurora-text-sec">
-          Most common mood:{' '}
-          <span className="font-semibold text-white capitalize">{a.weekAvgMood || 'N/A'}</span>
-        </p>
       </div>
 
-      <JournalMoodChartsSection
-        frequencySegments={a.weekFrequencySegments}
-        totalCheckIns={a.weekMoodCharts.totalCheckIns}
-        donutCenterLabel={donutCenterLabel}
-        chartMood={chartMood}
-        onSelectChartMood={onSelectChartMood}
-        durationBars={a.weekDurationBars}
-        durationEmptyMessage="No duration entries yet for the last 7 days."
-        intensityBars={a.weekIntensityBars}
-        intensityEmptyMessage="No intensity entries yet for the last 7 days."
-        chartGuides={chartGuides}
-      />
-
       <div className="card-aurora space-y-5 p-6">
-        <div className="flex items-center justify-between">
-          <h4 className="text-base font-bold text-white">Mood stability</h4>
-          <div className="flex items-center gap-1">
-            <span className="mr-2 text-[10px] font-bold tracking-widest text-aurora-text-sec uppercase">
-              Time Range
-            </span>
-            <div className="flex rounded-full border border-white/5 bg-white/5 p-0.5">
-              <button
-                type="button"
-                onClick={() => a.setStabilityRange('7days')}
-                className={`cursor-pointer rounded-full px-3 py-1 text-xs font-bold transition-all ${
-                  a.stabilityRange === '7days'
-                    ? 'bg-aurora-purple text-white'
-                    : 'text-aurora-text-sec hover:text-white'
-                }`}
-              >
-                7 days
-              </button>
-              <button
-                type="button"
-                onClick={() => a.setStabilityRange('30days')}
-                className={`cursor-pointer rounded-full px-3 py-1 text-xs font-bold transition-all ${
-                  a.stabilityRange === '30days'
-                    ? 'bg-aurora-purple text-white'
-                    : 'text-aurora-text-sec hover:text-white'
-                }`}
-              >
-                30 days
-              </button>
-            </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Sparkles className="h-4 w-4 shrink-0 text-amber-400" aria-hidden />
+            <p className="text-[10px] font-bold tracking-widest text-white uppercase">Mood stability</p>
+            <HelpCircle className="h-4 w-4 shrink-0 text-aurora-text-muted" aria-hidden />
+          </div>
+          <div className="flex shrink-0 rounded-full border border-white/5 bg-white/5 p-0.5">
+            <button
+              type="button"
+              onClick={() => a.setStabilityRange('7days')}
+              className={`cursor-pointer rounded-full px-3 py-1 text-xs font-bold transition-all ${
+                a.stabilityRange === '7days'
+                  ? 'bg-aurora-purple text-white'
+                  : 'text-aurora-text-sec hover:text-white'
+              }`}
+            >
+              7 days
+            </button>
+            <button
+              type="button"
+              onClick={() => a.setStabilityRange('30days')}
+              className={`cursor-pointer rounded-full px-3 py-1 text-xs font-bold transition-all ${
+                a.stabilityRange === '30days'
+                  ? 'bg-aurora-purple text-white'
+                  : 'text-aurora-text-sec hover:text-white'
+              }`}
+            >
+              30 days
+            </button>
           </div>
         </div>
 
         <div className="rounded-xl border border-white/5 bg-white/5 p-5">
-          <p className="mb-1 text-4xl font-extrabold text-aurora-purple">{stability.percentage}%</p>
-          <p className="text-sm font-bold text-white">Stability score</p>
-          <p className="mt-1 text-xs text-aurora-text-sec">
-            {stability.percentage >= 80
-              ? 'Very stable — consistent mood patterns.'
-              : stability.percentage >= 50
-                ? 'Mostly stable — a few noticeable shifts.'
-                : 'Highly variable — significant mood fluctuations.'}
+          <p
+            className={`mb-1 text-4xl font-extrabold tabular-nums ${
+              a.stabilityRange === '30days' ? 'text-amber-300' : 'text-white'
+            }`}
+          >
+            {stability.percentage}%
           </p>
+          <p className="text-sm font-bold text-white">Stability score</p>
         </div>
 
-        <div>
-          <p className="mb-2 text-[10px] font-bold tracking-widest text-aurora-purple uppercase">Metric</p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => a.setStabilityMetric('stress')}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-bold transition-all ${
-                a.stabilityMetric === 'stress'
-                  ? 'border-white/20 bg-white/10 text-white'
-                  : 'border-transparent text-aurora-text-sec hover:text-white'
-              }`}
-            >
-              😣 Stress
-            </button>
-            <button
-              type="button"
-              onClick={() => a.setStabilityMetric('energy')}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-bold transition-all ${
-                a.stabilityMetric === 'energy'
-                  ? 'border-white/20 bg-white/10 text-white'
-                  : 'border-transparent text-aurora-text-sec hover:text-white'
-              }`}
-            >
-              ⚡ Energy
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          <p className="text-[10px] font-bold tracking-widest text-white uppercase">
+            {a.stabilityMetric === 'stress' ? 'Stress trend' : 'Energy trend'}
+          </p>
+          <HelpCircle className="h-4 w-4 text-aurora-text-muted" aria-hidden />
         </div>
 
-        <p className="text-sm font-semibold text-aurora-text-sec">Daily {a.stabilityMetric} trend</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => a.setStabilityMetric('stress')}
+            className={`flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-all ${
+              a.stabilityMetric === 'stress'
+                ? 'bg-aurora-purple text-white'
+                : 'text-aurora-text-sec hover:text-white'
+            }`}
+          >
+            🔥 Stress
+          </button>
+          <button
+            type="button"
+            onClick={() => a.setStabilityMetric('energy')}
+            className={`flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-all ${
+              a.stabilityMetric === 'energy'
+                ? 'bg-aurora-purple text-white'
+                : 'text-aurora-text-sec hover:text-white'
+            }`}
+          >
+            🔋 Energy
+          </button>
+        </div>
 
         <div className="flex h-40 gap-2">
           {bars.map((bar, i) => (
@@ -178,7 +157,7 @@ export function JournalAnalyticsWeekView({
                           <span className="text-xs font-bold text-white">{bar.dayLabel}</span>
                         </div>
                         <p className="text-[10px] font-semibold text-aurora-text-sec">
-                          {a.stabilityMetric === 'stress' ? '😣' : '⚡'} Avg {a.stabilityMetric}:{' '}
+                          {a.stabilityMetric === 'stress' ? '🔥' : '🔋'} Avg {a.stabilityMetric}:{' '}
                           {bar.avg}/5
                         </p>
                       </div>
@@ -192,14 +171,54 @@ export function JournalAnalyticsWeekView({
             </div>
           ))}
         </div>
+
+        {a.stabilityRange === '30days' ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <div
+              className="rounded-full border border-[rgba(91,117,255,0.3)] px-2.5 py-1.5"
+              style={{ backgroundColor: 'rgba(91, 117, 255, 0.16)' }}
+            >
+              <p className="text-[11px] font-bold text-white">
+                {a.last30LoggedDayCount > 0
+                  ? `${a.last30LoggedDayCount}/30 logged`
+                  : 'No check-ins in the last 30 days yet'}
+              </p>
+            </div>
+            {a.last30LoggedDayCount > 0 ? (
+              <div
+                className="rounded-full border border-[rgba(124,58,237,0.35)] px-2.5 py-1.5"
+                style={{ backgroundColor: 'rgba(124, 58, 237, 0.18)' }}
+              >
+                <p className="text-[11px] font-bold text-white">
+                  {a.stabilityMetric === 'stress'
+                    ? `Stress level: ${stressCategoryLabelFromFive(a.last30AvgStressAmongLoggedDays)}`
+                    : `Energy level: ${energyCategoryLabelFromFive(a.last30AvgEnergyAmongLoggedDays)}`}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
+
+      <JournalMoodChartsSection
+        frequencySegments={a.weekFrequencySegments}
+        totalCheckIns={a.weekMoodCharts.totalCheckIns}
+        donutCenterLabel={donutCenterLabel}
+        chartMood={chartMood}
+        onSelectChartMood={onSelectChartMood}
+        durationBars={a.weekDurationBars}
+        durationEmptyMessage="No duration entries yet for the last 7 days."
+        intensityBars={a.weekIntensityBars}
+        intensityEmptyMessage="No intensity entries yet for the last 7 days."
+        chartGuides={chartGuides}
+      />
 
       <div className="rounded-2xl border border-aurora-blue/30 bg-linear-to-br from-[rgba(45,107,255,0.08)] to-[rgba(124,58,237,0.05)] p-6 shadow-[0_0_20px_rgba(45,107,255,0.08)]">
         <div className="mb-3 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-aurora-blue" />
+          <Sparkles className="h-5 w-5 text-aurora-blue" aria-hidden />
           <h4 className="text-lg font-bold text-white">Written summary for the last 7 days</h4>
         </div>
-        <p className="mb-5 text-xs text-aurora-text-muted">
+        <p className="mb-5 text-xs text-aurora-text-sec">
           Nothing here diagnoses you or guesses what comes next.
         </p>
 
@@ -219,15 +238,19 @@ export function JournalAnalyticsWeekView({
         </div>
 
         <p className="mb-5 text-sm text-white">
-          <span className="font-bold">Pattern:</span> {a.weekSummary.pattern}
+          <span className="font-bold">Academic pattern:</span> {a.weekSummary.pattern}
         </p>
 
         {a.weekSummary.topStressors.length > 0 && (
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <p className="mb-1 text-xs font-bold tracking-widest text-white uppercase">Top Stressors</p>
+            <p className="mb-1 text-[10px] font-bold tracking-widest text-aurora-purple uppercase">
+              Top academic activities
+            </p>
             <p className="mb-3 text-[10px] text-aurora-text-muted">Counts from tagged check-ins this week.</p>
             <ProgressBarList
               items={a.weekSummary.topStressors.map((s) => ({ label: s.tag, count: s.count }))}
+              barColor="bg-aurora-blue"
+              labelColor="text-white"
             />
           </div>
         )}

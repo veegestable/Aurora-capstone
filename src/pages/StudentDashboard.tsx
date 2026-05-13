@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import MoodCheckIn from '../components/mood-checkin'
 import { moodService } from '../services/mood'
-import { computeStreak, computeStability, computeDailyInsight } from '../utils/analytics'
-import type { StabilityMetrics } from '../utils/analytics'
+import { computeStreak, computeStability, computeDailyInsight, type StabilityMetrics } from '../utils/analytics'
 import { SessionRequestModal } from '../components/sessions/SessionRequestModal'
 import { AnnouncementBanner } from '../components/announcements/AnnouncementBanner'
 import { StudentSessionsPane } from '../components/student/StudentSessionsPane'
@@ -31,18 +30,25 @@ export default function StudentDashboard() {
   const loadStats = async () => {
     if (!user?.id) return
     try {
-      const end = new Date()
-      const start = new Date()
-      start.setDate(start.getDate() - 30)
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - 45)
       const logs = await moodService.getMoodLogs(
         user.id,
-        start.toISOString(),
-        end.toISOString()
+        startDate.toISOString(),
+        endDate.toISOString(),
       )
       if (!logs || logs.length === 0) return
 
+      const todayStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`
+      const todayLogs = logs.filter((l) => {
+        const t = l.timestamp instanceof Date ? l.timestamp : new Date(l.timestamp)
+        const key = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+        return key === todayStr
+      })
+
       setStreak(computeStreak(logs))
-      setStability(computeStability(logs))
+      setStability(computeStability(todayLogs))
       setInsight(computeDailyInsight(logs))
     } catch (error) {
       console.error('Failed to load dashboard stats:', error)

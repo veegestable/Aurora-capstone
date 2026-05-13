@@ -67,26 +67,31 @@ export function MoodFrequencyDonut({
         </div>
       </div>
 
-      <ul className="flex w-full flex-wrap justify-start gap-x-4 gap-y-2 text-[11px] text-aurora-text-sec">
+      <ul className="flex w-full flex-col gap-3">
         {segments.map((s) => {
+          const pct = Math.round((s.value / total) * 100)
           const active = selectedMood === s.mood
           return (
             <li key={s.mood}>
               <button
                 type="button"
                 onClick={() => onSelectMood(active ? null : s.mood)}
-                className={`flex items-center gap-1.5 rounded-full border px-2 py-1 transition-colors cursor-pointer ${
+                className={`flex w-full cursor-pointer items-start gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${
                   active
-                    ? 'border-aurora-purple/45 bg-[rgba(124,58,237,0.16)] text-white'
+                    ? 'border-aurora-purple/45 bg-[rgba(124,58,237,0.12)]'
                     : 'border-transparent hover:bg-white/5'
                 }`}
               >
                 <span
-                  className="h-2 w-2 shrink-0 rounded-full"
+                  className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-sm"
                   style={{ backgroundColor: s.color }}
                 />
-                <span className="font-semibold">{s.label}</span>
-                <span>({s.hint})</span>
+                <span>
+                  <span className="block text-sm font-semibold text-white">
+                    {s.label} ({pct}%)
+                  </span>
+                  <span className="block text-[10px] text-aurora-text-muted">{s.hint}</span>
+                </span>
               </button>
             </li>
           )
