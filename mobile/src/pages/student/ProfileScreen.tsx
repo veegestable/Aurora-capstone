@@ -1217,24 +1217,6 @@ export default function ProfileScreen() {
                   avatarUrl={user?.avatar_url}
                 />
               </View>
-              <TouchableOpacity
-                onPress={() => setShowEditProfile(true)}
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  right: 0,
-                  width: 32,
-                  height: 32,
-                  borderRadius: 16,
-                  backgroundColor: AURORA.blue,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderWidth: 2,
-                  borderColor: AURORA.bgDeep,
-                }}
-              >
-                <Camera size={15} color="#FFFFFF" />
-              </TouchableOpacity>
             </View>
             <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}>
               {user?.preferred_name || user?.full_name || "Student"}

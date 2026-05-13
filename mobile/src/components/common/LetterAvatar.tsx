@@ -32,7 +32,47 @@ export function LetterAvatar({
                 style={[
                     styles.avatar,
                     styles.image,
-                    { width: size, height: size, borderRadius: size / 2 },
+                    { width: size, height: size, borderRadius: size / 2},
+                ]}
+                resizeMode="cover"
+            />
+        );
+    }
+
+    return (
+        <View
+            style={[
+                styles.avatar,
+                {
+                    width: size,
+                    height: size,
+                    borderRadius: size / 2,
+                    backgroundColor,
+                },
+            ]}
+        >
+            <Text style={[styles.letter, { fontSize: size * 0.42, color: textColor }]}>{letter}</Text>
+        </View>
+    );
+}
+
+export function LetterAvatarWithBorder({
+    name,
+    size = 44,
+    backgroundColor = AURORA.card,
+    textColor = AURORA.blue,
+    avatarUrl,
+}: LetterAvatarProps) {
+    const letter = name?.trim().charAt(0).toUpperCase() || '?';
+
+    if (avatarUrl) {
+        return (
+            <Image
+                source={{ uri: avatarUrl }}
+                style={[
+                    styles.avatar,
+                    styles.image,
+                    { width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: AURORA.blue },
                 ]}
                 resizeMode="cover"
             />

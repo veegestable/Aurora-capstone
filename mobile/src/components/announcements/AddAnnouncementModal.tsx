@@ -104,7 +104,7 @@ export function AddAnnouncementModal({
   const roles: { key: TargetRole; label: string }[] = [
     { key: "all", label: "Everyone" },
     { key: "student", label: "Students only" },
-    { key: "counselor", label: "Counselors only" },
+    { key: "counselor", label: "Counselors" },
   ];
 
   return (

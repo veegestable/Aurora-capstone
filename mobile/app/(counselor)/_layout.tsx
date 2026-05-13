@@ -62,6 +62,8 @@ function CounselorTabs() {
           right: 20,
           bottom: STUDENT_TAB_BAR_FLOAT_BOTTOM,
           height: STUDENT_TAB_BAR_HEIGHT,
+          width: "90%",
+          marginLeft: 20,
           paddingTop: 0,
           paddingBottom: 0,
           paddingHorizontal: 4,

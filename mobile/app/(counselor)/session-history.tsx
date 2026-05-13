@@ -26,6 +26,7 @@ import {
   Share2,
   AlertTriangle,
   CalendarX,
+  CircleHelp,
 } from "lucide-react-native";
 import { useAuth } from "../../src/stores/AuthContext";
 import { firestoreService } from "../../src/services/firebase-firestore.service";
@@ -58,6 +59,11 @@ import {
   PROGRAM_FILTER_LABELS,
   type ProgramFilterCode,
 } from "../../src/constants/ccs-student-programs";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../src/components/common/InfoGuideModal";
+import { triggerHaptic } from "../../src/utils/haptics";
 
 function formatSlotForDisplay(
   slot: { date: string; time: string } | null | undefined,
@@ -210,11 +216,14 @@ export default function SessionHistoryScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams<{ sessionId?: string | string[] }>();
   const openedFromRouteSessionRef = useRef<string | null>(null);
+  const [sessionHistoryGuide, setSessionHistoryGuide] =
+    useState<InfoGuideContent | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       return () => {
         openedFromRouteSessionRef.current = null;
+        setSessionHistoryGuide(null);
       };
     }, []),
   );
@@ -499,23 +508,45 @@ export default function SessionHistoryScreen() {
           style={{
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "space-between",
-            paddingHorizontal: 16,
+            paddingHorizontal: 12,
             paddingVertical: 12,
             borderBottomWidth: 1,
             borderBottomColor: AURORA.border,
           }}
         >
-          <TouchableOpacity
-            onPress={() => router.replace("/(counselor)/messages")}
-            style={{ padding: 4 }}
-          >
-            <ArrowLeft size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "700" }}>
-            Session History
-          </Text>
-          <View style={{ width: 32 }} />
+          <View style={{ width: 44, alignItems: "flex-start" }}>
+            <TouchableOpacity
+              onPress={() => router.replace("/(counselor)/messages")}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ padding: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <ArrowLeft size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          <View style={{ flex: 1, alignItems: "center" }}>
+            <Text style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "700" }}>
+              Session History
+            </Text>
+          </View>
+          <View style={{ width: 44, alignItems: "flex-end" }}>
+            <TouchableOpacity
+              onPress={() => {
+                triggerHaptic("light");
+                setSessionHistoryGuide({
+                  title: "Session History",
+                  body: "This is your record of counseling sessions with students: agreed times, statuses (today, pending, completed, missed, reschedule, and more), and notes you have saved.\n\nTap a row to open details or mark attendance after the scheduled time has passed. Use search and the program chips to filter. For invites and live scheduling threads, use Messages or the Sessions sheet on Home.",
+                });
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ padding: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel="Session History info"
+            >
+              <CircleHelp size={22} color={AURORA.textSec} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search */}
@@ -799,6 +830,11 @@ export default function SessionHistoryScreen() {
           onSend={handleRescheduleInviteSend}
         />
       )}
+
+      <InfoGuideModal
+        guide={sessionHistoryGuide}
+        onClose={() => setSessionHistoryGuide(null)}
+      />
     </View>
   );
 }

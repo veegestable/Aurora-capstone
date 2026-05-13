@@ -796,7 +796,9 @@ export function MoodDistributionDonut({
   const total = segments.reduce((s, x) => s + x.value, 0);
   const r = 62;
   const cx = W / 2;
-  const cy = 88;
+  /** Vertically center the donut in the SVG so it does not sit high above the legend */
+  const svgHeight = 176;
+  const cy = svgHeight / 2;
   let angle = -Math.PI / 2;
   const arcs: ReactElement[] = [];
 
@@ -858,28 +860,33 @@ export function MoodDistributionDonut({
 
   return (
     <View style={{ marginBottom: 20 }}>
-      <Text
-        style={{
-          color: AURORA.textPrimary,
-          fontSize: 17,
-          fontWeight: "800",
-          marginBottom: 6,
-        }}
-      >
-        {title}
-      </Text>
-      <Text
-        style={{
-          color: AURORA.textSec,
-          fontSize: 13,
-          lineHeight: 19,
-          marginBottom: 12,
-        }}
-      >
-        {caption}
-      </Text>
+      {title ? (
+        <Text
+          style={{
+            color: AURORA.textPrimary,
+            fontSize: 17,
+            fontWeight: "800",
+            marginBottom: 6,
+          }}
+        >
+          {title}
+        </Text>
+      ) : null}
+      {caption ? (
+        <Text
+          style={{
+            color: AURORA.textSec,
+            fontSize: 13,
+            lineHeight: 19,
+            marginBottom: 12,
+          }}
+        >
+          {caption}
+        </Text>
+      ) : null}
       <DonutSvgAnimatedWrap reduceMotion={reduceMotion}>
-        <Svg width={W} height={190}>
+        <View style={{ alignSelf: "center" }}>
+          <Svg width={W} height={svgHeight}>
           {arcs}
           <Circle
             cx={cx}
@@ -909,6 +916,7 @@ export function MoodDistributionDonut({
             {centerLabel}
           </SvgText>
         </Svg>
+        </View>
       </DonutSvgAnimatedWrap>
       <View style={{ gap: 10, marginTop: 4 }}>
         {segments.map((s) => (

@@ -1,5 +1,11 @@
 import React from "react";
-import { Modal, Pressable, TouchableOpacity, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { AppText as Text } from "./AppText";
 import { AURORA } from "../../constants/aurora-colors";
 
@@ -13,13 +19,20 @@ type InfoGuideModalProps = {
   onClose: () => void;
 };
 
-export function InfoGuideModal({ guide, onClose }: InfoGuideModalProps) {
+/**
+ * Same visuals as InfoGuideModal, without a nested RN Modal.
+ * Use this when a guide must appear on top of content that is already
+ * inside another Modal (stacked Modals are unreliable on Android/iOS).
+ */
+export function InfoGuideOverlay({ guide, onClose }: InfoGuideModalProps) {
+  if (!guide) return null;
   return (
-    <Modal
-      transparent
-      animationType="fade"
-      visible={!!guide}
-      onRequestClose={onClose}
+    <View
+      style={[
+        StyleSheet.absoluteFillObject,
+        { zIndex: 100, elevation: 24 },
+      ]}
+      pointerEvents="box-none"
     >
       <Pressable
         onPress={onClose}
@@ -51,7 +64,7 @@ export function InfoGuideModal({ guide, onClose }: InfoGuideModalProps) {
               marginBottom: 10,
             }}
           >
-            {guide?.title}
+            {guide.title}
           </Text>
           <Text
             style={{
@@ -60,7 +73,7 @@ export function InfoGuideModal({ guide, onClose }: InfoGuideModalProps) {
               lineHeight: 19,
             }}
           >
-            {guide?.body}
+            {guide.body}
           </Text>
           <TouchableOpacity
             onPress={onClose}
@@ -87,6 +100,19 @@ export function InfoGuideModal({ guide, onClose }: InfoGuideModalProps) {
           </TouchableOpacity>
         </Pressable>
       </Pressable>
+    </View>
+  );
+}
+
+export function InfoGuideModal({ guide, onClose }: InfoGuideModalProps) {
+  return (
+    <Modal
+      transparent
+      animationType="fade"
+      visible={!!guide}
+      onRequestClose={onClose}
+    >
+      <InfoGuideOverlay guide={guide} onClose={onClose} />
     </Modal>
   );
 }

@@ -46,9 +46,9 @@ export interface SessionInviteData {
 interface StudentInfo {
   id: string;
   name: string;
+  student_number?: string;
   avatar?: string;
   program?: string;
-  studentId?: string;
 }
 
 interface SendSessionInviteModalProps {
@@ -271,6 +271,7 @@ export default function SendSessionInviteModal({
     mode,
     student.id,
     student.name,
+    student.student_number,
     initialData?.primaryDate,
     initialData?.alternativeDate,
     initialData?.finalDate,
@@ -491,8 +492,7 @@ export default function SendSessionInviteModal({
             </View>
             <Text style={styles.studentName}>{student.name}</Text>
             <Text style={styles.program}>
-              {student.program || "BSCS 3rd Year"} • Student ID:{" "}
-              {student.studentId || student.id.slice(0, 8)}
+              {student.program || "BSCS 3rd Year"}
             </Text>
             <Text style={styles.purpose}>{purposeText}</Text>
           </View>

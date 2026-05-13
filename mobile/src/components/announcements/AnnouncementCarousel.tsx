@@ -128,7 +128,7 @@ export function AnnouncementCarousel({
 const styles = StyleSheet.create({
   wrapper: {
     marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 50,
     alignItems: "center",
   },
   pagination: {

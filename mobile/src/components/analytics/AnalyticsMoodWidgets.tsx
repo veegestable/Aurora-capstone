@@ -8,6 +8,7 @@ import {
   NativeScrollEvent,
   Animated,
   Easing,
+  Platform,
 } from "react-native";
 import { AppText as Text } from "../common/AppText";
 import { Battery, CircleHelp, Flame, Sparkles } from "lucide-react-native";
@@ -54,6 +55,14 @@ function AnimatedBar({
 }) {
   const h = useMemo(() => new Animated.Value(0), []);
   useEffect(() => {
+    /*
+     * Android: height animation uses the JS driver (layout). Inside a parent
+     * ScrollView that causes visible flicker while scrolling. Snap to target.
+     */
+    if (Platform.OS === "android") {
+      h.setValue(height);
+      return;
+    }
     h.setValue(0);
     const timer = setTimeout(() => {
       Animated.timing(h, {
@@ -199,8 +208,13 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
   const toggleThumbWidth = 72;
 
   useEffect(() => {
+    const target = period === "week" ? 0 : 1;
+    if (Platform.OS === "android") {
+      toggleAnim.setValue(target);
+      return;
+    }
     Animated.timing(toggleAnim, {
-      toValue: period === "week" ? 0 : 1,
+      toValue: target,
       duration: 220,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
@@ -576,6 +590,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
               <ScrollView
                 horizontal={false}
                 showsHorizontalScrollIndicator={false}
+                removeClippedSubviews={false}
               >
                 <View
                   style={{
@@ -759,6 +774,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
               maximumZoomScale={3}
               pinchGestureEnabled
               bouncesZoom
+              removeClippedSubviews={false}
               onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
                 const z = e.nativeEvent.zoomScale ?? 1;
                 setLast30ZoomScale(z);

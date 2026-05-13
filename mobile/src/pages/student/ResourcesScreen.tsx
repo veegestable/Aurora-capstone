@@ -388,6 +388,7 @@ export default function ResourcesScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
+        <View style={{ height: 40 }} />
       </SafeAreaView>
     </View>
   );

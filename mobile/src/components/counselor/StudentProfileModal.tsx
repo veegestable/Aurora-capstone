@@ -13,7 +13,6 @@ import { formatCounselorStudentSubtitle } from '../../constants/ccs-student-prog
 import { fetchStudentCounselorDetailedContext } from '../../services/counselor-checkin-context.service';
 import { COUNSELOR_CHECKIN_WINDOW_DAYS } from '../../constants/counselor-checkin-policy';
 import { firestoreService } from '../../services/firebase-firestore.service';
-import type { CounselorSignalPill } from '../../constants/counselor-checkin-signals';
 import type { MoodData } from '../../services/firebase-firestore.service';
 import type { MergedMoodLog } from '../../services/mood.service';
 import { moodLogsToMoodEntries } from '../../utils/moodEntryNormalize';
@@ -294,18 +293,6 @@ interface StudentProfileModalProps {
     counselorId?: string;
     counselorName?: string;
     counselorAvatar?: string;
-    signalRiskLevel?: CounselorSignalPill;
-}
-
-function conversationStyleFromSignal(
-    level?: CounselorSignalPill,
-): { isAlerted: boolean; borderColor?: string } {
-    if (!level || level === 'no_checkins' || level === 'typical_self_report') {
-        return { isAlerted: false, borderColor: undefined };
-    }
-    if (level === 'higher_self_report') return { isAlerted: true, borderColor: AURORA.red };
-    if (level === 'moderate_self_report') return { isAlerted: false, borderColor: AURORA.orange };
-    return { isAlerted: false, borderColor: undefined };
 }
 
 function baselineMoodLabel(log: MergedMoodLog): string {
@@ -382,7 +369,6 @@ export default function StudentProfileModal({
     counselorId,
     counselorName,
     counselorAvatar,
-    signalRiskLevel,
 }: StudentProfileModalProps) {
     const [fullLogs, setFullLogs] = useState<MergedMoodLog[]>([]);
     const [baselineLogs, setBaselineLogs] = useState<MergedMoodLog[]>([]);
@@ -445,9 +431,6 @@ export default function StudentProfileModal({
             Alert.alert('Sign in required', 'Please sign in again as a counselor to send an invite.');
             return;
         }
-        const { isAlerted, borderColor } = conversationStyleFromSignal(
-            journalAccessGranted ? signalRiskLevel : undefined,
-        );
         setInviteBusy(true);
         try {
             await firestoreService.addConversation(
@@ -457,13 +440,14 @@ export default function StudentProfileModal({
                     name: student.full_name ?? 'Student',
                     avatar: student.avatar_url ?? '',
                     program: programLine,
-                    isAlerted,
-                    borderColor,
                 },
                 { name: counselorName || 'Counselor', avatar: counselorAvatar },
             );
             onClose();
-            router.push('/(counselor)/messages');
+            router.push({
+                pathname: '/(counselor)/messages',
+                params: { studentId: student.id },
+            });
         } catch (e) {
             console.error('Invite to session failed:', e);
             Alert.alert('Could not start chat', 'Please try again in a moment.');
