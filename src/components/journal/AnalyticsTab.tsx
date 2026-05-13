@@ -146,7 +146,7 @@ function TodayView({
           <div>
             <p className="text-[10px] font-bold tracking-widest text-aurora-purple uppercase mb-2">Today Mood</p>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: moodColor }} />
+            <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: moodColor }} />
               <span className="text-lg font-bold text-white capitalize">{a.todayMood || 'No data'}</span>
             </div>
             <p className="text-xs text-aurora-text-sec">Avg intensity {a.todayAvgIntensity}/10</p>
@@ -163,37 +163,55 @@ function TodayView({
         {/* Mood Stability */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <p className="text-[10px] font-bold tracking-widest text-aurora-purple uppercase">Today Mood Stability</p>
-            <HelpCircle className="w-3.5 h-3.5 text-aurora-text-muted" />
+            <Sparkles className="w-3.5 h-3.5 text-aurora-blue shrink-0" aria-hidden />
+            <p className="text-[10px] font-bold tracking-widest text-aurora-purple uppercase">
+              Today mood stability
+            </p>
+            <HelpCircle className="w-3.5 h-3.5 text-aurora-text-muted" aria-hidden />
           </div>
           <div className="flex items-baseline gap-3">
-            <span className="text-4xl font-extrabold text-aurora-purple">{a.todayStability.percentage}%</span>
-            <span className="text-sm text-aurora-text-sec">based on today's check-ins</span>
+            <span className="text-4xl font-extrabold text-aurora-blue tabular-nums">
+              {a.todayStability.percentage}%
+            </span>
+            <span className="text-sm text-aurora-text-sec">based on today&apos;s check-ins</span>
           </div>
         </div>
 
         <div className="border-t border-white/5" />
 
-        {/* Analytics Insight */}
+        {/* Academic analytics */}
         <div>
-          <p className="text-[10px] font-bold tracking-widest text-aurora-purple uppercase mb-1">Analytics (Today)</p>
-          <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">Insight</p>
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-3.5 h-3.5 text-aurora-text-sec shrink-0" aria-hidden />
+            <p className="text-[10px] font-bold tracking-widest text-aurora-purple uppercase">
+              Academic analytics
+            </p>
+            <HelpCircle className="w-3.5 h-3.5 text-aurora-text-muted" aria-hidden />
+          </div>
           <p className="text-sm font-bold text-white leading-relaxed mb-4">{a.todayInsight}</p>
 
           {a.todaySignals.length > 0 && (
             <>
-              <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">Signals</p>
+              <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
+                Signals
+              </p>
               {a.todaySignals.map((sig, i) => (
-                <p key={i} className="text-sm text-aurora-text-sec mb-1">{sig}</p>
+                <p key={i} className="text-sm text-aurora-text-sec mb-1">
+                  {sig}
+                </p>
               ))}
             </>
           )}
 
           {a.todayTopStressors.length > 0 && (
             <div className="mt-4">
-              <p className="text-[10px] font-bold tracking-widest text-white uppercase mb-3">Top Stressors</p>
-              <ProgressBarList 
-                items={a.todayTopStressors.map(s => ({ label: s.tag, count: s.count }))}
+              <p className="text-[10px] font-bold tracking-widest text-white uppercase mb-3">
+                Top stressors
+              </p>
+              <ProgressBarList
+                items={a.todayTopStressors.map((s) => ({ label: s.tag, count: s.count }))}
+                barColor="bg-aurora-purple"
+                labelColor="text-white"
               />
             </div>
           )}
@@ -231,6 +249,17 @@ function TodayView({
         intensityEmptyMessage="No intensity entries yet for today."
         chartGuides={chartGuides}
       />
+
+      {a.todayCheckIns < 2 ? (
+        <div className="card-aurora p-6">
+          <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
+            Stress &amp; energy trend
+          </p>
+          <p className="text-sm text-aurora-text-sec">
+            Log at least 2 check-ins today to unlock your stress and energy trend graphs.
+          </p>
+        </div>
+      ) : null}      
     </div>
   )
 }

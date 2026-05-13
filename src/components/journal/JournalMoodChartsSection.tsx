@@ -72,7 +72,7 @@ export function JournalMoodChartsSection({
           <button
             type="button"
             onClick={() => onSelectChartMood(null)}
-            className="mt-2 self-start rounded-full border border-aurora-purple/45 bg-[rgba(124,58,237,0.16)] px-2.5 py-1 text-[11px] font-bold text-white cursor-pointer hover:bg-[rgba(124,58,237,0.24)]"
+            className="mt-2 hidden self-start rounded-full border border-aurora-purple/45 bg-[rgba(124,58,237,0.16)] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[rgba(124,58,237,0.24)] sm:inline-flex cursor-pointer"
           >
             Clear highlight
           </button>

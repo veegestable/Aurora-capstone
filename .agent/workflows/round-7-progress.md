@@ -26,7 +26,6 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 ---
 
 ## Batches
-## Batches
 
 ### [x] Batch 1 — Aggregates + mobile-aligned 7-day window
 

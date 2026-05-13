@@ -67,7 +67,7 @@ export function MoodFrequencyDonut({
         </div>
       </div>
 
-      <ul className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-[11px] text-aurora-text-sec">
+      <ul className="flex w-full flex-wrap justify-start gap-x-4 gap-y-2 text-[11px] text-aurora-text-sec">
         {segments.map((s) => {
           const active = selectedMood === s.mood
           return (
