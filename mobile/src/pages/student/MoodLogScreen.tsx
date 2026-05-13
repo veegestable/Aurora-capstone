@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { View, ScrollView, TouchableOpacity, Image, Modal, Platform, ActivityIndicator, StyleSheet, Alert, Animated, Easing } from "react-native";
+import { View, ScrollView, TouchableOpacity, Image, Modal, Platform, ActivityIndicator, StyleSheet, Animated, Easing } from "react-native";
 import { AppText as Text } from "../../components/common/AppText";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -53,6 +53,7 @@ import {
 } from "../../services/mood-firestore-v2.service";
 import {
   InfoGuideModal,
+  InfoGuideOverlay,
   type InfoGuideContent,
 } from "../../components/common/InfoGuideModal";
 import {
@@ -640,6 +641,8 @@ export default function MoodLogScreen() {
   >([]);
   /** Session doc ids hidden from My sessions only (device-local; Firestore unchanged). */
   const [hiddenSessionIds, setHiddenSessionIds] = useState<string[]>([]);
+  const [sessionsSheetSectionGuide, setSessionsSheetSectionGuide] =
+    useState<InfoGuideContent | null>(null);
   const [showCheckInSharingBriefing, setShowCheckInSharingBriefing] =
     useState(false);
   const [sharingBriefingLoaded, setSharingBriefingLoaded] = useState(false);
@@ -774,6 +777,12 @@ export default function MoodLogScreen() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!sessionsSheetOpen) {
+      setSessionsSheetSectionGuide(null);
+    }
+  }, [sessionsSheetOpen]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -1043,7 +1052,10 @@ export default function MoodLogScreen() {
             <TouchableOpacity
               onPress={() => {
                 triggerHaptic("light");
-                Alert.alert(title, normalizedInfoBody);
+                setSessionsSheetSectionGuide({
+                  title,
+                  body: normalizedInfoBody,
+                });
               }}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityRole="button"
@@ -1573,7 +1585,13 @@ export default function MoodLogScreen() {
         visible={sessionsSheetOpen}
         transparent
         animationType="slide"
-        onRequestClose={() => setSessionsSheetOpen(false)}
+        onRequestClose={() => {
+          if (sessionsSheetSectionGuide) {
+            setSessionsSheetSectionGuide(null);
+          } else {
+            setSessionsSheetOpen(false);
+          }
+        }}
       >
         <View style={sessionsSheetStyles.overlay}>
           <TouchableOpacity
@@ -1704,6 +1722,10 @@ export default function MoodLogScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+          <InfoGuideOverlay
+            guide={sessionsSheetSectionGuide}
+            onClose={() => setSessionsSheetSectionGuide(null)}
+          />
         </View>
       </Modal>
 

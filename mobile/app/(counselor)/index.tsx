@@ -8,7 +8,7 @@ import { AppText as Text } from "../../src/components/common/AppText";
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, ScrollView, TouchableOpacity, Modal, SectionList, StyleSheet, Alert } from "react-native";
+import { View, ScrollView, TouchableOpacity, Modal, SectionList, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { doc, getDoc } from "firebase/firestore";
@@ -60,6 +60,10 @@ import {
   isCounselorHomeTourCompleted,
   markCounselorHomeTourCompleted,
 } from "../../src/services/counselor-home-tour.storage";
+import {
+  InfoGuideOverlay,
+  type InfoGuideContent,
+} from "../../src/components/common/InfoGuideModal";
 
 const hiddenCounselorSessionsSheetStorageKey = (counselorId: string) =>
   `aurora.counselorSessionsSheet.hidden:${counselorId}`;
@@ -674,6 +678,8 @@ export default function CounselorHomeScreen() {
   );
   const [pendingSessionsModalVisible, setPendingSessionsModalVisible] =
     useState(false);
+  const [sessionsSectionGuide, setSessionsSectionGuide] =
+    useState<InfoGuideContent | null>(null);
   const [hiddenCounselorSheetSessionIds, setHiddenCounselorSheetSessionIds] =
     useState<string[]>([]);
   const [studentsPage, setStudentsPage] = useState(1);
@@ -793,6 +799,12 @@ export default function CounselorHomeScreen() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!pendingSessionsModalVisible) {
+      setSessionsSectionGuide(null);
+    }
+  }, [pendingSessionsModalVisible]);
 
   const hiddenCounselorSheetSessionSet = useMemo(
     () => new Set(hiddenCounselorSheetSessionIds),
@@ -1364,7 +1376,13 @@ export default function CounselorHomeScreen() {
           visible={pendingSessionsModalVisible}
           transparent
           animationType="slide"
-          onRequestClose={() => setPendingSessionsModalVisible(false)}
+          onRequestClose={() => {
+            if (sessionsSectionGuide) {
+              setSessionsSectionGuide(null);
+            } else {
+              setPendingSessionsModalVisible(false);
+            }
+          }}
         >
           <View style={styles.pendingModalOverlay}>
             <TouchableOpacity
@@ -1429,7 +1447,10 @@ export default function CounselorHomeScreen() {
                         {section.subtitle.trim() ? (
                           <TouchableOpacity
                             onPress={() =>
-                              Alert.alert(section.title, section.subtitle)
+                              setSessionsSectionGuide({
+                                title: section.title,
+                                body: section.subtitle,
+                              })
                             }
                             hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                             style={{ padding: 2 }}
@@ -1551,6 +1572,10 @@ export default function CounselorHomeScreen() {
                 />
               )}
             </View>
+            <InfoGuideOverlay
+              guide={sessionsSectionGuide}
+              onClose={() => setSessionsSectionGuide(null)}
+            />
           </View>
         </Modal>
       </SafeAreaView>

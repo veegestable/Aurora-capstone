@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AppState, Image, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -76,7 +76,7 @@ import {
   clearPendingBreathingReminder,
   setPendingBreathingReminder,
 } from "../utils/pendingBreathingReminder";
-import { InfoGuideModal, type InfoGuideContent } from "./common/InfoGuideModal";
+import { InfoGuideOverlay, type InfoGuideContent } from "./common/InfoGuideModal";
 
 interface MoodCheckInProps {
   onComplete?: () => void;
@@ -355,6 +355,15 @@ export function MoodCheckIn({
   const quickResetDoneRef = useRef(false);
   /** True after Skip quick reset queued the Zen banner (avoid duplicate save on Done). */
   const pendingZenReminderQueuedRef = useRef(false);
+  /** When true, closing the Zen info overlay should then run `onComplete` (parent modal). */
+  const onCompleteAfterGuideDismissRef = useRef(false);
+  const dismissActiveGuide = useCallback(() => {
+    setActiveGuide(null);
+    if (onCompleteAfterGuideDismissRef.current) {
+      onCompleteAfterGuideDismissRef.current = false;
+      onComplete?.();
+    }
+  }, [onComplete]);
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const scrollRef = useRef<ScrollView | null>(null);
   const durationInputYRef = useRef(0);
@@ -1232,6 +1241,7 @@ export function MoodCheckIn({
           padding: 16,
           paddingTop: 14,
           paddingBottom: 20,
+          position: "relative",
         }}
       >
         <Modal
@@ -1528,12 +1538,12 @@ export function MoodCheckIn({
                       1,
                       Math.round(ZEN_BREATHING_REMINDER_DELAY_SEC / 60),
                     );
-                    Alert.alert(
-                      "We’ll remind you on Zen",
-                      pushOk
+                    setActiveGuide({
+                      title: "We'll remind you on Zen",
+                      body: pushOk
                         ? `Suggested exercise: ${quickResetExercise.name}. It appears at the top of Zen until you complete it.`
                         : `Suggested exercise: ${quickResetExercise.name}. Open the Zen tab anytime — it appears at the top until you complete it.`,
-                    );
+                    });
                   })();
                 }}
                 style={{ alignSelf: "flex-end", marginBottom: 12, padding: 4 }}
@@ -1658,9 +1668,13 @@ export function MoodCheckIn({
                 onPress={() => {
                   void (async () => {
                     if (
-                      !quickResetDoneRef.current &&
-                      !pendingZenReminderQueuedRef.current
+                      quickResetDoneRef.current ||
+                      pendingZenReminderQueuedRef.current
                     ) {
+                      onComplete?.();
+                      return;
+                    }
+                    try {
                       const pushOk =
                         user?.session_push_notifications_enabled !== false;
                       await setPendingBreathingReminder(
@@ -1674,14 +1688,16 @@ export function MoodCheckIn({
                         1,
                         Math.round(ZEN_BREATHING_REMINDER_DELAY_SEC / 60),
                       );
-                      Alert.alert(
-                        "We’ll remind you on Zen",
-                        pushOk
+                      onCompleteAfterGuideDismissRef.current = true;
+                      setActiveGuide({
+                        title: "We'll remind you on Zen",
+                        body: pushOk
                           ? `Suggested exercise: ${quickResetExercise.name}. You'll see it at the top of Zen until you complete it. You'll also get a nudge in about ${mins} minutes if notifications are allowed.`
                           : `Suggested exercise: ${quickResetExercise.name}. You'll see it at the top of Zen until you complete a quick session.`,
-                      );
+                      });
+                    } catch {
+                      onComplete?.();
                     }
-                    onComplete?.();
                   })();
                 }}
                 activeOpacity={0.9}
@@ -1714,6 +1730,10 @@ export function MoodCheckIn({
             </Animatable.View>
           </Animatable.View>
         </View>
+        <InfoGuideOverlay
+          guide={activeGuide}
+          onClose={dismissActiveGuide}
+        />
       </View>
     );
   }
@@ -1761,7 +1781,7 @@ export function MoodCheckIn({
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: AURORA.bg }}
+      style={{ flex: 1, backgroundColor: AURORA.bg, position: "relative" }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 92 : 0}
     >
@@ -3531,9 +3551,9 @@ export function MoodCheckIn({
           </View>
         </View>
       </ScrollView>
-      <InfoGuideModal
+      <InfoGuideOverlay
         guide={activeGuide}
-        onClose={() => setActiveGuide(null)}
+        onClose={dismissActiveGuide}
       />
     </KeyboardAvoidingView>
   );
