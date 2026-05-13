@@ -1228,6 +1228,34 @@ export default function Analytics() {
       last7DayKeySet.has(calendarDayKeyLocal(new Date(l.log_date))),
     );
   }, [logs, last7DayKeySet]);
+  const weekEventInsight = useMemo(
+    () =>
+      analyzeTodayEvents(
+        last7Logs as Array<
+          MoodData & {
+            log_date: Date;
+            event_tags?: string[];
+            event_categories?: string[];
+          }
+        >,
+      ),
+    [last7Logs],
+  );
+  const weekTopActivityRow = useMemo(() => {
+    if (!weekEventInsight) return null;
+    const topTag = weekEventInsight.topEvents[0];
+    if (topTag) return { label: topTag.label, count: topTag.count };
+    if (
+      weekEventInsight.topCategoryCount > 0 &&
+      weekEventInsight.topCategory
+    ) {
+      return {
+        label: weekEventInsight.topCategory,
+        count: weekEventInsight.topCategoryCount,
+      };
+    }
+    return null;
+  }, [weekEventInsight]);
   const last7TotalCheckIns = last7Logs.length;
   const weekMoodCharts = useMemo(() => {
     const end = new Date();
@@ -3836,17 +3864,7 @@ export default function Analytics() {
                       >
                         TOP ACADEMIC ACTIVITIES
                       </Text>
-                      <Text
-                        style={{
-                          color: UI_TEXT_MUTED,
-                          fontSize: 10,
-                          lineHeight: 14,
-                          marginTop: -1,
-                          marginBottom: 2,
-                        }}
-                      >
-                        Counts from tagged check-ins this week.
-                      </Text>
+                     
                       {weekSchoolAnalysis.topSchoolEvents.map((item) => {
                         const maxCount = Math.max(
                           1,
@@ -3903,6 +3921,77 @@ export default function Analytics() {
                           </View>
                         );
                       })}
+                    </View>
+                  ) : null}
+                  {weekTopActivityRow ? (
+                    <View
+                      style={{
+                        marginTop: weekSchoolAnalysis?.topSchoolEvents?.length
+                          ? 8
+                          : 2,
+                        marginBottom: 10,
+                        padding: 10,
+                        borderRadius: 12,
+                        backgroundColor: "rgba(45, 107, 255, 0.10)",
+                        borderWidth: 1,
+                        borderColor: "rgba(45, 107, 255, 0.24)",
+                        gap: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: AURORA.textPrimary,
+                          fontSize: 10,
+                          fontWeight: "700",
+                        }}
+                      >
+                        TOP ACTIVITY
+                      </Text>
+                     
+                      <View>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            marginBottom: 3,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: AURORA.textSec,
+                              fontSize: 11,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {weekTopActivityRow.label}
+                          </Text>
+                          <Text
+                            style={{
+                              color: AURORA.textSec,
+                              fontSize: 11,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {weekTopActivityRow.count}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            height: 7,
+                            borderRadius: 999,
+                            backgroundColor: "rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: "100%",
+                              height: 7,
+                              borderRadius: 999,
+                              backgroundColor: AURORA.blue,
+                            }}
+                          />
+                        </View>
+                      </View>
                     </View>
                   ) : null}
                   {weeklyAi.support_note ? (
