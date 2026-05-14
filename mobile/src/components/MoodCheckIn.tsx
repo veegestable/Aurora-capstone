@@ -1267,7 +1267,7 @@ export function MoodCheckIn({
               setShowQuickResetPrompt(false);
               quickResetDoneRef.current = true;
               pendingZenReminderQueuedRef.current = false;
-              await clearPendingBreathingReminder();
+              await clearPendingBreathingReminder(user?.id);
               const zenDayKey = calendarDayKeyLocal(new Date());
               if (user?.id) {
                 try {
@@ -1524,13 +1524,15 @@ export function MoodCheckIn({
               <TouchableOpacity
                 onPress={() => {
                   void (async () => {
-                    pendingZenReminderQueuedRef.current = true;
                     const pushOk = user?.session_push_notifications_enabled !== false;
+                    if (!user?.id) return;
+                    pendingZenReminderQueuedRef.current = true;
                     await setPendingBreathingReminder(
                       {
                         exerciseId: quickResetExercise.id,
                         savedAtMs: Date.now(),
                       },
+                      user.id,
                       { schedulePush: pushOk },
                     );
                     setShowQuickResetPrompt(false);
@@ -1677,11 +1679,16 @@ export function MoodCheckIn({
                     try {
                       const pushOk =
                         user?.session_push_notifications_enabled !== false;
+                      if (!user?.id) {
+                        onComplete?.();
+                        return;
+                      }
                       await setPendingBreathingReminder(
                         {
                           exerciseId: quickResetExercise.id,
                           savedAtMs: Date.now(),
                         },
+                        user.id,
                         { schedulePush: pushOk },
                       );
                       const mins = Math.max(

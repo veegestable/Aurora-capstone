@@ -15,6 +15,10 @@ const CARD_HEIGHT = 140;
 
 interface AnnouncementCarouselProps {
   role: "counselor" | "student";
+  /** Viewer college for scoped announcements; omit if unknown. */
+  viewerCollegeCode?: string;
+  /** When true, do not filter by audience (used on admin home). */
+  skipAudienceFilter?: boolean;
   onAnnouncementPress?: (item: Announcement) => void;
 }
 
@@ -73,6 +77,8 @@ function formatDate(date: Date): string {
 
 export function AnnouncementCarousel({
   role,
+  viewerCollegeCode,
+  skipAudienceFilter = false,
   onAnnouncementPress,
 }: AnnouncementCarouselProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -81,13 +87,17 @@ export function AnnouncementCarousel({
   useEffect(() => {
     return announcementsService.subscribeForRole(
       role,
+      viewerCollegeCode,
       20,
       (list) => setAnnouncements(list),
       () => {
-        void announcementsService.listForRole(role).then(setAnnouncements);
+        void announcementsService
+          .listForRole(role, viewerCollegeCode, 20, skipAudienceFilter)
+          .then(setAnnouncements);
       },
+      skipAudienceFilter,
     );
-  }, [role]);
+  }, [role, viewerCollegeCode, skipAudienceFilter]);
 
   if (announcements.length === 0) return null;
 

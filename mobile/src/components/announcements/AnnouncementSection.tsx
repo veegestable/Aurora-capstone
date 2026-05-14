@@ -16,12 +16,15 @@ interface AnnouncementSectionProps {
   role: "counselor" | "student";
   showAddButton?: boolean;
   titleIcon?: React.ReactNode;
+  /** Admin dashboard: show every announcement (Firestore still enforces admin read). */
+  skipAudienceFilter?: boolean;
 }
 
 export function AnnouncementSection({
   role,
   showAddButton = false,
   titleIcon,
+  skipAudienceFilter = false,
 }: AnnouncementSectionProps) {
   const { user } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
@@ -53,10 +56,11 @@ export function AnnouncementSection({
   };
 
   const canEdit =
-    role === "counselor" &&
-    !!user?.id &&
     !!selectedAnnouncement &&
-    selectedAnnouncement.createdBy === user.id;
+    (user?.role === "admin" ||
+      (role === "counselor" &&
+        !!user?.id &&
+        selectedAnnouncement.createdBy === user.id));
 
   const canDelete =
     role !== "student" &&
@@ -101,6 +105,8 @@ export function AnnouncementSection({
       <AnnouncementCarousel
         key={refreshKey}
         role={role}
+        viewerCollegeCode={user?.college_code ?? user?.department}
+        skipAudienceFilter={skipAudienceFilter}
         onAnnouncementPress={handleAnnouncementPress}
       />
       <AddAnnouncementModal

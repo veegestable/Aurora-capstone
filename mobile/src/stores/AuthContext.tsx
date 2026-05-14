@@ -8,7 +8,12 @@ import {
 import { AppState } from "react-native";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../services/firebase";
-import { authService, UserProfile } from "../services/firebase-auth.service";
+import { authService, UserProfile, CollegeShiftRequest } from "../services/firebase-auth.service";
+import {
+  type CollegeCode,
+  isCollegeCode,
+} from "../constants/colleges";
+import { isProgramInCollege } from "../constants/college-programs-iit";
 import {
   setMyPresenceOfflineNow,
   startMyPresence,
@@ -34,7 +39,12 @@ interface User {
   role: "admin" | "counselor" | "student";
   approval_status?: CounselorApprovalStatus;
   preferred_name?: string;
+  /** Canonical college code (COE, CCS, …). */
+  college_code?: string;
+  /** @deprecated Legacy field; use college_code. */
   department?: string;
+  college_shift_pending?: boolean;
+  college_shift_request?: CollegeShiftRequest;
   program?: string;
   year_level?: string;
   student_number?: string;
@@ -56,6 +66,9 @@ interface AuthContextType {
     fullName: string,
     role: "admin" | "counselor" | "student",
     contactNumber: string,
+    collegeCode: string,
+    /** Student catalog program; ignored for counselor. */
+    program?: string,
   ) => Promise<{ success: boolean; message: string }>;
   resendRegistrationVerificationEmail: (
     email: string,
@@ -65,6 +78,8 @@ interface AuthContextType {
   updateUser: (data: {
     full_name?: string;
     preferred_name?: string;
+    college_code?: string;
+    /** @deprecated Maps to college_code when value is a valid code. */
     department?: string;
     program?: string;
     year_level?: string;
@@ -76,6 +91,7 @@ interface AuthContextType {
     session_push_notifications_enabled?: boolean;
   }) => Promise<void>;
   uploadAvatar: (imageUri: string) => Promise<string>;
+  refreshUserProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -89,7 +105,14 @@ const convertUserProfile = (userProfile: UserProfile): User => {
     role: userProfile.role,
     approval_status: userProfile.approval_status,
     preferred_name: userProfile.preferred_name,
+    college_code:
+      userProfile.college_code != null &&
+      String(userProfile.college_code).trim()
+        ? String(userProfile.college_code).trim()
+        : undefined,
     department: userProfile.department,
+    college_shift_pending: userProfile.college_shift_pending,
+    college_shift_request: userProfile.college_shift_request,
     program: userProfile.program,
     year_level: userProfile.year_level,
     student_number: userProfile.student_number,
@@ -203,9 +226,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fullName: string,
     role: "admin" | "counselor" | "student",
     contactNumber: string,
+    collegeCode: string,
+    program?: string,
   ) => {
     try {
       console.log("🔥 Signing up user:", email);
+      const cc =
+        (role === "counselor" || role === "student") &&
+        isCollegeCode(collegeCode.trim())
+          ? (collegeCode.trim() as CollegeCode)
+          : undefined;
+      const prog =
+        role === "student" && cc && program?.trim()
+          ? program.trim()
+          : undefined;
+      if (role === "student" && cc && (!prog || !isProgramInCollege(cc, prog))) {
+        return {
+          success: false,
+          message: "Choose a degree program that matches your college.",
+        };
+      }
       await authService.signUp({
         email,
         password,
@@ -215,6 +255,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role === "counselor" || role === "student"
             ? contactNumber.trim()
             : undefined,
+        college_code: cc,
+        ...(role === "student" && prog ? { program: prog } : {}),
       });
 
       // Don't set user - they need to log in manually
@@ -290,6 +332,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateUser = async (data: {
     full_name?: string;
     preferred_name?: string;
+    college_code?: string;
     department?: string;
     program?: string;
     year_level?: string;
@@ -318,6 +361,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return url;
   };
 
+  const refreshUserProfile = async () => {
+    if (!auth.currentUser) return;
+    try {
+      const userProfile = await authService.getCurrentUser();
+      if (userProfile) {
+        setUser(convertUserProfile(userProfile));
+      }
+    } catch (e) {
+      console.error("❌ refreshUserProfile:", e);
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -327,6 +382,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     updateUser,
     uploadAvatar,
+    refreshUserProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

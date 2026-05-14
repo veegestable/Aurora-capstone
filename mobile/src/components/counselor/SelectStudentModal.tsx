@@ -15,6 +15,7 @@ export interface StudentRow {
     id: string;
     full_name?: string;
     avatar_url?: string;
+    college_code?: string;
     department?: string;
     program?: string;
     year_level?: string;
@@ -54,13 +55,13 @@ export default function SelectStudentModal({
         }
         setLoading(true);
         firestoreService
-            .getVerifiedStudents()
+            .getStudentsForCounselor(counselorId)
             .then((users) =>
                 setStudents((users || []) as unknown as StudentRow[]),
             )
             .catch(() => setStudents([]))
             .finally(() => setLoading(false));
-    }, [visible]);
+    }, [visible, counselorId]);
 
     const available = useMemo(() => {
         return students.filter((s) => !existing.has(s.id));
@@ -72,6 +73,7 @@ export default function SelectStudentModal({
         return available.filter((s) => {
             const name = (s.full_name || '').toLowerCase();
             const meta = formatCounselorStudentSubtitle({
+                college_code: s.college_code,
                 department: s.department,
                 program: s.program,
                 year_level: s.year_level,
@@ -86,6 +88,7 @@ export default function SelectStudentModal({
         try {
             const program =
                 formatCounselorStudentSubtitle({
+                    college_code: student.college_code,
                     department: student.department,
                     program: student.program,
                     year_level: student.year_level,
@@ -171,13 +174,14 @@ export default function SelectStudentModal({
                                     />
                                     <View style={{ flex: 1, minWidth: 0 }}>
                                         <Text style={styles.name}>{s.full_name || 'Student'}</Text>
-                                        {(s.department || s.program || s.year_level) && (
+                                        {(s.college_code || s.department || s.program || s.year_level) && (
                                             <Text style={styles.sub} numberOfLines={2}>
                                                 {formatCounselorStudentSubtitle({
+                                                    college_code: s.college_code,
                                                     department: s.department,
                                                     program: s.program,
                                                     year_level: s.year_level,
-                                                }) || 'CCS'}
+                                                }) || '—'}
                                             </Text>
                                         )}
                                     </View>

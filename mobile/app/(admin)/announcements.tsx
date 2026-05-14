@@ -13,7 +13,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Megaphone, ArrowLeft } from "lucide-react-native";
 import { AppText as Text } from "../../src/components/common/AppText";
 import { AURORA } from "../../src/constants/aurora-colors";
-import { announcementsService, type Announcement } from "../../src/services/announcements.service";
+import { announcementsService, type Announcement, formatAnnouncementAudienceLabel } from "../../src/services/announcements.service";
 
 function formatAdminDate(date: Date): string {
   return new Date(date).toLocaleDateString("en-US", {
@@ -104,6 +104,9 @@ export default function AdminAnnouncementsScreen() {
                 <Text style={styles.cardMeta}>
                   Posted by: {item.createdByName || "Unknown"} · {formatAdminDate(item.createdAt)}
                 </Text>
+                <Text style={styles.cardAudience}>
+                  {item.audienceLabel ?? formatAnnouncementAudienceLabel(item)}
+                </Text>
                 <Text style={styles.cardContent} numberOfLines={3}>
                   {item.content || "No content."}
                 </Text>
@@ -192,6 +195,12 @@ const styles = StyleSheet.create({
   cardMeta: {
     color: AURORA.textSec,
     fontSize: 12,
+    marginBottom: 8,
+  },
+  cardAudience: {
+    color: AURORA.blue,
+    fontSize: 11,
+    fontWeight: "700",
     marginBottom: 8,
   },
   cardContent: {

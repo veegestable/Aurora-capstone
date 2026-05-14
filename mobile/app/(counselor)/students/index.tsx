@@ -37,6 +37,7 @@ type ProgramFilter = "All Students" | ProgramFilterCode;
 interface StudentEntry {
   id: string;
   full_name: string;
+  college_code?: string;
   department?: string;
   program?: string;
   year_level?: string;
@@ -89,6 +90,7 @@ function StudentCard({
   const style = getRosterPillStyle(student.rosterPill);
   const programText =
     formatCounselorStudentSubtitle({
+      college_code: student.college_code,
       department: student.department,
       program: student.program,
       year_level: student.year_level,
@@ -326,6 +328,8 @@ export default function CounselorStudentsScreen() {
                 typeof rec.full_name === "string" && rec.full_name.trim()
                   ? rec.full_name
                   : "Student",
+              college_code:
+                typeof rec.college_code === "string" ? rec.college_code : undefined,
               department:
                 typeof rec.department === "string" ? rec.department : undefined,
               program: typeof rec.program === "string" ? rec.program : undefined,
@@ -365,14 +369,17 @@ export default function CounselorStudentsScreen() {
     if (activeFilter !== "All Students") {
       list = list.filter(
         (s) =>
-          normalizeStudentToProgramFilter(s.department, s.program) ===
-          activeFilter,
+          normalizeStudentToProgramFilter(
+            s.college_code || s.department,
+            s.program,
+          ) === activeFilter,
       );
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter((s) => {
         const subtitle = formatCounselorStudentSubtitle({
+          college_code: s.college_code,
           department: s.department,
           program: s.program,
           year_level: s.year_level,
@@ -380,6 +387,7 @@ export default function CounselorStudentsScreen() {
         return (
           s.full_name.toLowerCase().includes(q) ||
           subtitle.includes(q) ||
+          s.college_code?.toLowerCase().includes(q) ||
           s.department?.toLowerCase().includes(q) ||
           s.program?.toLowerCase().includes(q)
         );
@@ -527,49 +535,5 @@ export default function CounselorStudentsScreen() {
 
 // ─── Fallback Mock Students ────────────────────────────────────────────────────
 const MOCK_STUDENTS: StudentEntry[] = [
-  {
-    id: "m1",
-    full_name: "Marcus Chen",
-    department: "CCS",
-    program: "BS CS (Computer Science)",
-    year_level: "4th",
-    rosterPill: "session_started",
-    activitySummary: "Last in Aurora: 2h ago",
-  },
-  {
-    id: "m2",
-    full_name: "Sarah Jenkins",
-    department: "CCS",
-    program: "BS IS (Information Systems)",
-    year_level: "2nd",
-    rosterPill: "no_session_yet",
-    activitySummary: "No session with you yet",
-  },
-  {
-    id: "m3",
-    full_name: "David Miller",
-    department: "CCS",
-    program: "BS IT (Information Technology)",
-    year_level: "3rd",
-    rosterPill: "session_started",
-    activitySummary: "Last in Aurora: 1d ago",
-  },
-  {
-    id: "m4",
-    full_name: "Elena Rodriguez",
-    department: "CCS",
-    program: "BS CS (Computer Science)",
-    year_level: "1st",
-    rosterPill: "session_started",
-    activitySummary: "Last in Aurora: 3h ago",
-  },
-  {
-    id: "m5",
-    full_name: "Jordan Smith",
-    department: "CCS",
-    program: "BS CA (Computer Application)",
-    year_level: "4th",
-    rosterPill: "no_session_yet",
-    activitySummary: "No session with you yet",
-  },
+  
 ];
