@@ -5,7 +5,7 @@ import { AppText as Text } from "../../components/common/AppText";
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from "react-native";
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl, Modal } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Users, Check, X } from 'lucide-react-native';
@@ -17,12 +17,20 @@ import {
     counselorApprovalBadgeStatus,
     isCounselorPendingApproval,
 } from '../../utils/counselorApprovalForAdmin';
+import {
+    COLLEGES,
+    type CollegeCode,
+    resolveCollegeCodeFromUserData,
+    isCollegeCode,
+} from '../../constants/colleges';
 
 interface CounselorUser {
     id: string;
     full_name: string;
     email: string;
     approval_status?: CounselorApprovalStatus;
+    college_code?: string;
+    department?: string;
 }
 
 function StatusBadge({ status }: { status: CounselorApprovalStatus }) {
@@ -45,6 +53,8 @@ export default function AdminCounselorsScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
+    const [approveTarget, setApproveTarget] = useState<CounselorUser | null>(null);
+    const [approveCollege, setApproveCollege] = useState<CollegeCode | ''>('');
 
     const loadCounselors = async () => {
         try {
@@ -62,24 +72,33 @@ export default function AdminCounselorsScreen() {
         loadCounselors();
     }, []);
 
-    const handleApprove = async (c: CounselorUser) => {
-        Alert.alert('Approve Counselor', `Approve ${c.full_name} as a counselor?`, [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Approve',
-                onPress: async () => {
-                    setUpdatingId(c.id);
-                    try {
-                        await authService.updateCounselorApproval(c.id, 'approved');
-                        await loadCounselors();
-                    } catch (e) {
-                        Alert.alert('Error', 'Could not approve. Please try again.');
-                    } finally {
-                        setUpdatingId(null);
-                    }
-                },
-            },
-        ]);
+    const openApproveModal = (c: CounselorUser) => {
+        setApproveTarget(c);
+        const existing = resolveCollegeCodeFromUserData(
+            c as unknown as Record<string, unknown>,
+        );
+        setApproveCollege(existing && isCollegeCode(existing) ? existing : '');
+    };
+
+    const submitApproveWithCollege = async () => {
+        if (!approveTarget) return;
+        if (!approveCollege || !isCollegeCode(approveCollege)) {
+            Alert.alert('College required', 'Select the college this counselor serves before approving.');
+            return;
+        }
+        setUpdatingId(approveTarget.id);
+        try {
+            await authService.updateCounselorApproval(approveTarget.id, 'approved', {
+                college_code: approveCollege,
+            });
+            setApproveTarget(null);
+            setApproveCollege('');
+            await loadCounselors();
+        } catch (e) {
+            Alert.alert('Error', 'Could not approve. Please try again.');
+        } finally {
+            setUpdatingId(null);
+        }
     };
 
     const handleReject = async (c: CounselorUser) => {
@@ -182,7 +201,7 @@ export default function AdminCounselorsScreen() {
                                     ) && (
                                         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                                             <TouchableOpacity
-                                                onPress={() => handleApprove(c)}
+                                                onPress={() => openApproveModal(c)}
                                                 disabled={!!updatingId}
                                                 style={{
                                                     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -218,6 +237,80 @@ export default function AdminCounselorsScreen() {
                         )}
                     </ScrollView>
                 )}
+
+                <Modal
+                    visible={approveTarget != null}
+                    animationType="slide"
+                    presentationStyle="pageSheet"
+                    onRequestClose={() => !updatingId && setApproveTarget(null)}
+                >
+                    <View style={{ flex: 1, backgroundColor: AURORA.bg }}>
+                        <SafeAreaView style={{ flex: 1 }}>
+                            <View style={{
+                                flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                                paddingHorizontal: 20, paddingVertical: 14,
+                                borderBottomWidth: 1, borderBottomColor: AURORA.border,
+                            }}>
+                                <TouchableOpacity
+                                    onPress={() => !updatingId && setApproveTarget(null)}
+                                    style={{ paddingVertical: 4 }}
+                                >
+                                    <Text style={{ color: AURORA.textSec, fontSize: 15 }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '700' }}>Assign college</Text>
+                                <View style={{ width: 56 }} />
+                            </View>
+                            <Text style={{
+                                color: AURORA.textSec, fontSize: 13, lineHeight: 19,
+                                paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8,
+                            }}>
+                                Choose the college for{' '}
+                                <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>
+                                    {approveTarget?.full_name ?? 'this counselor'}
+                                </Text>
+                                . They will only see students from this college after approval.
+                            </Text>
+                            <ScrollView
+                                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 28 }}
+                                keyboardShouldPersistTaps="handled"
+                            >
+                                {COLLEGES.map((row) => (
+                                    <TouchableOpacity
+                                        key={row.code}
+                                        onPress={() => setApproveCollege(row.code)}
+                                        style={{
+                                            paddingVertical: 14, paddingHorizontal: 14, borderRadius: 12, marginBottom: 8,
+                                            borderWidth: 1,
+                                            borderColor: approveCollege === row.code ? 'rgba(45,107,255,0.55)' : AURORA.border,
+                                            backgroundColor: approveCollege === row.code ? 'rgba(45,107,255,0.14)' : AURORA.card,
+                                        }}
+                                    >
+                                        <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600' }}>
+                                            {row.code} — {row.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                                <TouchableOpacity
+                                    onPress={() => void submitApproveWithCollege()}
+                                    disabled={!!updatingId}
+                                    style={{
+                                        marginTop: 16, paddingVertical: 14, borderRadius: 14, alignItems: 'center',
+                                        backgroundColor: 'rgba(34, 197, 94, 0.2)', borderWidth: 1,
+                                        borderColor: 'rgba(34, 197, 94, 0.45)', opacity: updatingId ? 0.6 : 1,
+                                    }}
+                                >
+                                    {updatingId === approveTarget?.id ? (
+                                        <ActivityIndicator color="#86EFAC" />
+                                    ) : (
+                                        <Text style={{ color: '#86EFAC', fontSize: 16, fontWeight: '700' }}>
+                                            Approve counselor
+                                        </Text>
+                                    )}
+                                </TouchableOpacity>
+                            </ScrollView>
+                        </SafeAreaView>
+                    </View>
+                </Modal>
             </SafeAreaView>
         </View>
     );

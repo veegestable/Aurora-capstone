@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Sunrise,
   Droplets,
+  GraduationCap,
 } from "lucide-react-native";
 import { useAuth } from "../../stores/AuthContext";
 import { useUserDaySettings } from "../../stores/UserDaySettingsContext";
@@ -34,12 +35,21 @@ import {
 } from "../../services/push-notifications.service";
 import { syncExpoPushTokenToUserDoc } from "../../services/expo-push-token.service";
 import {
-  CCS_COLLEGE_DEPARTMENT,
-  DEGREE_PROGRAM_OPTIONS,
   formatCounselorStudentSubtitle,
   formatYearLevelForDisplay,
-  matchLegacyDepartmentToProgramValue,
 } from "../../constants/ccs-student-programs";
+import {
+  COLLEGES,
+  type CollegeCode,
+  resolveCollegeCodeFromUserData,
+  getCollegeName,
+  isCollegeCode,
+} from "../../constants/colleges";
+import {
+  getProgramsForCollege,
+  isProgramInCollege,
+} from "../../constants/college-programs-iit";
+import { firestoreService } from "../../services/firebase-firestore.service";
 import { COUNSELOR_VISIBLE_CHECKIN_SUMMARY } from "../../constants/counselor-checkin-policy";
 import type { MealScheduleItem } from "../../services/mood-firestore-v2.service";
 
@@ -314,11 +324,9 @@ function EditProfileModal({
   onSave: (data: {
     preferredName: string;
     sex?: SexOption;
-    program: string;
     yearLevel: string;
     studentNumber: string;
     contactNumber: string;
-    collegeDepartment: string;
   }) => void;
   onPickAvatar?: (imageUri: string) => Promise<void>;
 }) {
@@ -326,7 +334,6 @@ function EditProfileModal({
     user?.preferred_name || user?.full_name || "",
   );
   const [sex, setSex] = useState<SexOption | undefined>(user?.sex);
-  const [program, setProgram] = useState("");
   const [yearLevel, setYearLevel] = useState(user?.year_level || "");
   const [studentNumber, setStudentNumber] = useState(
     user?.student_number || "",
@@ -335,18 +342,11 @@ function EditProfileModal({
     user?.contact_number || "",
   );
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [programPickerOpen, setProgramPickerOpen] = useState(false);
-
-  const resolveProgramFromUser = (u: any) =>
-    (u?.program && DEGREE_PROGRAM_OPTIONS.some((o) => o.value === u.program)
-      ? u.program
-      : "") || matchLegacyDepartmentToProgramValue(u?.department);
 
   useEffect(() => {
     if (visible && user) {
       setName(user.preferred_name || user.full_name || "");
       setSex(user.sex ?? undefined);
-      setProgram(resolveProgramFromUser(user));
       setYearLevel(user.year_level || "");
       setStudentNumber(user.student_number || "");
       setContactNumber(user.contact_number || "");
@@ -387,13 +387,6 @@ function EditProfileModal({
     const yearTrim = yearLevel.trim();
     const studentNumTrim = studentNumber.trim();
     const contactTrim = contactNumber.trim();
-    if (!program) {
-      Alert.alert(
-        "Required field",
-        "Please select your program from the list.",
-      );
-      return;
-    }
     if (!yearTrim) {
       Alert.alert(
         "Required field",
@@ -419,11 +412,9 @@ function EditProfileModal({
     onSave({
       preferredName: name.trim() || user?.full_name || "Student",
       sex,
-      program,
       yearLevel: yearTrim,
       studentNumber: studentNumTrim,
       contactNumber: contactTrim,
-      collegeDepartment: CCS_COLLEGE_DEPARTMENT,
     });
     onClose();
   };
@@ -514,7 +505,7 @@ function EditProfileModal({
               <Text
                 style={{ color: AURORA.textSec, fontSize: 13, marginTop: 8 }}
               >
-                College of Computer Studies • MSU-IIT
+                MSU-IIT · College and program are changed via “Request college / program change”
               </Text>
             </View>
 
@@ -558,121 +549,6 @@ function EditProfileModal({
                 placeholderTextColor={AURORA.textMuted}
               />
             </View>
-
-            <Text
-              style={{
-                color: "#FFFFFF",
-                fontSize: 14,
-                fontWeight: "600",
-                marginBottom: 8,
-              }}
-            >
-              Program <Text style={{ color: AURORA.red }}>*</Text>
-            </Text>
-            <TouchableOpacity
-              onPress={() => setProgramPickerOpen(true)}
-              activeOpacity={0.8}
-              style={{
-                backgroundColor: AURORA.card,
-                borderRadius: 14,
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 14,
-                marginBottom: 20,
-                borderWidth: 1,
-                borderColor: AURORA.border,
-                minHeight: 50,
-              }}
-            >
-              <Text
-                style={{
-                  flex: 1,
-                  color: program ? "#FFFFFF" : AURORA.textMuted,
-                  fontSize: 15,
-                  paddingVertical: 14,
-                }}
-              >
-                {program || "Select program"}
-              </Text>
-              <ChevronDown size={18} color={AURORA.textSec} />
-            </TouchableOpacity>
-
-            <Modal
-              visible={programPickerOpen}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setProgramPickerOpen(false)}
-            >
-              <View
-                style={{
-                  flex: 1,
-                  justifyContent: "flex-end",
-                  backgroundColor: "rgba(0,0,0,0.55)",
-                }}
-              >
-                <TouchableOpacity
-                  style={{ flex: 1 }}
-                  activeOpacity={1}
-                  onPress={() => setProgramPickerOpen(false)}
-                />
-                <View
-                  style={{
-                    backgroundColor: AURORA.card,
-                    borderTopLeftRadius: 20,
-                    borderTopRightRadius: 20,
-                    paddingBottom: Platform.OS === "ios" ? 28 : 16,
-                    borderWidth: 1,
-                    borderColor: AURORA.border,
-                    maxHeight: "55%",
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: "#FFFFFF",
-                      fontSize: 16,
-                      fontWeight: "700",
-                      paddingHorizontal: 20,
-                      paddingTop: 16,
-                      paddingBottom: 12,
-                    }}
-                  >
-                    Select program
-                  </Text>
-                  <ScrollView keyboardShouldPersistTaps="handled">
-                    {DEGREE_PROGRAM_OPTIONS.map((opt) => (
-                      <TouchableOpacity
-                        key={opt.value}
-                        onPress={() => {
-                          setProgram(opt.value);
-                          setProgramPickerOpen(false);
-                        }}
-                        style={{
-                          paddingVertical: 16,
-                          paddingHorizontal: 20,
-                          borderTopWidth: 1,
-                          borderTopColor: AURORA.border,
-                          backgroundColor:
-                            program === opt.value
-                              ? "rgba(45,107,255,0.12)"
-                              : "transparent",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color:
-                              program === opt.value ? AURORA.blue : "#FFFFFF",
-                            fontSize: 15,
-                            fontWeight: program === opt.value ? "700" : "500",
-                          }}
-                        >
-                          {opt.value}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              </View>
-            </Modal>
 
             <Text
               style={{
@@ -901,7 +777,8 @@ function dateToHHmm(d: Date): string {
 }
 
 export default function ProfileScreen() {
-  const { user, signOut, updateUser, uploadAvatar } = useAuth();
+  const { user, signOut, updateUser, uploadAvatar, refreshUserProfile } =
+    useAuth();
   const {
     reminderHour,
     reminderMinute,
@@ -918,6 +795,13 @@ export default function ProfileScreen() {
   } = useUserDaySettings();
   const [aiCamera, setAiCamera] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [collegeShiftOpen, setCollegeShiftOpen] = useState(false);
+  const [shiftTargetCollege, setShiftTargetCollege] = useState<CollegeCode | "">(
+    "",
+  );
+  const [shiftTargetProgram, setShiftTargetProgram] = useState("");
+  const [shiftReason, setShiftReason] = useState("");
+  const [shiftSubmitting, setShiftSubmitting] = useState(false);
   const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
   const [showMeal, setMeal] = useState(false);
   const [bathScheduleOpen, setBath] = useState(false);
@@ -959,6 +843,10 @@ export default function ProfileScreen() {
     if (user?.student_number) score += 15;
     if (user?.contact_number?.trim()) score += 5;
     if (user?.avatar_url) score += 5;
+    const cc = resolveCollegeCodeFromUserData(
+      user as Record<string, unknown> | null,
+    );
+    if (cc) score += 5;
     return Math.min(score, 100);
   }, [
     user?.preferred_name,
@@ -969,6 +857,8 @@ export default function ProfileScreen() {
     user?.student_number,
     user?.contact_number,
     user?.avatar_url,
+    user?.college_code,
+    user?.department,
   ]);
 
   const pickerValue = useMemo(() => {
@@ -1230,10 +1120,11 @@ export default function ProfileScreen() {
               }}
             >
               {formatCounselorStudentSubtitle({
+                college_code: user?.college_code,
                 department: user?.department,
                 program: user?.program,
                 year_level: user?.year_level,
-              }) || "MSU-IIT CCS Student"}
+              }) || "MSU-IIT student"}
             </Text>
             <Text
               style={{ color: AURORA.textMuted, fontSize: 12, marginTop: 5 }}
@@ -1265,6 +1156,45 @@ export default function ProfileScreen() {
               label="Edit Profile"
               onPress={() => setShowEditProfile(true)}
             />
+            {resolveCollegeCodeFromUserData(
+              user as Record<string, unknown> | null,
+            ) &&
+            !user?.college_shift_pending ? (
+              <SettingsRow
+                icon={<GraduationCap size={18} color={AURORA.textSec} />}
+                label="Request college / program change"
+                onPress={() => {
+                  setShiftTargetCollege("");
+                  setShiftTargetProgram("");
+                  setShiftReason("");
+                  setCollegeShiftOpen(true);
+                }}
+              />
+            ) : null}
+            {user?.college_shift_pending ? (
+              <View
+                style={{
+                  paddingVertical: 12,
+                  borderTopWidth: 1,
+                  borderTopColor: AURORA.border,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#F59E0B",
+                    fontSize: 13,
+                    fontWeight: "700",
+                    marginBottom: 4,
+                  }}
+                >
+                  College change pending review
+                </Text>
+                <Text style={{ color: AURORA.textSec, fontSize: 12, lineHeight: 18 }}>
+                  An administrator is reviewing your request. You will keep your
+                  current college until it is approved.
+                </Text>
+              </View>
+            ) : null}
             <SettingsRow
               icon={<UtensilsCrossed size={18} color={AURORA.textSec} />}
               label="Meal Schedule"
@@ -1336,16 +1266,20 @@ export default function ProfileScreen() {
                   : "Not set"
               }
             />
-            <InfoRow label="Department" value={CCS_COLLEGE_DEPARTMENT} />
+            <InfoRow
+              label="College"
+              value={
+                (() => {
+                  const c = resolveCollegeCodeFromUserData(
+                    user as Record<string, unknown> | null,
+                  );
+                  return c ? `${c} — ${getCollegeName(c)}` : "Not set";
+                })()
+              }
+            />
             <InfoRow
               label="Program"
-              value={
-                user?.program ||
-                (user?.department && user.department !== CCS_COLLEGE_DEPARTMENT
-                  ? user.department
-                  : "") ||
-                "Not set"
-              }
+              value={user?.program || "Not set"}
             />
             <InfoRow
               label="Year level"
@@ -2375,6 +2309,246 @@ export default function ProfileScreen() {
           </Text>
         </ScrollView>
 
+        <Modal
+          visible={collegeShiftOpen}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => !shiftSubmitting && setCollegeShiftOpen(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
+            <SafeAreaView style={{ flex: 1 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 20,
+                  paddingVertical: 14,
+                  borderBottomWidth: 1,
+                  borderBottomColor: AURORA.border,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => !shiftSubmitting && setCollegeShiftOpen(false)}
+                >
+                  <Text style={{ color: AURORA.textSec, fontSize: 15 }}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <Text
+                  style={{ color: "#FFFFFF", fontSize: 17, fontWeight: "700" }}
+                >
+                  College & program change
+                </Text>
+                <View style={{ width: 56 }} />
+              </View>
+              <ScrollView
+                contentContainerStyle={{
+                  padding: 20,
+                  paddingBottom: 40,
+                }}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={{ color: AURORA.textSec, fontSize: 13, marginBottom: 16 }}>
+                  Pick the college (you can keep your current college to change program
+                  only), then choose your degree program from that college's list. An
+                  admin must approve before your profile updates.
+                </Text>
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 14,
+                    fontWeight: "600",
+                    marginBottom: 8,
+                  }}
+                >
+                  College
+                </Text>
+                {COLLEGES.map((c) => (
+                  <TouchableOpacity
+                    key={c.code}
+                    onPress={() => {
+                      setShiftTargetCollege(c.code);
+                      setShiftTargetProgram("");
+                    }}
+                    style={{
+                      paddingVertical: 14,
+                      paddingHorizontal: 14,
+                      borderRadius: 12,
+                      marginBottom: 8,
+                      borderWidth: 1,
+                      borderColor:
+                        shiftTargetCollege === c.code
+                          ? "rgba(45,107,255,0.55)"
+                          : AURORA.border,
+                      backgroundColor:
+                        shiftTargetCollege === c.code
+                          ? "rgba(45,107,255,0.14)"
+                          : AURORA.card,
+                    }}
+                  >
+                    <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
+                      {c.code} — {c.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {shiftTargetCollege && isCollegeCode(shiftTargetCollege) ? (
+                  <>
+                    <Text
+                      style={{
+                        color: "#FFFFFF",
+                        fontSize: 14,
+                        fontWeight: "600",
+                        marginTop: 16,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Degree program
+                    </Text>
+                    {getProgramsForCollege(shiftTargetCollege).map((p) => (
+                      <TouchableOpacity
+                        key={p}
+                        onPress={() => setShiftTargetProgram(p)}
+                        style={{
+                          paddingVertical: 12,
+                          paddingHorizontal: 14,
+                          borderRadius: 12,
+                          marginBottom: 8,
+                          borderWidth: 1,
+                          borderColor:
+                            shiftTargetProgram === p
+                              ? "rgba(45,107,255,0.55)"
+                              : AURORA.border,
+                          backgroundColor:
+                            shiftTargetProgram === p
+                              ? "rgba(45,107,255,0.14)"
+                              : AURORA.card,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: "#FFFFFF",
+                            fontSize: 13,
+                            fontWeight: shiftTargetProgram === p ? "700" : "500",
+                            lineHeight: 19,
+                          }}
+                        >
+                          {p}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                ) : null}
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 14,
+                    fontWeight: "600",
+                    marginTop: 16,
+                    marginBottom: 8,
+                  }}
+                >
+                  Reason for change
+                </Text>
+                <TextInput
+                  style={{
+                    backgroundColor: AURORA.card,
+                    borderRadius: 14,
+                    padding: 14,
+                    color: "#FFFFFF",
+                    minHeight: 100,
+                    textAlignVertical: "top",
+                    borderWidth: 1,
+                    borderColor: AURORA.border,
+                  }}
+                  placeholder="Explain your request (required, min. 8 characters)."
+                  placeholderTextColor={AURORA.textMuted}
+                  value={shiftReason}
+                  onChangeText={setShiftReason}
+                  multiline
+                />
+                <TouchableOpacity
+                  disabled={shiftSubmitting}
+                  onPress={() => {
+                    void (async () => {
+                      if (!user?.id) return;
+                      if (!shiftTargetCollege || !isCollegeCode(shiftTargetCollege)) {
+                        Alert.alert("College", "Select a college.");
+                        return;
+                      }
+                      if (
+                        !shiftTargetProgram.trim() ||
+                        !isProgramInCollege(shiftTargetCollege, shiftTargetProgram)
+                      ) {
+                        Alert.alert(
+                          "Program",
+                          "Select a degree program from the list for that college.",
+                        );
+                        return;
+                      }
+                      const profileCollege = resolveCollegeCodeFromUserData(
+                        user as unknown as Record<string, unknown> | null,
+                      );
+                      const currentProg =
+                        typeof user?.program === "string"
+                          ? user.program.trim()
+                          : "";
+                      if (
+                        profileCollege &&
+                        shiftTargetCollege === profileCollege &&
+                        currentProg &&
+                        shiftTargetProgram.trim() === currentProg
+                      ) {
+                        Alert.alert(
+                          "Program",
+                          "Choose a different degree program than your current one.",
+                        );
+                        return;
+                      }
+                      try {
+                        setShiftSubmitting(true);
+                        await firestoreService.submitCollegeShiftRequest(
+                          user.id,
+                          shiftTargetCollege,
+                          shiftTargetProgram.trim(),
+                          shiftReason,
+                        );
+                        await refreshUserProfile();
+                        setCollegeShiftOpen(false);
+                        Alert.alert(
+                          "Submitted",
+                          "Your request is pending admin review.",
+                        );
+                      } catch (e) {
+                        Alert.alert(
+                          "Could not submit",
+                          e instanceof Error ? e.message : "Please try again.",
+                        );
+                      } finally {
+                        setShiftSubmitting(false);
+                      }
+                    })();
+                  }}
+                  style={{
+                    marginTop: 20,
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    alignItems: "center",
+                    backgroundColor: "rgba(45,107,255,0.2)",
+                    borderWidth: 1,
+                    borderColor: "rgba(45,107,255,0.45)",
+                    opacity: shiftSubmitting ? 0.6 : 1,
+                  }}
+                >
+                  <Text style={{ color: "#C3D4FF", fontSize: 15, fontWeight: "700" }}>
+                    {shiftSubmitting ? "Submitting…" : "Submit request"}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </SafeAreaView>
+          </View>
+        </Modal>
+
         <EditProfileModal
           visible={showEditProfile}
           onClose={() => setShowEditProfile(false)}
@@ -2384,12 +2558,11 @@ export default function ProfileScreen() {
               await updateUser({
                 preferred_name: data.preferredName,
                 sex: data.sex,
-                department: data.collegeDepartment,
-                program: data.program,
                 year_level: data.yearLevel,
                 student_number: data.studentNumber,
                 contact_number: data.contactNumber,
               });
+              await refreshUserProfile();
             } catch (e) {
               console.error("Failed to save profile:", e);
             }

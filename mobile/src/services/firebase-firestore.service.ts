@@ -38,8 +38,23 @@ import {
   isPlaceholderSessionDocId,
   resolveSessionsDocIdForSessionCard,
 } from "../utils/sessionInviteIds";
+import {
+  resolveCollegeCodeFromUserData,
+  isCollegeCode,
+  type CollegeCode,
+} from "../constants/colleges";
+import { isProgramInCollege } from "../constants/college-programs-iit";
 
 const AUTO_ACCEPTED_PREFIX = "__AUTO_ACCEPTED__";
+
+function sameResolvedCollege(
+  a: Record<string, unknown> | undefined,
+  b: Record<string, unknown> | undefined,
+): boolean {
+  const ca = resolveCollegeCodeFromUserData(a ?? null);
+  const cb = resolveCollegeCodeFromUserData(b ?? null);
+  return !!ca && !!cb && ca === cb;
+}
 
 function sanitizeConversationPreview(raw: unknown): string {
   const text = typeof raw === "string" ? raw : "";
@@ -527,19 +542,35 @@ export const firestoreService = {
     }
   },
 
-  async getVerifiedStudents() {
+  /**
+   * Verified students in one college unit. Scoped so counselor collection reads
+   * satisfy Firestore rules (counselors may not read students in other colleges).
+   */
+  async getVerifiedStudentsForCollege(collegeCode: CollegeCode) {
     try {
-      const q = query(
+      const byId: Record<string, Record<string, unknown>> = {};
+      const collect = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
+        snapshot.docs.forEach((d) => {
+          byId[d.id] = { id: d.id, ...(d.data() ?? {}) };
+        });
+      };
+      const qCode = query(
         collection(db, "users"),
         where("role", "==", "student"),
         where("email_verified", "==", true),
+        where("college_code", "==", collegeCode),
       );
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(
-        (d) => ({ id: d.id, ...(d.data() ?? {}) }) as Record<string, unknown>,
+      collect(await getDocs(qCode));
+      const qDept = query(
+        collection(db, "users"),
+        where("role", "==", "student"),
+        where("email_verified", "==", true),
+        where("department", "==", collegeCode),
       );
+      collect(await getDocs(qDept));
+      return Object.values(byId);
     } catch (error: any) {
-      console.error("❌ Error fetching verified students:", error);
+      console.error("❌ Error fetching verified students for college:", error);
       throw error;
     }
   },
@@ -558,11 +589,36 @@ export const firestoreService = {
       byId[id] = { ...byId[id], ...row, id };
     };
 
-    try {
-      const verified = await this.getVerifiedStudents();
-      (verified as Record<string, unknown>[]).forEach(add);
-    } catch {
-      // keep going; linked fallback below
+    let counselorCollege: CollegeCode | "" = "";
+    if (counselorId) {
+      try {
+        const csnap = await getDoc(doc(db, "users", counselorId));
+        if (csnap.exists()) {
+          counselorCollege = resolveCollegeCodeFromUserData(
+            (csnap.data() ?? {}) as Record<string, unknown>,
+          );
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const maybeAddVerified = (row: Record<string, unknown>) => {
+      if (!counselorCollege) return;
+      if (sameResolvedCollege(row, { college_code: counselorCollege })) {
+        add(row);
+      }
+    };
+
+    if (counselorCollege) {
+      try {
+        const verified = await this.getVerifiedStudentsForCollege(
+          counselorCollege,
+        );
+        (verified as Record<string, unknown>[]).forEach(maybeAddVerified);
+      } catch {
+        // keep going; linked fallback below
+      }
     }
 
     const linkedIds = new Set<string>();
@@ -596,7 +652,14 @@ export const firestoreService = {
             const data = (snap.data() ?? {}) as Record<string, unknown>;
             const role = String(data.role ?? "").toLowerCase();
             if (role !== "student") return;
-            add({ id: sid, ...data });
+            const row = { id: sid, ...data };
+            if (
+              counselorCollege &&
+              !sameResolvedCollege(row, { college_code: counselorCollege })
+            ) {
+              return;
+            }
+            add(row);
           } catch {
             // ignore one-off fetch failures
           }
@@ -611,7 +674,11 @@ export const firestoreService = {
     );
   },
 
-  async getVerifiedApprovedCounselors() {
+  /**
+   * Approved, verified counselors in one college. Scoped so student collection reads
+   * satisfy Firestore rules (students may not read counselors in other colleges).
+   */
+  async getVerifiedApprovedCounselorsForCollege(collegeCode: CollegeCode) {
     try {
       const byId: Record<string, Record<string, unknown>> = {};
       const collect = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
@@ -625,6 +692,7 @@ export const firestoreService = {
         where("role", "==", "counselor"),
         where("email_verified", "==", true),
         where("approval_status", "==", "approved"),
+        where("college_code", "==", collegeCode),
       );
       collect(await getDocs(approvedCounselors));
 
@@ -633,12 +701,16 @@ export const firestoreService = {
         where("role", "==", "Counselor"),
         where("email_verified", "==", true),
         where("approval_status", "==", "approved"),
+        where("college_code", "==", collegeCode),
       );
       collect(await getDocs(approvedCounselorsLegacyRole));
 
       return Object.values(byId);
     } catch (error: any) {
-      console.error("❌ Error fetching verified approved counselors:", error);
+      console.error(
+        "❌ Error fetching verified approved counselors for college:",
+        error,
+      );
       throw error;
     }
   },
@@ -659,6 +731,20 @@ export const firestoreService = {
       byId[id] = { ...byId[id], ...raw, id };
     };
 
+    let studentCollege: CollegeCode | "" = "";
+    if (studentId) {
+      try {
+        const ss = await getDoc(doc(db, "users", studentId));
+        if (ss.exists()) {
+          studentCollege = resolveCollegeCodeFromUserData(
+            (ss.data() ?? {}) as Record<string, unknown>,
+          );
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     const pickCounselorIdFromSession = (
       row: Record<string, unknown>,
     ): string => String(row.counselorId ?? "").trim();
@@ -674,11 +760,21 @@ export const firestoreService = {
       return approved && verified;
     };
 
-    try {
-      const roleCounselors = await this.getVerifiedApprovedCounselors();
-      (roleCounselors as Record<string, unknown>[]).forEach(add);
-    } catch {
-      // keep going with linked counselors fallback
+    const maybeAddCounselor = (row: Record<string, unknown>) => {
+      if (!passesCounselorPickerPolicy(row)) return;
+      if (!studentCollege) return;
+      if (!sameResolvedCollege(row, { college_code: studentCollege })) return;
+      add(row);
+    };
+
+    if (studentCollege) {
+      try {
+        const roleCounselors =
+          await this.getVerifiedApprovedCounselorsForCollege(studentCollege);
+        (roleCounselors as Record<string, unknown>[]).forEach(maybeAddCounselor);
+      } catch {
+        // keep going with linked counselors fallback
+      }
     }
 
     const linkedCounselorIds = new Set<string>();
@@ -712,7 +808,14 @@ export const firestoreService = {
             if (!snap.exists()) return;
             const data = (snap.data() ?? {}) as Record<string, unknown>;
             const candidate = { id: cid, ...data };
-            if (passesCounselorPickerPolicy(candidate)) add(candidate);
+            if (!passesCounselorPickerPolicy(candidate)) return;
+            if (
+              studentCollege &&
+              !sameResolvedCollege(candidate, { college_code: studentCollege })
+            ) {
+              return;
+            }
+            add(candidate);
           } catch {
             // ignore individual fetch errors
           }
@@ -727,6 +830,124 @@ export const firestoreService = {
           String(b.full_name ?? b.preferred_name ?? "").toLowerCase(),
         ),
     );
+  },
+
+  async getUsersWithPendingCollegeShifts(): Promise<Record<string, unknown>[]> {
+    const q = query(
+      collection(db, "users"),
+      where("college_shift_pending", "==", true),
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() ?? {}),
+    })) as Record<string, unknown>[];
+  },
+
+  async submitCollegeShiftRequest(
+    uid: string,
+    requestedCollegeCode: CollegeCode,
+    requestedProgram: string,
+    reason: string,
+  ): Promise<void> {
+    if (!isCollegeCode(requestedCollegeCode)) {
+      throw new Error("Invalid college selection.");
+    }
+    const programTrim = requestedProgram.trim();
+    if (!programTrim || !isProgramInCollege(requestedCollegeCode, programTrim)) {
+      throw new Error(
+        "Choose a degree program from the list for your new college.",
+      );
+    }
+    const trimmed = reason.trim();
+    if (trimmed.length < 8) {
+      throw new Error(
+        "Please explain your college change (at least 8 characters).",
+      );
+    }
+    const snap = await getDoc(doc(db, "users", uid));
+    if (!snap.exists()) throw new Error("Profile not found.");
+    const data = (snap.data() ?? {}) as Record<string, unknown>;
+    const current = resolveCollegeCodeFromUserData(data);
+    if (!current) {
+      throw new Error("Set your college on your profile before requesting a change.");
+    }
+    if (current === requestedCollegeCode) {
+      if (data.role !== "student") {
+        throw new Error("Select a different college for this request.");
+      }
+      const curProg =
+        typeof data.program === "string" ? data.program.trim() : "";
+      if (curProg && programTrim === curProg) {
+        throw new Error(
+          "Choose a different degree program than your current one.",
+        );
+      }
+    }
+    if (data.college_shift_pending === true) {
+      throw new Error("You already have a pending college change request.");
+    }
+    await updateDoc(doc(db, "users", uid), {
+      college_shift_request: {
+        requested_college_code: requestedCollegeCode,
+        requested_program: programTrim,
+        reason: trimmed,
+        requested_at: Timestamp.now(),
+      },
+      college_shift_pending: true,
+      updated_at: new Date(),
+    });
+  },
+
+  async adminApproveCollegeShift(uid: string): Promise<void> {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (!snap.exists()) throw new Error("User not found.");
+    const data = (snap.data() ?? {}) as Record<string, unknown>;
+    const req = data.college_shift_request as
+      | {
+          requested_college_code?: unknown;
+          requested_program?: unknown;
+        }
+      | undefined;
+    const nextCode = req?.requested_college_code;
+    if (!isCollegeCode(nextCode)) {
+      throw new Error("No valid pending college request for this user.");
+    }
+    const nextProgram =
+      typeof req?.requested_program === "string"
+        ? req.requested_program.trim()
+        : "";
+    const role = data.role;
+    const isStudent = role === "student";
+    if (isStudent) {
+      if (!nextProgram || !isProgramInCollege(nextCode, nextProgram)) {
+        throw new Error(
+          "This pending request is missing a valid program. Reject it and ask the student to submit again.",
+        );
+      }
+      await updateDoc(doc(db, "users", uid), {
+        college_code: nextCode,
+        program: nextProgram,
+        college_shift_request: deleteField(),
+        college_shift_pending: false,
+        updated_at: new Date(),
+      });
+      return;
+    }
+    await updateDoc(doc(db, "users", uid), {
+      college_code: nextCode,
+      college_shift_request: deleteField(),
+      college_shift_pending: false,
+      updated_at: new Date(),
+    });
+  },
+
+  async adminRejectCollegeShift(uid: string): Promise<void> {
+    await updateDoc(doc(db, "users", uid), {
+      college_shift_request: deleteField(),
+      college_shift_pending: false,
+      updated_at: new Date(),
+    });
   },
 
   async markNotificationAsRead(notificationId: string) {
@@ -2182,7 +2403,9 @@ export const firestoreService = {
             sessionHistoryBadge: badge,
             studentName: userMap[s.studentId]?.full_name ?? "Unknown Student",
             studentAvatar: userMap[s.studentId]?.avatar_url,
-            studentDepartment: userMap[s.studentId]?.department,
+            studentDepartment:
+              userMap[s.studentId]?.college_code ||
+              userMap[s.studentId]?.department,
             studentProgram: userMap[s.studentId]?.program,
             studentYear: userMap[s.studentId]?.year,
           };

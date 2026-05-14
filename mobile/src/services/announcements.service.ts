@@ -14,23 +14,47 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { isCollegeCode, type CollegeCode } from "../constants/colleges";
+
+/** Who may create announcements (stored on each document). */
+export type AnnouncementPublisherRole = "admin" | "counselor";
+
+/**
+ * Who can see the announcement (new model).
+ * Legacy docs only have `targetRole` and no `visibility`.
+ */
+export type AnnouncementVisibility =
+  | "students_all"
+  | "counselors_all"
+  | "colleges_cross"
+  | "students_one_college";
 
 export interface Announcement {
   id: string;
   title: string;
   content: string;
   imageUrl?: string;
+  /** @deprecated Legacy; prefer `visibility`. Kept for older Firestore rows. */
   targetRole: "all" | "counselor" | "student";
   createdBy: string;
   createdByName: string;
   createdAt: Date;
+  publisherRole?: AnnouncementPublisherRole;
+  visibility?: AnnouncementVisibility;
+  /** When `visibility` is `colleges_cross` or `students_one_college`, audience college(s). */
+  collegeCodes?: CollegeCode[];
+  /** Short label for admin lists, e.g. "Students · all colleges". */
+  audienceLabel?: string;
 }
 
 export interface CreateAnnouncementInput {
   title: string;
   content: string;
   imageUrl?: string;
-  targetRole: "all" | "counselor" | "student";
+  publisherRole: AnnouncementPublisherRole;
+  visibility: AnnouncementVisibility;
+  /** Required for `colleges_cross` and `students_one_college`; omit or empty for global audiences. */
+  collegeCodes?: CollegeCode[];
   createdBy: string;
   createdByName: string;
 }
@@ -39,6 +63,10 @@ export interface UpdateAnnouncementInput {
   title?: string;
   content?: string;
   imageUrl?: string | null;
+  publisherRole?: AnnouncementPublisherRole;
+  visibility?: AnnouncementVisibility;
+  collegeCodes?: CollegeCode[];
+  /** @deprecated Synced from visibility for legacy consumers. */
   targetRole?: "all" | "counselor" | "student";
 }
 
@@ -54,6 +82,9 @@ const MOCK_ANNOUNCEMENTS: Announcement[] = [
     createdBy: "system",
     createdByName: "Aurora Team",
     createdAt: new Date(),
+    visibility: "students_all",
+    publisherRole: "admin",
+    audienceLabel: "Students · all colleges",
   },
   {
     id: "mock-2",
@@ -66,6 +97,9 @@ const MOCK_ANNOUNCEMENTS: Announcement[] = [
     createdBy: "system",
     createdByName: "Aurora Team",
     createdAt: new Date(Date.now() - 86400000),
+    visibility: "students_all",
+    publisherRole: "admin",
+    audienceLabel: "Students · all colleges",
   },
   {
     id: "mock-3",
@@ -78,38 +112,136 @@ const MOCK_ANNOUNCEMENTS: Announcement[] = [
     createdBy: "system",
     createdByName: "Aurora Team",
     createdAt: new Date(Date.now() - 172800000),
+    visibility: "students_all",
+    publisherRole: "admin",
+    audienceLabel: "Students · all colleges",
   },
 ];
 
 const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
 
+function normalizeCollegeCodes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((c): c is string => typeof c === "string" && isCollegeCode(c));
+}
+
+function inferLegacyVisibility(
+  targetRole: string | undefined,
+): AnnouncementVisibility | undefined {
+  const tr = targetRole ?? "all";
+  if (tr === "student") return "students_all";
+  if (tr === "counselor") return "counselors_all";
+  if (tr === "all") return undefined;
+  return undefined;
+}
+
+/** Human-readable audience for admin UI. */
+export function formatAnnouncementAudienceLabel(a: Announcement): string {
+  if (a.audienceLabel) return a.audienceLabel;
+  const vis = a.visibility ?? inferLegacyVisibility(a.targetRole);
+  const codes = a.collegeCodes?.length ? a.collegeCodes.join(", ") : "";
+  if (!vis) return "Everyone (legacy)";
+  switch (vis) {
+    case "students_all":
+      return "Students · all colleges";
+    case "counselors_all":
+      return "Counselors · all colleges";
+    case "colleges_cross":
+      return codes ? `Students & counselors · ${codes}` : "Selected colleges";
+    case "students_one_college":
+      return codes ? `Students · ${codes}` : "Students · one college";
+    default:
+      return "Custom";
+  }
+}
+
+/**
+ * Whether this announcement should appear for the viewer (same logic as Firestore read).
+ */
+export function announcementMatchesReader(
+  viewerRole: "counselor" | "student",
+  viewerCollegeCode: string | undefined,
+  data: Record<string, unknown>,
+): boolean {
+  const college = (viewerCollegeCode ?? "").trim();
+  const visRaw = data.visibility as string | undefined;
+  const codes = normalizeCollegeCodes(data.collegeCodes);
+
+  if (!visRaw) {
+    const tr = (data.targetRole ?? "all") as string;
+    if (tr === "all") return true;
+    if (tr === "student") return viewerRole === "student";
+    if (tr === "counselor") return viewerRole === "counselor";
+    return false;
+  }
+
+  const vis = visRaw as AnnouncementVisibility;
+  switch (vis) {
+    case "students_all":
+      return viewerRole === "student";
+    case "counselors_all":
+      return viewerRole === "counselor";
+    case "colleges_cross":
+      if (!college || codes.length === 0) return false;
+      return codes.includes(college);
+    case "students_one_college":
+      if (viewerRole !== "student" || !college || codes.length === 0) return false;
+      return codes.includes(college);
+    default:
+      return false;
+  }
+}
+
 function mapAnnouncementsForRole(
   docs: QueryDocumentSnapshot[],
   role: "counselor" | "student",
+  viewerCollegeCode: string | undefined,
   maxCount: number,
+  skipAudienceFilter = false,
 ): Announcement[] {
   const now = Date.now();
   const list = docs
     .map((d) => {
-      const data = d.data();
-      const target = (data.targetRole ?? "all") as string;
-      const allowed = target === "all" || target === role;
-      if (!allowed) return null;
-      const createdAt = data.createdAt?.toDate?.() ?? new Date();
+      const data = d.data() as Record<string, unknown>;
+      if (
+        !skipAudienceFilter &&
+        !announcementMatchesReader(role, viewerCollegeCode, data)
+      ) {
+        return null;
+      }
+      const createdAt =
+        (data.createdAt as { toDate?: () => Date } | undefined)?.toDate?.() ??
+        new Date();
       if (now - createdAt.getTime() > THREE_WEEKS_MS) return null;
-      return {
+      const collegeCodes = normalizeCollegeCodes(data.collegeCodes) as CollegeCode[];
+      const vis =
+        (data.visibility as AnnouncementVisibility | undefined) ??
+        inferLegacyVisibility(data.targetRole as string | undefined);
+      const ann: Announcement = {
         id: d.id,
-        title: data.title ?? "",
-        content: data.content ?? "",
-        imageUrl: data.imageUrl ?? undefined,
-        targetRole: data.targetRole ?? "all",
-        createdBy: data.createdBy ?? "",
-        createdByName: data.createdByName ?? "",
+        title: String(data.title ?? ""),
+        content: String(data.content ?? ""),
+        imageUrl:
+          typeof data.imageUrl === "string" ? data.imageUrl : undefined,
+        targetRole: (String(data.targetRole ?? "all")) as Announcement["targetRole"],
+        createdBy: String(data.createdBy ?? ""),
+        createdByName: String(data.createdByName ?? ""),
         createdAt,
-      } as Announcement;
+        publisherRole: data.publisherRole as AnnouncementPublisherRole | undefined,
+        visibility: vis,
+        collegeCodes: collegeCodes.length ? collegeCodes : undefined,
+      };
+      ann.audienceLabel = formatAnnouncementAudienceLabel(ann);
+      return ann;
     })
     .filter(Boolean) as Announcement[];
   return list.slice(0, maxCount);
+}
+
+function targetRoleFromVisibility(vis: AnnouncementVisibility): Announcement["targetRole"] {
+  if (vis === "counselors_all") return "counselor";
+  if (vis === "students_all" || vis === "students_one_college") return "student";
+  return "all";
 }
 
 export const announcementsService = {
@@ -125,7 +257,9 @@ export const announcementsService = {
 
   async listForRole(
     role: "counselor" | "student",
+    viewerCollegeCode: string | undefined,
     maxCount = 20,
+    skipAudienceFilter = false,
   ): Promise<Announcement[]> {
     try {
       const q = query(
@@ -134,7 +268,13 @@ export const announcementsService = {
         limit(maxCount),
       );
       const snapshot = await getDocs(q);
-      const list = mapAnnouncementsForRole(snapshot.docs, role, maxCount);
+      const list = mapAnnouncementsForRole(
+        snapshot.docs,
+        role,
+        viewerCollegeCode,
+        maxCount,
+        skipAudienceFilter,
+      );
       return list.length > 0 ? list : MOCK_ANNOUNCEMENTS;
     } catch {
       return MOCK_ANNOUNCEMENTS;
@@ -143,9 +283,11 @@ export const announcementsService = {
 
   subscribeForRole(
     role: "counselor" | "student",
+    viewerCollegeCode: string | undefined,
     maxCount: number,
     onNext: (list: Announcement[]) => void,
     onError?: (error: Error) => void,
+    skipAudienceFilter = false,
   ): () => void {
     const q = query(
       collection(db, "announcements"),
@@ -155,7 +297,13 @@ export const announcementsService = {
     return onSnapshot(
       q,
       (snapshot) => {
-        const list = mapAnnouncementsForRole(snapshot.docs, role, maxCount);
+        const list = mapAnnouncementsForRole(
+          snapshot.docs,
+          role,
+          viewerCollegeCode,
+          maxCount,
+          skipAudienceFilter,
+        );
         onNext(list.length > 0 ? list : MOCK_ANNOUNCEMENTS);
       },
       (err) => onError?.(err instanceof Error ? err : new Error(String(err))),
@@ -171,17 +319,29 @@ export const announcementsService = {
       );
       const snapshot = await getDocs(q);
       const list = snapshot.docs.map((d) => {
-        const data = d.data();
-        return {
+        const data = d.data() as Record<string, unknown>;
+        const collegeCodes = normalizeCollegeCodes(data.collegeCodes) as CollegeCode[];
+        const vis =
+          (data.visibility as AnnouncementVisibility | undefined) ??
+          inferLegacyVisibility(data.targetRole as string | undefined);
+        const ann: Announcement = {
           id: d.id,
-          title: data.title ?? "",
-          content: data.content ?? "",
-          imageUrl: data.imageUrl ?? undefined,
-          targetRole: data.targetRole ?? "all",
-          createdBy: data.createdBy ?? "",
-          createdByName: data.createdByName ?? "Unknown",
-          createdAt: data.createdAt?.toDate?.() ?? new Date(),
-        } as Announcement;
+          title: String(data.title ?? ""),
+          content: String(data.content ?? ""),
+          imageUrl:
+            typeof data.imageUrl === "string" ? data.imageUrl : undefined,
+          targetRole: (String(data.targetRole ?? "all")) as Announcement["targetRole"],
+          createdBy: String(data.createdBy ?? ""),
+          createdByName: String(data.createdByName ?? "Unknown"),
+          createdAt:
+            (data.createdAt as { toDate?: () => Date } | undefined)?.toDate?.() ??
+            new Date(),
+          publisherRole: data.publisherRole as AnnouncementPublisherRole | undefined,
+          visibility: vis,
+          collegeCodes: collegeCodes.length ? collegeCodes : undefined,
+        };
+        ann.audienceLabel = formatAnnouncementAudienceLabel(ann);
+        return ann;
       });
       return list.length > 0 ? list : MOCK_ANNOUNCEMENTS;
     } catch {
@@ -190,11 +350,16 @@ export const announcementsService = {
   },
 
   async create(input: CreateAnnouncementInput): Promise<string> {
+    const codes = (input.collegeCodes ?? []).filter((c) => isCollegeCode(c));
+    const targetRole = targetRoleFromVisibility(input.visibility);
     const docRef = await addDoc(collection(db, "announcements"), {
       title: input.title.trim(),
       content: input.content.trim(),
       imageUrl: input.imageUrl?.trim() || null,
-      targetRole: input.targetRole,
+      publisherRole: input.publisherRole,
+      visibility: input.visibility,
+      collegeCodes: codes.length > 0 ? codes : [],
+      targetRole,
       createdBy: input.createdBy,
       createdByName: input.createdByName,
       createdAt: Timestamp.now(),
@@ -212,6 +377,15 @@ export const announcementsService = {
     if (input.content !== undefined) updates.content = input.content.trim();
     if (input.imageUrl !== undefined)
       updates.imageUrl = input.imageUrl?.trim() || null;
+    if (input.publisherRole !== undefined) updates.publisherRole = input.publisherRole;
+    if (input.visibility !== undefined) {
+      updates.visibility = input.visibility;
+      updates.targetRole = targetRoleFromVisibility(input.visibility);
+    }
+    if (input.collegeCodes !== undefined) {
+      const codes = input.collegeCodes.filter((c) => isCollegeCode(c));
+      updates.collegeCodes = codes;
+    }
     if (input.targetRole !== undefined) updates.targetRole = input.targetRole;
     await updateDoc(ref, updates);
   },

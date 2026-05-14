@@ -13,6 +13,7 @@ import {
   Clock,
   Megaphone,
   FileText,
+  School,
 } from "lucide-react-native";
 import { useAuth } from "../../../src/stores/AuthContext";
 import { AURORA } from "../../../src/constants/aurora-colors";
@@ -184,6 +185,13 @@ export default function AdminDashboardScreen() {
           onPress={() => router.push("/(admin)/students")}
         />
         <AdminQuickActionRow
+          title="College change requests"
+          description="Approve or reject student and counselor college shifts"
+          icon={<School size={24} color={AURORA.purple} />}
+          iconContainerStyle={{ backgroundColor: "transparent" }}
+          onPress={() => router.push("/(admin)/college-shifts")}
+        />
+        <AdminQuickActionRow
           title="Announcements"
           description="Publish updates to counselors and students"
           icon={<Megaphone size={24} color={AURORA.amber} />}
@@ -198,7 +206,7 @@ export default function AdminDashboardScreen() {
           onPress={() => router.push("/(admin)/audit-logs")}
         />
 
-        <AnnouncementSection role="counselor" showAddButton />
+        <AnnouncementSection role="counselor" showAddButton skipAudienceFilter />
       </ScrollView>
     </SafeAreaView>
   );

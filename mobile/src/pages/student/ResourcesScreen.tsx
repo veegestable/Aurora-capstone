@@ -40,17 +40,18 @@ export default function ResourcesScreen() {
     useState(false);
 
   const refreshPendingReminder = useCallback(async () => {
-    const pending = await getPendingBreathingReminder();
+    const uid = user?.id;
+    const pending = await getPendingBreathingReminder(uid);
     if (
       pending &&
       !BREATHING_EXERCISES.some((e) => e.id === pending.exerciseId)
     ) {
-      await clearPendingBreathingReminder();
+      await clearPendingBreathingReminder(uid);
       setPendingCheckInExercise(null);
       return;
     }
     setPendingCheckInExercise(pending);
-  }, []);
+  }, [user?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -75,7 +76,7 @@ export default function ResourcesScreen() {
   const openSuggestedFromCheckIn = () => {
     const ex = pendingExerciseResolved;
     if (!ex) {
-      void clearPendingBreathingReminder();
+      void clearPendingBreathingReminder(user?.id);
       setPendingCheckInExercise(null);
       return;
     }
@@ -87,7 +88,7 @@ export default function ResourcesScreen() {
   const onSuggestedSessionComplete = async () => {
     setIsSuggestedSessionVisible(false);
     setSuggestedQuickResetExercise(null);
-    await clearPendingBreathingReminder();
+    await clearPendingBreathingReminder(user?.id);
     setPendingCheckInExercise(null);
     const zenDayKey = calendarDayKeyLocal(new Date());
     if (user?.id) {

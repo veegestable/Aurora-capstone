@@ -1742,6 +1742,7 @@ export default function CounselorMessagesScreen() {
             right: 20,
             width: 56,
             height: 56,
+            marginBottom: 90,
             borderRadius: 28,
             backgroundColor: AURORA.blue,
             alignItems: "center",

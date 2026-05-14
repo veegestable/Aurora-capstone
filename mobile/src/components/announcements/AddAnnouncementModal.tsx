@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { View, Modal, TouchableOpacity, Alert, Platform, StyleSheet, ScrollView, Image, ActivityIndicator } from "react-native";
+import {
+  View,
+  Modal,
+  TouchableOpacity,
+  Alert,
+  Platform,
+  StyleSheet,
+  ScrollView,
+  Image,
+} from "react-native";
 import { AppText as Text } from "../common/AppText";
 import { AppTextInput as TextInput } from "../common/AppTextInput";
 import * as ImagePicker from "expo-image-picker";
@@ -12,6 +21,12 @@ import {
 import { uploadImage } from "../../services/firebase-storage.service";
 import { AURORA } from "../../constants/aurora-colors";
 import { triggerHaptic } from "../../utils/haptics";
+import {
+  COLLEGES,
+  type CollegeCode,
+  isCollegeCode,
+  resolveCollegeCodeFromUserData,
+} from "../../constants/colleges";
 
 interface AddAnnouncementModalProps {
   visible: boolean;
@@ -19,7 +34,7 @@ interface AddAnnouncementModalProps {
   onSuccess?: () => void;
 }
 
-type TargetRole = "all" | "counselor" | "student";
+type AdminAudience = "students_all" | "counselors_all" | "colleges_cross";
 
 export function AddAnnouncementModal({
   visible,
@@ -30,8 +45,23 @@ export function AddAnnouncementModal({
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
-  const [targetRole, setTargetRole] = useState<TargetRole>("all");
   const [saving, setSaving] = useState(false);
+
+  const [adminAudience, setAdminAudience] =
+    useState<AdminAudience>("students_all");
+  const [selectedCollegeCodes, setSelectedCollegeCodes] = useState<
+    CollegeCode[]
+  >([]);
+
+  const isAdmin = user?.role === "admin";
+  const isCounselor = user?.role === "counselor";
+
+  const toggleCollege = (code: CollegeCode) => {
+    triggerHaptic("light");
+    setSelectedCollegeCodes((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    );
+  };
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -72,6 +102,29 @@ export function AddAnnouncementModal({
     }
     if (!user) return;
 
+    if (isCounselor) {
+      const cc = resolveCollegeCodeFromUserData(
+        user as unknown as Record<string, unknown>,
+      );
+      if (!cc) {
+        Alert.alert(
+          "College required",
+          "Your profile must have a college before you can post announcements.",
+        );
+        return;
+      }
+    }
+
+    if (isAdmin && adminAudience === "colleges_cross") {
+      if (selectedCollegeCodes.length === 0) {
+        Alert.alert(
+          "Select colleges",
+          "Pick at least one college for this announcement.",
+        );
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       let imageUrl: string | undefined;
@@ -79,19 +132,55 @@ export function AddAnnouncementModal({
         const path = `announcements/${user.id}/${Date.now()}.jpg`;
         imageUrl = await uploadImage(path, selectedImageUri);
       }
-      const input: CreateAnnouncementInput = {
-        title: t,
-        content: c,
-        imageUrl,
-        targetRole,
-        createdBy: user.id,
-        createdByName: user.full_name || user.preferred_name || "Unknown",
-      };
+
+      let input: CreateAnnouncementInput;
+
+      if (isCounselor) {
+        const cc = resolveCollegeCodeFromUserData(
+          user as unknown as Record<string, unknown>,
+        ) as CollegeCode;
+        input = {
+          title: t,
+          content: c,
+          imageUrl,
+          publisherRole: "counselor",
+          visibility: "students_one_college",
+          collegeCodes: [cc],
+          createdBy: user.id,
+          createdByName: user.full_name || user.preferred_name || "Unknown",
+        };
+      } else if (isAdmin) {
+        const visibility =
+          adminAudience === "students_all"
+            ? "students_all"
+            : adminAudience === "counselors_all"
+              ? "counselors_all"
+              : "colleges_cross";
+        const collegeCodes =
+          adminAudience === "colleges_cross"
+            ? selectedCollegeCodes.filter((x) => isCollegeCode(x))
+            : [];
+        input = {
+          title: t,
+          content: c,
+          imageUrl,
+          publisherRole: "admin",
+          visibility,
+          collegeCodes,
+          createdBy: user.id,
+          createdByName: user.full_name || user.preferred_name || "Admin",
+        };
+      } else {
+        Alert.alert("Not allowed", "Only admins and counselors can post.");
+        return;
+      }
+
       await announcementsService.create(input);
       setTitle("");
       setContent("");
       setSelectedImageUri(null);
-      setTargetRole("all");
+      setAdminAudience("students_all");
+      setSelectedCollegeCodes([]);
       onSuccess?.();
       onClose();
     } catch (e) {
@@ -101,10 +190,10 @@ export function AddAnnouncementModal({
     }
   };
 
-  const roles: { key: TargetRole; label: string }[] = [
-    { key: "all", label: "Everyone" },
-    { key: "student", label: "Students only" },
-    { key: "counselor", label: "Counselors" },
+  const adminAudienceOptions: { key: AdminAudience; label: string }[] = [
+    { key: "students_all", label: "All students" },
+    { key: "counselors_all", label: "All counselors" },
+    { key: "colleges_cross", label: "Selected colleges" },
   ];
 
   return (
@@ -179,36 +268,78 @@ export function AddAnnouncementModal({
               numberOfLines={4}
             />
 
-            <Text style={styles.label}>Visible to</Text>
-            <View style={styles.roleRow}>
-              {roles.map((r) => (
-                <TouchableOpacity
-                  key={r.key}
-                  onPress={() => {
-                    triggerHaptic("light");
-                    setTargetRole(r.key);
-                  }}
-                  style={[
-                    styles.roleBtn,
-                    targetRole === r.key && styles.roleBtnActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.roleText,
-                      targetRole === r.key && styles.roleTextActive,
-                    ]}
-                  >
-                    {r.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {isCounselor && (
+              <Text style={styles.hint}>
+                This will be visible only to students in your college.
+              </Text>
+            )}
+
+            {isAdmin && (
+              <>
+                <Text style={styles.label}>Audience</Text>
+                <View style={styles.roleCol}>
+                  {adminAudienceOptions.map((r) => (
+                    <TouchableOpacity
+                      key={r.key}
+                      onPress={() => {
+                        triggerHaptic("light");
+                        setAdminAudience(r.key);
+                      }}
+                      style={[
+                        styles.roleBtnWide,
+                        adminAudience === r.key && styles.roleBtnActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.roleText,
+                          adminAudience === r.key && styles.roleTextActive,
+                        ]}
+                      >
+                        {r.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {adminAudience === "colleges_cross" && (
+                  <>
+                    <Text style={styles.subHint}>
+                      Students and counselors in the colleges you select will see
+                      this.
+                    </Text>
+                    <View style={styles.collegeGrid}>
+                      {COLLEGES.map((row) => {
+                        const on = selectedCollegeCodes.includes(row.code);
+                        return (
+                          <TouchableOpacity
+                            key={row.code}
+                            onPress={() => toggleCollege(row.code)}
+                            style={[
+                              styles.collegeChip,
+                              on && styles.collegeChipOn,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.collegeChipText,
+                                on && styles.collegeChipTextOn,
+                              ]}
+                            >
+                              {row.code}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+              </>
+            )}
 
             <TouchableOpacity
               onPress={() => {
                 triggerHaptic("light");
-                handleSubmit();
+                void handleSubmit();
               }}
               disabled={saving}
               style={[styles.submit, saving && styles.submitDisabled]}
@@ -252,7 +383,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
-  scroll: { maxHeight: 400 },
+  scroll: { maxHeight: 480 },
   scrollContent: { padding: 20, paddingTop: 16 },
   label: {
     color: AURORA.textSec,
@@ -260,6 +391,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 8,
     letterSpacing: 0.5,
+  },
+  hint: {
+    color: AURORA.textSec,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  subHint: {
+    color: AURORA.textMuted,
+    fontSize: 12,
+    marginBottom: 10,
+    lineHeight: 17,
   },
   input: {
     backgroundColor: AURORA.card,
@@ -316,20 +459,17 @@ const styles = StyleSheet.create({
     minHeight: 100,
     textAlignVertical: "top",
   },
-  roleRow: {
-    flexDirection: "row",
+  roleCol: {
     gap: 8,
-    marginBottom: 24,
+    marginBottom: 16,
   },
-  roleBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+  roleBtnWide: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: AURORA.border,
     backgroundColor: AURORA.card,
-    alignItems: "center",
   },
   roleBtnActive: {
     borderColor: AURORA.blue,
@@ -337,10 +477,36 @@ const styles = StyleSheet.create({
   },
   roleText: {
     color: AURORA.textSec,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "600",
   },
   roleTextActive: {
+    color: AURORA.blue,
+  },
+  collegeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 20,
+  },
+  collegeChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: AURORA.border,
+    backgroundColor: AURORA.card,
+  },
+  collegeChipOn: {
+    borderColor: AURORA.blue,
+    backgroundColor: "rgba(45,107,255,0.2)",
+  },
+  collegeChipText: {
+    color: AURORA.textSec,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  collegeChipTextOn: {
     color: AURORA.blue,
   },
   submit: {

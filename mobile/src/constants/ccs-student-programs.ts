@@ -1,9 +1,14 @@
 /**
- * CCS degree programs (MSU-IIT) — student profile + counselor filters/display.
- * Firestore: `department` = college unit (CCS), `program` = degree line below.
+ * CCS degree programs (MSU-IIT) — optional filters for counselors in CCS-heavy flows.
+ * Firestore: `college_code` = college unit (COE, CCS, …), `program` = free-text degree line.
  */
 
-export const CCS_COLLEGE_DEPARTMENT = 'CCS';
+import {
+  COLLEGE_CODE_SET,
+  resolveCollegeCodeFromUserData,
+} from "./colleges";
+
+export const CCS_COLLEGE_DEPARTMENT = "CCS";
 
 export type ProgramFilterCode = 'BSCS' | 'BSIT' | 'BSIS' | 'BSCA';
 
@@ -54,36 +59,37 @@ export function matchLegacyDepartmentToProgramValue(department?: string): string
 }
 
 /**
- * Counselor-facing line: CCS · degree · year.
- * Supports legacy docs where `department` held the degree string.
+ * Counselor-facing line: college code · degree · year.
+ * Supports legacy docs where `department` held the degree string or college code.
  */
 export function formatCounselorStudentSubtitle(input: {
-    department?: string;
-    program?: string;
-    year_level?: string;
+  college_code?: string;
+  department?: string;
+  program?: string;
+  year_level?: string;
 }): string {
-    const degree =
-        input.program?.trim() ||
-        (input.department?.trim() &&
-        input.department.trim() !== CCS_COLLEGE_DEPARTMENT
-            ? input.department.trim()
-            : '');
-    const college =
-        input.department === CCS_COLLEGE_DEPARTMENT || !!degree
-            ? CCS_COLLEGE_DEPARTMENT
-            : input.department?.trim() || '';
-    const year = formatYearLevelForDisplay(input.year_level);
-    return [college, degree, year].filter(Boolean).join(' · ');
+  const code = resolveCollegeCodeFromUserData(
+    input as Record<string, unknown>,
+  );
+  const dep = input.department?.trim() ?? "";
+  const depIsCollegeCode = COLLEGE_CODE_SET.has(dep);
+  const degree =
+    input.program?.trim() ||
+    (dep && !depIsCollegeCode ? dep : "") ||
+    "";
+  const collegeLabel = code || "";
+  const year = formatYearLevelForDisplay(input.year_level);
+  return [collegeLabel, degree, year].filter(Boolean).join(" · ");
 }
 
 /** Normalize user fields to a filter chip id (session history / directory). */
 export function normalizeStudentToProgramFilter(
-    department?: string,
-    program?: string
-): ProgramFilterCode | '' {
-    const direct = DEGREE_PROGRAM_OPTIONS.find((o) => o.value === program)?.short;
-    if (direct) return direct;
-    const hay = `${program || ''} ${department || ''}`.toLowerCase();
+  collegeOrLegacyDepartment: string | undefined,
+  program?: string,
+): ProgramFilterCode | "" {
+  const direct = DEGREE_PROGRAM_OPTIONS.find((o) => o.value === program)?.short;
+  if (direct) return direct;
+  const hay = `${program || ""} ${collegeOrLegacyDepartment || ""}`.toLowerCase();
     if (hay.includes('computer application') || hay.includes('bs ca') || hay.includes('bsca')) return 'BSCA';
     if (hay.includes('information system') && !hay.includes('technology')) return 'BSIS';
     if (hay.includes('information technology') || hay.includes('bs it') || hay.includes('bsit')) return 'BSIT';

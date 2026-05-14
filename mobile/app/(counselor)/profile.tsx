@@ -26,12 +26,25 @@ import {
   ExternalLink,
   Camera,
   X,
+  GraduationCap,
 } from "lucide-react-native";
 import { useAuth } from "../../src/stores/AuthContext";
 import { AURORA } from "../../src/constants/aurora-colors";
 import { LetterAvatar } from "../../src/components/common/LetterAvatar";
 import { hasNotificationPermission } from "../../src/services/push-notifications.service";
 import { syncExpoPushTokenToUserDoc } from "../../src/services/expo-push-token.service";
+import {
+  COLLEGES,
+  type CollegeCode,
+  resolveCollegeCodeFromUserData,
+  getCollegeName,
+  isCollegeCode,
+} from "../../src/constants/colleges";
+import {
+  getProgramsForCollege,
+  isProgramInCollege,
+} from "../../src/constants/college-programs-iit";
+import { firestoreService } from "../../src/services/firebase-firestore.service";
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 function SectionLabel({ text }: { text: string }) {
@@ -158,6 +171,8 @@ function EditProfileModal({
     student_number?: string;
     contact_number?: string;
     avatar_url?: string | null;
+    college_code?: string;
+    department?: string;
   } | null;
   onSave: (data: {
     fullName: string;
@@ -236,7 +251,6 @@ function EditProfileModal({
       await onSave({
         fullName: name.trim() || user?.full_name || "Counselor",
         sex,
-        // counselorNumber: numTrim,
         contactNumber: contactTrim,
       });
       onClose();
@@ -337,7 +351,7 @@ function EditProfileModal({
               <Text
                 style={{ color: AURORA.textSec, fontSize: 13, marginTop: 8 }}
               >
-                MSU-IIT
+                MSU-IIT · College is changed via “Request college / program change”
               </Text>
             </View>
 
@@ -543,8 +557,16 @@ function EditProfileModal({
 
 // ─── Main Screen ────────────────────────────────────────────────────────────────
 export default function CounselorProfileScreen() {
-  const { user, signOut, updateUser, uploadAvatar } = useAuth();
+  const { user, signOut, updateUser, uploadAvatar, refreshUserProfile } =
+    useAuth();
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [collegeShiftOpen, setCollegeShiftOpen] = useState(false);
+  const [shiftTargetCollege, setShiftTargetCollege] = useState<CollegeCode | "">(
+    "",
+  );
+  const [shiftTargetProgram, setShiftTargetProgram] = useState("");
+  const [shiftReason, setShiftReason] = useState("");
+  const [shiftSubmitting, setShiftSubmitting] = useState(false);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [savingPushPreference, setSavingPushPreference] = useState(false);
   const [devicePermissionGranted, setDevicePermissionGranted] = useState<
@@ -716,6 +738,17 @@ export default function CounselorProfileScreen() {
               value={user?.student_number || "Not set"}
             /> */}
             <InfoRow
+              label="College"
+              value={
+                (() => {
+                  const c = resolveCollegeCodeFromUserData(
+                    user as Record<string, unknown> | null,
+                  );
+                  return c ? `${c} — ${getCollegeName(c)}` : "Not set";
+                })()
+              }
+            />
+            <InfoRow
               label="Contact number"
               value={user?.contact_number || "Not set"}
             />
@@ -745,6 +778,45 @@ export default function CounselorProfileScreen() {
               label="Edit Profile"
               onPress={() => setShowEditProfile(true)}
             />
+            {resolveCollegeCodeFromUserData(
+              user as Record<string, unknown> | null,
+            ) &&
+            !user?.college_shift_pending ? (
+              <SettingsRow
+                icon={<GraduationCap size={18} color={AURORA.textSec} />}
+                label="Request college / program change"
+                onPress={() => {
+                  setShiftTargetCollege("");
+                  setShiftTargetProgram("");
+                  setShiftReason("");
+                  setCollegeShiftOpen(true);
+                }}
+              />
+            ) : null}
+            {user?.college_shift_pending ? (
+              <View
+                style={{
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderTopWidth: 1,
+                  borderTopColor: AURORA.border,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#F59E0B",
+                    fontSize: 13,
+                    fontWeight: "700",
+                    marginBottom: 4,
+                  }}
+                >
+                  College change pending review
+                </Text>
+                <Text style={{ color: AURORA.textSec, fontSize: 12, lineHeight: 18 }}>
+                  An administrator is reviewing your request.
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {/* ── App Preferences ───────────────────────────────── */}
@@ -904,6 +976,225 @@ export default function CounselorProfileScreen() {
           </View>
         </ScrollView>
 
+        <Modal
+          visible={collegeShiftOpen}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => !shiftSubmitting && setCollegeShiftOpen(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
+            <SafeAreaView style={{ flex: 1 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 20,
+                  paddingVertical: 14,
+                  borderBottomWidth: 1,
+                  borderBottomColor: AURORA.border,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => !shiftSubmitting && setCollegeShiftOpen(false)}
+                >
+                  <Text style={{ color: AURORA.textSec, fontSize: 15 }}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <Text
+                  style={{ color: "#FFFFFF", fontSize: 17, fontWeight: "700" }}
+                >
+                  College & program change
+                </Text>
+                <View style={{ width: 56 }} />
+              </View>
+              <ScrollView
+                contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={{ color: AURORA.textSec, fontSize: 13, marginBottom: 16 }}>
+                  Choose your new college, then the degree program listed for that
+                  college. An admin must approve before your college updates.
+                </Text>
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 14,
+                    fontWeight: "600",
+                    marginBottom: 8,
+                  }}
+                >
+                  New college
+                </Text>
+                {COLLEGES.filter((c) => {
+                  const cur = resolveCollegeCodeFromUserData(
+                    user as Record<string, unknown> | null,
+                  );
+                  return c.code !== cur;
+                }).map((c) => (
+                  <TouchableOpacity
+                    key={c.code}
+                    onPress={() => {
+                      setShiftTargetCollege(c.code);
+                      setShiftTargetProgram("");
+                    }}
+                    style={{
+                      paddingVertical: 14,
+                      paddingHorizontal: 14,
+                      borderRadius: 12,
+                      marginBottom: 8,
+                      borderWidth: 1,
+                      borderColor:
+                        shiftTargetCollege === c.code
+                          ? "rgba(45,107,255,0.55)"
+                          : AURORA.border,
+                      backgroundColor:
+                        shiftTargetCollege === c.code
+                          ? "rgba(45,107,255,0.14)"
+                          : AURORA.card,
+                    }}
+                  >
+                    <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
+                      {c.code} — {c.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {shiftTargetCollege && isCollegeCode(shiftTargetCollege) ? (
+                  <>
+                    <Text
+                      style={{
+                        color: "#FFFFFF",
+                        fontSize: 14,
+                        fontWeight: "600",
+                        marginTop: 16,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Program at new college
+                    </Text>
+                    {getProgramsForCollege(shiftTargetCollege).map((p) => (
+                      <TouchableOpacity
+                        key={p}
+                        onPress={() => setShiftTargetProgram(p)}
+                        style={{
+                          paddingVertical: 12,
+                          paddingHorizontal: 14,
+                          borderRadius: 12,
+                          marginBottom: 8,
+                          borderWidth: 1,
+                          borderColor:
+                            shiftTargetProgram === p
+                              ? "rgba(45,107,255,0.55)"
+                              : AURORA.border,
+                          backgroundColor:
+                            shiftTargetProgram === p
+                              ? "rgba(45,107,255,0.14)"
+                              : AURORA.card,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: "#FFFFFF",
+                            fontSize: 13,
+                            fontWeight: shiftTargetProgram === p ? "700" : "500",
+                            lineHeight: 19,
+                          }}
+                        >
+                          {p}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                ) : null}
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 14,
+                    fontWeight: "600",
+                    marginTop: 16,
+                    marginBottom: 8,
+                  }}
+                >
+                  Reason
+                </Text>
+                <TextInput
+                  style={{
+                    backgroundColor: AURORA.card,
+                    borderRadius: 14,
+                    padding: 14,
+                    color: "#FFFFFF",
+                    minHeight: 100,
+                    textAlignVertical: "top",
+                    borderWidth: 1,
+                    borderColor: AURORA.border,
+                  }}
+                  placeholder="Explain your college change (min. 8 characters)."
+                  placeholderTextColor={AURORA.textMuted}
+                  value={shiftReason}
+                  onChangeText={setShiftReason}
+                  multiline
+                />
+                <TouchableOpacity
+                  disabled={shiftSubmitting}
+                  onPress={() => {
+                    void (async () => {
+                      if (!user?.id) return;
+                      if (!shiftTargetCollege || !isCollegeCode(shiftTargetCollege)) {
+                        Alert.alert("College", "Select the college you are shifting to.");
+                        return;
+                      }
+                      if (
+                        !shiftTargetProgram.trim() ||
+                        !isProgramInCollege(shiftTargetCollege, shiftTargetProgram)
+                      ) {
+                        Alert.alert(
+                          "Program",
+                          "Select the program that matches your new college assignment.",
+                        );
+                        return;
+                      }
+                      try {
+                        setShiftSubmitting(true);
+                        await firestoreService.submitCollegeShiftRequest(
+                          user.id,
+                          shiftTargetCollege,
+                          shiftTargetProgram.trim(),
+                          shiftReason,
+                        );
+                        await refreshUserProfile();
+                        setCollegeShiftOpen(false);
+                        Alert.alert("Submitted", "Pending admin review.");
+                      } catch (e) {
+                        Alert.alert(
+                          "Could not submit",
+                          e instanceof Error ? e.message : "Please try again.",
+                        );
+                      } finally {
+                        setShiftSubmitting(false);
+                      }
+                    })();
+                  }}
+                  style={{
+                    marginTop: 20,
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    alignItems: "center",
+                    backgroundColor: "rgba(45,107,255,0.2)",
+                    borderWidth: 1,
+                    borderColor: "rgba(45,107,255,0.45)",
+                    opacity: shiftSubmitting ? 0.6 : 1,
+                  }}
+                >
+                  <Text style={{ color: "#C3D4FF", fontSize: 15, fontWeight: "700" }}>
+                    {shiftSubmitting ? "Submitting…" : "Submit request"}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </SafeAreaView>
+          </View>
+        </Modal>
+
         <EditProfileModal
           visible={showEditProfile}
           onClose={() => setShowEditProfile(false)}
@@ -912,9 +1203,9 @@ export default function CounselorProfileScreen() {
             await updateUser({
               full_name: data.fullName,
               sex: data.sex,
-              // student_number: data.counselorNumber,
               contact_number: data.contactNumber,
             });
+            await refreshUserProfile();
           }}
           onPickAvatar={async (uri) => {
             await uploadAvatar(uri);

@@ -35,10 +35,201 @@ service cloud.firestore {
       return v == 'student';
     }
 
+    function validCollegeCode(code) {
+      return code in ['COE', 'CSM', 'CCS', 'CED', 'CASS', 'CEBA', 'CHS'];
+    }
+
+    /** Catalog line must match `src/constants/college-programs-iit.ts`. */
+    function catalogProgramBelongsToCollege(cc, p) {
+      return cc is string && validCollegeCode(cc) && p is string && p.size() > 0 &&
+        (
+        (cc == 'COE' && p in [
+          'Bachelor of Science in Chemical Engineering(BSChe)',
+          'Bachelor of Science in Environmental Engineering',
+          'Bachelor of Science in Civil Engineering(BSCE)',
+          'Bachelor of Science in Computer Engineering(BSCpE)',
+          'Bachelor of Science in Electrical Engineering(BSEE)',
+          'Bachelor of Science in Electronics and Communication Engineering(BSECE)',
+          'Bachelor of Science in Industrial Automation and Mechatronics',
+          'Bachelor of Science in Ceramics Engineering',
+          'Bachelor of Science in Metallurgical Engineering',
+          'Bachelor of Science in Mining Engineering',
+          'Bachelor of Science in Mechanical Engineering(BSME)',
+          'Bachelor of Engineering Technology Major in Chemical Engineering and Technology',
+          'Bachelor of Engineering Technology Major in Civil Engineering Technology(BET-CET)',
+          'BACHELOR OF ENGINEERING TECHNOLOGY Major in ELECTRICAL ENGINEERING TECHNOLOGY (BET-EET)',
+          'BACHELOR OF ENGINEERING TECHNOLOGY Major in ELECTRONICS ENGINEERING TECHNOLOGY (BET-EST)',
+          'BACHELOR OF ENGINEERING TECHNOLOGY Major in METALLURGICAL and MATERIALS ENGINEERING TECHNOLOGY (BET-MMT)',
+          'BACHELOR OF ENGINEERING TECHNOLOGY Major in MECHANICAL ENGINEERING TECHNOLOGY (BET-MET)'
+        ]) ||
+        (cc == 'CCS' && p in [
+          'Bachelor of Science in Information Technology(BSIT)',
+          'Bachelor of Science in Computer Science(BSCS)',
+          'Bachelor of Science in Information Systems(BSIS)',
+          'Bachelor of Science in Computer Applications(BSCA)'
+        ]) ||
+        (cc == 'CSM' && p in [
+          'Bachelor of Science in Biology (General)',
+          'Bachelor of Science in Biology (Botany)',
+          'Bachelor of Science in Biology (Marine Biology)',
+          'Bachelor of Science in Biology (Zoology)',
+          'Bachelor of Science in Chemistry',
+          'Bachelor of Science in Mathematics',
+          'Bachelor of Science in Statistics',
+          'Bachelor of Science in Physics'
+        ]) ||
+        (cc == 'CED' && p in [
+          'Bachelor of Elementary Education Science and Mathematics',
+          'Bachelor of Secondary Education Biology',
+          'Bachelor of Secondary Education Chemistry',
+          'Bachelor of Secondary Education Physics',
+          'Bachelor of Secondary Education Mathematics',
+          'Bachelor of Physical Education',
+          'Bachelor of Technology and Livelihood Education major in Home Economics',
+          'Bachelor of Technical-Vocational Teacher Education major in Drafting Technology',
+          'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION MAJOR IN INDUSTRIAL ARTS (BTLEd-Industrial Arts)',
+          'Bachelor of Elementary Education - Language Education',
+          'Bachelor of Secondary Education Filipino'
+        ]) ||
+        (cc == 'CASS' && p in [
+          'Bachelor of Arts in English Language Studies',
+          'Bachelor of Arts in Filipino',
+          'Bachelor of Arts in History',
+          'Bachelor of Arts in Panitikan',
+          'Bachelor of Arts in Political Science',
+          'Bachelor of Arts in Psychology',
+          'Bachelor of Arts in Sociology',
+          'Bachelor of Science in Philosophy',
+          'Bachelor of Science in Psychology'
+        ]) ||
+        (cc == 'CEBA' && p in [
+          'Bachelor of Science in Accountancy',
+          'Bachelor of Science in Economics',
+          'Bachelor of Science in Business Administration major in Business Economics',
+          'Bachelor of Science in Business Administration major in Marketing Management',
+          'Bachelor of Science major in Entrepreneurship',
+          'Bachelor of Science in Hospitality Management'
+        ]) ||
+        (cc == 'CHS' && p in ['Bachelor of Science in Nursing'])
+        );
+    }
+
+    function validStudentProgramForCollege(d) {
+      return d.college_code is string && d.program is string &&
+        catalogProgramBelongsToCollege(d.college_code, d.program);
+    }
+
+    function counselorProgramFieldForbidden(d) {
+      return isCounselorRoleValue(d.role) &&
+        d.keys().hasAny(['program']) &&
+        d.program is string &&
+        d.program.size() > 0;
+    }
+
+    function docCollegeCode(d) {
+      return (d.keys().hasAny(['college_code']) &&
+          d.college_code is string &&
+          d.college_code.size() > 0 &&
+          validCollegeCode(d.college_code))
+        ? d.college_code
+        : (d.keys().hasAny(['department']) &&
+            d.department is string &&
+            d.department.size() > 0 &&
+            validCollegeCode(d.department)
+            ? d.department
+            : '');
+    }
+
+    function sameCollegeForUsers(a, b) {
+      let ca = docCollegeCode(a);
+      let cb = docCollegeCode(b);
+      return ca.size() > 0 && ca == cb;
+    }
+
+    function userDocData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function ownerUserChangedKeys() {
+      return request.resource.data.diff(resource.data).changedKeys();
+    }
+
+    function ownerCollegeCodeUpdateOk() {
+      return !ownerUserChangedKeys().hasAny(['college_code']) ||
+        (
+          (
+            !(resource.data.keys().hasAny(['college_code']) && resource.data.college_code is string) ||
+            resource.data.college_code.size() == 0
+          ) &&
+          request.resource.data.college_code is string &&
+          validCollegeCode(request.resource.data.college_code)
+        );
+    }
+
+    function ownerCollegeShiftPendingUpdateOk() {
+      return !ownerUserChangedKeys().hasAny(['college_shift_pending']) ||
+        (
+          !(resource.data.keys().hasAny(['college_shift_pending']) && resource.data.college_shift_pending == true) &&
+          request.resource.data.college_shift_pending == true
+        );
+    }
+
+    function ownerCollegeShiftRequestUpdateOk() {
+      return !ownerUserChangedKeys().hasAny(['college_shift_request']) ||
+        (
+          request.resource.data.college_shift_request is map &&
+          request.resource.data.college_shift_request.keys().hasOnly(['requested_college_code', 'requested_program', 'reason', 'requested_at']) &&
+          catalogProgramBelongsToCollege(
+            request.resource.data.college_shift_request.requested_college_code,
+            request.resource.data.college_shift_request.requested_program
+          ) &&
+          request.resource.data.college_shift_request.reason is string &&
+          request.resource.data.college_shift_request.reason.size() >= 8 &&
+          request.resource.data.college_shift_request.reason.size() <= 1500 &&
+          request.resource.data.college_shift_request.requested_at is timestamp &&
+          docCollegeCode(resource.data).size() > 0 &&
+          (
+            request.resource.data.college_shift_request.requested_college_code != docCollegeCode(resource.data) ||
+            (
+              isStudentRoleValue(resource.data.role) &&
+              request.resource.data.college_shift_request.requested_college_code == docCollegeCode(resource.data) &&
+              (
+                !(resource.data.keys().hasAny(['program']) && resource.data.program is string && resource.data.program.size() > 0) ||
+                request.resource.data.college_shift_request.requested_program != resource.data.program
+              )
+            )
+          )
+        );
+    }
+
+    /**
+     * Firestore stores email_verified for directory queries. Owners may sync it with Auth.
+     * Prefer matching the JWT claim; also allow true when token email matches the profile
+     * email (covers stale JWT right after the user opens the verification link).
+     */
+    function ownerEmailVerifiedUpdateOk() {
+      return request.resource.data.email_verified == resource.data.email_verified ||
+        request.resource.data.email_verified == request.auth.token.email_verified ||
+        (
+          request.resource.data.email_verified == true &&
+          request.auth.token.email is string &&
+          request.resource.data.email is string &&
+          request.auth.token.email == request.resource.data.email
+        );
+    }
+
+    /** Counselors have `approval_status`; students usually omit it — avoid broken == on missing vs null. */
+    function ownerApprovalStatusUnchanged() {
+      let r = resource.data.keys().hasAny(['approval_status']);
+      let w = request.resource.data.keys().hasAny(['approval_status']);
+      return (!r && !w) ||
+        (r && w && request.resource.data.approval_status == resource.data.approval_status);
+    }
+
     function userSensitiveFieldsUnchanged() {
       return request.resource.data.role == resource.data.role &&
-        request.resource.data.approval_status == resource.data.approval_status &&
-        request.resource.data.email_verified == resource.data.email_verified &&
+        ownerApprovalStatusUnchanged() &&
+        ownerEmailVerifiedUpdateOk() &&
         request.resource.data.uid == resource.data.uid &&
         request.resource.data.created_at == resource.data.created_at &&
         request.resource.data.email == resource.data.email;
@@ -46,28 +237,48 @@ service cloud.firestore {
 
     // Owner can edit only profile-safe fields; sensitive identity/role fields stay immutable.
     function ownerUserUpdateValid() {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
-        'full_name',
-        'preferred_name',
-        'department',
-        'program',
-        'year_level',
-        'student_number',
-        'contact_number',
-        'sex',
-        'bio',
-        'avatar_url',
-        'session_push_notifications_enabled',
-        'updated_at'
-      ]);
+      return userSensitiveFieldsUnchanged() &&
+        ownerUserChangedKeys().hasOnly([
+          'full_name',
+          'preferred_name',
+          'college_code',
+          'program',
+          'year_level',
+          'student_number',
+          'contact_number',
+          'sex',
+          'bio',
+          'avatar_url',
+          'session_push_notifications_enabled',
+          'updated_at',
+          'college_shift_request',
+          'college_shift_pending',
+          'email_verified'
+        ]) &&
+        ownerCollegeCodeUpdateOk() &&
+        ownerCollegeShiftRequestUpdateOk() &&
+        ownerCollegeShiftPendingUpdateOk() &&
+        !counselorProgramFieldForbidden(request.resource.data) &&
+        (
+          !isStudentRoleValue(request.resource.data.role) ||
+          !ownerUserChangedKeys().hasAny(['program']) ||
+          !request.resource.data.keys().hasAny(['program']) ||
+          !(request.resource.data.program is string) ||
+          request.resource.data.program.size() == 0 ||
+          validStudentProgramForCollege(request.resource.data)
+        );
     }
 
     function ownerUserCreateValid(uid) {
       return request.resource.data.uid == uid &&
         request.resource.data.email == request.auth.token.email &&
+        (request.resource.data.role == 'student' || request.resource.data.role == 'counselor') &&
+        request.resource.data.keys().hasAny(['college_code']) &&
+        request.resource.data.college_code is string &&
+        validCollegeCode(request.resource.data.college_code) &&
         (
-          request.resource.data.role == 'student' ||
-          request.resource.data.role == 'counselor'
+          (request.resource.data.role == 'student' && validStudentProgramForCollege(request.resource.data)) ||
+          (request.resource.data.role == 'counselor' && !counselorProgramFieldForbidden(request.resource.data))
         );
     }
 
@@ -80,6 +291,21 @@ service cloud.firestore {
 
     function conversationIdMatchesBody(convId, data) {
       return convId == (data.counselorId + '_' + data.studentId);
+    }
+
+    function conversationParticipantsSameCollege(data) {
+      return exists(/databases/$(database)/documents/users/$(data.counselorId)) &&
+        exists(/databases/$(database)/documents/users/$(data.studentId)) &&
+        sameCollegeForUsers(userDocData(data.counselorId), userDocData(data.studentId));
+    }
+
+    function sessionCreateParticipantsSameCollege() {
+      let cid = request.resource.data.counselorId;
+      let sid = request.resource.data.studentId;
+      return cid is string && sid is string &&
+        exists(/databases/$(database)/documents/users/$(cid)) &&
+        exists(/databases/$(database)/documents/users/$(sid)) &&
+        sameCollegeForUsers(userDocData(cid), userDocData(sid));
     }
 
     function messageCreateValid(convId) {
@@ -136,7 +362,7 @@ service cloud.firestore {
       );
     }
 
-    /** `conversations/{counselorId}_{studentId}` — student may only notify their assigned counselor. */
+    /** conversations/{counselorId}_{studentId} — student may only notify their assigned counselor. */
     function canStudentNotifyCounselorRecipient() {
       let recipient = request.resource.data.user_id;
       let convId = recipient + '_' + request.auth.uid;
@@ -155,6 +381,113 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/conversations/$(convId)).data.studentId == recipient;
     }
 
+    function announcementReaderExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function announcementLegacyReadOk(d) {
+      let me = userDoc(request.auth.uid).data;
+      let tr = d.keys().hasAny(['targetRole']) && d.targetRole is string ? d.targetRole : 'all';
+      return tr == 'all' ||
+        (tr == 'student' && isStudentRoleValue(me.role)) ||
+        (tr == 'counselor' && isCounselorRoleValue(me.role));
+    }
+
+    function collegeInAnnouncementCodes(college, d) {
+      return d.keys().hasAny(['collegeCodes']) && d.collegeCodes is list && college in d.collegeCodes;
+    }
+
+    function announcementModernReadOk(d) {
+      let me = userDoc(request.auth.uid).data;
+      let college = docCollegeCode(me);
+      let vis = d.visibility;
+      return (vis == 'students_all' && isStudentRoleValue(me.role)) ||
+        (vis == 'counselors_all' && isCounselorRoleValue(me.role)) ||
+        (vis == 'colleges_cross' && college.size() > 0 &&
+          (isStudentRoleValue(me.role) || isCounselorRoleValue(me.role)) &&
+          collegeInAnnouncementCodes(college, d)) ||
+        (vis == 'students_one_college' && isStudentRoleValue(me.role) && college.size() > 0 &&
+          collegeInAnnouncementCodes(college, d));
+    }
+
+    function announcementReadOk(d) {
+      return announcementReaderExists() && (
+        !d.keys().hasAny(['visibility'])
+          ? announcementLegacyReadOk(d)
+          : announcementModernReadOk(d)
+      );
+    }
+
+    function announcementCollegeCodesCreateOk(arr) {
+      return arr is list && arr.size() >= 1 && arr.size() <= 7 &&
+        arr[0] is string && validCollegeCode(arr[0]) &&
+        (arr.size() < 2 || (arr[1] is string && validCollegeCode(arr[1]))) &&
+        (arr.size() < 3 || (arr[2] is string && validCollegeCode(arr[2]))) &&
+        (arr.size() < 4 || (arr[3] is string && validCollegeCode(arr[3]))) &&
+        (arr.size() < 5 || (arr[4] is string && validCollegeCode(arr[4]))) &&
+        (arr.size() < 6 || (arr[5] is string && validCollegeCode(arr[5]))) &&
+        (arr.size() < 7 || (arr[6] is string && validCollegeCode(arr[6])));
+    }
+
+    function adminAnnouncementCreateOk(d) {
+      return d.publisherRole == 'admin' &&
+        (d.visibility == 'students_all' || d.visibility == 'counselors_all' ||
+          (d.visibility == 'colleges_cross' && announcementCollegeCodesCreateOk(d.collegeCodes))) &&
+        ((d.visibility == 'students_all' || d.visibility == 'counselors_all')
+          ? (!d.keys().hasAny(['collegeCodes']) || (d.collegeCodes is list && d.collegeCodes.size() == 0))
+          : true);
+    }
+
+    function counselorAnnouncementCreateOk(d) {
+      let me = userDoc(request.auth.uid).data;
+      let myCc = docCollegeCode(me);
+      return d.publisherRole == 'counselor' &&
+        d.visibility == 'students_one_college' &&
+        d.collegeCodes is list && d.collegeCodes.size() == 1 &&
+        myCc.size() > 0 &&
+        d.collegeCodes[0] is string &&
+        d.collegeCodes[0] == myCc;
+    }
+
+    function announcementCreateShapeOk(d) {
+      return d.keys().hasAll([
+          'title', 'content', 'createdBy', 'createdByName', 'createdAt', 'updatedAt',
+          'publisherRole', 'visibility', 'targetRole', 'collegeCodes'
+        ]) &&
+        d.title is string && d.title.size() > 0 && d.title.size() <= 300 &&
+        d.content is string && d.content.size() > 0 && d.content.size() <= 20000 &&
+        d.createdBy is string && d.createdBy == request.auth.uid &&
+        d.createdByName is string && d.createdByName.size() > 0 &&
+        d.createdAt is timestamp && d.updatedAt is timestamp &&
+        d.collegeCodes is list &&
+        (d.targetRole == 'student' || d.targetRole == 'counselor' || d.targetRole == 'all');
+    }
+
+    function announcementCreateOk() {
+      let d = request.resource.data;
+      return announcementCreateShapeOk(d) &&
+        (
+          (isAdmin() && adminAnnouncementCreateOk(d)) ||
+          (isCounselor() && counselorAnnouncementCreateOk(d))
+        );
+    }
+
+    function announcementUpdateDiffKeys() {
+      return request.resource.data.diff(resource.data).changedKeys();
+    }
+
+    function counselorAnnouncementAuthorUpdateOk() {
+      return !isCounselor() ||
+        !announcementUpdateDiffKeys().hasAny(['visibility', 'collegeCodes', 'publisherRole']);
+    }
+
+    function announcementUpdateOk() {
+      return isAdmin() || (
+        resource.data.createdBy == request.auth.uid &&
+        counselorAnnouncementAuthorUpdateOk()
+      );
+    }
+
     match /users/{uid} {
       // Directory policy:
       // - students can read only verified + admin-approved counselors
@@ -167,16 +500,19 @@ service cloud.firestore {
           myRole() == 'student' &&
           isCounselorRoleValue(resource.data.role) &&
           resource.data.email_verified == true &&
-          resource.data.approval_status == 'approved'
+          resource.data.approval_status == 'approved' &&
+          sameCollegeForUsers(userDoc(request.auth.uid).data, resource.data)
         ) ||
         (
           myRole() == 'counselor' &&
           isStudentRoleValue(resource.data.role) &&
-          resource.data.email_verified == true
+          resource.data.email_verified == true &&
+          sameCollegeForUsers(userDoc(request.auth.uid).data, resource.data)
         ) ||
         (
           myRole() == 'counselor' &&
-          isCounselorRoleValue(resource.data.role)
+          isCounselorRoleValue(resource.data.role) &&
+          sameCollegeForUsers(userDoc(request.auth.uid).data, resource.data)
         )
       );
       allow create: if isAdmin() || (
@@ -196,11 +532,10 @@ service cloud.firestore {
     }
 
     match /announcements/{id} {
-      allow read: if isAuthed();
-      allow create: if isAuthed()
-        && (isAdmin() || isCounselor())
-        && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isAuthed()
+      allow read: if isAuthed() && (isAdmin() || announcementReadOk(resource.data));
+      allow create: if isAuthed() && announcementCreateOk();
+      allow update: if isAuthed() && announcementUpdateOk();
+      allow delete: if isAuthed()
         && (resource.data.createdBy == request.auth.uid || isAdmin());
     }
 
@@ -214,6 +549,7 @@ service cloud.firestore {
       allow create: if isAuthed() && (
         conversationStructureValid(request.resource.data) &&
         conversationIdMatchesBody(id, request.resource.data) &&
+        conversationParticipantsSameCollege(request.resource.data) &&
         (
           request.resource.data.counselorId == request.auth.uid ||
           request.resource.data.studentId == request.auth.uid ||
@@ -259,6 +595,7 @@ service cloud.firestore {
         validSessionStatus(request.resource.data.status) &&
         request.resource.data.counselorId is string &&
         request.resource.data.studentId is string &&
+        sessionCreateParticipantsSameCollege() &&
         (
           request.resource.data.counselorId == request.auth.uid ||
           request.resource.data.studentId == request.auth.uid ||
@@ -302,7 +639,15 @@ service cloud.firestore {
 
     match /counselor_notes/{id} {
       allow read: if isAuthed() && (
-        resource.data.counselorId == request.auth.uid ||
+        (
+          resource.data.counselorId == request.auth.uid &&
+          resource.data.studentId is string &&
+          exists(/databases/$(database)/documents/users/$(resource.data.studentId)) &&
+          sameCollegeForUsers(
+            userDocData(request.auth.uid),
+            userDocData(resource.data.studentId)
+          )
+        ) ||
         resource.data.studentId == request.auth.uid ||
         isAdmin()
       );
@@ -318,14 +663,32 @@ service cloud.firestore {
 
     match /moodLogs/{uid}/entries/{entryId} {
       allow read: if isAuthed() && (
-        request.auth.uid == uid || isCounselor() || isAdmin()
+        request.auth.uid == uid ||
+        isAdmin() ||
+        (
+          isCounselor() &&
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          exists(/databases/$(database)/documents/users/$(uid)) &&
+          sameCollegeForUsers(userDocData(request.auth.uid), userDocData(uid))
+        )
       );
       allow create, update, delete: if isAuthed() && request.auth.uid == uid;
     }
 
     match /mood_logs/{id} {
       allow read: if isAuthed() && (
-        resource.data.user_id == request.auth.uid || isCounselor() || isAdmin()
+        resource.data.user_id == request.auth.uid ||
+        isAdmin() ||
+        (
+          isCounselor() &&
+          resource.data.user_id is string &&
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          exists(/databases/$(database)/documents/users/$(resource.data.user_id)) &&
+          sameCollegeForUsers(
+            userDocData(request.auth.uid),
+            userDocData(resource.data.user_id)
+          )
+        )
       );
       allow create: if isAuthed() && request.resource.data.user_id == request.auth.uid;
       allow update, delete: if isAuthed() && resource.data.user_id == request.auth.uid;
@@ -373,7 +736,12 @@ service cloud.firestore {
       allow read: if isAuthed() && (
         isOwner(uid) ||
         isAdmin() ||
-        isCounselor()
+        (
+          isCounselor() &&
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          exists(/databases/$(database)/documents/users/$(uid)) &&
+          sameCollegeForUsers(userDocData(request.auth.uid), userDocData(uid))
+        )
       );
       allow create, update: if isOwner(uid) || isAdmin();
       allow delete: if isOwner(uid) || isAdmin();

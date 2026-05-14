@@ -23,6 +23,7 @@ export default function AdminLayout() {
       <Stack.Screen name="audit-logs" />
       <Stack.Screen name="students" />
       <Stack.Screen name="resources" />
+      <Stack.Screen name="college-shifts" />
     </Stack>
   );
 }

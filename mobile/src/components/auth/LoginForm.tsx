@@ -1,8 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { View, TouchableOpacity, Alert, Platform, StyleSheet } from "react-native";
+import {
+  View,
+  TouchableOpacity,
+  Alert,
+  Platform,
+  StyleSheet,
+  Modal,
+  ScrollView,
+} from "react-native";
 import { AppText as Text } from "../common/AppText";
 import { BlurView } from "expo-blur";
-import { Eye, EyeOff } from "lucide-react-native";
+import { Eye, EyeOff, ChevronDown } from "lucide-react-native";
 import { useAuth } from "../../stores/AuthContext";
 import { router } from "expo-router";
 import { Button } from "../common/Button";
@@ -12,6 +20,15 @@ import {
   getSignupEmailRejectionMessage,
   isMsuiitInstitutionalEmail,
 } from "../../utils/signupEmailPolicy";
+import {
+  COLLEGES,
+  getCollegeName,
+  isCollegeCode,
+} from "../../constants/colleges";
+import {
+  getProgramsForCollege,
+  isProgramInCollege,
+} from "../../constants/college-programs-iit";
 
 /** Same width as native header + feature row; slightly under full bleed for side margins */
 export const LOGIN_AUTH_COLUMN_MAX = 320;
@@ -40,14 +57,28 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
   /** Sign-in resend row: only after MSU-IIT registration flow, or failed sign-in (unverified). */
   const [showMsuiitSignInResendOption, setShowMsuiitSignInResendOption] =
     useState(false);
+  const [collegePickerOpen, setCollegePickerOpen] = useState(false);
+  const [programPickerOpen, setProgramPickerOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     fullName: "",
     contactNumber: "",
+    collegeCode: "",
+    program: "",
     role: "student" as "student" | "counselor",
   });
+
+  useEffect(() => {
+    if (formData.role !== "student") return;
+    const list = [...getProgramsForCollege(formData.collegeCode)];
+    setFormData((prev) => {
+      if (prev.role !== "student") return prev;
+      if (!prev.program || list.includes(prev.program)) return prev;
+      return { ...prev, program: "" };
+    });
+  }, [formData.collegeCode, formData.role]);
 
   const updateFormData = (key: string, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
@@ -127,6 +158,8 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       ...prev,
       password: "",
       contactNumber: "",
+      collegeCode: "",
+      program: "",
     }));
   };
 
@@ -154,6 +187,27 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       return;
     }
 
+    if (
+      isSignUp &&
+      (!formData.collegeCode.trim() || !isCollegeCode(formData.collegeCode.trim()))
+    ) {
+      Alert.alert("College required", "Please select your college from the list.");
+      return;
+    }
+
+    if (
+      isSignUp &&
+      formData.role === "student" &&
+      (!formData.program.trim() ||
+        !isProgramInCollege(formData.collegeCode.trim(), formData.program.trim()))
+    ) {
+      Alert.alert(
+        "Program required",
+        "After choosing your college, select your degree program from the list.",
+      );
+      return;
+    }
+
     if (isSignUp) {
       const policyError = getSignupEmailRejectionMessage(formData.email);
       if (policyError) {
@@ -172,6 +226,8 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
           formData.fullName,
           formData.role,
           formData.contactNumber.trim(),
+          formData.collegeCode.trim(),
+          formData.role === "student" ? formData.program.trim() : undefined,
         );
         if (result.success) {
           setSignUpPhase("verifyEmail");
@@ -293,7 +349,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
                     <TouchableOpacity
                       onPress={() => {
                         triggerHaptic("light");
-                        updateFormData("role", "student");
+                        setFormData((prev) => ({ ...prev, role: "student" }));
                       }}
                       style={[
                         styles.roleBtn,
@@ -314,7 +370,11 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
                     <TouchableOpacity
                       onPress={() => {
                         triggerHaptic("light");
-                        updateFormData("role", "counselor");
+                        setFormData((prev) => ({
+                          ...prev,
+                          role: "counselor",
+                          program: "",
+                        }));
                       }}
                       style={[
                         styles.roleBtn,
@@ -343,6 +403,77 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
                     </Text>
                   )}
                 </View>
+                <View>
+                  <Text
+                    style={[styles.roleLabel, compact && styles.roleLabelCompact]}
+                  >
+                    College <Text style={{ color: "#FCA5A5" }}>*</Text>
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      triggerHaptic("light");
+                      setCollegePickerOpen(true);
+                    }}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.collegeField,
+                      compact && styles.collegeFieldCompact,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Select college"
+                  >
+                    <Text
+                      style={[
+                        styles.collegeFieldText,
+                        compact && styles.collegeFieldTextCompact,
+                        !formData.collegeCode && styles.collegeFieldPlaceholder,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {formData.collegeCode &&
+                      isCollegeCode(formData.collegeCode.trim())
+                        ? `${formData.collegeCode.trim()} — ${getCollegeName(formData.collegeCode.trim())}`
+                        : "Select your college"}
+                    </Text>
+                    <ChevronDown size={compact ? 18 : 20} color="#CBD5E1" />
+                  </TouchableOpacity>
+                </View>
+                {formData.role === "student" &&
+                  formData.collegeCode.trim() &&
+                  isCollegeCode(formData.collegeCode.trim()) && (
+                    <View>
+                      <Text
+                        style={[styles.roleLabel, compact && styles.roleLabelCompact]}
+                      >
+                        Program <Text style={{ color: "#FCA5A5" }}>*</Text>
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          triggerHaptic("light");
+                          setProgramPickerOpen(true);
+                        }}
+                        activeOpacity={0.85}
+                        style={[
+                          styles.collegeField,
+                          compact && styles.collegeFieldCompact,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Select degree program"
+                      >
+                        <Text
+                          style={[
+                            styles.collegeFieldText,
+                            compact && styles.collegeFieldTextCompact,
+                            !formData.program && styles.collegeFieldPlaceholder,
+                          ]}
+                          numberOfLines={3}
+                        >
+                          {formData.program || "Select your program"}
+                        </Text>
+                        <ChevronDown size={compact ? 18 : 20} color="#CBD5E1" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
               </>
             )}
 
@@ -506,13 +637,117 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
     );
 
   return (
-    <View style={[styles.wrapper, compact && styles.wrapperNarrow]}>
-      {isWeb ? (
-        <View style={[styles.glass, styles.glassFallback]}>{formContent}</View>
-      ) : (
-        glassNativeSolid
-      )}
-    </View>
+    <>
+      <View style={[styles.wrapper, compact && styles.wrapperNarrow]}>
+        {isWeb ? (
+          <View style={[styles.glass, styles.glassFallback]}>{formContent}</View>
+        ) : (
+          glassNativeSolid
+        )}
+      </View>
+
+      <Modal
+        visible={collegePickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCollegePickerOpen(false)}
+      >
+        <View style={styles.collegeModalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setCollegePickerOpen(false)}
+          />
+          <View style={styles.collegeModalSheet}>
+            <Text style={styles.collegeModalTitle}>Select your college</Text>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: 360 }}
+            >
+              {COLLEGES.map((row) => (
+                <TouchableOpacity
+                  key={row.code}
+                  onPress={() => {
+                    triggerHaptic("light");
+                    setFormData((prev) => ({
+                      ...prev,
+                      collegeCode: row.code,
+                      program:
+                        prev.collegeCode.trim() === row.code
+                          ? prev.program
+                          : "",
+                    }));
+                    setCollegePickerOpen(false);
+                  }}
+                  style={[
+                    styles.collegeModalRow,
+                    formData.collegeCode === row.code &&
+                      styles.collegeModalRowActive,
+                  ]}
+                >
+                  <Text style={styles.collegeModalRowText}>
+                    {row.code} — {row.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => setCollegePickerOpen(false)}
+              style={styles.collegeModalClose}
+            >
+              <Text style={styles.collegeModalCloseText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={programPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setProgramPickerOpen(false)}
+      >
+        <View style={styles.collegeModalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setProgramPickerOpen(false)}
+          />
+          <View style={styles.collegeModalSheet}>
+            <Text style={styles.collegeModalTitle}>Select your program</Text>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: 360 }}
+            >
+              {getProgramsForCollege(formData.collegeCode).map((label) => (
+                <TouchableOpacity
+                  key={label}
+                  onPress={() => {
+                    triggerHaptic("light");
+                    setFormData((prev) => ({ ...prev, program: label }));
+                    setProgramPickerOpen(false);
+                  }}
+                  style={[
+                    styles.collegeModalRow,
+                    formData.program === label && styles.collegeModalRowActive,
+                  ]}
+                >
+                  <Text style={styles.collegeModalRowText}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => setProgramPickerOpen(false)}
+              style={styles.collegeModalClose}
+            >
+              <Text style={styles.collegeModalCloseText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -630,6 +865,81 @@ const styles = StyleSheet.create({
   },
   roleBtnTextCompact: {
     fontSize: 14,
+  },
+  collegeField: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.35)",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    gap: 8,
+  },
+  collegeFieldCompact: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+  },
+  collegeFieldText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#E2E8F0",
+  },
+  collegeFieldTextCompact: {
+    fontSize: 14,
+  },
+  collegeFieldPlaceholder: {
+    color: "#94A3B8",
+    fontWeight: "500",
+  },
+  collegeModalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  collegeModalSheet: {
+    backgroundColor: "rgba(15, 23, 42, 0.98)",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: Platform.OS === "ios" ? 28 : 16,
+    borderTopWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  collegeModalTitle: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  collegeModalRow: {
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(255,255,255,0.12)",
+  },
+  collegeModalRowActive: {
+    backgroundColor: "rgba(59, 130, 246, 0.2)",
+  },
+  collegeModalRowText: {
+    color: "#F1F5F9",
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  collegeModalClose: {
+    marginTop: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  collegeModalCloseText: {
+    color: "#93C5FD",
+    fontSize: 16,
+    fontWeight: "600",
   },
   verifyBody: {
     fontSize: 14,

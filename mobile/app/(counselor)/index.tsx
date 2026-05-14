@@ -913,6 +913,10 @@ export default function CounselorHomeScreen() {
                 : "Student",
             program:
               formatCounselorStudentSubtitle({
+                college_code:
+                  typeof student.college_code === "string"
+                    ? student.college_code
+                    : undefined,
                 department:
                   typeof student.department === "string"
                     ? student.department

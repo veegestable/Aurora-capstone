@@ -69,6 +69,7 @@ async function ensureFirestoreProfileForGoogleUser(
     email,
     full_name: displayName,
     role: "student",
+    email_verified: firebaseUser.emailVerified,
     created_at: new Date(),
     updated_at: new Date(),
   };
