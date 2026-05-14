@@ -2311,6 +2311,7 @@ export const firestoreService = {
         {
           full_name?: string;
           department?: string;
+          college_code?: string;
           program?: string;
           year?: string;
           avatar_url?: string;
@@ -2332,6 +2333,10 @@ export const firestoreService = {
         userMap[uid] = {
           full_name: u?.full_name ?? u?.fullName,
           department: u?.department,
+          college_code:
+            typeof u?.college_code === "string" && u.college_code.trim()
+              ? u.college_code.trim()
+              : undefined,
           program: u?.program,
           year: u?.year ?? u?.year_level,
           avatar_url: pickAvatar(u as Record<string, unknown> | undefined),

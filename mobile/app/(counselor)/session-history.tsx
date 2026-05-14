@@ -819,7 +819,6 @@ export default function SessionHistoryScreen() {
             name: selectedSession.studentName,
             avatar: selectedSession.studentAvatar,
             program: selectedSession.studentProgram,
-            studentId: selectedSession.studentId,
           }}
           counselorName={user?.full_name}
           initialData={rescheduleInitialData}
