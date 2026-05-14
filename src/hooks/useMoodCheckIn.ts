@@ -193,7 +193,7 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
       let journalImageUrl: string | undefined
       if (journalImage) {
         const ext = journalImage.type.split('/')[1] || 'jpg'
-        const path = `moodPhotos/${user.id}/${dayKey}-${now.getTime()}.${ext}`
+        const path = `journal_selfies/${user.id}/${dayKey}-${now.getTime()}.${ext}`
         journalImageUrl = await firebaseStorageService.uploadImage(path, journalImage)
       }
 
