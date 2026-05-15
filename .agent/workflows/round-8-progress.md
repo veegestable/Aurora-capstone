@@ -37,11 +37,11 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Touched:** `src/services/firebase-auth/types.ts`, `src/services/firebase-auth/auth/signUp.ts`, `src/types/user.types.ts`, `src/contexts/AuthContext.tsx`
 - **Notes:** Added `CollegeShiftRequest` interface, college/program validation in signUp, `refreshUserProfile()` via useCallback. Replaced `any` with `unknown` in signUp catch.
 
-### [ ] Batch 3 — Login page: college + program pickers
+### [x] Batch 3 — Login page: college + program pickers
 
 - Covers [round8_parity.md §3](../round8_parity.md): add college/program `<select>` fields to the signup form; validation; clear on role/college change.
-- **Touched:**
-- **Notes:**
+- **Touched:** `src/pages/Login.tsx`
+- **Notes:** Added `collegeCode`+`program` to formData; college `<select>` always shown in signup, program `<select>` for students only after college picked; dependent field clearing on role/college change; counselor approval notice.
 
 ### [ ] Batch 4 — Firebase auth error mapper
 

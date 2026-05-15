@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Eye, EyeOff, Heart, Brain, Users, Shield, Lock, Award } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { COLLEGES, isCollegeCode } from '../constants/colleges'
+import { getProgramsForCollege } from '../constants/college-programs-iit'
 
 const STARS = [
   { top: '8%', left: '12%', delay: '0s', size: '2px' },
@@ -22,7 +24,9 @@ export default function Login() {
     email: '',
     password: '',
     fullName: '',
-    role: 'student' as 'student' | 'counselor'
+    role: 'student' as 'student' | 'counselor',
+    collegeCode: '',
+    program: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -36,11 +40,18 @@ export default function Login() {
 
     try {
       if (isSignUp) {
-        const result = await signUp(formData.email, formData.password, formData.fullName, formData.role)
+        const result = await signUp(
+          formData.email,
+          formData.password,
+          formData.fullName,
+          formData.role,
+          formData.collegeCode,
+          formData.role === 'student' ? formData.program : undefined
+        )
         if (result.success) {
           setSuccessMessage(result.message)
           setIsSignUp(false)
-          setFormData(prev => ({ ...prev, password: '', fullName: '', role: 'student' }))
+          setFormData(prev => ({ ...prev, password: '', fullName: '', role: 'student', collegeCode: '', program: '' }))
         } else {
           setError(result.message)
         }
@@ -62,15 +73,26 @@ export default function Login() {
       ...prev,
       password: '',
       fullName: '',
-      role: 'student'
+      role: 'student',
+      collegeCode: '',
+      program: ''
     }))
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }))
+    const { name, value } = e.target
+    setFormData(prev => {
+      const next = { ...prev, [name]: value }
+      // Clear college + program when role changes
+      if (name === 'role') {
+        next.collegeCode = ''
+        next.program = ''
+      }
+
+      // Clear program when college changes (student only)
+      if (name === 'collegeCode') next.program = ''
+      return next
+    })
   }
 
   return (
@@ -283,22 +305,75 @@ export default function Login() {
               )}
 
               {isSignUp && (
-                <div>
-                  <label htmlFor="role" className="block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide">
-                    Role
-                  </label>
-                  <select
-                    id="role"
-                    name="role"
-                    value={formData.role}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-white/8 rounded-[12px] focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue text-white bg-white/5 transition-all outline-hidden"
-                    required
-                  >
-                    <option value="student">Student</option>
-                    <option value="counselor">Counselor</option>
-                  </select>
-                </div>
+                <>
+                  <div>
+                    <label htmlFor="role" className="block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide">
+                      Role
+                    </label>
+                    <select
+                      id="role"
+                      name="role"
+                      value={formData.role}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-white/8 rounded-[12px] focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue text-white bg-white/5 transition-all outline-hidden"
+                      required
+                    >
+                      <option value="student">Student</option>
+                      <option value="counselor">Counselor</option>
+                    </select>
+                    {formData.role === 'counselor' && (
+                      <p className="mt-1.5 text-xs text-amber-300">
+                        Counselor accounts require admin approval before access.
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="collegeCode" className="block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide">
+                      College <span className="text-red-400">*</span>
+                    </label>
+                    <select
+                      id="collegeCode"
+                      name="collegeCode"
+                      value={formData.collegeCode}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-white/8 rounded-[12px] focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue text-white bg-white/5 transition-all outline-hidden"
+                      required
+                      aria-label="Select your college"
+                    >
+                      <option value="" disabled>Select your college</option>
+                      {COLLEGES.map(c => (
+                        <option key={c.code} value={c.code}>
+                          {c.code} — {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {formData.role === 'student' && formData.collegeCode && isCollegeCode(formData.collegeCode) && (
+                    <div>
+                      <label htmlFor="program" className="block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide">
+                        Program <span className="text-red-400">*</span>
+                      </label>
+                      <select
+                        id="program"
+                        name="program"
+                        value={formData.program}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-white/8 rounded-[12px] focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue text-white bg-white/5 transition-all outline-hidden"
+                        required
+                        aria-label="Select your degree program"
+                      >
+                        <option value="" disabled>Select your program</option>
+                        {getProgramsForCollege(formData.collegeCode).map(label => (
+                          <option key={label} value={label}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </>
               )}
 
               <button
