@@ -31,6 +31,7 @@ import {
   InfoGuideModal,
   type InfoGuideContent,
 } from "../../components/common/InfoGuideModal";
+import { SignOutConfirmModal } from "../../components/common/SignOutConfirmModal";
 import {
   clearDailyCheckInReminder,
   hasNotificationPermission,
@@ -808,6 +809,8 @@ export default function ProfileScreen() {
   const [shiftSubmitting, setShiftSubmitting] = useState(false);
   const [collegeShiftSubmittedGuide, setCollegeShiftSubmittedGuide] =
     useState<InfoGuideContent | null>(null);
+  const [signOutModalVisible, setSignOutModalVisible] = useState(false);
+  const [signOutLeaving, setSignOutLeaving] = useState(false);
   const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
   const [showMeal, setMeal] = useState(false);
   const [bathScheduleOpen, setBath] = useState(false);
@@ -1006,19 +1009,26 @@ export default function ProfileScreen() {
     setActiveMealIndex(idx);
   };
 
-  const handleSignOut = () => {
-    Alert.alert("Logout Account", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await signOut();
-          } catch {}
-        },
-      },
-    ]);
+  const handleSignOutPress = () => {
+    setSignOutModalVisible(true);
+  };
+
+  const handleSignOutStay = () => {
+    if (signOutLeaving) return;
+    setSignOutModalVisible(false);
+  };
+
+  const handleSignOutLeave = async () => {
+    if (signOutLeaving) return;
+    setSignOutLeaving(true);
+    try {
+      await signOut();
+      setSignOutModalVisible(false);
+    } catch {
+      /* auth layer logs errors */
+    } finally {
+      setSignOutLeaving(false);
+    }
   };
 
   useEffect(() => {
@@ -2281,7 +2291,7 @@ export default function ProfileScreen() {
 
           {/* ── Logout ───────────────────────────────────────────── */}
           <TouchableOpacity
-            onPress={handleSignOut}
+            onPress={handleSignOutPress}
             style={{
               backgroundColor: "rgba(239,68,68,0.1)",
               borderRadius: 16,
@@ -2598,6 +2608,13 @@ export default function ProfileScreen() {
         <InfoGuideModal
           guide={collegeShiftSubmittedGuide}
           onClose={() => setCollegeShiftSubmittedGuide(null)}
+        />
+
+        <SignOutConfirmModal
+          visible={signOutModalVisible}
+          onStay={handleSignOutStay}
+          onLeave={handleSignOutLeave}
+          leaving={signOutLeaving}
         />
       </SafeAreaView>
     </View>

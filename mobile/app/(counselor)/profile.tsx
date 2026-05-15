@@ -45,6 +45,7 @@ import {
   InfoGuideModal,
   type InfoGuideContent,
 } from "../../src/components/common/InfoGuideModal";
+import { SignOutConfirmModal } from "../../src/components/common/SignOutConfirmModal";
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 function SectionLabel({ text }: { text: string }) {
@@ -568,6 +569,8 @@ export default function CounselorProfileScreen() {
   const [shiftSubmitting, setShiftSubmitting] = useState(false);
   const [collegeShiftSubmittedGuide, setCollegeShiftSubmittedGuide] =
     useState<InfoGuideContent | null>(null);
+  const [signOutModalVisible, setSignOutModalVisible] = useState(false);
+  const [signOutLeaving, setSignOutLeaving] = useState(false);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [savingPushPreference, setSavingPushPreference] = useState(false);
   const [devicePermissionGranted, setDevicePermissionGranted] = useState<
@@ -610,19 +613,26 @@ export default function CounselorProfileScreen() {
     }
   };
 
-  const handleSignOut = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await signOut();
-          } catch {}
-        },
-      },
-    ]);
+  const handleSignOutPress = () => {
+    setSignOutModalVisible(true);
+  };
+
+  const handleSignOutStay = () => {
+    if (signOutLeaving) return;
+    setSignOutModalVisible(false);
+  };
+
+  const handleSignOutLeave = async () => {
+    if (signOutLeaving) return;
+    setSignOutLeaving(true);
+    try {
+      await signOut();
+      setSignOutModalVisible(false);
+    } catch {
+      /* auth layer logs errors */
+    } finally {
+      setSignOutLeaving(false);
+    }
   };
 
   // Derive display name and title from user data
@@ -948,7 +958,7 @@ export default function CounselorProfileScreen() {
           {/* ── Sign Out ───────────────────────────────────────── */}
           <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
             <TouchableOpacity
-              onPress={handleSignOut}
+              onPress={handleSignOutPress}
               activeOpacity={0.85}
               style={{
                 backgroundColor: AURORA.blue,
@@ -1165,6 +1175,13 @@ export default function CounselorProfileScreen() {
         <InfoGuideModal
           guide={collegeShiftSubmittedGuide}
           onClose={() => setCollegeShiftSubmittedGuide(null)}
+        />
+
+        <SignOutConfirmModal
+          visible={signOutModalVisible}
+          onStay={handleSignOutStay}
+          onLeave={handleSignOutLeave}
+          leaving={signOutLeaving}
         />
       </SafeAreaView>
     </View>
