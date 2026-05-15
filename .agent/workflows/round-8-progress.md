@@ -2,7 +2,7 @@
 description: Round 8 web parity — batch progress tracker. Update after each batch.
 ---
 
-# Round 8 Parity — Progress Tracker
+# Round 8 Parity — Progress Tracker ✅ COMPLETE
 
 Source plan: [round8_parity.md](../round8_parity.md)
 
@@ -73,11 +73,11 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Touched:** `src/services/messages/helpers/resolveConversationCollegeCode.ts` [NEW], `src/services/messages/post/createConversation.ts`, `src/services/sessions/post/createSessionRequest.ts`, `src/services/sessions/post/createCounselorSessionInvite.ts`, `src/types/session.types.ts`
 - **Notes:** Helper resolves student college (fallback: counselor). All 3 creation paths + conversation upserts stamp `college_code`. Session interface widened.
 
-### [ ] Batch 9 — Final sweep: cleanup + orphan removal
+### [x] Batch 9 — Final sweep: cleanup + orphan removal
 
 - Covers [round8_parity.md §9](../round8_parity.md): remove orphaned code; dead imports; stale `any` casts in touched files; unused variables.
-- **Touched:**
-- **Notes:**
+- **Touched:** `src/services/firebase-auth/auth/signUp.ts`, `src/services/firebase-auth/auth/signOut.ts`, `src/services/firebase-auth/auth/resetPassword.ts`, `src/services/firebase-auth/user/getCurrentUser.ts`, `src/components/announcements/AnnouncementFormModal.tsx`, `src/components/student/EditProfileModal.tsx`
+- **Notes:** All 4 auth service `catch (error: any)` → `catch (error: unknown)`. AnnouncementFormModal fixed for new `CreateAnnouncementInput` (passes `publisherRole` + `visibility`). EditProfileModal uses college-aware program picker via `getProgramsForCollege()`, stamps `college_code` instead of hardcoded `department: CCS`, and shows dynamic college label.
 
 ---
 
@@ -85,7 +85,12 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 
 | Date | Item | Reason |
 |------|------|--------|
-| | | |
+| 2026-05-16 | `signUp.ts` `any` → `unknown` | Coding standards: no new `any` |
+| 2026-05-16 | `signOut.ts` `any` → `unknown` | Coding standards: no new `any` |
+| 2026-05-16 | `resetPassword.ts` `any` → `unknown` | Coding standards: no new `any` |
+| 2026-05-16 | `getCurrentUser.ts` `any` → `unknown` | Coding standards: no new `any` |
+| 2026-05-16 | `AnnouncementFormModal` type fix | `CreateAnnouncementInput` changed in Batch 7, call site needed update |
+| 2026-05-16 | `EditProfileModal` hardcoded CCS | Now uses `resolvedCollege` + dynamic program list |
 
 ---
 

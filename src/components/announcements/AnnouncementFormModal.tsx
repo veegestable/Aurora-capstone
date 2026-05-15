@@ -5,6 +5,7 @@ import { announcementsService } from '../../services/announcements'
 import type {
   Announcement,
   AnnouncementTargetRole,
+  AnnouncementVisibility,
 } from '../../types/announcement.types'
 
 interface AnnouncementFormModalProps {
@@ -20,6 +21,13 @@ const ROLE_OPTIONS: { key: AnnouncementTargetRole; label: string }[] = [
   { key: 'student', label: 'Students only' },
   { key: 'counselor', label: 'Counselors only' },
 ]
+
+/** Bridge legacy UI selector → new visibility model. */
+function targetRoleToVisibility(tr: AnnouncementTargetRole): AnnouncementVisibility {
+  if (tr === 'student') return 'students_all'
+  if (tr === 'counselor') return 'counselors_all'
+  return 'students_all' // "Everyone" defaults to students_all for now
+}
 
 export function AnnouncementFormModal({
   announcement,
@@ -120,7 +128,8 @@ export function AnnouncementFormModal({
         await announcementsService.createAnnouncement({
           title: t,
           content: c,
-          targetRole,
+          publisherRole: (user.role === 'counselor' ? 'counselor' : 'admin') as 'admin' | 'counselor',
+          visibility: targetRoleToVisibility(targetRole),
           imageUrl: uploadedUrl ?? undefined,
           createdBy: user.id,
           createdByName: user.full_name || user.preferred_name || 'Admin',

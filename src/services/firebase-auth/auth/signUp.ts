@@ -57,15 +57,16 @@ export const signUp = async (data: SignUpData): Promise<UserProfile> => {
       updated_at: new Date()
     }
     
-    await setDoc(doc(db, 'users', user.uid), userProfile);
+    await setDoc(doc(db, 'users', user.uid), userProfile)
     
     // Sign out user immediately to require manual login
-    await auth.signOut();
+    await auth.signOut()
     
-    console.log('✅ User created successfully - please log in');
+    console.log('✅ User created successfully - please log in')
     return userProfile;
-  } catch (error: any) {
-    console.error('❌ Signup error:', error.message);
-    throw new Error(error.message);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('❌ Signup error:', msg)
+    throw new Error(msg)
   }
-};
+}
