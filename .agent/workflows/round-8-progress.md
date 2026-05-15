@@ -61,11 +61,11 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Touched:** `src/services/user-settings/post/submitCollegeShiftRequest.ts` [NEW], `src/services/user-settings/index.ts`, `src/pages/student/Profile.tsx`, `src/pages/counselor/Profile.tsx`, `src/constants/student/programs.ts`
 - **Notes:** College InfoRow replaces hardcoded Department; "Request college/program change" + modal + pending banner in student profile; counselor profile shows resolved college; `formatCounselorStudentSubtitle` widened to accept `college_code`.
 
-### [ ] Batch 7 — Announcements audience filter refinement
+### [x] Batch 7 — Announcements audience filter refinement
 
 - Covers [round8_parity.md §7](../round8_parity.md): replace simple `targetRole` check with `announcementMatchesReader()` supporting `visibility`, `collegeCodes`, admin/author bypass, `viewerUserId`.
-- **Touched:**
-- **Notes:**
+- **Touched:** `src/types/announcement.types.ts`, `src/services/announcements/helpers.ts`, `src/services/announcements/get/listForRole.ts`, `src/services/announcements/get/subscribeForRole.ts`, `src/services/announcements/post/createAnnouncement.ts`, `src/services/announcements/put/updateAnnouncement.ts`, `src/components/announcements/AnnouncementBanner.tsx`
+- **Notes:** Full mobile parity for `announcementMatchesReader()` with visibility/collegeCodes/admin-author bypass. Types widened with `AnnouncementVisibility`, `publisherRole`, `collegeCodes`, `audienceLabel`. Create/update services write new fields. Banner passes viewer college + userId.
 
 ### [ ] Batch 8 — Conversations & sessions: `college_code` tagging
 

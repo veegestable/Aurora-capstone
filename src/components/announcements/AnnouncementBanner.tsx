@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Megaphone, ChevronLeft, ChevronRight, ArrowUpRight } from 'lucide-react'
 import { announcementsService } from '../../services/announcements'
 import type { Announcement } from '../../types/announcement.types'
+import { useAuth } from '../../contexts/AuthContext'
+import { resolveCollegeCodeFromUserData } from '../../constants/colleges'
 import { AnnouncementDetailModal } from './AnnouncementDetailModal'
 
 interface AnnouncementBannerProps {
@@ -27,6 +29,8 @@ export function AnnouncementBanner({
   autoPlayInterval = 5000,
   compact = false
 }: AnnouncementBannerProps) {
+  const { user } = useAuth()
+  const viewerCollegeCode = resolveCollegeCodeFromUserData(user as Record<string, unknown> | null) || undefined
   const [items, setItems] = useState<Announcement[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [selected, setSelected] = useState<Announcement | null>(null)
@@ -36,15 +40,17 @@ export function AnnouncementBanner({
   useEffect(() => {
     const unsub = announcementsService.subscribeForRole(
       role,
+      viewerCollegeCode,
       maxCount,
       (list) => {
         setItems(list)
         setActiveIndex((prev) => (prev >= list.length ? 0 : prev))
       },
-      (err) => console.warn('AnnouncementBanner subscription error:', err)
+      (err) => console.warn('AnnouncementBanner subscription error:', err),
+      user?.id,
     )
     return unsub
-  }, [role, maxCount])
+  }, [role, viewerCollegeCode, maxCount, user?.id])
 
   const canRotate = useMemo(
     () => items.length > 1 && autoPlayInterval > 0 && !paused && !selected,
