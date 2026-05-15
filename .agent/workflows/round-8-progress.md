@@ -43,17 +43,17 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Touched:** `src/pages/Login.tsx`
 - **Notes:** Added `collegeCode`+`program` to formData; college `<select>` always shown in signup, program `<select>` for students only after college picked; dependent field clearing on role/college change; counselor approval notice.
 
-### [ ] Batch 4 — Firebase auth error mapper
+### [x] Batch 4 — Firebase auth error mapper
 
 - Covers [round8_parity.md §4](../round8_parity.md): new `firebase-auth-errors.ts` utility; integrate in `signIn.ts` so login errors show user-facing copy.
-- **Touched:**
-- **Notes:**
+- **Touched:** `src/utils/firebase-auth-errors.ts` [NEW], `src/services/firebase-auth/auth/signIn.ts`
+- **Notes:** 1:1 port of error mapper from mobile; 14 error codes mapped. Replaced `any` with `unknown` in signIn catch. Login.tsx needs no change — already displays `err.message`.
 
-### [ ] Batch 5 — Sign-out confirmation modal
+### [x] Batch 5 — Sign-out confirmation modal
 
-- Covers [round8_parity.md §5](../round8_parity.md): new `SignOutConfirmModal.tsx` component; replace `window.confirm()` or bare `signOut()` at all **7** call sites: `Settings.tsx`, `student/Profile.tsx`, `counselor/Profile.tsx`, `StudentLayout.tsx`, `CounselorLayout.tsx`, `AdminLayout.tsx`, `PendingCounselor.tsx`.
-- **Touched:**
-- **Notes:**
+- Covers [round8_parity.md §5](../round8_parity.md): build `SignOutConfirmModal.tsx`; replace `window.confirm()` / bare `signOut()` across all 7 call sites.
+- **Touched:** `src/components/common/SignOutConfirmModal.tsx` [NEW], `src/pages/Settings.tsx`, `src/pages/student/Profile.tsx`, `src/pages/counselor/Profile.tsx`, `src/layouts/StudentLayout.tsx`, `src/layouts/CounselorLayout.tsx`, `src/layouts/AdminLayout.tsx`, `src/pages/PendingCounselor.tsx`
+- **Notes:** Themed dark card with LogOut icon, purple "No stay" / red "Yes leave" pill buttons, Loader2 spinner. All 7 sign-out sites now use the modal.
 
 ### [ ] Batch 6 — Profile: college display + college shift request
 

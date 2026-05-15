@@ -12,6 +12,7 @@ import { SettingsRow } from '../../components/profile/SettingsRow'
 import { PrivacyRow } from '../../components/student/PrivacyRow'
 import { ToggleRow } from '../../components/student/ToggleRow'
 import { EditProfileModal } from '../../components/student/EditProfileModal'
+import { SignOutConfirmModal } from '../../components/common/SignOutConfirmModal'
 import { TimePickerModal } from '../../components/student/profile/TimePickerModal'
 import { MealScheduleModal } from '../../components/student/profile/MealScheduleModal'
 import { useUserDaySettings } from '../../contexts/UserDaySettingsContext'
@@ -52,6 +53,8 @@ export default function StudentProfile() {
   const [wakeOpen, setWakeOpen] = useState(false)
   const [reminderOpen, setReminderOpen] = useState(false)
   const [expandedPrivacyRow, setExpandedPrivacyRow] = useState<'visible' | 'private' | null>('visible')
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const remindersEnabled = settings?.remindersEnabled ?? true
   const sessionUpdatesEnabled = settings?.sessionUpdatesEnabled ?? true
@@ -89,11 +92,13 @@ export default function StudentProfile() {
   ])
 
   const handleSignOut = async () => {
-    if (!window.confirm('Are you sure you want to sign out?')) return
+    setIsSigningOut(true)
     try {
       await signOut()
       navigate('/')
-    } catch { /* silent */ }
+    } catch {
+      setIsSigningOut(false)
+    }
   }
 
   return (
@@ -274,7 +279,7 @@ export default function StudentProfile() {
 
       {/* Logout */}
       <button
-        onClick={handleSignOut}
+        onClick={() => setShowSignOutModal(true)}
         className="w-full py-4 rounded-2xl text-[15px] font-bold text-aurora-accent-red
                    bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.3)]
                    hover:bg-[rgba(239,68,68,0.16)] transition-colors cursor-pointer
@@ -339,6 +344,13 @@ export default function StudentProfile() {
             reminderMinute: Number.isFinite(m) ? m : 0,
           })
         }}
+      />
+
+      <SignOutConfirmModal
+        visible={showSignOutModal}
+        onStay={() => setShowSignOutModal(false)}
+        onLeave={handleSignOut}
+        leaving={isSigningOut}
       />
     </div>
   )
