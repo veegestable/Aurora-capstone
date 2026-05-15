@@ -64,6 +64,151 @@ function sanitizeConversationPreview(raw: unknown): string {
   return stripped || "No messages yet";
 }
 
+function conversationCollegeTag(data: Record<string, unknown>): string {
+  const raw = data.college_code;
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+/** Inbox shows only threads for the user's current college; other colleges stay stored for later. */
+function conversationMatchesActiveCollege(
+  data: Record<string, unknown>,
+  activeCollege: string | undefined | null,
+): boolean {
+  const active = (activeCollege ?? "").trim();
+  if (!active || !isCollegeCode(active)) return true;
+  const tag = conversationCollegeTag(data);
+  if (!tag) return false;
+  return tag === active;
+}
+
+async function resolveConversationCollegeCode(
+  counselorId: string,
+  studentId: string,
+): Promise<CollegeCode | ""> {
+  try {
+    const [cSnap, sSnap] = await Promise.all([
+      getDoc(doc(db, "users", counselorId)),
+      getDoc(doc(db, "users", studentId)),
+    ]);
+    const studentCollege = resolveCollegeCodeFromUserData(
+      (sSnap.data() ?? {}) as Record<string, unknown>,
+    );
+    if (studentCollege) return studentCollege;
+    const counselorCollege = resolveCollegeCodeFromUserData(
+      (cSnap.data() ?? {}) as Record<string, unknown>,
+    );
+    return counselorCollege ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Before college shift: stamp legacy threads so they stay tied to the previous college. */
+async function stampParticipantConversationsWithCollege(
+  uid: string,
+  collegeCode: CollegeCode,
+): Promise<void> {
+  const seen = new Set<string>();
+  const toUpdate: { id: string; ref: ReturnType<typeof doc> }[] = [];
+
+  const collect = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
+    snapshot.docs.forEach((d) => {
+      if (seen.has(d.id)) return;
+      seen.add(d.id);
+      const data = d.data() as Record<string, unknown>;
+      if (conversationCollegeTag(data)) return;
+      toUpdate.push({ id: d.id, ref: doc(db, "conversations", d.id) });
+    });
+  };
+
+  try {
+    const [asCounselor, asStudent] = await Promise.all([
+      getDocs(
+        query(collection(db, "conversations"), where("counselorId", "==", uid)),
+      ),
+      getDocs(
+        query(collection(db, "conversations"), where("studentId", "==", uid)),
+      ),
+    ]);
+    collect(asCounselor);
+    collect(asStudent);
+  } catch (e) {
+    console.warn("[conversations] college stamp query failed:", e);
+    return;
+  }
+
+  await Promise.all(
+    toUpdate.map(({ ref }) =>
+      updateDoc(ref, {
+        college_code: collegeCode,
+        updated_at: new Date(),
+      }).catch(() => {}),
+    ),
+  );
+}
+
+/** Before college shift: stamp legacy sessions so they stay tied to the previous college. */
+async function stampParticipantSessionsWithCollege(
+  uid: string,
+  collegeCode: CollegeCode,
+): Promise<void> {
+  const seen = new Set<string>();
+  const toUpdate: ReturnType<typeof doc>[] = [];
+
+  const collect = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
+    snapshot.docs.forEach((d) => {
+      if (seen.has(d.id)) return;
+      seen.add(d.id);
+      const data = d.data() as Record<string, unknown>;
+      if (conversationCollegeTag(data)) return;
+      toUpdate.push(doc(db, "sessions", d.id));
+    });
+  };
+
+  try {
+    const [asCounselor, asStudent] = await Promise.all([
+      getDocs(
+        query(collection(db, "sessions"), where("counselorId", "==", uid)),
+      ),
+      getDocs(
+        query(collection(db, "sessions"), where("studentId", "==", uid)),
+      ),
+    ]);
+    collect(asCounselor);
+    collect(asStudent);
+  } catch (e) {
+    console.warn("[sessions] college stamp query failed:", e);
+    return;
+  }
+
+  await Promise.all(
+    toUpdate.map((ref) =>
+      updateDoc(ref, {
+        college_code: collegeCode,
+        updatedAt: Timestamp.now(),
+      }).catch(() => {}),
+    ),
+  );
+}
+
+async function resolveUserActiveCollegeCode(
+  uid: string,
+  override?: string | null,
+): Promise<string> {
+  const trimmed = (override ?? "").trim();
+  if (trimmed && isCollegeCode(trimmed)) return trimmed;
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    return (
+      resolveCollegeCodeFromUserData(
+        (snap.data() ?? {}) as Record<string, unknown>,
+      ) ?? ""
+    );
+  } catch {
+    return "";
+  }
+}
+
 function normalizeDetectionMethod(raw: unknown): "manual" | "selfie_ai" {
   if (raw === "selfie_ai" || raw === "ai") return "selfie_ai";
   return "manual";
@@ -623,7 +768,9 @@ export const firestoreService = {
 
     const linkedIds = new Set<string>();
     try {
-      const convos = await this.getConversations(counselorId);
+      const convos = await this.getConversations(counselorId, {
+        activeCollegeCode: counselorCollege || undefined,
+      });
       (convos as Record<string, unknown>[]).forEach((c) => {
         const sid = String(c.id ?? c.studentId ?? "").trim();
         if (sid) linkedIds.add(sid);
@@ -633,7 +780,9 @@ export const firestoreService = {
     }
 
     try {
-      const sessions = await this.getSessionsForCounselor(counselorId);
+      const sessions = await this.getSessionsForCounselor(counselorId, {
+        activeCollegeCode: counselorCollege || undefined,
+      });
       (sessions as Record<string, unknown>[]).forEach((s) => {
         const sid = String(s.studentId ?? "").trim();
         if (sid) linkedIds.add(sid);
@@ -780,7 +929,9 @@ export const firestoreService = {
     const linkedCounselorIds = new Set<string>();
 
     try {
-      const sessions = await this.getSessionsForStudent(studentId);
+      const sessions = await this.getSessionsForStudent(studentId, {
+        activeCollegeCode: studentCollege || undefined,
+      });
       (sessions as Record<string, unknown>[]).forEach((s) => {
         const cid = pickCounselorIdFromSession(s);
         if (cid) linkedCounselorIds.add(cid);
@@ -790,7 +941,9 @@ export const firestoreService = {
     }
 
     try {
-      const conversations = await this.getConversationsForStudent(studentId);
+      const conversations = await this.getConversationsForStudent(studentId, {
+        activeCollegeCode: studentCollege,
+      });
       (conversations as Record<string, unknown>[]).forEach((c) => {
         const cid = pickCounselorIdFromConversation(c);
         if (cid) linkedCounselorIds.add(cid);
@@ -853,12 +1006,6 @@ export const firestoreService = {
     if (!isCollegeCode(requestedCollegeCode)) {
       throw new Error("Invalid college selection.");
     }
-    const programTrim = requestedProgram.trim();
-    if (!programTrim || !isProgramInCollege(requestedCollegeCode, programTrim)) {
-      throw new Error(
-        "Choose a degree program from the list for your new college.",
-      );
-    }
     const trimmed = reason.trim();
     if (trimmed.length < 8) {
       throw new Error(
@@ -868,6 +1015,15 @@ export const firestoreService = {
     const snap = await getDoc(doc(db, "users", uid));
     if (!snap.exists()) throw new Error("Profile not found.");
     const data = (snap.data() ?? {}) as Record<string, unknown>;
+    const isStudent = data.role === "student";
+    const programTrim = requestedProgram.trim();
+    if (isStudent) {
+      if (!programTrim || !isProgramInCollege(requestedCollegeCode, programTrim)) {
+        throw new Error(
+          "Choose a degree program from the list for your new college.",
+        );
+      }
+    }
     const current = resolveCollegeCodeFromUserData(data);
     if (!current) {
       throw new Error("Set your college on your profile before requesting a change.");
@@ -919,6 +1075,13 @@ export const firestoreService = {
         : "";
     const role = data.role;
     const isStudent = role === "student";
+    const previousCollege = resolveCollegeCodeFromUserData(data);
+    if (previousCollege) {
+      await Promise.all([
+        stampParticipantConversationsWithCollege(uid, previousCollege),
+        stampParticipantSessionsWithCollege(uid, previousCollege),
+      ]);
+    }
     if (isStudent) {
       if (!nextProgram || !isProgramInCollege(nextCode, nextProgram)) {
         throw new Error(
@@ -965,7 +1128,7 @@ export const firestoreService = {
   },
 
   // ─── Messaging (conversation-based, one-to-one counselor-student) ─────────────
-  // conversations/{conversationId}: counselorId, studentId, lastMessage, lastMessageAt, lastSenderId, unreadCountCounselor, unreadCountStudent, createdAt
+  // conversations/{conversationId}: counselorId, studentId, college_code, lastMessage, lastMessageAt, ...
   // conversations/{conversationId}/messages/{messageId}: senderId, content, type, sessionId, sessionData, isRead, readAt, isUrgent, createdAt
   // users/{counselorId}/private/conv_arch__{conversationId}: counselor hides thread from inbox (owner-only; see firestore.rules private match)
 
@@ -1044,12 +1207,17 @@ export const firestoreService = {
       }
       const conversationId = `${counselorId}_${studentData.id}`;
       const convRef = doc(db, "conversations", conversationId);
+      const collegeCode = await resolveConversationCollegeCode(
+        counselorId,
+        studentData.id,
+      );
       const profileFields: Record<string, unknown> = {
         counselorId,
         studentId: studentData.id,
         student_name: studentData.name,
         student_avatar: studentData.avatar,
         student_program: studentData.program ?? "",
+        ...(collegeCode ? { college_code: collegeCode } : {}),
       };
       if (counselorData) {
         profileFields.counselor_name = counselorData.name;
@@ -1095,9 +1263,25 @@ export const firestoreService = {
     }
   },
 
-  async getConversations(counselorId: string) {
+  async getConversations(
+    counselorId: string,
+    options?: { activeCollegeCode?: string | null },
+  ) {
     const isPlaceholderAvatar = (url: string) =>
       !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url);
+
+    let activeCollege = (options?.activeCollegeCode ?? "").trim();
+    if (!activeCollege) {
+      try {
+        const cSnap = await getDoc(doc(db, "users", counselorId));
+        activeCollege =
+          resolveCollegeCodeFromUserData(
+            (cSnap.data() ?? {}) as Record<string, unknown>,
+          ) ?? "";
+      } catch {
+        activeCollege = "";
+      }
+    }
 
     try {
       const q = query(
@@ -1112,6 +1296,12 @@ export const firestoreService = {
       const results = await Promise.all(
         snapshot.docs
           .filter((d) => !archivedIds.has(d.id))
+          .filter((d) =>
+            conversationMatchesActiveCollege(
+              d.data() as Record<string, unknown>,
+              activeCollege,
+            ),
+          )
           .map(async (d) => {
           const data = d.data();
           let avatar = data.student_avatar ?? "";
@@ -1155,9 +1345,25 @@ export const firestoreService = {
     }
   },
 
-  async getConversationsForStudent(studentId: string) {
+  async getConversationsForStudent(
+    studentId: string,
+    options?: { activeCollegeCode?: string | null },
+  ) {
     const isPlaceholderAvatar = (url: string) =>
       !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url);
+
+    let activeCollege = (options?.activeCollegeCode ?? "").trim();
+    if (!activeCollege) {
+      try {
+        const sSnap = await getDoc(doc(db, "users", studentId));
+        activeCollege =
+          resolveCollegeCodeFromUserData(
+            (sSnap.data() ?? {}) as Record<string, unknown>,
+          ) ?? "";
+      } catch {
+        activeCollege = "";
+      }
+    }
 
     try {
       const q = query(
@@ -1167,7 +1373,14 @@ export const firestoreService = {
       );
       const snapshot = await getDocs(q);
       const results = await Promise.all(
-        snapshot.docs.map(async (d) => {
+        snapshot.docs
+          .filter((d) =>
+            conversationMatchesActiveCollege(
+              d.data() as Record<string, unknown>,
+              activeCollege,
+            ),
+          )
+          .map(async (d) => {
           const data = d.data();
           let avatar = data.counselor_avatar ?? "";
           if ((!avatar || isPlaceholderAvatar(avatar)) && data.counselorId) {
@@ -1679,9 +1892,14 @@ export const firestoreService = {
     opts?: { preferredTime?: string },
   ) {
     try {
+      const collegeCode = await resolveConversationCollegeCode(
+        counselorId,
+        studentId,
+      );
       const docData: Record<string, any> = {
         counselorId,
         studentId,
+        ...(collegeCode ? { college_code: collegeCode } : {}),
         riskFlagId: null,
         initiatedBy: "student",
         studentRequestNote: studentRequestNote.trim(),
@@ -1718,9 +1936,14 @@ export const firestoreService = {
     opts?: { note?: string },
   ) {
     try {
+      const collegeCode = await resolveConversationCollegeCode(
+        counselorId,
+        studentId,
+      );
       const docData: Record<string, any> = {
         counselorId,
         studentId,
+        ...(collegeCode ? { college_code: collegeCode } : {}),
         riskFlagId: null,
         initiatedBy: "counselor",
         studentRequestNote: (opts?.note ?? "").trim(),
@@ -1825,30 +2048,58 @@ export const firestoreService = {
     }
   },
 
-  async getSessionsForStudent(studentId: string) {
+  async getSessionsForStudent(
+    studentId: string,
+    options?: { activeCollegeCode?: string | null },
+  ) {
     try {
+      const activeCollege = await resolveUserActiveCollegeCode(
+        studentId,
+        options?.activeCollegeCode,
+      );
       const q = query(
         collection(db, "sessions"),
         where("studentId", "==", studentId),
         orderBy("updatedAt", "desc"),
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      return snapshot.docs
+        .filter((d) =>
+          conversationMatchesActiveCollege(
+            d.data() as Record<string, unknown>,
+            activeCollege,
+          ),
+        )
+        .map((d) => ({ id: d.id, ...d.data() }));
     } catch (error: any) {
       console.error("❌ Error getting student sessions:", error);
       throw error;
     }
   },
 
-  async getSessionsForCounselor(counselorId: string) {
+  async getSessionsForCounselor(
+    counselorId: string,
+    options?: { activeCollegeCode?: string | null },
+  ) {
     try {
+      const activeCollege = await resolveUserActiveCollegeCode(
+        counselorId,
+        options?.activeCollegeCode,
+      );
       const q = query(
         collection(db, "sessions"),
         where("counselorId", "==", counselorId),
         orderBy("updatedAt", "desc"),
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      return snapshot.docs
+        .filter((d) =>
+          conversationMatchesActiveCollege(
+            d.data() as Record<string, unknown>,
+            activeCollege,
+          ),
+        )
+        .map((d) => ({ id: d.id, ...d.data() }));
     } catch (error: any) {
       console.error("❌ Error getting counselor sessions:", error);
       throw error;
@@ -1863,8 +2114,13 @@ export const firestoreService = {
   async getSessionOutcomeCountsForCounselorStudent(
     counselorId: string,
     studentId: string,
+    options?: { activeCollegeCode?: string | null },
   ): Promise<{ completed: number; missed: number }> {
     try {
+      const activeCollege = await resolveUserActiveCollegeCode(
+        counselorId,
+        options?.activeCollegeCode,
+      );
       const q = query(
         collection(db, "sessions"),
         where("counselorId", "==", String(counselorId)),
@@ -1875,6 +2131,7 @@ export const firestoreService = {
       let missed = 0;
       for (const d of snapshot.docs) {
         const data = d.data() as Record<string, unknown>;
+        if (!conversationMatchesActiveCollege(data, activeCollege)) continue;
         const st = String(data.status ?? "");
         if (st === "completed") completed += 1;
         else if (st === "missed") missed += 1;
@@ -2139,8 +2396,15 @@ export const firestoreService = {
   /**
    * Deletes `sessions` docs that have been `expired` for more than 7 days (counselor scope).
    */
-  async purgeExpiredSessionsPastRetention(counselorId: string): Promise<void> {
+  async purgeExpiredSessionsPastRetention(
+    counselorId: string,
+    activeCollegeCode?: string | null,
+  ): Promise<void> {
     try {
+      const activeCollege = await resolveUserActiveCollegeCode(
+        counselorId,
+        activeCollegeCode,
+      );
       const q = query(
         collection(db, "sessions"),
         where("counselorId", "==", counselorId),
@@ -2149,6 +2413,12 @@ export const firestoreService = {
       const snapshot = await getDocs(q);
       const cutoff = Date.now() - EXPIRED_SESSION_RETENTION_MS;
       const deletes = snapshot.docs
+        .filter((d) =>
+          conversationMatchesActiveCollege(
+            d.data() as Record<string, unknown>,
+            activeCollege,
+          ),
+        )
         .filter((d) => {
           const ea = d.data().expiredAt?.toMillis?.();
           return typeof ea === "number" && ea < cutoff;
@@ -2200,7 +2470,10 @@ export const firestoreService = {
    * attendance outcome (`completed`, `missed`, `rescheduled` — the last clears slots but stays listed).
    * Excludes open student requests and invite/pending flows where no time is locked yet.
    */
-  async getSessionHistoryForCounselor(counselorId: string): Promise<
+  async getSessionHistoryForCounselor(
+    counselorId: string,
+    options?: { activeCollegeCode?: string | null },
+  ): Promise<
     Array<{
       id: string;
       studentId: string;
@@ -2225,7 +2498,11 @@ export const firestoreService = {
     }>
   > {
     try {
-      await this.purgeExpiredSessionsPastRetention(counselorId);
+      const activeCollege = await resolveUserActiveCollegeCode(
+        counselorId,
+        options?.activeCollegeCode,
+      );
+      await this.purgeExpiredSessionsPastRetention(counselorId, activeCollege);
 
       const q = query(
         collection(db, "sessions"),
@@ -2233,7 +2510,14 @@ export const firestoreService = {
         orderBy("updatedAt", "desc"),
       );
       const snapshot = await getDocs(q);
-      const sessions = snapshot.docs.map((d) => {
+      const sessions = snapshot.docs
+        .filter((d) =>
+          conversationMatchesActiveCollege(
+            d.data() as Record<string, unknown>,
+            activeCollege,
+          ),
+        )
+        .map((d) => {
         const data = d.data();
         const rawProposed = Array.isArray(data.proposedSlots)
           ? data.proposedSlots

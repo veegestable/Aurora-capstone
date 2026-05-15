@@ -9,7 +9,10 @@ import {
 } from "react-native";
 import { Heart, Brain, Users } from "lucide-react-native";
 import { Stack } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import LoginForm, { LOGIN_AUTH_COLUMN_MAX } from "../components/auth/LoginForm";
 import { AppText as Text } from "../components/common/AppText";
 
@@ -21,6 +24,7 @@ const FEATURES = [
 
 export default function LoginScreen() {
   const isWeb = Platform.OS === "web";
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
 
   const scrollAuthIntoView = useCallback(() => {
@@ -35,7 +39,7 @@ export default function LoginScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
     >
       <SafeAreaView className="flex-1 bg-primary">
         <Stack.Screen options={{ headerShown: false }} />
@@ -135,7 +139,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     paddingHorizontal: 16,
     paddingTop: 4,
-    paddingBottom: 16,
+    paddingBottom: 48,
   },
   nativeColumn: {
     alignSelf: "center",

@@ -28,6 +28,10 @@ import { useUserDaySettings } from "../../stores/UserDaySettingsContext";
 import { AURORA } from "../../constants/aurora-colors";
 import { LetterAvatar } from "../../components/common/LetterAvatar";
 import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../components/common/InfoGuideModal";
+import {
   clearDailyCheckInReminder,
   hasNotificationPermission,
   scheduleDailyCheckInReminder,
@@ -464,12 +468,12 @@ function EditProfileModal({
           <KeyboardAvoidingView
             style={{ flex: 1 }}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 56 : 0}
+            keyboardVerticalOffset={0}
           >
             <ScrollView
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
-              contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
+              contentContainerStyle={{ padding: 24, paddingBottom: 120 }}
             >
             <View style={{ alignItems: "center", marginBottom: 24 }}>
               <View style={{ position: "relative" }}>
@@ -802,6 +806,8 @@ export default function ProfileScreen() {
   const [shiftTargetProgram, setShiftTargetProgram] = useState("");
   const [shiftReason, setShiftReason] = useState("");
   const [shiftSubmitting, setShiftSubmitting] = useState(false);
+  const [collegeShiftSubmittedGuide, setCollegeShiftSubmittedGuide] =
+    useState<InfoGuideContent | null>(null);
   const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
   const [showMeal, setMeal] = useState(false);
   const [bathScheduleOpen, setBath] = useState(false);
@@ -2342,12 +2348,18 @@ export default function ProfileScreen() {
                 </Text>
                 <View style={{ width: 56 }} />
               </View>
+              <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                keyboardVerticalOffset={0}
+              >
               <ScrollView
                 contentContainerStyle={{
                   padding: 20,
-                  paddingBottom: 40,
+                  paddingBottom: 120,
                 }}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
               >
                 <Text style={{ color: AURORA.textSec, fontSize: 13, marginBottom: 16 }}>
                   Pick the college (you can keep your current college to change program
@@ -2515,10 +2527,10 @@ export default function ProfileScreen() {
                         );
                         await refreshUserProfile();
                         setCollegeShiftOpen(false);
-                        Alert.alert(
-                          "Submitted",
-                          "Your request is pending admin review.",
-                        );
+                        setCollegeShiftSubmittedGuide({
+                          title: "Submitted",
+                          body: "Your request is pending admin review.",
+                        });
                       } catch (e) {
                         Alert.alert(
                           "Could not submit",
@@ -2545,6 +2557,7 @@ export default function ProfileScreen() {
                   </Text>
                 </TouchableOpacity>
               </ScrollView>
+              </KeyboardAvoidingView>
             </SafeAreaView>
           </View>
         </Modal>
@@ -2581,6 +2594,11 @@ export default function ProfileScreen() {
             onClose={closeAndroidTimePicker}
           />
         ) : null}
+
+        <InfoGuideModal
+          guide={collegeShiftSubmittedGuide}
+          onClose={() => setCollegeShiftSubmittedGuide(null)}
+        />
       </SafeAreaView>
     </View>
   );

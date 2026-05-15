@@ -149,21 +149,37 @@ export function formatAnnouncementAudienceLabel(a: Announcement): string {
     case "colleges_cross":
       return codes ? `Students & counselors · ${codes}` : "Selected colleges";
     case "students_one_college":
-      return codes ? `Students · ${codes}` : "Students · one college";
+      return codes
+        ? `Students & counselors · ${codes}`
+        : "Students · one college";
     default:
       return "Custom";
   }
 }
 
+export type AnnouncementReaderRole = "counselor" | "student" | "admin";
+
+export type AnnouncementReaderOptions = {
+  viewerUserId?: string;
+};
+
 /**
- * Whether this announcement should appear for the viewer (same logic as Firestore read).
+ * Whether this announcement should appear for the viewer (aligned with Firestore read rules).
  */
 export function announcementMatchesReader(
-  viewerRole: "counselor" | "student",
+  viewerRole: AnnouncementReaderRole,
   viewerCollegeCode: string | undefined,
   data: Record<string, unknown>,
+  options?: AnnouncementReaderOptions,
 ): boolean {
   const college = (viewerCollegeCode ?? "").trim();
+  const viewerUserId = (options?.viewerUserId ?? "").trim();
+  const createdBy =
+    typeof data.createdBy === "string" ? data.createdBy.trim() : "";
+
+  if (viewerRole === "admin") return true;
+  if (viewerUserId && createdBy && viewerUserId === createdBy) return true;
+
   const visRaw = data.visibility as string | undefined;
   const codes = normalizeCollegeCodes(data.collegeCodes);
 
@@ -185,8 +201,9 @@ export function announcementMatchesReader(
       if (!college || codes.length === 0) return false;
       return codes.includes(college);
     case "students_one_college":
-      if (viewerRole !== "student" || !college || codes.length === 0) return false;
-      return codes.includes(college);
+      if (!college || codes.length === 0) return false;
+      if (!codes.includes(college)) return false;
+      return viewerRole === "student" || viewerRole === "counselor";
     default:
       return false;
   }
@@ -194,10 +211,11 @@ export function announcementMatchesReader(
 
 function mapAnnouncementsForRole(
   docs: QueryDocumentSnapshot[],
-  role: "counselor" | "student",
+  role: AnnouncementReaderRole,
   viewerCollegeCode: string | undefined,
   maxCount: number,
   skipAudienceFilter = false,
+  viewerUserId?: string,
 ): Announcement[] {
   const now = Date.now();
   const list = docs
@@ -205,7 +223,9 @@ function mapAnnouncementsForRole(
       const data = d.data() as Record<string, unknown>;
       if (
         !skipAudienceFilter &&
-        !announcementMatchesReader(role, viewerCollegeCode, data)
+        !announcementMatchesReader(role, viewerCollegeCode, data, {
+          viewerUserId,
+        })
       ) {
         return null;
       }
@@ -256,10 +276,11 @@ export const announcementsService = {
   },
 
   async listForRole(
-    role: "counselor" | "student",
+    role: AnnouncementReaderRole,
     viewerCollegeCode: string | undefined,
     maxCount = 20,
     skipAudienceFilter = false,
+    viewerUserId?: string,
   ): Promise<Announcement[]> {
     try {
       const q = query(
@@ -274,6 +295,7 @@ export const announcementsService = {
         viewerCollegeCode,
         maxCount,
         skipAudienceFilter,
+        viewerUserId,
       );
       return list.length > 0 ? list : MOCK_ANNOUNCEMENTS;
     } catch {
@@ -282,12 +304,13 @@ export const announcementsService = {
   },
 
   subscribeForRole(
-    role: "counselor" | "student",
+    role: AnnouncementReaderRole,
     viewerCollegeCode: string | undefined,
     maxCount: number,
     onNext: (list: Announcement[]) => void,
     onError?: (error: Error) => void,
     skipAudienceFilter = false,
+    viewerUserId?: string,
   ): () => void {
     const q = query(
       collection(db, "announcements"),
@@ -303,6 +326,7 @@ export const announcementsService = {
           viewerCollegeCode,
           maxCount,
           skipAudienceFilter,
+          viewerUserId,
         );
         onNext(list.length > 0 ? list : MOCK_ANNOUNCEMENTS);
       },

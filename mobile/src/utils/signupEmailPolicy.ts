@@ -26,6 +26,27 @@ export function parseSignupEmailAllowlist(raw: string | undefined): string[] {
     .filter(Boolean);
 }
 
+/** QA / legacy test addresses in EXPO_PUBLIC_SIGNUP_EMAIL_ALLOWLIST. */
+export function isSignupEmailAllowlisted(email: string): boolean {
+  const trimmed = email.trim().toLowerCase();
+  if (!trimmed) return false;
+  return parseSignupEmailAllowlist(
+    process.env.EXPO_PUBLIC_SIGNUP_EMAIL_ALLOWLIST,
+  ).includes(trimmed);
+}
+
+/**
+ * Firestore directory flag: true when Auth verified, or allowlisted legacy QA email.
+ * Does not change Firebase Auth — only how we store/read `users.email_verified`.
+ */
+export function firestoreEmailVerifiedEffective(
+  authEmailVerified: boolean,
+  email: string,
+): boolean {
+  if (authEmailVerified) return true;
+  return isSignupEmailAllowlisted(email);
+}
+
 /**
  * Sign-in: require Firebase emailVerified unless exempt (QA allowlist or global dev flag).
  */
@@ -35,10 +56,7 @@ export function isEmailVerificationRequiredForSignIn(email: string): boolean {
   }
   const trimmed = email.trim().toLowerCase();
   if (!trimmed) return true;
-  const allowlist = parseSignupEmailAllowlist(
-    process.env.EXPO_PUBLIC_SIGNUP_EMAIL_ALLOWLIST,
-  );
-  if (allowlist.includes(trimmed)) return false;
+  if (isSignupEmailAllowlisted(trimmed)) return false;
   return true;
 }
 
@@ -57,10 +75,7 @@ export function getSignupEmailRejectionMessage(email: string): string | null {
     process.env.EXPO_PUBLIC_REQUIRE_MSUIIT_SIGNUP_EMAIL !== "false";
   if (!requireMsuiit) return null;
 
-  const allowlist = parseSignupEmailAllowlist(
-    process.env.EXPO_PUBLIC_SIGNUP_EMAIL_ALLOWLIST,
-  );
-  if (allowlist.includes(trimmed)) return null;
+  if (isSignupEmailAllowlisted(trimmed)) return null;
 
   if (!trimmed.endsWith(MSUIIT_SUFFIX)) {
     return `Use your MSU-IIT email (${MSUIIT_SUFFIX})`;

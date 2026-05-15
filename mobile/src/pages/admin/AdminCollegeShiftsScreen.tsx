@@ -200,16 +200,19 @@ export default function AdminCollegeShiftsScreen() {
                     <Text style={{ color: "#B9CCFF", fontSize: 13, marginBottom: 4 }}>
                       To: {to ? `${to} — ${getCollegeName(to)}` : "—"}
                     </Text>
-                    <Text
-                      style={{
-                        color: AURORA.textSec,
-                        fontSize: 12,
-                        lineHeight: 18,
-                        marginBottom: 8,
-                      }}
-                    >
-                      Requested program: {String(req?.requested_program ?? "—")}
-                    </Text>
+                    {role === "student" ? (
+                      <Text
+                        style={{
+                          color: AURORA.textSec,
+                          fontSize: 12,
+                          lineHeight: 18,
+                          marginBottom: 8,
+                        }}
+                      >
+                        Requested program:{" "}
+                        {String(req?.requested_program ?? "—")}
+                      </Text>
+                    ) : null}
                     <Text
                       style={{
                         color: "#FFFFFF",

@@ -13,7 +13,7 @@ import { AURORA } from "../../constants/aurora-colors";
 import { triggerHaptic } from "../../utils/haptics";
 
 interface AnnouncementSectionProps {
-  role: "counselor" | "student";
+  role: "counselor" | "student" | "admin";
   showAddButton?: boolean;
   titleIcon?: React.ReactNode;
   /** Admin dashboard: show every announcement (Firestore still enforces admin read). */
@@ -104,8 +104,9 @@ export function AnnouncementSection({
       </View>
       <AnnouncementCarousel
         key={refreshKey}
-        role={role}
+        role={user?.role === "admin" ? "admin" : role}
         viewerCollegeCode={user?.college_code ?? user?.department}
+        viewerUserId={user?.id}
         skipAudienceFilter={skipAudienceFilter}
         onAnnouncementPress={handleAnnouncementPress}
       />

@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  KeyboardAvoidingView,
 } from "react-native";
 import { AppText as Text } from "../common/AppText";
 import { AppTextInput as TextInput } from "../common/AppTextInput";
@@ -203,7 +204,11 @@ export function AddAnnouncementModal({
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.title}>New Announcement</Text>
@@ -221,6 +226,7 @@ export function AddAnnouncementModal({
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
             <Text style={styles.label}>Title</Text>
             <TextInput
@@ -270,7 +276,8 @@ export function AddAnnouncementModal({
 
             {isCounselor && (
               <Text style={styles.hint}>
-                This will be visible only to students in your college.
+                Students and counselors in your college will see this on their
+                dashboards. Admins can see all announcements.
               </Text>
             )}
 
@@ -350,7 +357,7 @@ export function AddAnnouncementModal({
             </TouchableOpacity>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -384,7 +391,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   scroll: { maxHeight: 480 },
-  scrollContent: { padding: 20, paddingTop: 16 },
+  scrollContent: { padding: 20, paddingTop: 16, paddingBottom: 32 },
   label: {
     color: AURORA.textSec,
     fontSize: 12,

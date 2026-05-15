@@ -252,8 +252,11 @@ async function saveHiddenStudentSessionIds(
 
 async function fetchStudentSessionsOverview(
   studentId: string,
+  activeCollegeCode?: string,
 ): Promise<StudentSessionOverviewRow[]> {
-  const raw = await firestoreService.getSessionsForStudent(studentId);
+  const raw = await firestoreService.getSessionsForStudent(studentId, {
+    activeCollegeCode,
+  });
   const counselorIds = [
     ...new Set(
       raw
@@ -752,14 +755,17 @@ export default function MoodLogScreen() {
     if (!user?.id) return;
     setSessionsLoading(true);
     try {
-      const rows = await fetchStudentSessionsOverview(user.id);
+      const rows = await fetchStudentSessionsOverview(
+        user.id,
+        user.college_code,
+      );
       setStudentSessionsOverview(rows);
     } catch {
       setStudentSessionsOverview([]);
     } finally {
       setSessionsLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, user?.college_code]);
 
   useFocusEffect(
     useCallback(() => {

@@ -10,7 +10,10 @@ import {
 import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "./firebase";
-import { isEmailVerificationRequiredForSignIn } from "../utils/signupEmailPolicy";
+import {
+  firestoreEmailVerifiedEffective,
+  isEmailVerificationRequiredForSignIn,
+} from "../utils/signupEmailPolicy";
 import {
   type CollegeCode,
   resolveCollegeCodeFromUserData,
@@ -105,18 +108,24 @@ async function readAuthEmailVerifiedEffective(user: User): Promise<boolean> {
   } catch {
     /* ignore */
   }
-  if (user.emailVerified) return true;
+  let authVerified = user.emailVerified;
   try {
     const tr = await user.getIdTokenResult(true);
-    return emailVerifiedFromIdTokenClaims(
-      tr.claims as Record<string, unknown>,
-    );
+    if (
+      emailVerifiedFromIdTokenClaims(tr.claims as Record<string, unknown>)
+    ) {
+      authVerified = true;
+    }
   } catch {
-    return false;
+    /* keep user.emailVerified */
   }
+  return firestoreEmailVerifiedEffective(
+    authVerified,
+    (user.email ?? "").trim(),
+  );
 }
 
-/** Keep `users/{uid}.email_verified` aligned with Firebase Auth for Firestore directory queries. */
+/** Keep `users/{uid}.email_verified` aligned with Auth (+ allowlisted QA emails). */
 async function syncEmailVerifiedFromAuthToFirestore(
   uid: string,
   firebaseUser?: User | null,
@@ -146,14 +155,19 @@ async function syncEmailVerifiedFromAuthToFirestore(
   }
 
   const emailForPolicy = (user.email ?? "").trim();
+  const firestoreVerified = firestoreEmailVerifiedEffective(
+    authEmailVerified,
+    emailForPolicy,
+  );
   if (
     !authEmailVerified &&
+    !firestoreVerified &&
     !isEmailVerificationRequiredForSignIn(emailForPolicy)
   ) {
     console.warn(
       "[auth] Firebase Auth still reports unverified for",
       emailForPolicy,
-      "— Firestore email_verified stays false until Auth marks the address verified (use the link for this Firebase project, then sign in again). Sign-in without verification is allowed when the address is on EXPO_PUBLIC_SIGNUP_EMAIL_ALLOWLIST or EXPO_PUBLIC_ALLOW_UNVERIFIED_SIGNIN=true.",
+      "— Firestore email_verified stays false until Auth marks the address verified (use the link for this Firebase project, then sign in again). Sign-in without verification is allowed when EXPO_PUBLIC_ALLOW_UNVERIFIED_SIGNIN=true.",
     );
   }
 
@@ -162,9 +176,9 @@ async function syncEmailVerifiedFromAuthToFirestore(
     const snap = await getDoc(ref);
     if (!snap.exists()) return;
     const stored = snap.data()?.email_verified;
-    if (stored === authEmailVerified) return;
+    if (stored === firestoreVerified) return;
     const payload = {
-      email_verified: authEmailVerified,
+      email_verified: firestoreVerified,
       updated_at: new Date(),
     };
     try {
@@ -190,11 +204,15 @@ async function syncEmailVerifiedFromAuthToFirestore(
       } catch {
         /* keep */
       }
+      const retryFirestoreVerified = firestoreEmailVerifiedEffective(
+        retryVerified,
+        emailForPolicy,
+      );
       const snap2 = await getDoc(ref);
-      if (snap2.data()?.email_verified === retryVerified) return;
+      if (snap2.data()?.email_verified === retryFirestoreVerified) return;
       try {
         await updateDoc(ref, {
-          email_verified: retryVerified,
+          email_verified: retryFirestoreVerified,
           updated_at: new Date(),
         });
       } catch (e2) {

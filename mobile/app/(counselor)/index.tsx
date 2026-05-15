@@ -948,6 +948,7 @@ export default function CounselorHomeScreen() {
         if (user?.id) {
           const sessions = await firestoreService.getSessionsForCounselor(
             user.id,
+            { activeCollegeCode: user.college_code },
           );
           const now = Date.now();
           const upcoming = (sessions as Array<Record<string, any>>).filter(
@@ -998,7 +999,7 @@ export default function CounselorHomeScreen() {
         if (!isCancelled?.()) setLoading(false);
       }
     },
-    [user?.id],
+    [user?.id, user?.college_code],
   );
 
   useEffect(() => {

@@ -30,6 +30,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false
     },
     "web": {

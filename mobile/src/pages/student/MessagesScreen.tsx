@@ -1118,7 +1118,9 @@ export default function MessagesScreen() {
     }
     let cancelled = false;
     firestoreService
-      .getConversationsForStudent(user.id)
+      .getConversationsForStudent(user.id, {
+        activeCollegeCode: user.college_code,
+      })
       .then((convos) => {
         if (!cancelled) setContacts(convos as CounselorContact[]);
       })
@@ -1131,7 +1133,7 @@ export default function MessagesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, user?.college_code]);
 
   useEffect(() => {
     if (contacts.length === 0) {
@@ -1147,7 +1149,9 @@ export default function MessagesScreen() {
   const refreshConversations = () => {
     if (!user?.id) return;
     firestoreService
-      .getConversationsForStudent(user.id)
+      .getConversationsForStudent(user.id, {
+        activeCollegeCode: user.college_code,
+      })
       .then(setContacts as any)
       .catch(() => setContacts([]));
   };
@@ -1213,6 +1217,7 @@ export default function MessagesScreen() {
       try {
         const convos = await firestoreService.getConversationsForStudent(
           user.id,
+          { activeCollegeCode: user.college_code },
         );
         if (cancelled) return;
 

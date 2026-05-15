@@ -1442,7 +1442,9 @@ export default function CounselorMessagesScreen() {
     // newly-created threads appear (zustand can be stale if this screen stayed mounted).
     if (studentId) setLoading(true);
     firestoreService
-      .getConversations(currentUserId)
+      .getConversations(currentUserId, {
+        activeCollegeCode: user?.college_code,
+      })
       .then((convos) => {
         if (!cancelled) setContacts(convos);
       })
@@ -1455,7 +1457,7 @@ export default function CounselorMessagesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [currentUserId, setContacts, studentId]);
+  }, [currentUserId, setContacts, studentId, user?.college_code]);
 
   useEffect(() => {
     if (loading) return;
@@ -1480,15 +1482,19 @@ export default function CounselorMessagesScreen() {
   const refreshConversations = useCallback(() => {
     if (!currentUserId) return;
     firestoreService
-      .getConversations(currentUserId)
+      .getConversations(currentUserId, {
+        activeCollegeCode: user?.college_code,
+      })
       .then(setContacts)
       .catch(() => setContacts([]));
-  }, [currentUserId, setContacts]);
+  }, [currentUserId, setContacts, user?.college_code]);
 
   const handleConversationCreated = async (studentId: string) => {
     if (!currentUserId) return;
     try {
-      const convos = await firestoreService.getConversations(currentUserId);
+      const convos = await firestoreService.getConversations(currentUserId, {
+        activeCollegeCode: user?.college_code,
+      });
       setContacts(convos);
       const added = convos.find((c) => c.id === studentId);
       if (added) setSelectedContact(added);

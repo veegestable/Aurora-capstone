@@ -7,7 +7,8 @@ import {
 } from "react";
 import { AppState } from "react-native";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../services/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db } from "../services/firebase";
 import { authService, UserProfile, CollegeShiftRequest } from "../services/firebase-auth.service";
 import {
   type CollegeCode,
@@ -97,6 +98,71 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Helper function to convert UserProfile to User
+/** Apply live Firestore user-doc fields onto in-memory auth user. */
+function mergeUserDocFromFirestore(
+  prev: User,
+  data: Record<string, unknown>,
+): User {
+  const collegeCodeRaw = data.college_code ?? data.department;
+  const college_code =
+    typeof collegeCodeRaw === "string" && collegeCodeRaw.trim()
+      ? collegeCodeRaw.trim()
+      : prev.college_code;
+
+  const shiftPending = data.college_shift_pending === true;
+  const req = data.college_shift_request;
+  const college_shift_request =
+    shiftPending &&
+    req &&
+    typeof req === "object" &&
+    !Array.isArray(req)
+      ? (req as CollegeShiftRequest)
+      : undefined;
+
+  const approval_status =
+    data.approval_status === "pending" ||
+    data.approval_status === "approved" ||
+    data.approval_status === "rejected"
+      ? data.approval_status
+      : prev.approval_status;
+
+  return {
+    ...prev,
+    full_name:
+      typeof data.full_name === "string" ? data.full_name : prev.full_name,
+    preferred_name:
+      typeof data.preferred_name === "string"
+        ? data.preferred_name
+        : prev.preferred_name,
+    college_code,
+    department:
+      typeof data.department === "string" ? data.department : prev.department,
+    college_shift_pending: shiftPending,
+    college_shift_request,
+    program: typeof data.program === "string" ? data.program : prev.program,
+    year_level:
+      typeof data.year_level === "string" ? data.year_level : prev.year_level,
+    student_number:
+      typeof data.student_number === "string"
+        ? data.student_number
+        : prev.student_number,
+    contact_number:
+      typeof data.contact_number === "string"
+        ? data.contact_number
+        : prev.contact_number,
+    sex:
+      data.sex === "male" || data.sex === "female" ? data.sex : prev.sex,
+    bio: typeof data.bio === "string" ? data.bio : prev.bio,
+    avatar_url:
+      typeof data.avatar_url === "string" ? data.avatar_url : prev.avatar_url,
+    approval_status,
+    session_push_notifications_enabled:
+      typeof data.session_push_notifications_enabled === "boolean"
+        ? data.session_push_notifications_enabled
+        : prev.session_push_notifications_enabled,
+  };
+}
+
 const convertUserProfile = (userProfile: UserProfile): User => {
   return {
     id: userProfile.uid,
@@ -197,6 +263,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubscribe();
     };
   }, []);
+
+  // Keep profile fields (college shift, college code, approval) in sync without re-login.
+  useEffect(() => {
+    const uid = user?.id;
+    if (!uid) return;
+
+    const userRef = doc(db, "users", uid);
+    const unsubscribe = onSnapshot(
+      userRef,
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data() as Record<string, unknown>;
+        setUser((prev) => {
+          if (!prev || prev.id !== uid) return prev;
+          return mergeUserDocFromFirestore(prev, data);
+        });
+      },
+      (err) => {
+        console.warn("[Auth] user profile snapshot error:", err);
+      },
+    );
+
+    return () => unsubscribe();
+  }, [user?.id]);
 
   const signIn = async (email: string, password: string) => {
     try {

@@ -40,11 +40,11 @@ import {
   getCollegeName,
   isCollegeCode,
 } from "../../src/constants/colleges";
-import {
-  getProgramsForCollege,
-  isProgramInCollege,
-} from "../../src/constants/college-programs-iit";
 import { firestoreService } from "../../src/services/firebase-firestore.service";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../src/components/common/InfoGuideModal";
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 function SectionLabel({ text }: { text: string }) {
@@ -310,12 +310,12 @@ function EditProfileModal({
           <KeyboardAvoidingView
             style={{ flex: 1 }}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 56 : 0}
+            keyboardVerticalOffset={0}
           >
             <ScrollView
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
-              contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
+              contentContainerStyle={{ padding: 24, paddingBottom: 120 }}
             >
             <View style={{ alignItems: "center", marginBottom: 24 }}>
               <View style={{ position: "relative" }}>
@@ -351,7 +351,7 @@ function EditProfileModal({
               <Text
                 style={{ color: AURORA.textSec, fontSize: 13, marginTop: 8 }}
               >
-                MSU-IIT · College is changed via “Request college / program change”
+                MSU-IIT · College is changed via “Request college change”
               </Text>
             </View>
 
@@ -564,9 +564,10 @@ export default function CounselorProfileScreen() {
   const [shiftTargetCollege, setShiftTargetCollege] = useState<CollegeCode | "">(
     "",
   );
-  const [shiftTargetProgram, setShiftTargetProgram] = useState("");
   const [shiftReason, setShiftReason] = useState("");
   const [shiftSubmitting, setShiftSubmitting] = useState(false);
+  const [collegeShiftSubmittedGuide, setCollegeShiftSubmittedGuide] =
+    useState<InfoGuideContent | null>(null);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [savingPushPreference, setSavingPushPreference] = useState(false);
   const [devicePermissionGranted, setDevicePermissionGranted] = useState<
@@ -784,10 +785,9 @@ export default function CounselorProfileScreen() {
             !user?.college_shift_pending ? (
               <SettingsRow
                 icon={<GraduationCap size={18} color={AURORA.textSec} />}
-                label="Request college / program change"
+                label="Request college change"
                 onPress={() => {
                   setShiftTargetCollege("");
-                  setShiftTargetProgram("");
                   setShiftReason("");
                   setCollegeShiftOpen(true);
                 }}
@@ -1005,17 +1005,23 @@ export default function CounselorProfileScreen() {
                 <Text
                   style={{ color: "#FFFFFF", fontSize: 17, fontWeight: "700" }}
                 >
-                  College & program change
+                  Request college change
                 </Text>
                 <View style={{ width: 56 }} />
               </View>
+              <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                keyboardVerticalOffset={0}
+              >
               <ScrollView
-                contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+                contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
               >
                 <Text style={{ color: AURORA.textSec, fontSize: 13, marginBottom: 16 }}>
-                  Choose your new college, then the degree program listed for that
-                  college. An admin must approve before your college updates.
+                  Choose the college you will supervise. An admin must approve before
+                  your assignment updates.
                 </Text>
                 <Text
                   style={{
@@ -1035,10 +1041,7 @@ export default function CounselorProfileScreen() {
                 }).map((c) => (
                   <TouchableOpacity
                     key={c.code}
-                    onPress={() => {
-                      setShiftTargetCollege(c.code);
-                      setShiftTargetProgram("");
-                    }}
+                    onPress={() => setShiftTargetCollege(c.code)}
                     style={{
                       paddingVertical: 14,
                       paddingHorizontal: 14,
@@ -1060,53 +1063,6 @@ export default function CounselorProfileScreen() {
                     </Text>
                   </TouchableOpacity>
                 ))}
-                {shiftTargetCollege && isCollegeCode(shiftTargetCollege) ? (
-                  <>
-                    <Text
-                      style={{
-                        color: "#FFFFFF",
-                        fontSize: 14,
-                        fontWeight: "600",
-                        marginTop: 16,
-                        marginBottom: 8,
-                      }}
-                    >
-                      Program at new college
-                    </Text>
-                    {getProgramsForCollege(shiftTargetCollege).map((p) => (
-                      <TouchableOpacity
-                        key={p}
-                        onPress={() => setShiftTargetProgram(p)}
-                        style={{
-                          paddingVertical: 12,
-                          paddingHorizontal: 14,
-                          borderRadius: 12,
-                          marginBottom: 8,
-                          borderWidth: 1,
-                          borderColor:
-                            shiftTargetProgram === p
-                              ? "rgba(45,107,255,0.55)"
-                              : AURORA.border,
-                          backgroundColor:
-                            shiftTargetProgram === p
-                              ? "rgba(45,107,255,0.14)"
-                              : AURORA.card,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: "#FFFFFF",
-                            fontSize: 13,
-                            fontWeight: shiftTargetProgram === p ? "700" : "500",
-                            lineHeight: 19,
-                          }}
-                        >
-                          {p}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </>
-                ) : null}
                 <Text
                   style={{
                     color: "#FFFFFF",
@@ -1144,27 +1100,20 @@ export default function CounselorProfileScreen() {
                         Alert.alert("College", "Select the college you are shifting to.");
                         return;
                       }
-                      if (
-                        !shiftTargetProgram.trim() ||
-                        !isProgramInCollege(shiftTargetCollege, shiftTargetProgram)
-                      ) {
-                        Alert.alert(
-                          "Program",
-                          "Select the program that matches your new college assignment.",
-                        );
-                        return;
-                      }
                       try {
                         setShiftSubmitting(true);
                         await firestoreService.submitCollegeShiftRequest(
                           user.id,
                           shiftTargetCollege,
-                          shiftTargetProgram.trim(),
+                          "",
                           shiftReason,
                         );
                         await refreshUserProfile();
                         setCollegeShiftOpen(false);
-                        Alert.alert("Submitted", "Pending admin review.");
+                        setCollegeShiftSubmittedGuide({
+                          title: "Submitted",
+                          body: "Your request is pending admin review.",
+                        });
                       } catch (e) {
                         Alert.alert(
                           "Could not submit",
@@ -1191,6 +1140,7 @@ export default function CounselorProfileScreen() {
                   </Text>
                 </TouchableOpacity>
               </ScrollView>
+              </KeyboardAvoidingView>
             </SafeAreaView>
           </View>
         </Modal>
@@ -1210,6 +1160,11 @@ export default function CounselorProfileScreen() {
           onPickAvatar={async (uri) => {
             await uploadAvatar(uri);
           }}
+        />
+
+        <InfoGuideModal
+          guide={collegeShiftSubmittedGuide}
+          onClose={() => setCollegeShiftSubmittedGuide(null)}
         />
       </SafeAreaView>
     </View>

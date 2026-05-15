@@ -40,6 +40,11 @@ service cloud.firestore {
     }
 
     /** Catalog line must match `src/constants/college-programs-iit.ts`. */
+    function ownerCollegeShiftRequestProgramOk(cc, p, role) {
+      return isCounselorRoleValue(role) && p is string && p.size() == 0 ||
+        catalogProgramBelongsToCollege(cc, p);
+    }
+
     function catalogProgramBelongsToCollege(cc, p) {
       return cc is string && validCollegeCode(cc) && p is string && p.size() > 0 &&
         (
@@ -179,9 +184,10 @@ service cloud.firestore {
         (
           request.resource.data.college_shift_request is map &&
           request.resource.data.college_shift_request.keys().hasOnly(['requested_college_code', 'requested_program', 'reason', 'requested_at']) &&
-          catalogProgramBelongsToCollege(
+          ownerCollegeShiftRequestProgramOk(
             request.resource.data.college_shift_request.requested_college_code,
-            request.resource.data.college_shift_request.requested_program
+            request.resource.data.college_shift_request.requested_program,
+            resource.data.role
           ) &&
           request.resource.data.college_shift_request.reason is string &&
           request.resource.data.college_shift_request.reason.size() >= 8 &&
@@ -286,7 +292,19 @@ service cloud.firestore {
       return data.counselorId is string &&
         data.studentId is string &&
         data.counselorId.size() > 0 &&
-        data.studentId.size() > 0;
+        data.studentId.size() > 0 &&
+        (
+          !data.keys().hasAny(['college_code']) ||
+          (data.college_code is string &&
+            data.college_code.size() > 0 &&
+            validCollegeCode(data.college_code))
+        );
+    }
+
+    function conversationCollegeCodeUnchanged() {
+      return !resource.data.keys().hasAny(['college_code']) ||
+        !request.resource.data.keys().hasAny(['college_code']) ||
+        request.resource.data.college_code == resource.data.college_code;
     }
 
     function conversationIdMatchesBody(convId, data) {
@@ -401,13 +419,15 @@ service cloud.firestore {
       let me = userDoc(request.auth.uid).data;
       let college = docCollegeCode(me);
       let vis = d.visibility;
-      return (vis == 'students_all' && isStudentRoleValue(me.role)) ||
+      return d.createdBy == request.auth.uid ||
+        (vis == 'students_all' && isStudentRoleValue(me.role)) ||
         (vis == 'counselors_all' && isCounselorRoleValue(me.role)) ||
         (vis == 'colleges_cross' && college.size() > 0 &&
           (isStudentRoleValue(me.role) || isCounselorRoleValue(me.role)) &&
           collegeInAnnouncementCodes(college, d)) ||
-        (vis == 'students_one_college' && isStudentRoleValue(me.role) && college.size() > 0 &&
-          collegeInAnnouncementCodes(college, d));
+        (vis == 'students_one_college' && college.size() > 0 &&
+          collegeInAnnouncementCodes(college, d) &&
+          (isStudentRoleValue(me.role) || isCounselorRoleValue(me.role)));
     }
 
     function announcementReadOk(d) {
@@ -564,6 +584,7 @@ service cloud.firestore {
         conversationIdMatchesBody(id, request.resource.data) &&
         request.resource.data.counselorId == resource.data.counselorId &&
         request.resource.data.studentId == resource.data.studentId &&
+        conversationCollegeCodeUnchanged() &&
         (
           resource.data.counselorId == request.auth.uid ||
           resource.data.studentId == request.auth.uid ||
@@ -597,6 +618,12 @@ service cloud.firestore {
         request.resource.data.studentId is string &&
         sessionCreateParticipantsSameCollege() &&
         (
+          !request.resource.data.keys().hasAny(['college_code']) ||
+          (request.resource.data.college_code is string &&
+            request.resource.data.college_code.size() > 0 &&
+            validCollegeCode(request.resource.data.college_code))
+        ) &&
+        (
           request.resource.data.counselorId == request.auth.uid ||
           request.resource.data.studentId == request.auth.uid ||
           isAdmin()
@@ -610,6 +637,11 @@ service cloud.firestore {
         (
           request.resource.data.studentId == resource.data.studentId ||
           (resource.data.studentId == null && request.resource.data.studentId == request.auth.uid)
+        ) &&
+        (
+          !resource.data.keys().hasAny(['college_code']) ||
+          !request.resource.data.keys().hasAny(['college_code']) ||
+          request.resource.data.college_code == resource.data.college_code
         ) &&
         (
           resource.data.counselorId == request.auth.uid ||

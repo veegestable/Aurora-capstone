@@ -113,6 +113,7 @@ export default function CounselorStudentDetailScreen() {
           await firestoreService.getSessionOutcomeCountsForCounselorStudent(
             counselorId,
             id,
+            { activeCollegeCode: user?.college_code },
           );
         setSessionOutcomeCounts(counts);
       } else {
@@ -125,7 +126,7 @@ export default function CounselorStudentDetailScreen() {
     } finally {
       setLoadingCtx(false);
     }
-  }, [id, counselorId]);
+  }, [id, counselorId, user?.college_code]);
 
   useEffect(() => {
     void reloadContext();
