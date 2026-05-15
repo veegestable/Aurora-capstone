@@ -248,7 +248,10 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       ) {
         setShowMsuiitSignInResendOption(true);
       }
-      Alert.alert("Error", msg);
+      Alert.alert(
+        isSignUp ? "Registration failed" : "Couldn't sign in",
+        msg,
+      );
     } finally {
       setLoading(false);
     }

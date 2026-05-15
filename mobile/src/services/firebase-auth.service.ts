@@ -23,6 +23,7 @@ import {
   inferCollegeCodeFromProgramLabel,
   isProgramInCollege,
 } from "../constants/college-programs-iit";
+import { toUserFacingEmailAuthError } from "../utils/firebase-auth-errors";
 
 export interface SignUpData {
   email: string;
@@ -344,9 +345,9 @@ export const authService = {
 
       console.log("✅ User created successfully - please log in");
       return userProfile;
-    } catch (error: any) {
-      console.error("❌ Signup error:", error.message);
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      console.error("❌ Signup error:", error);
+      throw toUserFacingEmailAuthError(error);
     }
   },
 
@@ -354,13 +355,18 @@ export const authService = {
    * Resend Firebase verification email (link in inbox). Briefly signs in then out.
    */
   async resendRegistrationVerificationEmail(data: SignInData): Promise<void> {
-    const userCredential = await signInWithEmailAndPassword(
-      auth,
-      data.email,
-      data.password,
-    );
-    await sendEmailVerification(userCredential.user);
-    await signOut(auth);
+    try {
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        data.email,
+        data.password,
+      );
+      await sendEmailVerification(userCredential.user);
+      await signOut(auth);
+    } catch (error: unknown) {
+      console.error("❌ Resend verification error:", error);
+      throw toUserFacingEmailAuthError(error);
+    }
   },
 
   // Sign in existing user
@@ -421,9 +427,9 @@ export const authService = {
         email: userProfile?.email ?? user.email ?? data.email,
         email_verified: emailVerifiedEffective,
       };
-    } catch (error: any) {
-      console.error("❌ Signin error:", error.message);
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      console.error("❌ Signin error:", error);
+      throw toUserFacingEmailAuthError(error);
     }
   },
 
