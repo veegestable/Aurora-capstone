@@ -67,11 +67,11 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Touched:** `src/types/announcement.types.ts`, `src/services/announcements/helpers.ts`, `src/services/announcements/get/listForRole.ts`, `src/services/announcements/get/subscribeForRole.ts`, `src/services/announcements/post/createAnnouncement.ts`, `src/services/announcements/put/updateAnnouncement.ts`, `src/components/announcements/AnnouncementBanner.tsx`
 - **Notes:** Full mobile parity for `announcementMatchesReader()` with visibility/collegeCodes/admin-author bypass. Types widened with `AnnouncementVisibility`, `publisherRole`, `collegeCodes`, `audienceLabel`. Create/update services write new fields. Banner passes viewer college + userId.
 
-### [ ] Batch 8 — Conversations & sessions: `college_code` tagging
+### [x] Batch 8 — Conversations & sessions: `college_code` tagging
 
 - Covers [round8_parity.md §8](../round8_parity.md): resolve + write `college_code` on conversation/session docs; stamp helpers; filter by active college where mobile does.
-- **Touched:**
-- **Notes:**
+- **Touched:** `src/services/messages/helpers/resolveConversationCollegeCode.ts` [NEW], `src/services/messages/post/createConversation.ts`, `src/services/sessions/post/createSessionRequest.ts`, `src/services/sessions/post/createCounselorSessionInvite.ts`, `src/types/session.types.ts`
+- **Notes:** Helper resolves student college (fallback: counselor). All 3 creation paths + conversation upserts stamp `college_code`. Session interface widened.
 
 ### [ ] Batch 9 — Final sweep: cleanup + orphan removal
 

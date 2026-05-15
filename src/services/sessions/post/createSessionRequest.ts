@@ -1,6 +1,7 @@
 import { collection, addDoc, doc, getDoc, updateDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
 import { grantJournalAccessToCounselor } from '../../user-settings/put/grantJournalAccessToCounselor'
+import { resolveConversationCollegeCode } from '../../messages/helpers/resolveConversationCollegeCode'
 import { enqueueSessionRequestCounselorPush } from '../../notifications/enqueueSessionRequestCounselorPush'
 
 interface CreateSessionRequestParams {
@@ -20,9 +21,12 @@ export async function createSessionRequest(params: CreateSessionRequestParams): 
     studentName, studentAvatar, counselorName, counselorAvatar,
   } = params
 
+  const collegeCode = await resolveConversationCollegeCode(counselorId, studentId)
+
   const sessionDoc = {
     counselorId,
     studentId,
+    ...(collegeCode ? { college_code: collegeCode } : {}),
     riskFlagId: null,
     initiatedBy: 'student',
     studentRequestNote: note.trim(),
@@ -62,6 +66,7 @@ export async function createSessionRequest(params: CreateSessionRequestParams): 
       student_avatar: studentAvatar ?? '',
       counselor_name: counselorName ?? 'Counselor',
       counselor_avatar: counselorAvatar ?? '',
+      ...(collegeCode ? { college_code: collegeCode } : {}),
       lastMessage: summary,
       lastMessageAt: Timestamp.now(),
       lastSenderId: studentId,

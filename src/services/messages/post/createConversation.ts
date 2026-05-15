@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
+import { resolveConversationCollegeCode } from '../helpers/resolveConversationCollegeCode'
 
 interface StudentData {
   id: string
@@ -24,6 +25,8 @@ export async function createConversation(
   const convRef = doc(db, 'conversations', conversationId)
   const convSnap = await getDoc(convRef)
 
+  const collegeCode = await resolveConversationCollegeCode(counselorId, student.id)
+
   if (!convSnap.exists()) {
     await setDoc(convRef, {
       counselorId,
@@ -35,6 +38,7 @@ export async function createConversation(
       counselor_avatar: counselor.avatar || '',
       is_alerted: student.isAlerted,
       border_color: student.borderColor || null,
+      ...(collegeCode ? { college_code: collegeCode } : {}),
       lastMessage: 'Conversation started',
       lastMessageAt: Timestamp.now(),
       lastSenderId: counselorId,
@@ -47,6 +51,7 @@ export async function createConversation(
     await setDoc(convRef, {
       is_alerted: student.isAlerted,
       border_color: student.borderColor || null,
+      ...(collegeCode ? { college_code: collegeCode } : {}),
     }, { merge: true })
   }
 

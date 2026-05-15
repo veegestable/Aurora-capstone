@@ -1,4 +1,4 @@
-import type { ConversationPreviewKind } from '../../types/message.types'
+import type { ConversationPreviewKind } from '../../../types/message.types'
 
 /**
  * Classify using the raw conversations.lastMessage string (before UI sanitizers).
