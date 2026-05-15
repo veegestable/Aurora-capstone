@@ -1,18 +1,28 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../config/firebase'
 import { authService, UserProfile } from '../services/firebase-auth'
 import { User } from '../types/user.types'
+import { type CollegeCode, isCollegeCode } from '../constants/colleges'
+import { isProgramInCollege } from '../constants/college-programs-iit'
 import { presenceService } from '../services/presence'
 
 interface AuthContextType {
   user: User | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, fullName: string, role: 'student' | 'counselor') => Promise<{ success: boolean; message: string }>
+  signUp: (
+    email: string, 
+    password: string, 
+    fullName: string, 
+    role: 'student' | 'counselor',
+    collegeCode: string,
+    program?: string                // Ignored for Counselor
+  ) => Promise<{ success: boolean; message: string }>
   signOut: () => void
   updateUser: (data: Partial<Omit<User, 'id' | 'email' | 'role'>>) => Promise<void>
   uploadAvatar: (file: File) => Promise<string>
+  refreshUserProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -25,7 +35,12 @@ const convertUserProfile = (userProfile: UserProfile): User => ({
   role: userProfile.role,
   approval_status: userProfile.approval_status,
   preferred_name: userProfile.preferred_name,
+  college_code:
+    userProfile.college_code != null && String(userProfile.college_code).trim()
+      ? String(userProfile.college_code).trim()
+      : undefined,
   department: userProfile.department,
+  college_shift_pending: userProfile.college_shift_pending,
   program: userProfile.program,
   year_level: userProfile.year_level,
   student_number: userProfile.student_number,
@@ -96,28 +111,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const signUp = async (email: string, password: string, fullName: string, role: 'student' | 'counselor') => {
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    role: 'student' | 'counselor',
+    collegeCode: string,
+    program?: string,
+  ) => {
     try {
       console.log('🔥 Signing up user:', email)
+      const cc =
+        (role === 'counselor' || role === 'student') && isCollegeCode(collegeCode.trim())
+          ? (collegeCode.trim() as CollegeCode)
+          : undefined
+      const prog =
+        role === 'student' && cc && program?.trim()
+          ? program.trim()
+          : undefined
+
+      if (role === 'student' && cc && (!prog || !isProgramInCollege(cc, prog))) {
+        return {
+          success: false,
+          message: 'Choose a degree program that matches your college.',
+        }
+      }
+      
       await authService.signUp({
         email,
         password,
         fullName,
-        role
+        role,
+        college_code: cc,
+        ...(role === 'student' && prog ? { program: prog } : {}),
       })
-      
+
       // Don't set user - they need to log in manually
       console.log('✅ Sign up successful - account created for:', email)
-      
+
       return {
         success: true,
-        message: 'Account created successfully! Please log in with your credentials.'
+        message: 'Account created successfully! Please log in with your credentials.',
       }
     } catch (error) {
       console.error('❌ Sign up error:', error)
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Sign up failed'
+        message: error instanceof Error ? error.message : 'Sign up failed',
       }
     }
   }
@@ -162,6 +202,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const refreshUserProfile = useCallback(async () => {
+    if (!auth.currentUser) return
+    try {
+      const userProfile = await authService.getCurrentUser()
+      if (userProfile) {
+        setUser(convertUserProfile(userProfile))
+      }
+    } catch (e) {
+      console.error('❌ refreshUserProfile:', e)
+    }
+  }, [])
+
   const value = {
     user,
     loading,
@@ -170,6 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     updateUser,
     uploadAvatar,
+    refreshUserProfile,
   }
 
   return (

@@ -1,8 +1,12 @@
+import type { CollegeCode } from '../../constants/colleges'
+
 export interface SignUpData {
   email: string
   password: string
   fullName: string
   role: 'student' | 'counselor'
+  college_code?: CollegeCode
+  program?: string
 }
 
 export interface SignInData {
@@ -12,6 +16,14 @@ export interface SignInData {
 
 export type CounselorApprovalStatus = 'pending' | 'approved' | 'rejected'
 
+/** Pending college change - admin must approve before `college_code` updates. */
+export interface CollegeShiftRequest {
+  requested_college_code: CollegeCode
+  /** Catalog program label for the requested college (students: applied on approve). */
+  requested_program: string
+  reason: string
+}
+
 export interface UserProfile {
   uid: string
   email: string
@@ -19,7 +31,17 @@ export interface UserProfile {
   role: 'student' | 'counselor' | 'admin'
   approval_status?: CounselorApprovalStatus
   preferred_name?: string
+  /**
+   * Canonical college code. Preferred over `department`.
+   */
+  college_code?: CollegeCode | string
+  /**
+   * @deprecated Legacy field, use `college_code` instead.
+   * Kept for older Firestore documents.
+   */
   department?: string
+  college_shift_pending?: boolean
+  college_shift_request?: CollegeShiftRequest
   program?: string
   year_level?: string
   student_number?: string
@@ -34,6 +56,7 @@ export interface UserProfile {
 export interface UpdateProfileData {
   full_name?: string
   preferred_name?: string
+  college_code?: string
   department?: string
   program?: string
   year_level?: string

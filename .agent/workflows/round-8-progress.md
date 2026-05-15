@@ -25,17 +25,17 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 
 ## Batches
 
-### [ ] Batch 1 — College & program constants
+### [x] Batch 1 — College & program constants
 
 - Covers [round8_parity.md §1](../round8_parity.md): port `colleges.ts` + `college-programs-iit.ts` from mobile. Zero UI, shared dependency for all subsequent batches.
-- **Touched:**
-- **Notes:**
+- **Touched:** `src/constants/colleges.ts` [NEW], `src/constants/college-programs-iit.ts` [NEW]
+- **Notes:** 1:1 port from mobile — pure data + utility, zero RN deps. 7 colleges, 70+ programs.
 
-### [ ] Batch 2 — Auth types, signup service, context wiring
+### [x] Batch 2 — Auth types, signup service, context wiring
 
 - Covers [round8_parity.md §2](../round8_parity.md): add `college_code` + `program` to `SignUpData`, `UserProfile`, `User`; widen `signUp()` in `AuthContext`; expose `refreshUserProfile()`.
-- **Touched:**
-- **Notes:**
+- **Touched:** `src/services/firebase-auth/types.ts`, `src/services/firebase-auth/auth/signUp.ts`, `src/types/user.types.ts`, `src/contexts/AuthContext.tsx`
+- **Notes:** Added `CollegeShiftRequest` interface, college/program validation in signUp, `refreshUserProfile()` via useCallback. Replaced `any` with `unknown` in signUp catch.
 
 ### [ ] Batch 3 — Login page: college + program pickers
 
