@@ -13,14 +13,15 @@ import { PrivacyRow } from '../../components/student/PrivacyRow'
 import { ToggleRow } from '../../components/student/ToggleRow'
 import { EditProfileModal } from '../../components/student/EditProfileModal'
 import { SignOutConfirmModal } from '../../components/common/SignOutConfirmModal'
+import { resolveCollegeCodeFromUserData, getCollegeName, isCollegeCode } from '../../constants/colleges'
+import { COLLEGES } from '../../constants/colleges'
+import { getProgramsForCollege } from '../../constants/college-programs-iit'
+import type { CollegeCode } from '../../constants/colleges'
+import { userSettingsService } from '../../services/user-settings'
 import { TimePickerModal } from '../../components/student/profile/TimePickerModal'
 import { MealScheduleModal } from '../../components/student/profile/MealScheduleModal'
 import { useUserDaySettings } from '../../contexts/UserDaySettingsContext'
-import {
-  CCS_COLLEGE_DEPARTMENT,
-  formatYearLevelForDisplay,
-  formatCounselorStudentSubtitle,
-} from '../../constants/student/programs'
+import { formatYearLevelForDisplay, formatCounselorStudentSubtitle } from '../../constants/student/programs'
 
 const COUNSELOR_VISIBLE_CHECKIN_SUMMARY =
   'Counselors can see each check-in’s date, time, and mood label from recent history. Notes, sleep, meals, bath, and photos are not shown unless you are in that counselor’s special population (session request or accepting their proposed time).'
@@ -55,6 +56,13 @@ export default function StudentProfile() {
   const [expandedPrivacyRow, setExpandedPrivacyRow] = useState<'visible' | 'private' | null>('visible')
   const [showSignOutModal, setShowSignOutModal] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [collegeShiftOpen, setCollegeShiftOpen] = useState(false)
+  const [shiftTargetCollege, setShiftTargetCollege] = useState<CollegeCode | ''>('')
+  const [shiftTargetProgram, setShiftTargetProgram] = useState('')
+  const [shiftReason, setShiftReason] = useState('')
+  const [shiftSubmitting, setShiftSubmitting] = useState(false)
+  const [shiftError, setShiftError] = useState('')
+  const [shiftSuccess, setShiftSuccess] = useState('')
 
   const remindersEnabled = settings?.remindersEnabled ?? true
   const sessionUpdatesEnabled = settings?.sessionUpdatesEnabled ?? true
@@ -64,11 +72,15 @@ export default function StudentProfile() {
   const usualWakeTime = settings?.usualWakeTime || ''
 
   const displayName = user?.preferred_name || user?.full_name || 'Student'
+  const resolvedCollege = resolveCollegeCodeFromUserData(
+    user as Record<string, unknown> | null,
+  )
   const subtitle = formatCounselorStudentSubtitle({
+    college_code: user?.college_code,
     department: user?.department,
     program: user?.program,
     year_level: user?.year_level,
-  }) || 'MSU-IIT CCS Student'
+  }) || 'MSU-IIT Student'
 
   const profileCompletion = useMemo(() => {
     let score = 0
@@ -98,6 +110,27 @@ export default function StudentProfile() {
       navigate('/')
     } catch {
       setIsSigningOut(false)
+    }
+  }
+
+  const handleSubmitCollegeShift = async () => {
+    if (!user?.id || !shiftTargetCollege) return
+    setShiftError('')
+    setShiftSuccess('')
+    setShiftSubmitting(true)
+    try {
+      await userSettingsService.submitCollegeShiftRequest(
+        user.id,
+        shiftTargetCollege as CollegeCode,
+        shiftTargetProgram,
+        shiftReason,
+      )
+      setShiftSuccess('Request submitted! An admin will review your college change.')
+      setCollegeShiftOpen(false)
+    } catch (e) {
+      setShiftError(e instanceof Error ? e.message : 'Could not submit request.')
+    } finally {
+      setShiftSubmitting(false)
     }
   }
 
@@ -138,11 +171,40 @@ export default function StudentProfile() {
               label="Edit Profile"
               onClick={() => setShowEditProfile(true)}
             />
+            
+            {resolvedCollege && !user?.college_shift_pending && (
+              <SettingsRow
+                icon={<ChevronRight className="w-[18px] h-[18px] text-aurora-gray-500" />}
+                label="Request college / program change"
+                onClick={() => {
+                  setShiftTargetCollege('')
+                  setShiftTargetProgram('')
+                  setShiftReason('')
+                  setShiftError('')
+                  setShiftSuccess('')
+                  setCollegeShiftOpen(true)
+                }}
+              />
+            )}
+
+            {user?.college_shift_pending && (
+              <div className="py-3 border-t border-white/8">
+                <p className="text-amber-400 text-[13px] font-bold mb-1">
+                  College change pending review
+                </p>
+                <p className="text-aurora-text-sec text-xs leading-relaxed">
+                  An administrator is reviewing your request. You will keep your
+                  current college until it is approved.
+                </p>
+              </div>
+            )}
+
             <SettingsRow
               icon={<UtensilsCrossed className="w-[18px] h-[18px] text-aurora-gray-500" />}
               label="Meal Schedule"
               onClick={() => setMealOpen(true)}
             />
+
             <SettingsRow
               icon={<Droplets className="w-[18px] h-[18px] text-aurora-gray-500" />}
               label="Bath schedule"
@@ -156,6 +218,7 @@ export default function StudentProfile() {
                 </div>
               }
             />
+
             <SettingsRow
               icon={<Sunrise className="w-[18px] h-[18px] text-aurora-gray-500" />}
               label="Wake-up schedule"
@@ -183,17 +246,11 @@ export default function StudentProfile() {
               label="Sex"
               value={user?.sex ? (user.sex === 'male' ? 'Male' : 'Female') : 'Not set'}
             />
-            <InfoRow label="Department" value={CCS_COLLEGE_DEPARTMENT} />
             <InfoRow
-              label="Program"
-              value={
-                user?.program ||
-                (user?.department && user.department !== CCS_COLLEGE_DEPARTMENT
-                  ? user.department
-                  : '') ||
-                'Not set'
-              }
+              label="College"
+              value={resolvedCollege ? `${resolvedCollege} — ${getCollegeName(resolvedCollege)}` : 'Not set'}
             />
+            <InfoRow label="Program" value={user?.program || 'Not set'} />
             <InfoRow
               label="Year level"
               value={user?.year_level ? formatYearLevelForDisplay(user.year_level) : 'Not set'}
@@ -352,6 +409,120 @@ export default function StudentProfile() {
         onLeave={handleSignOut}
         leaving={isSigningOut}
       />
+
+      {/* College Shift Request Modal */}
+      {collegeShiftOpen && (
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center p-5"
+          style={{ backgroundColor: 'rgba(3,8,24,0.55)' }}
+          onClick={() => { if (!shiftSubmitting) setCollegeShiftOpen(false) }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Request college change"
+        >
+          <div
+            className="w-full max-w-md bg-aurora-card border border-white/8 rounded-2xl p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-extrabold text-white">Request college / program change</h3>
+
+            {shiftError && (
+              <p className="text-sm text-aurora-red bg-[rgba(239,68,68,0.12)] border border-[rgba(239,68,68,0.3)] rounded-xl px-3 py-2">
+                {shiftError}
+              </p>
+            )}
+
+            <div>
+              <label htmlFor="shiftCollege" className="block text-xs font-semibold text-aurora-text-sec mb-1.5">
+                New college <span className="text-red-400">*</span>
+              </label>
+              <select
+                id="shiftCollege"
+                value={shiftTargetCollege}
+                onChange={(e) => {
+                  setShiftTargetCollege(e.target.value as CollegeCode | '')
+                  setShiftTargetProgram('')
+                }}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-white/8 bg-white/5 text-white text-sm outline-hidden
+                           focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue"
+                aria-label="Select new college"
+              >
+                <option value="" disabled>Select a college</option>
+                {COLLEGES.map(c => (
+                  <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {shiftTargetCollege && isCollegeCode(shiftTargetCollege) && (
+              <div>
+                <label htmlFor="shiftProgram" className="block text-xs font-semibold text-aurora-text-sec mb-1.5">
+                  New program <span className="text-red-400">*</span>
+                </label>
+                <select
+                  id="shiftProgram"
+                  value={shiftTargetProgram}
+                  onChange={(e) => setShiftTargetProgram(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-white/8 bg-white/5 text-white text-sm outline-hidden
+                             focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue"
+                  aria-label="Select new program"
+                >
+                  <option value="" disabled>Select a program</option>
+                  {getProgramsForCollege(shiftTargetCollege).map(label => (
+                    <option key={label} value={label}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="shiftReason" className="block text-xs font-semibold text-aurora-text-sec mb-1.5">
+                Reason <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                id="shiftReason"
+                value={shiftReason}
+                onChange={(e) => setShiftReason(e.target.value)}
+                rows={3}
+                placeholder="Briefly explain why you need this change…"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-white/8 bg-white/5 text-white text-sm outline-hidden resize-none
+                           placeholder:text-aurora-text-muted
+                           focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue"
+              />
+            </div>
+
+            <div className="flex gap-2.5 pt-1">
+              <button
+                onClick={() => setCollegeShiftOpen(false)}
+                disabled={shiftSubmitting}
+                className="flex-1 py-2.5 rounded-full text-[13px] font-bold text-white
+                           bg-white/5 border border-white/8
+                           hover:bg-white/10 transition-colors cursor-pointer
+                           disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitCollegeShift}
+                disabled={shiftSubmitting || !shiftTargetCollege || !shiftReason.trim()}
+                className="flex-1 py-2.5 rounded-full text-[13px] font-bold text-white
+                           bg-aurora-blue hover:bg-aurora-blue/80 transition-colors cursor-pointer
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {shiftSubmitting ? 'Submitting…' : 'Submit Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shiftSuccess && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-110 max-w-sm px-4 py-3 rounded-xl
+                        bg-aurora-green/20 border border-aurora-green/40 text-aurora-green text-sm font-semibold text-center
+                        animate-fade-in">
+          {shiftSuccess}
+        </div>
+      )}
     </div>
   )
 }

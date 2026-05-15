@@ -11,6 +11,7 @@ import { ToggleRow } from '../../components/student/ToggleRow'
 import { EditCounselorProfileModal } from '../../components/counselor/EditCounselorProfileModal'
 import { useAuth } from '../../contexts/AuthContext'
 import { SignOutConfirmModal } from '../../components/common/SignOutConfirmModal'
+import { resolveCollegeCodeFromUserData, getCollegeName } from '../../constants/colleges'
 import { userSettingsService } from '../../services/user-settings'
 
 export default function CounselorProfile() {
@@ -64,6 +65,10 @@ export default function CounselorProfile() {
   }
 
   const displayName = user?.full_name || 'Counselor'
+  const resolvedCollege = resolveCollegeCodeFromUserData(
+    user as Record<string, unknown> | null,
+  )
+
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-10">
@@ -101,6 +106,10 @@ export default function CounselorProfile() {
             <InfoRow
               label="Sex"
               value={user?.sex ? (user.sex === 'male' ? 'Male' : 'Female') : 'Not set'}
+            />
+            <InfoRow
+              label="College"
+              value={resolvedCollege ? `${resolvedCollege} — ${getCollegeName(resolvedCollege)}` : 'Not set'}
             />
             <InfoRow label="Counselor Number" value={user?.student_number || 'Not set'} />
             <InfoRow label="Contact Number" value={user?.contact_number || 'Not set'} />

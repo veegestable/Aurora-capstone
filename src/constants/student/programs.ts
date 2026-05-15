@@ -44,6 +44,7 @@ export function matchLegacyDepartmentToProgramValue(department?: string): string
 }
 
 export function formatCounselorStudentSubtitle(input: {
+  college_code?: string
   department?: string
   program?: string
   year_level?: string
@@ -53,10 +54,11 @@ export function formatCounselorStudentSubtitle(input: {
     (input.department?.trim() && input.department.trim() !== CCS_COLLEGE_DEPARTMENT
       ? input.department.trim()
       : '')
-  const college = 
-    input.department === CCS_COLLEGE_DEPARTMENT || !!degree
+  const college =
+    input.college_code?.trim() ||
+    (input.department === CCS_COLLEGE_DEPARTMENT || !!degree
       ? CCS_COLLEGE_DEPARTMENT
-      : input.department?.trim() || ''
+      : input.department?.trim() || '')
   const year = formatYearLevelForDisplay(input.year_level)
   return [college, degree, year].filter(Boolean).join(' · ')
 }

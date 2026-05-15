@@ -55,11 +55,11 @@ Standards: [aurora-design-system.md](aurora-design-system.md), [web-refactor.md]
 - **Touched:** `src/components/common/SignOutConfirmModal.tsx` [NEW], `src/pages/Settings.tsx`, `src/pages/student/Profile.tsx`, `src/pages/counselor/Profile.tsx`, `src/layouts/StudentLayout.tsx`, `src/layouts/CounselorLayout.tsx`, `src/layouts/AdminLayout.tsx`, `src/pages/PendingCounselor.tsx`
 - **Notes:** Themed dark card with LogOut icon, purple "No stay" / red "Yes leave" pill buttons, Loader2 spinner. All 7 sign-out sites now use the modal.
 
-### [ ] Batch 6 — Profile: college display + college shift request
+### [x] Batch 6 — Profile: college display + college shift request
 
 - Covers [round8_parity.md §6](../round8_parity.md): display resolved college on profile/settings; "Request college change" action; pending banner; `requestCollegeShift()` service.
-- **Touched:**
-- **Notes:**
+- **Touched:** `src/services/user-settings/post/submitCollegeShiftRequest.ts` [NEW], `src/services/user-settings/index.ts`, `src/pages/student/Profile.tsx`, `src/pages/counselor/Profile.tsx`, `src/constants/student/programs.ts`
+- **Notes:** College InfoRow replaces hardcoded Department; "Request college/program change" + modal + pending banner in student profile; counselor profile shows resolved college; `formatCounselorStudentSubtitle` widened to accept `college_code`.
 
 ### [ ] Batch 7 — Announcements audience filter refinement
 

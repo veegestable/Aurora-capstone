@@ -206,9 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth.currentUser) return
     try {
       const userProfile = await authService.getCurrentUser()
-      if (userProfile) {
-        setUser(convertUserProfile(userProfile))
-      }
+      if (userProfile) setUser(convertUserProfile(userProfile))
     } catch (e) {
       console.error('❌ refreshUserProfile:', e)
     }
@@ -234,8 +232,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider')
   return context
 }

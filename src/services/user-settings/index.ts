@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../../config/firebase'
 import type { UserSettingsDoc } from '../../types/user-settings.types'
 import { grantJournalAccessToCounselor } from './put/grantJournalAccessToCounselor'
+import { submitCollegeShiftRequest } from './post/submitCollegeShiftRequest'
 
 export const userSettingsService = {
   getUserSettings: async (userId: string): Promise<UserSettingsDoc | null> => {
@@ -28,4 +29,5 @@ export const userSettingsService = {
   },
 
   grantJournalAccessToCounselor,
+  submitCollegeShiftRequest
 }
