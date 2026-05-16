@@ -214,12 +214,15 @@ service cloud.firestore {
      * email (covers stale JWT right after the user opens the verification link).
      */
     function ownerEmailVerifiedUpdateOk() {
-      return request.resource.data.email_verified == resource.data.email_verified ||
-        request.resource.data.email_verified == request.auth.token.email_verified ||
+      let r = resource.data.get('email_verified', null);
+      let w = request.resource.data.get('email_verified', null);
+      
+      return w == r ||
+        w == request.auth.token.email_verified ||
         (
-          request.resource.data.email_verified == true &&
+          w == true &&
           request.auth.token.email is string &&
-          request.resource.data.email is string &&
+          request.resource.data.get('email', null) is string &&
           request.auth.token.email == request.resource.data.email
         );
     }
