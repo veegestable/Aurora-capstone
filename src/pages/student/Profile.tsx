@@ -447,9 +447,9 @@ export default function StudentProfile() {
                            focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue"
                 aria-label="Select new college"
               >
-                <option value="" disabled>Select a college</option>
+                <option value="" disabled className="bg-[#0B0D30] text-white">Select a college</option>
                 {COLLEGES.map(c => (
-                  <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
+                  <option key={c.code} value={c.code} className="bg-[#0B0D30] text-white">{c.code} — {c.name}</option>
                 ))}
               </select>
             </div>
@@ -467,9 +467,9 @@ export default function StudentProfile() {
                              focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue"
                   aria-label="Select new program"
                 >
-                  <option value="" disabled>Select a program</option>
+                  <option value="" disabled className="bg-[#0B0D30] text-white">Select a program</option>
                   {getProgramsForCollege(shiftTargetCollege).map(label => (
-                    <option key={label} value={label}>{label}</option>
+                    <option key={label} value={label} className="bg-[#0B0D30] text-white">{label}</option>
                   ))}
                 </select>
               </div>

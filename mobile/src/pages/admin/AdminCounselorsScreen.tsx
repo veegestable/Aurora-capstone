@@ -59,7 +59,7 @@ export default function AdminCounselorsScreen() {
     const loadCounselors = async () => {
         try {
             const users = await firestoreService.getUsersByRole('counselor');
-            setCounselors(users as CounselorUser[]);
+            setCounselors(users as unknown as CounselorUser[]);
         } catch (e) {
             console.error('Failed to load counselors:', e);
         } finally {
