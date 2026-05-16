@@ -1,16 +1,13 @@
 import { useState, useEffect } from "react";
-import { View, TouchableOpacity, ScrollView } from "react-native";
+import { View, TouchableOpacity } from "react-native";
 import { AppText as Text } from "./common/AppText";
 import {
   ChevronLeft,
-  ChevronRight,
-  Calendar as CalendarIcon,
-  X,
+  ChevronRight
 } from "lucide-react-native";
 import { useAuth } from "../stores/AuthContext";
 import { moodService } from "../services/mood.service";
 import { MoodData } from "../services/firebase-firestore.service";
-import { Card } from "./common/Card";
 
 interface MoodEntry extends MoodData {
   id: string;
@@ -30,13 +27,14 @@ export default function MoodCalendar() {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [moodData, setMoodData] = useState<MoodEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
 
   useEffect(() => {
     if (user) {
       loadMoodData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate, user]);
 
   const loadMoodData = async () => {

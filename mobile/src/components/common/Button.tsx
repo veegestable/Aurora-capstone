@@ -5,7 +5,6 @@ import { triggerHaptic } from '../../utils/haptics';
 
 // Fix for React 19 type mismatch
 const CompatibleTouchableOpacity = TouchableOpacity as React.ComponentType<TouchableOpacityProps & React.RefAttributes<View>>;
-import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 interface ButtonProps extends TouchableOpacityProps {

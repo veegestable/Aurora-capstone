@@ -38,8 +38,8 @@ export default function SettingsScreen() {
             setIsUpdating(true);
             await updateUser({ full_name: fullName });
             Alert.alert('Success', 'Profile updated successfully!');
-        } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to update user');
+        } catch (error: unknown) {
+            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update user');
         } finally {
             setIsUpdating(false);
         }
@@ -70,8 +70,8 @@ export default function SettingsScreen() {
         try {
             setIsSavingPreferences(true);
             await setAcademicContextEnabled(enabled);
-        } catch (error: any) {
-            Alert.alert('Error', error?.message || 'Could not update preference');
+        } catch (error: unknown) {
+            Alert.alert('Error', error instanceof Error ? error.message : 'Could not update preference');
         } finally {
             setIsSavingPreferences(false);
         }
@@ -81,8 +81,8 @@ export default function SettingsScreen() {
         try {
             setIsSavingPreferences(true);
             await setCategoryEnabled(category, enabled);
-        } catch (error: any) {
-            Alert.alert('Error', error?.message || 'Could not update category');
+        } catch (error: unknown) {
+            Alert.alert('Error', error instanceof Error ? error.message : 'Could not update category');
         } finally {
             setIsSavingPreferences(false);
         }

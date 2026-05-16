@@ -7,12 +7,10 @@ import {
   TrendingUp,
   Lightbulb,
   Flame,
-  Camera,
   MessageSquare,
   BookOpen,
   X,
   CalendarPlus,
-  ScanFace,
   CircleHelp,
   CalendarClock,
   Trash2,
@@ -745,10 +743,9 @@ export default function MoodLogScreen() {
     "Complete a check-in for a short note based on your mood and tasks (no AI on this screen).",
   );
 
-  const firstName = user?.full_name?.split(" ")[0] || "Student";
-
   useEffect(() => {
     loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadStudentSessionsOverview = useCallback(async () => {

@@ -37,11 +37,7 @@ export function AnimatedTabBarButton({
 
   React.useEffect(() => {
     bgOpacity.value = withTiming(focused ? 1 : 0, { duration: 200 });
-  }, [focused]);
-
-  const animatedContainerStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  }, [focused, bgOpacity]);
 
   const animatedBgStyle = useAnimatedStyle(() => ({
     opacity: bgOpacity.value,

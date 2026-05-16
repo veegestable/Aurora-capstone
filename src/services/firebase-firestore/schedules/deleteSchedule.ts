@@ -6,7 +6,7 @@ export const deleteSchedule = async (scheduleId: string) => {
     await deleteDoc(doc(db, 'schedules', scheduleId))
 
     console.log('✅ Schedule deleted')
-  } catch (error: any) {
+  } catch(error: unknown) {
     console.error('❌ Error deleting schedule: ', error)
     throw error
   }

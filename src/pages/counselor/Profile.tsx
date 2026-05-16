@@ -10,6 +10,8 @@ import { SettingsRow } from '../../components/profile/SettingsRow'
 import { ToggleRow } from '../../components/student/ToggleRow'
 import { EditCounselorProfileModal } from '../../components/counselor/EditCounselorProfileModal'
 import { useAuth } from '../../contexts/AuthContext'
+import { SignOutConfirmModal } from '../../components/common/SignOutConfirmModal'
+import { resolveCollegeCodeFromUserData, getCollegeName } from '../../constants/colleges'
 import { userSettingsService } from '../../services/user-settings'
 
 export default function CounselorProfile() {
@@ -18,6 +20,8 @@ export default function CounselorProfile() {
   const [showEditProfile, setShowEditProfile] = useState(false)
   const [pushNotifications, setPushNotifications] = useState(true)
   const [pushSaving, setPushSaving] = useState(false)
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   useEffect(() => {
     if (!user?.id) return
@@ -51,14 +55,20 @@ export default function CounselorProfile() {
   }
 
   const handleSignOut = async () => {
-    if (!window.confirm('Are you sure you want to sign out?')) return
+    setIsSigningOut(true)
     try {
       await signOut()
       navigate('/')
-    } catch { /* silent */ }
+    } catch { 
+      setIsSigningOut(false)
+    }
   }
 
   const displayName = user?.full_name || 'Counselor'
+  const resolvedCollege = resolveCollegeCodeFromUserData(
+    user as Record<string, unknown> | null,
+  )
+
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-10">
@@ -96,6 +106,10 @@ export default function CounselorProfile() {
             <InfoRow
               label="Sex"
               value={user?.sex ? (user.sex === 'male' ? 'Male' : 'Female') : 'Not set'}
+            />
+            <InfoRow
+              label="College"
+              value={resolvedCollege ? `${resolvedCollege} — ${getCollegeName(resolvedCollege)}` : 'Not set'}
             />
             <InfoRow label="Counselor Number" value={user?.student_number || 'Not set'} />
             <InfoRow label="Contact Number" value={user?.contact_number || 'Not set'} />
@@ -161,7 +175,7 @@ export default function CounselorProfile() {
 
       {/* Sign Out */}
       <button
-        onClick={handleSignOut}
+        onClick={() => setShowSignOutModal(true)}
         className="w-full py-4.5 rounded-2xl font-bold text-[17px] text-white
                    bg-aurora-secondary-blue shadow-aurora
                    hover:bg-aurora-secondary-dark-blue transition-colors cursor-pointer
@@ -178,6 +192,13 @@ export default function CounselorProfile() {
           user={user}
         />
       )}
+
+      <SignOutConfirmModal
+        visible={showSignOutModal}
+        onStay={() => setShowSignOutModal(false)}
+        onLeave={handleSignOut}
+        leaving={isSigningOut}
+      />
     </div>
   )
 }

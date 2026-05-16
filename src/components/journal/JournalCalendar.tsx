@@ -56,6 +56,7 @@ export function JournalCalendar({
 
   useEffect(() => {
     if (targetUserId) void loadMoodData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate, targetUserId])
 
   const loadMoodData = async () => {

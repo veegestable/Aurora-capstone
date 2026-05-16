@@ -214,9 +214,10 @@ function SessionNotificationBridge() {
       },
     );
 
+    const processingIds = processingIdsRef.current;
     return () => {
       unsub();
-      processingIdsRef.current.clear();
+      processingIds.clear();
     };
   }, [user?.id, user?.session_push_notifications_enabled]);
 

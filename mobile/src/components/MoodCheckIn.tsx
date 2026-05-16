@@ -51,11 +51,6 @@ import { EmotionDetection } from "./EmotionDetection";
 import { BreathingContainer } from "./breathing/BreathingContainer";
 import { useUserDaySettings } from "../stores/UserDaySettingsContext";
 import { uploadImage } from "../services/firebase-storage.service";
-import {
-  calculateStressLevel,
-  classifyStress,
-  getDailyFeedback,
-} from "../utils/analytics/ethicsDailyAnalytics";
 import { logSuddenMoodDropIfNeeded } from "../utils/analytics/suddenMoodChange";
 import { getMostRecentLogNotOnSameCalendarDay } from "../utils/analytics/dateKeys";
 import { calendarDayKeyLocal } from "../utils/dayKey";
@@ -797,6 +792,7 @@ export function MoodCheckIn({
     if (!journalEdited) {
       setJournalText(buildJournalDraft());
     }
+// eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectedTags,
     energyLevel,
@@ -1080,10 +1076,10 @@ export function MoodCheckIn({
       quickResetDoneRef.current = false;
       pendingZenReminderQueuedRef.current = false;
       setShowQuickResetPrompt(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setIsSubmitting(false);
       setUploadingJournalImage(false);
-      Alert.alert("Error", error?.message || "Failed to check in");
+      Alert.alert("Error", error instanceof Error ? error.message : "Failed to check in");
     }
   };
 
@@ -1201,13 +1197,6 @@ export function MoodCheckIn({
     });
   };
 
-  const showContextCategoriesGuide = () => {
-    setActiveGuide({
-      title: "Mood context categories",
-      body: "These categories organize what influenced your mood in this check-in.\n\n- School: classes, quizzes, deadlines, study pressure\n- Health: body condition, pain, appetite, exercise\n- Social: friends, family, partner, conflict, feeling alone\n- Fun / Leisure: hobbies, games, media, outdoor activities\n- Productivity: work, chores, commute, responsibilities\n\nThe tags you select are saved for analytics and help identify patterns in your mood trends.",
-    });
-  };
-
   const schoolTagCount = selectedTags.filter((tag) =>
     SCHOOL_TAGS.includes(tag),
   ).length;
@@ -1216,7 +1205,6 @@ export function MoodCheckIn({
     stressLevel,
     energyLevel,
   });
-  const quickResetPromptLine = `That was a lot. Take 60 seconds to find your center with ${quickResetExercise.name}?`;
   const workloadBand =
     schoolTagCount === 0
       ? "Light day"
@@ -1226,12 +1214,6 @@ export function MoodCheckIn({
   const schoolTagCaption = `Based on ${schoolTagCount} school tag${schoolTagCount === 1 ? "" : "s"} selected`;
 
   if (isSubmitted) {
-    const moodScale = Math.min(5, Math.max(1, energyLevel));
-    const stressBand = classifyStress(
-      calculateStressLevel(moodScale, schoolTagCount),
-    );
-    const dailyBody = getDailyFeedback(stressBand, moodScale);
-    const isPositive = moodScale >= 4 && stressBand !== "High";
     const totalCheckIns = submittedTodayCheckIns;
     return (
       <View
@@ -1536,10 +1518,6 @@ export function MoodCheckIn({
                       { schedulePush: pushOk },
                     );
                     setShowQuickResetPrompt(false);
-                    const mins = Math.max(
-                      1,
-                      Math.round(ZEN_BREATHING_REMINDER_DELAY_SEC / 60),
-                    );
                     setActiveGuide({
                       title: "We'll remind you on Zen",
                       body: pushOk
@@ -1843,17 +1821,7 @@ export function MoodCheckIn({
                   justifyContent: "center",
                   gap: 6,
                 }}
-              >
-                {/* <Text style={{ color: AURORA.textMuted, fontSize: 12 }}>
-                  What are these categories?
-                </Text>
-                <TouchableOpacity
-                  onPress={showContextCategoriesGuide}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <CircleHelp size={14} color={AURORA.textMuted} />
-                </TouchableOpacity> */}
-              </View>
+              />
             ) : null}
           </Animatable.View>
 

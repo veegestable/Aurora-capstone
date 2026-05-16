@@ -9,7 +9,7 @@ export const markNotificationAsRead = async (notificationId: string) => {
       updated_at: Timestamp.now()
     })
     console.log('✅ Notification marked as read')
-  } catch (error: any) {
+  } catch(error: unknown) {
     console.error('❌ Error marking notification as read:', error)
     throw error
   }

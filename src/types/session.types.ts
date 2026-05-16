@@ -18,6 +18,7 @@ export interface Session {
   id: string
   counselorId: string
   studentId: string
+  college_code?: string
   riskFlagId: string | null
   initiatedBy: 'student' | 'counselor'
   studentRequestNote: string

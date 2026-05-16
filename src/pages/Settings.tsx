@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { User, LogOut } from 'lucide-react'
+import { SignOutConfirmModal } from '../components/common/SignOutConfirmModal'
 
 export default function Settings() {
   const { user, updateUser, signOut } = useAuth()
@@ -9,6 +10,8 @@ export default function Settings() {
   const [fullName, setFullName] = useState(user?.full_name || '')
   const [isUpdating, setIsUpdating] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,12 +33,15 @@ export default function Settings() {
   }
 
   const handleSignOut = async () => {
-    if (!window.confirm('Are you sure you want to sign out?')) return
+    setIsSigningOut(true)
     try {
       await signOut()
       navigate('/')
-    } catch { /* silent */ }
+    } catch {
+      setIsSigningOut(false)
+    }
   }
+
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -99,7 +105,7 @@ export default function Settings() {
       <div className="card-aurora p-5">
         <h3 className="text-lg font-semibold text-white mb-4">Account</h3>
         <button
-          onClick={handleSignOut}
+          onClick={() => setShowSignOutModal(true)}
           className="flex items-center gap-3 w-full px-4 py-3 rounded-[12px] bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)]
                      text-aurora-red font-semibold hover:bg-[rgba(239,68,68,0.25)] transition-colors cursor-pointer"
           aria-label="Sign out"
@@ -110,8 +116,16 @@ export default function Settings() {
       </div>
 
       <div className="text-center">
-        <p className="text-aurora-text-muted text-xs">Aurora App v1.0.0</p>
+        <p className="text-aurora-text-muted text-xs">Aurora App v1.0.1</p>
       </div>
+
+      <SignOutConfirmModal
+        visible={showSignOutModal}
+        onStay={() => setShowSignOutModal(false)}
+        onLeave={handleSignOut}
+        leaving={isSigningOut}
+      />
     </div>
+
   )
 }

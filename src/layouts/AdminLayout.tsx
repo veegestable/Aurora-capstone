@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -6,6 +7,7 @@ import {
   Settings, LogOut,
 } from 'lucide-react'
 import { LetterAvatar } from '../components/LetterAvatar'
+import { SignOutConfirmModal } from '../components/common/SignOutConfirmModal'
 
 const PRIMARY_NAV = [
   { path: '/',                    label: 'Dashboard',     icon: Home },
@@ -24,10 +26,17 @@ const SECONDARY_NAV = [
 export default function AdminLayout() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const handleSignOut = async () => {
-    await signOut()
-    navigate('/')
+    setIsSigningOut(true)
+    try {
+      await signOut()
+      navigate('/')
+    } catch {
+      setIsSigningOut(false)
+    }
   }
 
   return (
@@ -154,6 +163,13 @@ export default function AdminLayout() {
           ))}
         </div>
       </nav>
+
+      <SignOutConfirmModal
+        visible={showSignOutModal}
+        onStay={() => setShowSignOutModal(false)}
+        onLeave={handleSignOut}
+        leaving={isSigningOut}
+      />
     </div>
   )
 }

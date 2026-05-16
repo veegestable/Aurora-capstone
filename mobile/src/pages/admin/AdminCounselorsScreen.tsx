@@ -94,7 +94,7 @@ export default function AdminCounselorsScreen() {
             setApproveTarget(null);
             setApproveCollege('');
             await loadCounselors();
-        } catch (e) {
+        } catch {
             Alert.alert('Error', 'Could not approve. Please try again.');
         } finally {
             setUpdatingId(null);
@@ -112,7 +112,7 @@ export default function AdminCounselorsScreen() {
                     try {
                         await authService.updateCounselorApproval(c.id, 'rejected');
                         await loadCounselors();
-                    } catch (e) {
+                    } catch {
                         Alert.alert('Error', 'Could not reject. Please try again.');
                     } finally {
                         setUpdatingId(null);

@@ -7,6 +7,8 @@ import {
   DEGREE_PROGRAM_OPTIONS,
   matchLegacyDepartmentToProgramValue,
 } from '../../constants/student/programs'
+import { resolveCollegeCodeFromUserData, getCollegeName } from '../../constants/colleges'
+import { getProgramsForCollege } from '../../constants/college-programs-iit'
 import type { User } from '../../types/user.types'
 
 type SexOption = 'male' | 'female'
@@ -30,7 +32,13 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
   const [programPickerOpen, setProgramPickerOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const resolvedCollege = resolveCollegeCodeFromUserData(user as Record<string, unknown> | null)
+  const collegeProgramOptions = resolvedCollege
+    ? getProgramsForCollege(resolvedCollege)
+    : DEGREE_PROGRAM_OPTIONS.map(o => o.value)
+
   const resolveProgramFromUser = (u: User | null) =>
+    (u?.program && collegeProgramOptions.includes(u.program) ? u.program : '') ||
     (u?.program && DEGREE_PROGRAM_OPTIONS.some(o => o.value === u.program) ? u.program : '') ||
     matchLegacyDepartmentToProgramValue(u?.department)
 
@@ -42,6 +50,7 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
     setYearLevel(user.year_level || '')
     setStudentNumber(user.student_number || '')
     setContactNumber(user.contact_number || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const handlePickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,7 +82,7 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
       await updateUser({
         preferred_name: name.trim() || user?.full_name || 'Student',
         sex,
-        department: CCS_COLLEGE_DEPARTMENT,
+        ...(resolvedCollege ? { college_code: resolvedCollege } : { department: CCS_COLLEGE_DEPARTMENT }),
         program,
         year_level: yearTrim,
         student_number: studentNumTrim,
@@ -141,7 +150,9 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
                   : <Camera className="w-3.5 h-3.5 text-white" />}
               </button>
             </div>
-            <p className="text-xs text-aurora-gray-500 mt-2">College of Computer Studies • MSU-IIT</p>
+            <p className="text-xs text-aurora-gray-500 mt-2">
+              {resolvedCollege ? `${getCollegeName(resolvedCollege)} • MSU-IIT` : 'MSU-IIT'}
+            </p>
           </div>
 
           {/* Name */}
@@ -174,18 +185,18 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
           </button>
           {programPickerOpen && (
             <div className="rounded-xl border border-aurora-border bg-aurora-card overflow-hidden">
-              {DEGREE_PROGRAM_OPTIONS.map(opt => (
+              {collegeProgramOptions.map(label => (
                 <button
-                  key={opt.value}
+                  key={label}
                   type="button"
-                  onClick={() => { setProgram(opt.value); setProgramPickerOpen(false) }}
+                  onClick={() => { setProgram(label); setProgramPickerOpen(false) }}
                   className={`w-full text-left px-4 py-3 text-[14px] border-t border-aurora-border first:border-t-0 cursor-pointer transition-colors ${
-                    program === opt.value
+                    program === label
                       ? 'bg-aurora-secondary-blue/12 text-aurora-secondary-blue font-bold'
                       : 'text-aurora-primary-dark hover:bg-aurora-card-alt'
                   }`}
                 >
-                  {opt.value}
+                  {label}
                 </button>
               ))}
             </div>

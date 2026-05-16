@@ -1,5 +1,6 @@
 import { collection, addDoc, doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
+import { resolveConversationCollegeCode } from '../../messages/helpers/resolveConversationCollegeCode'
 import { enqueueSessionInviteStudentPush } from '../../notifications/enqueueSessionInviteStudentPush'
 
 interface ProposedSlot {
@@ -14,10 +15,13 @@ export async function createCounselorSessionInvite(
   opts?: { note?: string }
 ) {
   // 1. Create the session document
+  const collegeCode = await resolveConversationCollegeCode(counselorId, studentId)
+
   const docData = {
     counselorId,
     studentId,
     riskFlagId: null,
+    ...(collegeCode ? { college_code: collegeCode } : {}),
     initiatedBy: 'counselor',
     studentRequestNote: (opts?.note ?? '').trim(),
     proposedSlots,

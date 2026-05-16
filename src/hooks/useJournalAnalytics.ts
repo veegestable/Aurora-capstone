@@ -196,6 +196,7 @@ export function useJournalAnalytics() {
   const [stabilityRange, setStabilityRange] = useState<'7days' | '30days'>('7days')
   const [stabilityMetric, setStabilityMetric] = useState<'stress' | 'energy'>('stress')
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (user?.id) loadData() }, [user?.id])
 
   const loadData = async () => {

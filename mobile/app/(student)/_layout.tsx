@@ -108,7 +108,7 @@ function StudentTabs() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <Home size={focused ? 24 : 22} color={color} />
           ),
           tabBarButton: (props) => (
@@ -120,7 +120,7 @@ function StudentTabs() {
         name="history"
         options={{
           title: "Journal",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <BookMarked size={focused ? 24 : 22} color={color} />
           ),
           tabBarButton: (props) => (
@@ -132,7 +132,7 @@ function StudentTabs() {
         name="messages"
         options={{
           title: "Messages",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <MessageSquare size={focused ? 24 : 22} color={color} />
           ),
           tabBarButton: (props) => (
@@ -144,7 +144,7 @@ function StudentTabs() {
         name="resources"
         options={{
           title: "Zen",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <Wind size={focused ? 24 : 22} color={color} />
           ),
           tabBarButton: (props) => (
@@ -159,7 +159,7 @@ function StudentTabs() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <User size={focused ? 24 : 22} color={color} />
           ),
           tabBarButton: (props) => (

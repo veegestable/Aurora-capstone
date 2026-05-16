@@ -5,7 +5,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ChevronLeft,
   ChevronRight,
-  Settings2,
   BarChart3,
   BookMarked,
   CircleHelp,
@@ -331,27 +330,6 @@ function MoodIcon({
   );
 }
 
-/** One Firestore mood_log can contain multiple emotions; group so notes show once per log. */
-function groupMoodLogsByEntry(logs: MoodLog[]): MoodLog[][] {
-  const groups: MoodLog[][] = [];
-  let current: MoodLog[] | null = null;
-  let currentKey: string | undefined;
-
-  for (let i = 0; i < logs.length; i++) {
-    const log = logs[i];
-    const key = log.entryId ?? `__row_${i}`;
-    if (currentKey !== key) {
-      current = [log];
-      currentKey = key;
-      groups.push(current);
-    } else {
-      current!.push(log);
-    }
-  }
-
-  return groups;
-}
-
 function CalendarDayCell({
   dayNumber,
   logs,
@@ -376,7 +354,7 @@ function CalendarDayCell({
       easing: Easing.out(Easing.back(1.5)),
     });
     opacity.value = withTiming(1, { duration: 300 });
-  }, []);
+  }, [opacity, scale]);
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -1277,7 +1255,7 @@ export default function HistoryScreen() {
     "prev" | "next" | null
   >(null);
   const [moodData, setMoodData] = useState<MoodEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
   const [journalTab, setJournalTab] = useState<JournalTab>("calendar");
   const [pageGuide, setPageGuide] = useState<InfoGuideContent | null>(null);
@@ -1304,7 +1282,7 @@ export default function HistoryScreen() {
     const easing = Easing.out(Easing.cubic);
     journalThumbX.value = withTiming(idx * seg, { duration: dur, easing });
     journalThumbW.value = withTiming(seg, { duration: dur, easing });
-  }, [journalTab, journalTrackW, reduceMotion]);
+  }, [journalTab, journalTrackW, reduceMotion, journalThumbX, journalThumbW]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -1385,6 +1363,7 @@ export default function HistoryScreen() {
 
   const calendarDays = useMemo(
     () => generateCalendarDays(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [moodData, currentDate],
   );
   const dayDetailsEntries = useMemo(() => {
@@ -1637,7 +1616,7 @@ export default function HistoryScreen() {
 
                   {/* Days grid */}
                   <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                    {calendarDays.map((day, idx) => {
+                    {calendarDays.map((day, _idx) => {
                       const isSelected =
                         selectedDay?.date.toDateString() ===
                         day.date.toDateString();

@@ -7,7 +7,7 @@ import { AppText as Text } from "../common/AppText";
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, Modal, ScrollView } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
-import { Calendar, MapPin, X, FileText, Clock, Hash, User } from 'lucide-react-native';
+import { Calendar, MapPin, X, FileText, Clock, User } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { isSessionScheduledTimeReached } from '../../utils/dateHelpers';
 
@@ -63,7 +63,7 @@ interface SessionCardProps {
     onMarkAttendance?: () => void;
 }
 
-export default function SessionCard({ data, isFromMe, onViewDetails, onReschedule, onMarkAttendance }: SessionCardProps) {
+export default function SessionCard({ data, isFromMe: _isFromMe, onViewDetails, onReschedule, onMarkAttendance: _onMarkAttendance }: SessionCardProps) {
     const [detailOpen, setDetailOpen] = useState(false);
     const st = data.sessionStatus;
     const legacyConfirmed = data.type === 'confirmed';
@@ -105,10 +105,10 @@ export default function SessionCard({ data, isFromMe, onViewDetails, onReschedul
     //     !String(data.id).startsWith('session_') &&
     //     scheduledTimeReached;
 
-    const handleMarkAttendancePress = () => {
-        setDetailOpen(false);
-        onMarkAttendance?.();
-    };
+    // const handleMarkAttendancePress = () => {
+    //     setDetailOpen(false);
+    //     onMarkAttendance?.();
+    // };
 
     const statusPill = modalSessionStatusPill(statusLabel);
     const dateTimeLine = `${displayDate} at ${displayTime}`;

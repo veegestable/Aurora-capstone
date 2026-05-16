@@ -50,7 +50,6 @@ const getEmotionColor = (emotionName: string): string => {
 
 export function EmotionDetection({
   onEmotionDetected,
-  title = "Daily Selfie",
   helperText,
   onUseAnalyzedMood,
   saveActionLabel,
@@ -226,11 +225,11 @@ export function EmotionDetection({
       setDetectedEmotions(normalized);
       setSelectedDetectedEmotion(normalized[0]?.emotion ?? null);
       onEmotionDetected(normalized);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Emotion analysis failed:", error);
       Alert.alert(
         "Analysis Failed",
-        error.message || "Could not detect emotions. Please try again.",
+        error instanceof Error ? error.message : "Could not detect emotions. Please try again.",
       );
     } finally {
       setIsAnalyzing(false);

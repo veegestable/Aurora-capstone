@@ -26,7 +26,7 @@ export const getNotifications = async (userId: string) => {
 
     console.log('✅ Retrieved', notifications.length, 'notifications')
     return notifications
-  } catch (error: any) {
+  } catch(error: unknown) {
     console.error('❌ Error getting notifications:', error)
     throw error
   }

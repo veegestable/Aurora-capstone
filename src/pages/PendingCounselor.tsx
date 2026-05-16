@@ -1,14 +1,23 @@
+import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { Clock, LogOut } from 'lucide-react'
+import { SignOutConfirmModal } from '../components/common/SignOutConfirmModal'
 
 export default function PendingCounselor() {
   const { signOut } = useAuth()
   const navigate = useNavigate()
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const handleSignOut = async () => {
-    await signOut()
-    navigate('/')
+    setIsSigningOut(true)
+    try {
+      await signOut()
+      navigate('/')
+    } catch {
+      setIsSigningOut(false)
+    }
   }
 
   return (
@@ -28,7 +37,7 @@ export default function PendingCounselor() {
           You can sign out and check back later.
         </p>
         <button
-          onClick={handleSignOut}
+          onClick={() => setShowSignOutModal(true)}
           className="inline-flex items-center gap-2 px-6 py-3 rounded-[12px]
                      bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-aurora-red font-semibold
                      hover:bg-[rgba(239,68,68,0.25)] transition-colors cursor-pointer"
@@ -38,6 +47,13 @@ export default function PendingCounselor() {
           Sign Out
         </button>
       </div>
+
+      <SignOutConfirmModal
+        visible={showSignOutModal}
+        onStay={() => setShowSignOutModal(false)}
+        onLeave={handleSignOut}
+        leaving={isSigningOut}
+      />
     </div>
   )
 }

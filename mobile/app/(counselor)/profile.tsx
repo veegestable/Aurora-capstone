@@ -13,17 +13,11 @@ import { View, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator, M
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  ArrowLeft,
-  MoreVertical,
-  Pencil,
   User,
-  Lock,
   Bell,
-  Moon,
   Shield,
   LogOut,
   ChevronRight,
-  ExternalLink,
   Camera,
   X,
   GraduationCap,
@@ -576,7 +570,6 @@ export default function CounselorProfileScreen() {
   const [devicePermissionGranted, setDevicePermissionGranted] = useState<
     boolean | null
   >(null);
-  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -856,18 +849,6 @@ export default function CounselorProfileScreen() {
                 />
               }
             />
-            {/* <SettingsRow
-                            icon={<Moon size={18} color={AURORA.textSec} />}
-                            label="Dark Mode"
-                            rightElement={
-                                <Switch
-                                    value={darkMode}
-                                    onValueChange={setDarkMode}
-                                    trackColor={{ false: AURORA.cardAlt, true: AURORA.blue }}
-                                    thumbColor="#FFFFFF"
-                                />
-                            }
-                        /> */}
           </View>
           <View style={{ paddingHorizontal: 22, paddingTop: 8 }}>
             <Text

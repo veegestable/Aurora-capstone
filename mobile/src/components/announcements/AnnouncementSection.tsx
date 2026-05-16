@@ -76,7 +76,7 @@ export function AnnouncementSection({
       setEditModalVisible(false);
       setSelectedAnnouncement(null);
       setRefreshKey((k) => k + 1);
-    } catch (_) {
+    } catch {
       // TODO: show error toast
     }
   };

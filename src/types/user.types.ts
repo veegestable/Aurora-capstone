@@ -9,7 +9,11 @@ export interface User {
   role: UserRole
   approval_status?: CounselorApprovalStatus
   preferred_name?: string
+  /** Canonical college code (COE, CCS, ...). */
+  college_code?: string
+  /** @deprecated Legacy field. Use `college_code` instead. */
   department?: string
+  college_shift_pending?: boolean
   /** Degree program (e.g. "BS CS (Computer Science)"). Distinct from `department`. */
   program?: string
   year_level?: string

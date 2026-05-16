@@ -5,7 +5,7 @@ import { AppText as Text } from "../common/AppText";
  */
 
 import type { ReactElement } from "react";
-import { Fragment, useEffect, useRef } from "react"; import {   View, useWindowDimensions, ScrollView, TouchableOpacity } from "react-native";
+import { Fragment, useEffect, useRef, useCallback } from "react"; import {   View, useWindowDimensions, ScrollView, TouchableOpacity } from "react-native";
 import Svg, {
   Circle,
   Line,
@@ -96,7 +96,7 @@ export function LineTrendChart({
   const step = n > 1 ? innerW / (n - 1) : 0;
   const labelSlot = fitToWidth ? Math.max(18, step) : slot;
 
-  const xAt = (i: number) => PAD_BASE.l + i * step;
+  const xAt = useCallback((i: number) => PAD_BASE.l + i * step, [step]);
 
   const xy = (i: number, v: number) => {
     const x = xAt(i);

@@ -15,7 +15,6 @@ import {
   Mail,
   Phone,
   CircleHelp,
-  Hash,
   User,
   VenusAndMars,
 } from "lucide-react-native";

@@ -19,11 +19,8 @@ import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import {
   ArrowLeft,
   Search,
-  MoreVertical,
   Calendar,
   Clock,
-  FileText,
-  Share2,
   AlertTriangle,
   CalendarX,
   CircleHelp,
@@ -239,7 +236,7 @@ export default function SessionHistoryScreen() {
     useState<SessionHistoryItem | null>(null);
   const [showRescheduleInviteModal, setShowRescheduleInviteModal] =
     useState(false);
-  const [rescheduleBusy, setRescheduleBusy] = useState(false);
+  const [_rescheduleBusy, setRescheduleBusy] = useState(false);
 
   useEffect(() => {
     if (!user?.id) {
@@ -741,7 +738,7 @@ export default function SessionHistoryScreen() {
                   selectedSession.proposedSlots?.[0]) &&
                 isSessionScheduledTimeReached(
                   getAgreedSessionSlot(selectedSession) ??
-                    selectedSession.proposedSlots?.[0]!,
+                    selectedSession.proposedSlots?.[0] ?? { date: "", time: "" },
                 ) &&
                 [
                   "confirmed",

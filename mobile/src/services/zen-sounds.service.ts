@@ -67,17 +67,23 @@ export async function stopAmbientSound(): Promise<void> {
 export async function pauseAmbientSound(): Promise<void> {
   try {
     if (currentSound) await currentSound.pauseAsync();
-  } catch {}
+  } catch {
+    // Expected 
+  }
 }
 
 export async function resumeAmbientSound(): Promise<void> {
   try {
     if (currentSound) await currentSound.playAsync();
-  } catch {}
+  } catch {
+    // Expected
+  }
 }
 
 export async function setAmbientVolume(volume: number): Promise<void> {
   try {
     if (currentSound) await currentSound.setVolumeAsync(volume);
-  } catch {}
+  } catch {
+    // Expected
+  }
 }
