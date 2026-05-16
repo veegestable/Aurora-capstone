@@ -45,7 +45,7 @@ export default function StudentWorkspace() {
       if (!studentId) return
       setLoadingStudent(true)
       try {
-        const all = await counselorService.getStudents()
+        const all = await counselorService.getStudents(user?.college_code ?? '')
         if (cancelled) return
         const match = all.find((s) => s.id === studentId)
         setStudent(

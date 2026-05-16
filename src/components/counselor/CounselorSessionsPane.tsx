@@ -5,6 +5,7 @@ import { sessionsService } from '../../services/sessions'
 import { counselorService } from '../../services/counselor'
 import { SessionCard } from '../sessions/SessionCard'
 import type { Session, SessionStatus } from '../../types/session.types'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface CounselorSessionsPaneProps {
   visible: boolean
@@ -57,6 +58,7 @@ export function CounselorSessionsPane({
   counselorId,
   onClose,
 }: CounselorSessionsPaneProps) {
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [sessions, setSessions] = useState<Session[]>([])
   const [studentNames, setStudentNames] = useState<Map<string, string>>(new Map())
@@ -72,7 +74,7 @@ export function CounselorSessionsPane({
       try {
         const [list, students] = await Promise.all([
           sessionsService.getSessionsForCounselor(counselorId),
-          counselorService.getStudents(),
+          counselorService.getStudents(user?.college_code ?? ''),
         ])
         if (cancelled) return
         setSessions(list)

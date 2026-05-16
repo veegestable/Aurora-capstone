@@ -2,11 +2,13 @@ import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase-firestore/db'
 import { StudentInfo } from '../types'
 
-export const getStudents = async (): Promise<StudentInfo[]> => {
+export const getStudents = async (collegeCode: string): Promise<StudentInfo[]> => {
   try {
     const q = query(
       collection(db, 'users'),
       where('role', '==', 'student'),
+      where('college_code', '==', collegeCode),
+      where('email_verified', '==', true),
     )
 
     const querySnapshot = await getDocs(q)

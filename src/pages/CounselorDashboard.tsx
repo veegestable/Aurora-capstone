@@ -69,7 +69,7 @@ export default function CounselorDashboard() {
       setIsLoading(true)
       try {
         const [studentList, sessions] = await Promise.all([
-          counselorService.getStudents(),
+          counselorService.getStudents(user?.college_code ?? ''),
           sessionsService.getSessionsForCounselor(user.id),
         ])
         if (cancelled) return
