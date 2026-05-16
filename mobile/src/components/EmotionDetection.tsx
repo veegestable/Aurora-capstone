@@ -164,6 +164,7 @@ export function EmotionDetection({
         uri: imageUri,
         name: "photo.jpg",
         type: "image/jpeg",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
 
       const response = await fetch(`${API_URL}/api/emotion/analyze-upload`, {

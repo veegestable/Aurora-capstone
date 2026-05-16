@@ -58,15 +58,15 @@ export const scheduleService = {
       );
 
       // Convert schedules to expected format
-      const formattedSchedules = schedules.map((schedule: any) => ({
-        id: schedule.id,
-        title: schedule.title || "",
-        description: schedule.description || "",
+      const formattedSchedules = schedules.map((schedule: Record<string, unknown>) => ({
+        id: String(schedule.id ?? ""),
+        title: String(schedule.title || ""),
+        description: String(schedule.description || ""),
         event_date:
           schedule.event_date instanceof Date
-            ? schedule.event_date.toISOString()
-            : new Date(schedule.event_date.toDate()).toISOString(),
-        event_type: schedule.event_type,
+            ? (schedule.event_date as Date).toISOString()
+            : new Date((schedule.event_date as { toDate: () => Date }).toDate()).toISOString(),
+        event_type: String(schedule.event_type) as "exam" | "deadline" | "meeting" | "other",
       }));
 
       console.log(
@@ -85,7 +85,7 @@ export const scheduleService = {
     try {
       console.log("🔥 Updating schedule:", scheduleId);
 
-      const updateData: any = { ...data };
+      const updateData: Record<string, unknown> = { ...data };
       if (data.event_date) {
         updateData.event_date = new Date(data.event_date);
       }

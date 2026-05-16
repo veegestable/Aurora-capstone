@@ -951,17 +951,17 @@ export default function CounselorHomeScreen() {
             { activeCollegeCode: user.college_code },
           );
           const now = Date.now();
-          const upcoming = (sessions as Array<Record<string, any>>).filter(
+          const upcoming = (sessions as Array<Record<string, unknown>>).filter(
             (s) => {
               // "Accepted" sessions can appear as confirmed or rescheduled in the canonical sessions doc.
               const status = String(s?.status ?? "").toLowerCase();
               if (!["confirmed", "rescheduled"].includes(status)) return false;
               if (String(s?.counselorId ?? "") !== user.id) return false;
               const dt = getSessionScheduledDate({
-                finalSlot: (s.finalSlot as any) ?? null,
-                confirmedSlot: (s.confirmedSlot as any) ?? null,
+                finalSlot: (s.finalSlot as { date: string; time: string } | null) ?? null,
+                confirmedSlot: (s.confirmedSlot as { date: string; time: string } | null) ?? null,
                 proposedSlots: Array.isArray(s.proposedSlots)
-                  ? (s.proposedSlots as any)
+                  ? (s.proposedSlots as Array<{ date: string; time: string }>)
                   : [],
                 preferredTimeFromStudent:
                   typeof s.preferredTimeFromStudent === "string"

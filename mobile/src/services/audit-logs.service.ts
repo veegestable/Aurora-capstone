@@ -45,7 +45,7 @@ export const auditLogsService = {
     );
     const snapshot = await getDocs(q);
     return snapshot.docs.map((d) => {
-      const data = d.data() as any;
+      const data = d.data() as Record<string, unknown>;
       return {
         id: d.id,
         performedBy: String(data.performedBy ?? ""),
@@ -59,7 +59,7 @@ export const auditLogsService = {
           data.metadata != null
             ? (data.metadata as Record<string, unknown>)
             : undefined,
-        createdAt: data.createdAt?.toDate?.() ?? undefined,
+        createdAt: (data.createdAt as { toDate?: () => Date })?.toDate?.() ?? undefined,
       } satisfies AuditEntry;
     });
   },

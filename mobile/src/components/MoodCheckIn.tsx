@@ -214,6 +214,15 @@ const MANUAL_EMOTIONS = [
   },
 ];
 
+interface SimpleSliderProps {
+  value: number;
+  onValueChange: (v: number) => void;
+  minimumTrackTintColor: string;
+  thumbTintColor: string;
+  onSlidingStart?: () => void;
+  onSlidingComplete?: () => void;
+}
+
 const SimpleSlider = ({
   value,
   onValueChange,
@@ -221,7 +230,7 @@ const SimpleSlider = ({
   thumbTintColor,
   onSlidingStart,
   onSlidingComplete,
-}: any) => {
+}: SimpleSliderProps) => {
   const widthRef = useRef(0);
   const startValue = useRef(0);
   const onValueChangeRef = useRef(onValueChange);

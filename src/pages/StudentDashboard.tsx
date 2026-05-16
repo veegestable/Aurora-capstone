@@ -264,8 +264,8 @@ export default function StudentDashboard() {
               </button>
             </div>
             <p className="text-sm text-aurora-text-sec leading-relaxed mb-3">
-              Stability is a quick read of how steady your mood has been over the last 30 days.
-              We compare today's check-ins to your recent baseline and the variance between them.
+              Stability is a quick read of how steady your mood has been throughout today.
+              We look at the variance between your check-ins logged today to gauge emotional consistency.
             </p>
             <ul className="text-sm text-aurora-text-sec space-y-1.5 mb-4 pl-1">
               <li><span className="text-white font-semibold">90–100%</span> · Very steady</li>

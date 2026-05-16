@@ -9,7 +9,7 @@ import { AppTextInput as TextInput } from "../../src/components/common/AppTextIn
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable, Modal, StyleSheet } from "react-native";
+import { type AlertButton, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable, Modal, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -394,7 +394,7 @@ function ChatView({
       await firestoreService.sendSessionMessage(
         conversationId,
         user.id,
-        sessionData,
+        { ...sessionData } as Record<string, unknown>,
       );
     } catch (e) {
       console.error("Failed to send session invite:", e);
@@ -553,7 +553,7 @@ function ChatView({
         conversationId,
         user.id,
         sessionId,
-        sessionData,
+        { ...sessionData } as Record<string, unknown>,
       );
       setShowInviteModalForSessionRequest(null);
     } catch (e) {
@@ -858,7 +858,7 @@ function ChatView({
                           Alert.alert(
                             "Message options",
                             undefined,
-                            buttons as any,
+                            buttons as AlertButton[],
                           );
                         }}
                       >
@@ -1139,9 +1139,9 @@ function ChatView({
                               : null),
                           }}
                         >
-                          {(msg as any)?.text ??
-                            (msg as any)?.content ??
-                            `[Unsupported message type: ${(msg as any)?.type ?? "unknown"}]`}
+                          {String((msg as Record<string, unknown>)?.text ??
+                            (msg as Record<string, unknown>)?.content ??
+                            `[Unsupported message type: ${String((msg as Record<string, unknown>)?.type ?? "unknown")}]`)}
                         </Text>
                       </View>
                     );

@@ -502,7 +502,7 @@ export const firestoreService = {
     try {
       const logRef = doc(db, "mood_logs", logId);
 
-      const updatePayload: any = {
+      const updatePayload: Record<string, unknown> = {
         ...updateData,
         updated_at: Timestamp.now(),
       };
@@ -577,7 +577,7 @@ export const firestoreService = {
     try {
       const scheduleRef = doc(db, "schedules", scheduleId);
 
-      const updatePayload: any = {
+      const updatePayload: Record<string, unknown> = {
         ...updateData,
         updated_at: Timestamp.now(),
       };
@@ -660,7 +660,7 @@ export const firestoreService = {
   // Users (for admin counselor management)
   async getUsersByRole(role: "counselor" | "student" | "admin") {
     try {
-      const usersById: Record<string, Record<string, any>> = {};
+      const usersById: Record<string, Record<string, unknown>> = {};
       const collect = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
         snapshot.docs.forEach((d) => {
           const data = (d.data() ?? {}) as Record<string, unknown>;
@@ -1620,7 +1620,7 @@ export const firestoreService = {
   async sendSessionMessage(
     conversationId: string,
     senderId: string,
-    session: Record<string, any>,
+    session: Record<string, unknown>,
   ) {
     try {
       const messagesRef = collection(
@@ -1661,7 +1661,7 @@ export const firestoreService = {
       const convSnap = await getDoc(convRef);
       const conv = convSnap.data();
       const isCounselor = conv?.counselorId === senderId;
-      const updatePayload: Record<string, any> = {
+      const updatePayload: Record<string, unknown> = {
         lastMessage: `Session: ${session.title ?? "Appointment"}`,
         lastMessageAt: Timestamp.now(),
         lastSenderId: senderId,
@@ -1703,7 +1703,7 @@ export const firestoreService = {
     conversationId: string,
     messageId: string,
     senderId: string,
-    session: Record<string, any>,
+    session: Record<string, unknown>,
   ) {
     try {
       const linkedSessionId =
@@ -1758,7 +1758,7 @@ export const firestoreService = {
     conversationId: string,
     senderId: string,
     sessionId: string,
-    session: Record<string, any>,
+    session: Record<string, unknown>,
   ) {
     try {
       const messagesRef = collection(
@@ -1772,7 +1772,7 @@ export const firestoreService = {
       );
 
       const sessionInviteDocs = snapshot.docs.filter((d) => {
-        const data = d.data() as any;
+        const data = d.data() as Record<string, unknown>;
         return data.type === "session_invite" && data.senderId === senderId;
       });
 
@@ -1780,7 +1780,7 @@ export const firestoreService = {
         return await this.sendSessionMessage(conversationId, senderId, session);
       }
 
-      const toMs = (v: any): number => {
+      const toMs = (v: Record<string, unknown> | null | undefined): number => {
         if (!v) return 0;
         if (typeof v?.toMillis === "function") return v.toMillis();
         if (typeof v?.seconds === "number") return v.seconds * 1000;
@@ -1792,8 +1792,8 @@ export const firestoreService = {
         .slice()
         .sort(
           (a, b) =>
-            toMs((b.data() as any).createdAt) -
-            toMs((a.data() as any).createdAt),
+            toMs((b.data() as Record<string, unknown>).createdAt as Record<string, unknown> | null | undefined) -
+            toMs((a.data() as Record<string, unknown>).createdAt as Record<string, unknown> | null | undefined),
         )[0];
 
       const keepMessageId = keepDoc.id;
@@ -1897,7 +1897,7 @@ export const firestoreService = {
         counselorId,
         studentId,
       );
-      const docData: Record<string, any> = {
+      const docData: Record<string, unknown> = {
         counselorId,
         studentId,
         ...(collegeCode ? { college_code: collegeCode } : {}),
@@ -1941,7 +1941,7 @@ export const firestoreService = {
         counselorId,
         studentId,
       );
-      const docData: Record<string, any> = {
+      const docData: Record<string, unknown> = {
         counselorId,
         studentId,
         ...(collegeCode ? { college_code: collegeCode } : {}),
@@ -2158,7 +2158,7 @@ export const firestoreService = {
     try {
       const sessionRef = doc(db, "sessions", sessionId);
       const snap = await getDoc(sessionRef);
-      const session = snap.data() as Record<string, any> | undefined;
+      const session = snap.data() as Record<string, unknown> | undefined;
       await updateDoc(sessionRef, {
         proposedSlots: slots,
         finalSlot: null,
@@ -2197,7 +2197,7 @@ export const firestoreService = {
     try {
       const sessionRef = doc(db, "sessions", sessionId);
       const snap = await getDoc(sessionRef);
-      const session = snap.data() as Record<string, any> | undefined;
+      const session = snap.data() as Record<string, unknown> | undefined;
       await updateDoc(sessionRef, {
         finalSlot: slot,
         confirmedSlot: slot,
@@ -2269,7 +2269,7 @@ export const firestoreService = {
       if (data.studentId == null) {
         patch.studentId = uid;
       }
-      await updateDoc(sessionRef, patch as any);
+      await updateDoc(sessionRef, patch as Record<string, unknown>);
       if (data?.counselorId) {
         await createSessionNotification(
           String(data.counselorId),
@@ -2365,10 +2365,7 @@ export const firestoreService = {
       );
       const msgSnap = await getDoc(msgRef);
       const existing = msgSnap.data();
-      const existingSessionData = (existing?.sessionData ?? {}) as Record<
-        string,
-        any
-      >;
+      const existingSessionData = (existing?.sessionData ?? {}) as Record<string, unknown>;
 
       await updateDoc(msgRef, {
         content,

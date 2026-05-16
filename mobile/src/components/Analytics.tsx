@@ -1420,7 +1420,7 @@ export default function Analytics() {
     );
   }, [selectedTodayMood, todayMoodCharts]);
   const todaySchoolAnalysis = useMemo(() => {
-    return analyzeSchoolLogs(todayDayLogs as any);
+    return analyzeSchoolLogs(todayDayLogs as Parameters<typeof analyzeSchoolLogs>[0]);
   }, [todayDayLogs]);
   const todayEventInsight = useMemo(
     () => analyzeTodayEvents(todayDayLogs),

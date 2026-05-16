@@ -24,7 +24,7 @@ export function Button({
     onPress,
     ...props
 }: ButtonProps) {
-    const handlePress = (e: any) => {
+    const handlePress = (e: import('react-native').GestureResponderEvent) => {
         if (!disabled && !loading) triggerHaptic('light');
         onPress?.(e);
     };

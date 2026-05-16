@@ -238,8 +238,8 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
         await signIn(formData.email, formData.password);
         router.replace("/");
       }
-    } catch (err: any) {
-      const msg = err?.message || "Authentication failed";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Authentication failed";
       if (
         !isSignUp &&
         isMsuiitInstitutionalEmail(formData.email) &&

@@ -318,8 +318,8 @@ export default function Login() {
                       className="w-full px-4 py-3 border border-white/8 rounded-[12px] focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue text-white bg-white/5 transition-all outline-hidden"
                       required
                     >
-                      <option value="student">Student</option>
-                      <option value="counselor">Counselor</option>
+                      <option value="student" className="bg-[#0B0D30] text-white">Student</option>
+                      <option value="counselor" className="bg-[#0B0D30] text-white">Counselor</option>
                     </select>
                     {formData.role === 'counselor' && (
                       <p className="mt-1.5 text-xs text-amber-300">
@@ -341,9 +341,9 @@ export default function Login() {
                       required
                       aria-label="Select your college"
                     >
-                      <option value="" disabled>Select your college</option>
+                      <option value="" className="bg-[#0B0D30] text-white" disabled>Select your college</option>
                       {COLLEGES.map(c => (
-                        <option key={c.code} value={c.code}>
+                        <option key={c.code} value={c.code} className="bg-[#0B0D30] text-white">
                           {c.code} — {c.name}
                         </option>
                       ))}
@@ -364,9 +364,9 @@ export default function Login() {
                         required
                         aria-label="Select your degree program"
                       >
-                        <option value="" disabled>Select your program</option>
+                        <option value="" className="bg-[#0B0D30] text-white" disabled>Select your program</option>
                         {getProgramsForCollege(formData.collegeCode).map(label => (
-                          <option key={label} value={label}>
+                          <option key={label} value={label} className="bg-[#0B0D30] text-white">
                             {label}
                           </option>
                         ))}

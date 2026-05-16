@@ -5,7 +5,7 @@ import { AppText as Text } from "../common/AppText";
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from "react-native";
+import { type ImageSourcePropType, View, ScrollView, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from "react-native";
 import {
   ChevronLeft,
   ChevronRight,
@@ -182,7 +182,7 @@ function formatCategoryLabel(category: string): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
 }
 
-const MOOD_ICON_BY_MOOD: Record<MoodLog["mood"], any> = {
+const MOOD_ICON_BY_MOOD: Record<MoodLog["mood"], ImageSourcePropType> = {
   Happy: require("../../assets/moodIcon/happy.png"),
   Sad: require("../../assets/moodIcon/sad.png"),
   Angry: require("../../assets/moodIcon/angry.png"),
