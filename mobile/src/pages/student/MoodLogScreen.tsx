@@ -1016,6 +1016,14 @@ export default function MoodLogScreen() {
     void loadStudentSessionsOverview();
   };
 
+  const renderSessionsSheetEmpty = (title: string, body: string) => (
+    <View style={sessionsSheetStyles.sessionsEmpty}>
+      <CalendarClock size={40} color={AURORA.textMuted} />
+      <Text style={sessionsSheetStyles.sessionsEmptyTitle}>{title}</Text>
+      <Text style={sessionsSheetStyles.sessionsEmptyBody}>{body}</Text>
+    </View>
+  );
+
   const renderSessionOverviewSection = (
     title: string,
     subtitle: string,
@@ -1618,14 +1626,28 @@ export default function MoodLogScreen() {
                 style={{
                   flex: 1,
                   paddingRight: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
                 }}
               >
                 <Text style={sessionsSheetStyles.sheetTitle}>My sessions</Text>
-                <Text style={sessionsSheetStyles.pendingModalSubtitle}>
-                  Future confirmed appointments appear first, followed by
-                  counselor invites and anything else that still needs your
-                  action.
-                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    triggerHaptic("light");
+                    setSessionsSheetSectionGuide({
+                      title: "My sessions",
+                      body:
+                        "Future confirmed appointments appear first, followed by counselor invites and anything else that still needs your action.",
+                    });
+                  }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="My sessions info"
+                  style={{ padding: 4 }}
+                >
+                  <CircleHelp size={20} color={AURORA.textSec} />
+                </TouchableOpacity>
               </View>
               <TouchableOpacity
                 onPress={() => setSessionsSheetOpen(false)}
@@ -1647,31 +1669,17 @@ export default function MoodLogScreen() {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               >
-                {sessionsRawCount === 0 ? (
-                  <Text
-                    style={{
-                      color: AURORA.textSec,
-                      fontSize: 14,
-                      lineHeight: 20,
-                      marginTop: 8,
-                    }}
-                  >
-                    No sessions yet. Use Request a Session below to reach your
-                    counselor.
-                  </Text>
-                ) : sessionsVisibleCount === 0 ? (
-                  <Text
-                    style={{
-                      color: AURORA.textSec,
-                      fontSize: 14,
-                      lineHeight: 20,
-                      marginTop: 8,
-                    }}
-                  >
-                    You've hidden every session from this list. Nothing was
-                    removed from Messages or the server.
-                  </Text>
-                ) : (
+                {sessionsRawCount === 0
+                  ? renderSessionsSheetEmpty(
+                      "All caught up",
+                      "No sessions to show right now. Use Request a Session below to reach your counselor.",
+                    )
+                  : sessionsVisibleCount === 0
+                    ? renderSessionsSheetEmpty(
+                        "Nothing visible",
+                        "You've hidden every session from this list. Nothing was removed from Messages or the server.",
+                      )
+                    : (
                   <>
                     {renderSessionOverviewSection(
                       "Upcoming counseling",
@@ -1942,11 +1950,24 @@ const sessionsSheetStyles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
   },
-  pendingModalSubtitle: {
-    color: AURORA.textSec,
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 6,
+  sessionsEmpty: {
+    alignItems: "center",
+    paddingVertical: 36,
+    paddingHorizontal: 12,
+  },
+  sessionsEmptyTitle: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "700",
+    marginTop: 14,
+  },
+  sessionsEmptyBody: {
+    color: AURORA.textMuted,
+    fontSize: 14,
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 20,
+    maxWidth: 300,
   },
   secondaryBtn: {
     alignItems: "center",

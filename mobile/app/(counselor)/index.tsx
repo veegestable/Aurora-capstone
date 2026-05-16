@@ -731,7 +731,7 @@ export default function CounselorHomeScreen() {
       },
       {
         title: "Navigate the app",
-        body: "Use the bottom tabs for Home, Students, Messages, and Profile. Session History and other tools are available from Messages and profile workflows. Replay this tour anytime from the map icon beside COUNSELOR PORTAL.",
+        body: "Use the bottom tabs for Home, Students, Messages, and Profile. Session History and other tools are available from Messages and profile workflows. Replay this tour anytime from the map icon beside counselor portal.",
       },
     ],
     [],
