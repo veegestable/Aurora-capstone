@@ -50,6 +50,6 @@ jobs:
         working-directory: mobile
         run: |
           npx --yes firebase-tools@latest deploy \
-            --only firestore:rules,storage:rules \
+            --only firestore:rules \
             --non-interactive \
             --message "ci: deploy rules from ${GITHUB_SHA::7}"
