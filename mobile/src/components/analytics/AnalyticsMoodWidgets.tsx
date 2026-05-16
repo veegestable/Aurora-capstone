@@ -33,6 +33,8 @@ const UI_TEXT_MUTED = "#9AA9C8";
 
 type Props = {
   logs: (MoodData & { log_date: Date })[];
+  /** When set, drives stability/trend range and hides the internal 7/30 toggle. */
+  period?: "week" | "last30";
 };
 
 function AnimatedBar({
@@ -74,8 +76,10 @@ function AnimatedBar({
   );
 }
 
-export function AnalyticsMoodWidgets({ logs }: Props) {
-  const [period, setPeriod] = useState<"week" | "last30">("week");
+export function AnalyticsMoodWidgets({ logs, period: periodProp }: Props) {
+  const [internalPeriod, setInternalPeriod] = useState<"week" | "last30">("week");
+  const period = periodProp ?? internalPeriod;
+  const showPeriodToggle = periodProp == null;
   const [metric, setMetric] = useState<"stress" | "energy">("stress");
   const [activeGuide, setActiveGuide] = useState<InfoGuideContent | null>(null);
   const [tip, setTip] = useState<{
@@ -201,7 +205,8 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
   const toggleThumbWidth = 72;
 
   useEffect(() => {
-    const target = period === "week" ? 0 : 1;
+    if (!showPeriodToggle) return;
+    const target = internalPeriod === "week" ? 0 : 1;
     if (Platform.OS === "android") {
       toggleAnim.setValue(target);
       return;
@@ -212,7 +217,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, [period, toggleAnim]);
+  }, [internalPeriod, showPeriodToggle, toggleAnim]);
 
   useEffect(() => {
     // Prevent stale selected-day details from carrying across period/metric switches.
@@ -293,87 +298,79 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
             <CircleHelp size={13} color={UI_TEXT_MUTED} />
           </TouchableOpacity>
         </View>
-        <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
-          {/* <Text
-            style={{
-              color: AURORA.textMuted,
-              fontSize: 10,
-              fontWeight: "700",
-              marginBottom: 4,
-            }}
-          >
-            TIME RANGE
-          </Text> */}
-          <View
-            style={{
-              flexDirection: "row",
-              backgroundColor: "rgba(124, 58, 237, 0.14)",
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: "rgba(124, 58, 237, 0.3)",
-              padding: 3,
-              gap: 4,
-              width: toggleTrackWidth,
-              position: "relative",
-            }}
-          >
-            <Animated.View
+        {showPeriodToggle ? (
+          <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
+            <View
               style={{
-                position: "absolute",
-                top: 3,
-                left: toggleLeft,
-                width: toggleThumbWidth,
-                height: 30,
+                flexDirection: "row",
+                backgroundColor: "rgba(124, 58, 237, 0.14)",
                 borderRadius: 999,
-                backgroundColor: AURORA.purple,
-              }}
-            />
-            <TouchableOpacity
-              onPress={() => setPeriod("week")}
-              activeOpacity={0.9}
-              style={{
-                width: toggleThumbWidth,
-                paddingVertical: 6,
-                borderRadius: 999,
-                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "rgba(124, 58, 237, 0.3)",
+                padding: 3,
+                gap: 4,
+                width: toggleTrackWidth,
+                position: "relative",
               }}
             >
-              <Text
+              <Animated.View
                 style={{
-                  color: period === "week" ? "#fff" : AURORA.textMuted,
-                  fontWeight: "700",
-                  fontSize: 12,
+                  position: "absolute",
+                  top: 3,
+                  left: toggleLeft,
+                  width: toggleThumbWidth,
+                  height: 30,
+                  borderRadius: 999,
+                  backgroundColor: AURORA.purple,
+                }}
+              />
+              <TouchableOpacity
+                onPress={() => setInternalPeriod("week")}
+                activeOpacity={0.9}
+                style={{
+                  width: toggleThumbWidth,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  alignItems: "center",
                 }}
               >
-                7 days
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setPeriod("last30")}
-              activeOpacity={0.9}
-              style={{
-                width: toggleThumbWidth,
-                paddingVertical: 6,
-                borderRadius: 999,
-                alignItems: "center",
-              }}
-            >
-              <Text
+                <Text
+                  style={{
+                    color:
+                      internalPeriod === "week" ? "#fff" : AURORA.textMuted,
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
+                  7 days
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setInternalPeriod("last30")}
+                activeOpacity={0.9}
                 style={{
-                  color: period === "last30" ? "#fff" : AURORA.textMuted,
-                  fontWeight: "700",
-                  fontSize: 12,
+                  width: toggleThumbWidth,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  alignItems: "center",
                 }}
               >
-                30 days
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={{
+                    color:
+                      internalPeriod === "last30" ? "#fff" : AURORA.textMuted,
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
+                  30 days
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        ) : null}
       </View>
-      {/* <Text style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginBottom: 8 }}>
-        Stability score chart for the selected time range.
-      </Text> */}
+     
       <View
         style={{
           backgroundColor: AURORA.card,
@@ -389,16 +386,7 @@ export function AnalyticsMoodWidgets({ logs }: Props) {
         >
           {stability.score}%
         </Text>
-        <Text
-          style={{
-            color: AURORA.textPrimary,
-            fontSize: 16,
-            fontWeight: "700",
-            marginTop: 4,
-          }}
-        >
-          Stability score
-        </Text>
+        
         {/* <Text
           style={{
             color: AURORA.textSec,
