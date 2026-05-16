@@ -62,10 +62,10 @@ service cloud.firestore {
           'Bachelor of Science in Mechanical Engineering (BSME)',
           'Bachelor of Engineering Technology Major in Chemical Engineering and Technology',
           'Bachelor of Engineering Technology Major in Civil Engineering Technology (BET-CET)',
-          'BACHELOR OF ENGINEERING TECHNOLOGY Major in ELECTRICAL ENGINEERING TECHNOLOGY (BET-EET)',
-          'BACHELOR OF ENGINEERING TECHNOLOGY Major in ELECTRONICS ENGINEERING TECHNOLOGY (BET-EST)',
-          'BACHELOR OF ENGINEERING TECHNOLOGY Major in METALLURGICAL and MATERIALS ENGINEERING TECHNOLOGY (BET-MMT)',
-          'BACHELOR OF ENGINEERING TECHNOLOGY Major in MECHANICAL ENGINEERING TECHNOLOGY (BET-MET)'
+          'Bachelor of Engineering Technology Major in Electrical Engineering Technology (BET-EET)',
+          'Bachelor of Engineering Technology Major in Electronics Engineering Technology (BET-EST)',
+          'Bachelor of Engineering Technology Major in Metallurgical and Materials Engineering Technology (BET-MMT)',
+          'Bachelor of Engineering Technology Major in Mechanical Engineering Technology (BET-MET)'
         ]) ||
         (cc == 'CCS' && p in [
           'Bachelor of Science in Information Technology (BSIT)',
@@ -90,10 +90,10 @@ service cloud.firestore {
           'Bachelor of Secondary Education Physics',
           'Bachelor of Secondary Education Mathematics',
           'Bachelor of Physical Education',
-          'Bachelor of Technology and Livelihood Education major in Home Economics',
-          'Bachelor of Technical-Vocational Teacher Education major in Drafting Technology',
+          'Bachelor of Technology and Livelihood Education Major in Home Economics',
+          'Bachelor of Technical-Vocational Teacher Education Major in Drafting Technology',
           'Bachelor of Technology and Livelihood Education Major in Industrial Arts (BTLEd-Industrial Arts)',
-          'Bachelor of Elementary Education - Language Education',
+          'Bachelor of Elementary Education – Language Education',
           'Bachelor of Secondary Education Filipino'
         ]) ||
         (cc == 'CASS' && p in [
@@ -110,8 +110,8 @@ service cloud.firestore {
         (cc == 'CEBA' && p in [
           'Bachelor of Science in Accountancy',
           'Bachelor of Science in Economics',
-          'Bachelor of Science in Business Administration major in Business Economics',
-          'Bachelor of Science in Business Administration major in Marketing Management',
+          'Bachelor of Science in Business Administration Major in Business Economics',
+          'Bachelor of Science in Business Administration Major in Marketing Management',
           'Bachelor of Science Major in Entrepreneurship',
           'Bachelor of Science in Hospitality Management'
         ]) ||
