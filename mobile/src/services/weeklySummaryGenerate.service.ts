@@ -82,9 +82,18 @@ export function buildWeekSummaryInput(
   logs: (MoodData & { log_date: Date })[],
   weekLabel = "this week",
 ): WeekSummaryInput {
+  return buildPeriodSummaryInput(logs, 7, weekLabel);
+}
+
+/** Rolling calendar window (7 or 30 days inclusive of today). */
+export function buildPeriodSummaryInput(
+  logs: (MoodData & { log_date: Date })[],
+  dayCount: 7 | 30,
+  periodLabel = dayCount === 30 ? "the last 30 days" : "the last 7 days",
+): WeekSummaryInput {
   const today = new Date();
   const dayKeys: string[] = [];
-  for (let i = 6; i >= 0; i--) {
+  for (let i = dayCount - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setHours(12, 0, 0, 0);
     d.setDate(d.getDate() - i);
@@ -144,7 +153,7 @@ export function buildWeekSummaryInput(
 
   const roll = aggregateEntriesAsSingleDay(entries);
   return {
-    weekLabel,
+    weekLabel: periodLabel,
     dominantMood: roll.dominantMood,
     averageIntensity: averageIntensity,
     mostFrequentMood,
