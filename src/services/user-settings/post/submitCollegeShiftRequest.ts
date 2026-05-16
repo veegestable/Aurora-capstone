@@ -12,7 +12,7 @@ export async function submitCollegeShiftRequest(
   if (!isCollegeCode(requestedCollegeCode)) throw new Error('Invalid college selection.')
 
   const trimmed = reason.trim()
-  if (trimmed.length < 8) throw new Error('Please your college change (at least 8 characters).')
+  if (trimmed.length < 8) throw new Error('Please indicate the reason for your college change (at least 8 characters).')
 
   const snap = await getDoc(doc(db, 'users', uid))
   if (!snap.exists()) throw new Error('Profile not found.')

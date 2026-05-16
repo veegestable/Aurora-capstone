@@ -463,23 +463,6 @@ function humanizeLabel(value: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function categoryEmoji(label: string): string {
-  const normalized = label.toLowerCase();
-  if (
-    normalized.includes("school") ||
-    normalized.includes("study") ||
-    normalized.includes("academic")
-  )
-    return "📚";
-  if (normalized.includes("health") || normalized.includes("wellness"))
-    return "💚";
-  if (normalized.includes("social") || normalized.includes("friend"))
-    return "🫂";
-  if (normalized.includes("family") || normalized.includes("home")) return "🏠";
-  if (normalized.includes("work")) return "💼";
-  return "✨";
-}
-
 function analyzeTodayEvents(
   inputLogs: Array<
     MoodData & {
@@ -970,9 +953,6 @@ export default function Analytics() {
   const [refreshing, setRefreshing] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [weekSummaryGenerating, setWeekSummaryGenerating] = useState(false);
-  const [_weekSummarySource, setWeekSummarySource] = useState<
-    "ai" | "fallback" | null
-  >(null);
   const [analyticsView, setAnalyticsView] = useState<AnalyticsViewKey>("today");
   /** Measured relative to the inner row (thumb uses same coords + outer horizontal padding). */
   const [analyticsViewSegments, setAnalyticsViewSegments] = useState<{
@@ -985,7 +965,6 @@ export default function Analytics() {
     last30: { x: 0, w: 0 },
   });
   const [periodWrittenSummary, setPeriodWrittenSummary] = useState("");
-  const [_weekSummaryTemplate, setWeekSummaryTemplate] = useState("");
   const [activeWeekPill, setActiveWeekPill] = useState<
     "days" | "checkins" | "streak" | null
   >(null);
@@ -1354,7 +1333,6 @@ export default function Analytics() {
   }, [user, analyticsView, refreshMoodLogs]);
 
   const totalCheckIns = logs.length;
-  const animStreak = useCountUp(streak, 640, true, reduceMotion);
   const animPeriodHighestStreak = useCountUp(
     periodHighestStreak,
     640,
@@ -1439,7 +1417,7 @@ export default function Analytics() {
     ).filter((l) =>
       periodDayKeySet.has(calendarDayKeyLocal(new Date(l.log_date))),
     );
-    return analyzeSchoolLogs(periodLogsForSchool as any);
+    return analyzeSchoolLogs(periodLogsForSchool as Parameters<typeof analyzeSchoolLogs>[0]);
   }, [logs, periodDayKeySet, periodDays]);
   const periodLogs = useMemo(() => {
     if (!periodDays) return [];
@@ -3708,11 +3686,6 @@ export default function Analytics() {
                   Generating your summary…
                 </Text>
               ) : null}
-              {/* {!weekSummaryGenerating && weekSummaryTemplate ? (
-                    <Text style={{ color: AURORA.textMuted, fontSize: 11, marginBottom: 10 }}>
-                        Weekly summary source: {weekSummarySource === 'ai' ? 'AI' : 'fallback template'}
-                    </Text>
-                ) : null} */}
               {periodDays === 7 && aiLoading ? (
                 <AISummarySkeleton reduceMotion={reduceMotion} />
               ) : periodDays === 30 || weeklyAi ? (

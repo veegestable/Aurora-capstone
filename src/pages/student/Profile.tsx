@@ -477,7 +477,7 @@ export default function StudentProfile() {
 
             <div>
               <label htmlFor="shiftReason" className="block text-xs font-semibold text-aurora-text-sec mb-1.5">
-                Reason <span className="text-red-400">*</span>
+                Reason <span className="text-red-400">*</span> (at least 8 characters)
               </label>
               <textarea
                 id="shiftReason"
