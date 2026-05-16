@@ -54,6 +54,7 @@ import { uploadImage } from "../services/firebase-storage.service";
 import { logSuddenMoodDropIfNeeded } from "../utils/analytics/suddenMoodChange";
 import { getMostRecentLogNotOnSameCalendarDay } from "../utils/analytics/dateKeys";
 import { calendarDayKeyLocal } from "../utils/dayKey";
+import { notifyMoodLogsRefresh } from "../utils/moodLogsRefresh";
 import {
   cycleDayKeyForUsualTime,
   isBeforeUsualHHmmToday,
@@ -71,7 +72,11 @@ import {
   clearPendingBreathingReminder,
   setPendingBreathingReminder,
 } from "../utils/pendingBreathingReminder";
-import { InfoGuideOverlay, type InfoGuideContent } from "./common/InfoGuideModal";
+import {
+  InfoGuideModal,
+  InfoGuideOverlay,
+  type InfoGuideContent,
+} from "./common/InfoGuideModal";
 
 interface MoodCheckInProps {
   onComplete?: () => void;
@@ -118,6 +123,58 @@ const SCHOOL_TAGS = [
   "group-project",
   "presentation",
 ];
+
+const EARLIER_CHECKIN_LOCK_TITLE = "Already set";
+const EARLIER_CHECKIN_LOCK_BODY =
+  "You checked in earlier today.";
+
+function EarlierCheckInLockOverlay({
+  borderRadius = 12,
+}: {
+  borderRadius?: number;
+}) {
+  return (
+    <BlurView
+      pointerEvents="none"
+      tint="dark"
+      intensity={42}
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        backgroundColor: "rgba(8, 12, 42, 0.26)",
+        borderRadius,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 10,
+      }}
+    >
+      <Text
+        style={{
+          color: AURORA.textPrimary,
+          fontSize: 12,
+          fontWeight: "800",
+          textAlign: "center",
+        }}
+      >
+        {EARLIER_CHECKIN_LOCK_TITLE}
+      </Text>
+      <Text
+        style={{
+          color: "#B8C5E7",
+          fontSize: 11,
+          marginTop: 3,
+          textAlign: "center",
+          lineHeight: 15,
+        }}
+      >
+        {EARLIER_CHECKIN_LOCK_BODY}
+      </Text>
+    </BlurView>
+  );
+}
 
 const MANUAL_EMOTIONS = [
   {
@@ -274,6 +331,14 @@ export function MoodCheckIn({
   const [sleepCapturedToday, setSleepCapturedToday] = useState(false);
   const [bathTakenToday, setBathTakenToday] = useState(false);
   const [bathTakenNow, setBathTakenNow] = useState(false);
+  const [bathChoiceMade, setBathChoiceMade] = useState(false);
+  const [bathLockedFromEarlier, setBathLockedFromEarlier] = useState(false);
+  const [persistedMealStatusById, setPersistedMealStatusById] = useState<
+    Record<string, boolean>
+  >({});
+  const [validationGuide, setValidationGuide] = useState<InfoGuideContent | null>(
+    null,
+  );
   // Re-render whenever the next meal/wake/bath unlock boundary passes, instead
   // of polling on a fixed interval. Fires a single timer per boundary plus a
   // recompute on every foreground transition (covers the case where the app
@@ -609,7 +674,19 @@ export function MoodCheckIn({
         ? cycleDayKeyForUsualTime(now, usualBathTime)
         : calKey;
       try {
-        const calCtx = await getDailyContext(user.id, calKey);
+        const startOfDay = new Date(now);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(now);
+        endOfDay.setHours(23, 59, 59, 999);
+        const [calCtx, priorLogs] = await Promise.all([
+          getDailyContext(user.id, calKey),
+          moodService
+            .getMoodLogs(user.id, startOfDay.toISOString(), endOfDay.toISOString())
+            .catch(() => []),
+        ]);
+        const priorCheckInsToday = priorLogs.filter(
+          (log) => calendarDayKeyLocal(new Date(log.log_date)) === calKey,
+        ).length;
         const sleepCtx =
           sleepKey !== calKey
             ? await getDailyContext(user.id, sleepKey)
@@ -620,8 +697,10 @@ export function MoodCheckIn({
             : bathKey === sleepKey
               ? sleepCtx
               : await getDailyContext(user.id, bathKey);
+        const mealsFromEarlier = { ...(calCtx?.mealStatusById ?? {}) };
         setDailyContextState(calCtx);
-        setMealStatusById(calCtx?.mealStatusById ?? {});
+        setPersistedMealStatusById(mealsFromEarlier);
+        setMealStatusById(mealsFromEarlier);
         if (sleepCtx?.sleepQuality) {
           setSleepQuality(sleepCtx.sleepQuality);
           setSleepCapturedToday(true);
@@ -629,14 +708,26 @@ export function MoodCheckIn({
           setSleepQuality(null);
           setSleepCapturedToday(false);
         }
-        setBathTakenToday(!!bathCtx?.bathTaken);
-        setBathTakenNow(!!bathCtx?.bathTaken);
+        const bathLockedEarlier = priorCheckInsToday > 0 && bathCtx != null;
+        setBathLockedFromEarlier(bathLockedEarlier);
+        const bathSaved = !!bathCtx?.bathTaken;
+        setBathTakenToday(bathSaved);
+        if (bathLockedEarlier) {
+          setBathTakenNow(bathSaved);
+          setBathChoiceMade(true);
+        } else {
+          setBathTakenNow(false);
+          setBathChoiceMade(false);
+        }
       } catch {
         setDailyContextState(null);
         setSleepCapturedToday(false);
         setSleepQuality(null);
         setBathTakenToday(false);
         setBathTakenNow(false);
+        setBathChoiceMade(false);
+        setBathLockedFromEarlier(false);
+        setPersistedMealStatusById({});
         setMealStatusById({});
       }
     };
@@ -801,52 +892,77 @@ export function MoodCheckIn({
     journalEdited,
   ]);
 
-  const handleNext = () => {
+  const getStepValidationBlocker = useCallback((): InfoGuideContent | null => {
     if (currentStep === 1) {
       if (
         moodInputMode === "selfie" &&
         (selectedEmotions.length === 0 || detectionMethod !== "selfie_ai")
       ) {
-        Alert.alert(
-          "Selfie check-in required",
-          "Please take or upload a selfie, then use the analyzed mood before continuing.",
-        );
-        return;
+        return {
+          title: "Selfie check-in required",
+          body: "Please take or upload a selfie, then use the analyzed mood before continuing.",
+        };
       }
       if (selectedEmotions.length === 0) {
-        Alert.alert(
-          "Please select a mood",
-          "Pick your current emotion before continuing.",
-        );
-        return;
+        return {
+          title: "Select your mood",
+          body: "Pick your current emotion before continuing.",
+        };
       }
+      return null;
     }
-    if (
-      currentStep === 2 &&
-      !sleepLockedBeforeWake &&
-      !sleepCapturedToday &&
-      !sleepQuality
-    ) {
-      Alert.alert(
-        "Sleep quality is required",
-        "Please set sleep quality once for today.",
-      );
-      return;
-    }
-    if (currentStep === 2 && mealSchedule.length > 0) {
-      const missingMealAnswers = mealSchedule.some(
-        (meal) =>
+    if (currentStep === 2) {
+      const wakeTrim = (usualWakeTime || "").trim();
+      const bathTrim = (usualBathTime || "").trim();
+      const now = new Date();
+      const sleepLocked =
+        wakeTrim.length > 0 && isBeforeUsualHHmmToday(now, usualWakeTime);
+      const bathLocked =
+        bathTrim.length > 0 && isBeforeUsualHHmmToday(now, usualBathTime);
+      const missing: string[] = [];
+
+      if (!sleepLocked && !sleepCapturedToday && !sleepQuality) {
+        missing.push("Sleep quality — choose Poor, Fair, or Good");
+      }
+      for (const meal of mealSchedule) {
+        if (
           isMealAvailableNow(meal.time) &&
-          typeof mealStatusById[meal.id] !== "boolean",
-      );
-      if (missingMealAnswers) {
-        Alert.alert(
-          "Meal check-in needed",
-          "Please answer each available meal item (Taken or Not yet).",
-        );
-        return;
+          typeof mealStatusById[meal.id] !== "boolean"
+        ) {
+          const mealLabel = meal.label?.trim() || "Meal";
+          missing.push(
+            `${mealLabel} (${formatMealTime(meal.time)}) — choose Taken or Not yet`,
+          );
+        }
       }
+      if (!bathLocked && !bathLockedFromEarlier && !bathChoiceMade) {
+        missing.push("Bath check-in — choose Yes or Not yet");
+      }
+      if (missing.length === 0) return null;
+      return {
+        title: "Complete this step",
+        body: `Please answer the following before continuing:\n\n${missing.map((line) => `• ${line}`).join("\n")}`,
+      };
     }
+    return null;
+  }, [
+    bathChoiceMade,
+    bathLockedFromEarlier,
+    bathTakenToday,
+    currentStep,
+    detectionMethod,
+    mealSchedule,
+    mealStatusById,
+    moodInputMode,
+    selectedEmotions.length,
+    sleepCapturedToday,
+    sleepQuality,
+    usualBathTime,
+    usualWakeTime,
+  ]);
+
+  const handleNext = () => {
+    if (getStepValidationBlocker()) return;
     if (currentStep < totalSteps) setCurrentStep((c) => c + 1);
   };
 
@@ -1071,6 +1187,8 @@ export function MoodCheckIn({
         setSubmittedTodayCheckIns(1);
       }
 
+      notifyMoodLogsRefresh();
+
       setIsSubmitting(false);
       setIsSubmitted(true);
       quickResetDoneRef.current = false;
@@ -1081,6 +1199,17 @@ export function MoodCheckIn({
       setUploadingJournalImage(false);
       Alert.alert("Error", error instanceof Error ? error.message : "Failed to check in");
     }
+  };
+
+  const handlePrimaryAction = () => {
+    if (isSubmitting || uploadingJournalImage) return;
+    const blocker = getStepValidationBlocker();
+    if (blocker) {
+      setValidationGuide(blocker);
+      return;
+    }
+    if (currentStep === totalSteps) void handleSubmit();
+    else handleNext();
   };
 
   const showSelfiePrivacyGuide = () => {
@@ -1743,10 +1872,10 @@ export function MoodCheckIn({
       : selectedEmotions.length > 0;
   const canContinueCurrentStep =
     (isMoodStep && canContinueMoodStep) ||
-    (isVitalityStep &&
-      (sleepCapturedToday || !!sleepQuality || sleepLockedBeforeWake)) ||
+    (isVitalityStep && getStepValidationBlocker() === null) ||
     isContextStep;
-  const isPrimaryActionDisabled = isSubmitting || !canContinueCurrentStep;
+  const isPrimaryActionDisabled = isSubmitting || uploadingJournalImage;
+  const primaryActionMuted = !canContinueCurrentStep && !isPrimaryActionDisabled;
   const shouldShowPrimaryActionButton = !(
     isMoodStep &&
     moodInputMode === "selfie" &&
@@ -2576,7 +2705,7 @@ export function MoodCheckIn({
                     },
                   )}
                 </View>
-                {sleepLockedBeforeWake && (
+                {sleepLockedBeforeWake ? (
                   <BlurView
                     pointerEvents="none"
                     tint="dark"
@@ -2588,8 +2717,6 @@ export function MoodCheckIn({
                       top: 0,
                       bottom: 0,
                       backgroundColor: "rgba(8, 12, 42, 0.26)",
-                      // borderWidth: 1,
-                      // borderColor: "rgba(148, 163, 184, 0.35)",
                       borderRadius: 12,
                       alignItems: "center",
                       justifyContent: "center",
@@ -2617,7 +2744,9 @@ export function MoodCheckIn({
                       Opens at {usualWakeTimeLabel}
                     </Text>
                   </BlurView>
-                )}
+                ) : sleepCapturedToday ? (
+                  <EarlierCheckInLockOverlay />
+                ) : null}
               </View>
               <View
                 style={{
@@ -2665,8 +2794,8 @@ export function MoodCheckIn({
                 ) : (
                   mealSchedule.map((meal) => {
                     const status = mealStatusById[meal.id];
-                    const mealTakenLocked =
-                      dailyContext?.mealStatusById?.[meal.id] === true;
+                    const mealTakenLockedFromEarlier =
+                      persistedMealStatusById[meal.id] === true;
                     const mealAvailable = isMealAvailableNow(meal.time);
                     const mealTimeLabel = formatMealTime(meal.time);
                     return (
@@ -2692,13 +2821,13 @@ export function MoodCheckIn({
                         >
                           <TouchableOpacity
                             onPress={() =>
-                              !mealTakenLocked &&
+                              !mealTakenLockedFromEarlier &&
                               setMealStatusById((prev) => ({
                                 ...prev,
                                 [meal.id]: true,
                               }))
                             }
-                            disabled={!mealAvailable || mealTakenLocked}
+                            disabled={!mealAvailable || mealTakenLockedFromEarlier}
                             style={{
                               flex: 1,
                               borderRadius: 10,
@@ -2712,7 +2841,9 @@ export function MoodCheckIn({
                               paddingVertical: 10,
                               alignItems: "center",
                               opacity:
-                                mealTakenLocked || !mealAvailable ? 0.75 : 1,
+                                mealTakenLockedFromEarlier || !mealAvailable
+                                  ? 0.75
+                                  : 1,
                             }}
                           >
                             <Text
@@ -2730,13 +2861,13 @@ export function MoodCheckIn({
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() =>
-                              !mealTakenLocked &&
+                              !mealTakenLockedFromEarlier &&
                               setMealStatusById((prev) => ({
                                 ...prev,
                                 [meal.id]: false,
                               }))
                             }
-                            disabled={!mealAvailable || mealTakenLocked}
+                            disabled={!mealAvailable || mealTakenLockedFromEarlier}
                             style={{
                               flex: 1,
                               borderRadius: 10,
@@ -2750,7 +2881,9 @@ export function MoodCheckIn({
                               paddingVertical: 10,
                               alignItems: "center",
                               opacity:
-                                mealTakenLocked || !mealAvailable ? 0.75 : 1,
+                                mealTakenLockedFromEarlier || !mealAvailable
+                                  ? 0.75
+                                  : 1,
                             }}
                           >
                             <Text
@@ -2766,7 +2899,7 @@ export function MoodCheckIn({
                               Not yet
                             </Text>
                           </TouchableOpacity>
-                          {!mealAvailable && (
+                          {!mealAvailable ? (
                             <BlurView
                               pointerEvents="none"
                               tint="dark"
@@ -2778,8 +2911,6 @@ export function MoodCheckIn({
                                 top: 0,
                                 bottom: 0,
                                 backgroundColor: "rgba(8, 12, 42, 0.26)",
-                                // borderWidth: 1,
-                                // borderColor: "rgba(148, 163, 184, 0.35)",
                                 borderRadius: 10,
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -2807,7 +2938,9 @@ export function MoodCheckIn({
                                 Opens at {mealTimeLabel}
                               </Text>
                             </BlurView>
-                          )}
+                          ) : mealTakenLockedFromEarlier ? (
+                            <EarlierCheckInLockOverlay borderRadius={10} />
+                          ) : null}
                         </View>
                       </View>
                     );
@@ -2878,30 +3011,40 @@ export function MoodCheckIn({
                 >
                   <View style={{ flexDirection: "row", gap: 8 }}>
                     <TouchableOpacity
-                      onPress={() => setBathTakenNow(true)}
-                      disabled={bathTakenToday || bathLockedBeforeBath}
+                      onPress={() => {
+                        setBathTakenNow(true);
+                        setBathChoiceMade(true);
+                      }}
+                      disabled={
+                        bathLockedFromEarlier || bathLockedBeforeBath
+                      }
                       style={{
                         flex: 1,
                         borderRadius: 10,
                         borderWidth: 1,
                         borderColor:
-                          bathTakenToday || bathTakenNow
+                          bathTakenToday ||
+                          (bathChoiceMade && bathTakenNow)
                             ? AURORA.blue
                             : AURORA.border,
                         backgroundColor:
-                          bathTakenToday || bathTakenNow
+                          bathTakenToday ||
+                          (bathChoiceMade && bathTakenNow)
                             ? "rgba(45,107,255,0.18)"
                             : AURORA.cardAlt,
                         paddingVertical: 10,
                         alignItems: "center",
                         opacity:
-                          bathTakenToday || bathLockedBeforeBath ? 0.75 : 1,
+                          bathLockedFromEarlier || bathLockedBeforeBath
+                            ? 0.75
+                            : 1,
                       }}
                     >
                       <Text
                         style={{
                           color:
-                            bathTakenToday || bathTakenNow
+                            bathTakenToday ||
+                            (bathChoiceMade && bathTakenNow)
                               ? AURORA.blue
                               : AURORA.textSec,
                           fontWeight: "700",
@@ -2912,30 +3055,37 @@ export function MoodCheckIn({
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={() => setBathTakenNow(false)}
-                      disabled={bathTakenToday || bathLockedBeforeBath}
+                      onPress={() => {
+                        setBathTakenNow(false);
+                        setBathChoiceMade(true);
+                      }}
+                      disabled={
+                        bathLockedFromEarlier || bathLockedBeforeBath
+                      }
                       style={{
                         flex: 1,
                         borderRadius: 10,
                         borderWidth: 1,
                         borderColor:
-                          !bathTakenNow && !bathTakenToday
+                          bathChoiceMade && !bathTakenNow && !bathTakenToday
                             ? AURORA.amber
                             : AURORA.border,
                         backgroundColor:
-                          !bathTakenNow && !bathTakenToday
+                          bathChoiceMade && !bathTakenNow && !bathTakenToday
                             ? "rgba(245,158,11,0.18)"
                             : AURORA.cardAlt,
                         paddingVertical: 10,
                         alignItems: "center",
                         opacity:
-                          bathTakenToday || bathLockedBeforeBath ? 0.75 : 1,
+                          bathLockedFromEarlier || bathLockedBeforeBath
+                            ? 0.75
+                            : 1,
                       }}
                     >
                       <Text
                         style={{
                           color:
-                            !bathTakenNow && !bathTakenToday
+                            bathChoiceMade && !bathTakenNow && !bathTakenToday
                               ? AURORA.amber
                               : AURORA.textSec,
                           fontWeight: "700",
@@ -2946,7 +3096,7 @@ export function MoodCheckIn({
                       </Text>
                     </TouchableOpacity>
                   </View>
-                  {bathLockedBeforeBath && (
+                  {bathLockedBeforeBath ? (
                     <BlurView
                       pointerEvents="none"
                       tint="dark"
@@ -2958,8 +3108,6 @@ export function MoodCheckIn({
                         top: 0,
                         bottom: 0,
                         backgroundColor: "rgba(8, 12, 42, 0.26)",
-                        // borderWidth: 1,
-                        // borderColor: "rgba(148, 163, 184, 0.35)",
                         borderRadius: 10,
                         alignItems: "center",
                         justifyContent: "center",
@@ -2987,7 +3135,9 @@ export function MoodCheckIn({
                         Opens at {usualBathTimeLabel}
                       </Text>
                     </BlurView>
-                  )}
+                  ) : bathLockedFromEarlier ? (
+                    <EarlierCheckInLockOverlay borderRadius={10} />
+                  ) : null}
                 </View>
               </View>
             </Animatable.View>
@@ -3486,11 +3636,11 @@ export function MoodCheckIn({
             )}
             {shouldShowPrimaryActionButton ? (
               <TouchableOpacity
-                onPress={currentStep === totalSteps ? handleSubmit : handleNext}
+                onPress={handlePrimaryAction}
                 disabled={isPrimaryActionDisabled}
                 style={{
                   flex: 1,
-                  backgroundColor: isPrimaryActionDisabled
+                  backgroundColor: primaryActionMuted
                     ? AURORA.textMuted
                     : AURORA.blue,
                   borderRadius: 12,
@@ -3506,7 +3656,7 @@ export function MoodCheckIn({
                   style={{
                     color: AURORA.textPrimary,
                     fontWeight: "700",
-                    opacity: isPrimaryActionDisabled ? 0.88 : 1,
+                    opacity: primaryActionMuted ? 0.88 : 1,
                   }}
                 >
                   {isSubmitting || uploadingJournalImage
@@ -3515,10 +3665,10 @@ export function MoodCheckIn({
                       ? "Save check-in"
                       : "Continue"}
                 </Text>
-                {!isPrimaryActionDisabled && currentStep < totalSteps && (
+                {!primaryActionMuted && currentStep < totalSteps && (
                   <ArrowRight size={16} color={AURORA.textPrimary} />
                 )}
-                {!isPrimaryActionDisabled && currentStep === totalSteps && (
+                {!primaryActionMuted && currentStep === totalSteps && (
                   <Check size={16} color={AURORA.textPrimary} />
                 )}
               </TouchableOpacity>
@@ -3529,6 +3679,10 @@ export function MoodCheckIn({
       <InfoGuideOverlay
         guide={activeGuide}
         onClose={dismissActiveGuide}
+      />
+      <InfoGuideModal
+        guide={validationGuide}
+        onClose={() => setValidationGuide(null)}
       />
     </KeyboardAvoidingView>
   );

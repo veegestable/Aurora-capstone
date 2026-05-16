@@ -4,7 +4,21 @@ import { AppText as Text } from "./common/AppText";
  * stagger + count-up animations (respects Reduce Motion).
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"; import {   View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, AppState, Platform, type AppStateStatus, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"; import {
+  View,
+  ScrollView,
+  ActivityIndicator,
+  RefreshControl,
+  TouchableOpacity,
+  AppState,
+  Platform,
+  Image,
+  type AppStateStatus,
+  type ImageSourcePropType,
+  type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import * as Animatable from "react-native-animatable";
 import Animated, {
   Easing,
@@ -27,7 +41,7 @@ import { useAuth } from "../stores/AuthContext";
 import { moodService } from "../services/mood.service";
 import { auth } from "../services/firebase";
 import {
-  buildWeekSummaryInput,
+  buildPeriodSummaryInput,
   generateWeeklySummary,
 } from "../services/weeklySummaryGenerate.service";
 import type { MoodData } from "../services/firebase-firestore.service";
@@ -36,13 +50,14 @@ import {
   deterministicWeeklyFallback,
   type WeeklyAiResult,
 } from "../services/weeklyAnalyticsAi.service";
+import { buildLast7DaysPayload } from "../utils/analytics/weeklySeries";
 import {
-  buildLast7DaysPayload,
-  summarizeWeekSeries,
-} from "../utils/analytics/weeklySeries";
-import { calculateCheckInStreak } from "../utils/analytics/dateKeys";
+  calculateCheckInStreak,
+  calculateHighestCheckInStreakInWindow,
+} from "../utils/analytics/dateKeys";
 import { calendarDayKeyLocal } from "../utils/dayKey";
 import { moodLogsToMoodEntries } from "../utils/moodEntryNormalize";
+import { subscribeMoodLogsRefresh } from "../utils/moodLogsRefresh";
 import {
   aggregateByDay,
   aggregateByHour,
@@ -197,7 +212,8 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function weekMoodTone(avgMood: number | null): {
+/** Descriptive mood band from a 1–5 average (period-agnostic copy). */
+function periodMoodTone(avgMood: number | null): {
   label: string;
   color: string;
 } {
@@ -207,7 +223,7 @@ function weekMoodTone(avgMood: number | null): {
   if (avgMood >= 3.4)
     return { label: "Mostly okay", color: AURORA.moodNeutral };
   if (avgMood >= 2.6)
-    return { label: "Ups and downs this week", color: AURORA.moodSurprise };
+    return { label: "Ups and downs", color: AURORA.moodSurprise };
   return { label: "Mostly low", color: AURORA.moodSad };
 }
 
@@ -216,12 +232,29 @@ function normalizeEmotionBucket(
 ): "happy" | "angry" | "surprise" | "neutral" | "sad" | "" {
   const e = raw.toLowerCase().trim();
   if (!e) return "";
-  if (e === "joy" || e === "happiness" || e === "happy") return "happy";
+  if (e === "happy" || e === "happiness" || e === "happy") return "happy";
   if (e === "anger" || e === "angry") return "angry";
   if (e === "surprised" || e === "surprise") return "surprise";
   if (e === "sadness" || e === "sad") return "sad";
   if (e === "neutral") return "neutral";
   return "";
+}
+
+const MOOD_ICON_SOURCES: Record<
+  "happy" | "sad" | "angry" | "surprise" | "neutral",
+  ImageSourcePropType
+> = {
+  happy: require("../assets/moodIcon/happy.png"),
+  sad: require("../assets/moodIcon/sad.png"),
+  angry: require("../assets/moodIcon/angry.png"),
+  surprise: require("../assets/moodIcon/surprise.png"),
+  neutral: require("../assets/moodIcon/neutral.png"),
+};
+
+function moodIconForLabel(raw: string): ImageSourcePropType | null {
+  const bucket = normalizeEmotionBucket(raw);
+  if (!bucket) return null;
+  return MOOD_ICON_SOURCES[bucket];
 }
 
 type MoodChartAggregate = {
@@ -267,6 +300,26 @@ function localDayBounds(d: Date): { start: Date; end: Date } {
   const end = new Date(d);
   end.setHours(23, 59, 59, 999);
   return { start, end };
+}
+
+type AnalyticsViewKey = "today" | "week" | "last30";
+
+function periodDayCountForView(view: AnalyticsViewKey): 7 | 30 | null {
+  if (view === "week") return 7;
+  if (view === "last30") return 30;
+  return null;
+}
+
+function buildRollingDayKeySet(dayCount: number): Set<string> {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const keySet = new Set<string>();
+  for (let i = dayCount - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    keySet.add(calendarDayKeyLocal(d));
+  }
+  return keySet;
 }
 
 function mergeEpisodes(episodes: MoodEpisode[]): MoodEpisode[] {
@@ -367,13 +420,24 @@ function buildMoodCharts(
 type SchoolAnalysis = {
   totalSchoolEvents: number;
   schoolCheckIns: number;
-  avgStress5: number;
-  avgMood5: number;
+  loadBand: string;
   topSchoolEvents: Array<{ label: string; count: number }>;
-  dominantEmotion: string;
-  sleepPattern: "mostly_good" | "mixed" | "mostly_poor" | "unknown";
-  summary: string;
 };
+
+function schoolLoadBandFromTagCount(totalSchoolEvents: number): string {
+  if (totalSchoolEvents === 0) return "Light workload";
+  if (totalSchoolEvents <= 3) return "Balanced load";
+  if (totalSchoolEvents <= 6) return "Busy load";
+  return "Heavy load";
+}
+
+function schoolLoadBandColor(loadBand: string): string {
+  if (loadBand.includes("Light")) return AURORA.moodHappy;
+  if (loadBand.includes("Balanced")) return "#F59E0B";
+  if (loadBand.includes("Busy")) return AURORA.moodSurprise;
+  if (loadBand.includes("Heavy")) return AURORA.moodAngry;
+  return AURORA.blue;
+}
 
 type TodayEventInsight = {
   topCategory: string;
@@ -493,10 +557,6 @@ function analyzeSchoolLogs(
       log_date: Date;
       event_tags?: string[];
       event_categories?: string[];
-      stress_level?: number;
-      energy_level?: number;
-      sleep_quality?: "poor" | "fair" | "good";
-      emotions?: Array<{ emotion?: string }>;
     }
   >,
 ): SchoolAnalysis | null {
@@ -508,12 +568,6 @@ function analyzeSchoolLogs(
 
   const eventCount = new Map<string, number>();
   let totalSchoolEvents = 0;
-  let stressSum = 0;
-  let moodSum = 0;
-  const emotionCount = new Map<string, number>();
-  let goodSleepCount = 0;
-  let poorSleepCount = 0;
-  let sleepKnownCount = 0;
 
   for (const log of schoolLogs) {
     const tags = (Array.isArray(log.event_tags) ? log.event_tags : []).filter(
@@ -521,86 +575,33 @@ function analyzeSchoolLogs(
     );
     totalSchoolEvents += tags.length;
     for (const tag of tags) eventCount.set(tag, (eventCount.get(tag) ?? 0) + 1);
-    stressSum += toFiveScale(log.stress_level, 3);
-    moodSum += toFiveScale(log.energy_level, 3);
-    const primaryEmotion = Array.isArray(log.emotions)
-      ? (log.emotions[0]?.emotion || "").toLowerCase()
-      : "";
-    if (primaryEmotion)
-      emotionCount.set(
-        primaryEmotion,
-        (emotionCount.get(primaryEmotion) ?? 0) + 1,
-      );
-    const sq = log.sleep_quality;
-    if (sq === "good" || sq === "poor" || sq === "fair") {
-      sleepKnownCount += 1;
-      if (sq === "good") goodSleepCount += 1;
-      if (sq === "poor") poorSleepCount += 1;
-    }
   }
 
-  const avgStress5 = stressSum / schoolLogs.length;
-  const avgMood5 = moodSum / schoolLogs.length;
   const topSchoolEvents = [...eventCount.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([tag, count]) => ({ label: humanizeLabel(tag), count }));
-  const dominantEmotion =
-    [...emotionCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ||
-    "neutral";
-  const sleepPattern: SchoolAnalysis["sleepPattern"] =
-    sleepKnownCount === 0
-      ? "unknown"
-      : goodSleepCount / sleepKnownCount >= 0.6
-        ? "mostly_good"
-        : poorSleepCount / sleepKnownCount >= 0.45
-          ? "mostly_poor"
-          : "mixed";
-
-  let loadBand = "Balanced load";
-  if (totalSchoolEvents === 0) {
-    loadBand = "Light workload";
-  } else if (totalSchoolEvents <= 3) {
-    loadBand = "Balanced load";
-  } else if (totalSchoolEvents <= 6) {
-    loadBand = "Busy load";
-  } else {
-    loadBand = "Heavy load";
-  }
-  let summary = `${loadBand}: your school-tagged check-ins show a stable mood and stress pattern.`;
-  if (avgMood5 >= 3.8 && avgStress5 <= 2.8 && sleepPattern === "mostly_good") {
-    summary = `${loadBand}: strong pattern today/this week — good sleep plus ${dominantEmotion} mood aligns with lower school stress.`;
-  } else if (
-    avgMood5 >= 3.4 &&
-    avgStress5 <= 3.3 &&
-    sleepPattern !== "mostly_poor"
-  ) {
-    summary = `${loadBand}: manageable pattern — mood is steady and stress remains in a controllable range.`;
-  } else if (
-    avgStress5 >= 4 &&
-    (dominantEmotion === "sadness" ||
-      dominantEmotion === "anger" ||
-      dominantEmotion === "sad")
-  ) {
-    summary = `${loadBand}: stress is elevated with lower-valence emotions; reduce load where possible and add recovery breaks.`;
-  } else if (sleepPattern === "mostly_poor" && avgStress5 >= 3.3) {
-    summary = `${loadBand}: poor sleep appears to coincide with higher school stress in your logs.`;
-  } else if (dominantEmotion === "neutral" && avgStress5 <= 3.6) {
-    summary = `${loadBand}: neutral mood with moderate stress suggests a steady but effort-heavy school day.`;
-  } else {
-    summary = `${loadBand}: mixed signals across mood, stress, sleep, and emotion patterns.`;
-  }
 
   return {
     totalSchoolEvents,
     schoolCheckIns: schoolLogs.length,
-    avgStress5,
-    avgMood5,
+    loadBand: schoolLoadBandFromTagCount(totalSchoolEvents),
     topSchoolEvents,
-    dominantEmotion,
-    sleepPattern,
-    summary,
   };
+}
+
+function buildAcademicAnalyticsGuideBody(timeWindow: string): string {
+  return [
+    `Academic analytics uses check-ins tagged with school activities (classes, study, exams, homework, etc.) ${timeWindow}.`,
+    "",
+    'Labels like "Balanced load" come from how many school tags you logged:',
+    "• 0 tags — Light workload",
+    "• 1–3 tags — Balanced load",
+    "• 4–6 tags — Busy load",
+    "• 7+ tags — Heavy load",
+    "",
+    "Each tag counts separately, even on the same check-in.",
+  ].join("\n");
 }
 
 function EthicsLine() {
@@ -615,6 +616,212 @@ function EthicsLine() {
     >
       {ETHICS_ANALYTICS_FOOTER}
     </Text>
+  );
+}
+
+function TodayFocusMetricRow({
+  label,
+  count,
+  maxCount,
+  barColor = AURORA.purple,
+}: {
+  label: string;
+  count: number;
+  maxCount: number;
+  barColor?: string;
+}) {
+  const widthPct = Math.max(
+    18,
+    Math.round((count / Math.max(1, maxCount)) * 100),
+  );
+  return (
+    <View>
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          marginBottom: 4,
+        }}
+      >
+        <Text
+          style={{
+            color: AURORA.textMuted,
+            fontSize: 11,
+            fontWeight: "700",
+          }}
+        >
+          {label}
+        </Text>
+        <Text
+          style={{
+            color: AURORA.textMuted,
+            fontSize: 11,
+            fontWeight: "700",
+          }}
+        >
+          {count}
+        </Text>
+      </View>
+      <View
+        style={{
+          height: 8,
+          borderRadius: 999,
+          backgroundColor: "rgba(255,255,255,0.09)",
+        }}
+      >
+        <View
+          style={{
+            width: `${widthPct}%`,
+            height: 8,
+            borderRadius: 999,
+            backgroundColor: barColor,
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
+type TodayHourlyTrendBar = {
+  key: string;
+  hour: number;
+  stress: number | null;
+  energy: number | null;
+};
+
+const TODAY_HOURLY_BAR_WIDTH = 14;
+const TODAY_HOURLY_BAR_GAP = 4;
+
+function TodayHourlyMetricChart({
+  bars,
+  metric,
+  barColor,
+}: {
+  bars: TodayHourlyTrendBar[];
+  metric: "stress" | "energy";
+  barColor: string;
+}) {
+  const chartWidth = bars.length * (TODAY_HOURLY_BAR_WIDTH + TODAY_HOURLY_BAR_GAP);
+
+  const valueFor = (bar: TodayHourlyTrendBar) =>
+    metric === "stress" ? bar.stress : bar.energy;
+
+  return (
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator>
+        <View style={{ width: Math.max(360, chartWidth) }}>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <View
+              style={{
+                height: 120,
+                justifyContent: "space-between",
+                alignItems: "flex-end",
+                paddingTop: 2,
+                paddingBottom: 2,
+              }}
+            >
+              {[5, 4, 3, 2, 1].map((tick) => (
+                <Text
+                  key={`${metric}-y-${tick}`}
+                  style={{
+                    color: AURORA.textMuted,
+                    fontSize: 9,
+                    width: 12,
+                    textAlign: "right",
+                  }}
+                >
+                  {tick}
+                </Text>
+              ))}
+            </View>
+            <View>
+              {[1, 2, 3, 4, 5].map((tick) => (
+                <View
+                  key={`${metric}-grid-${tick}`}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    top: ((5 - tick) / 4) * 112 + 4,
+                    borderTopWidth: 1,
+                    borderTopColor: "rgba(255,255,255,0.09)",
+                  }}
+                />
+              ))}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "flex-end",
+                  height: 120,
+                  gap: TODAY_HOURLY_BAR_GAP,
+                }}
+              >
+                {bars.map((item) => {
+                  const value = valueFor(item);
+                  const hasData = value != null;
+                  const barHeight = hasData
+                    ? Math.max(8, (value! / 5) * 104)
+                    : 8;
+                  return (
+                    <View
+                      key={`${metric}-${item.key}`}
+                      style={{
+                        width: TODAY_HOURLY_BAR_WIDTH,
+                        height: 120,
+                        justifyContent: "flex-end",
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: TODAY_HOURLY_BAR_WIDTH,
+                          height: barHeight,
+                          borderRadius: 4,
+                          backgroundColor: hasData
+                            ? barColor
+                            : "rgba(148,163,184,0.35)",
+                        }}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: TODAY_HOURLY_BAR_GAP,
+              marginTop: 6,
+              marginLeft: 20,
+            }}
+          >
+            {bars.map((item) => (
+              <Text
+                key={`${metric}-label-${item.key}`}
+                style={{
+                  width: TODAY_HOURLY_BAR_WIDTH,
+                  color: AURORA.textMuted,
+                  fontSize: 7,
+                  textAlign: "center",
+                }}
+              >
+                {item.hour}
+              </Text>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+      <Text
+        style={{
+          color: AURORA.textMuted,
+          fontSize: 10,
+          marginTop: 6,
+          marginLeft: 20,
+        }}
+      >
+        Unit: hour 
+      </Text>
+    </View>
   );
 }
 
@@ -766,15 +973,18 @@ export default function Analytics() {
   const [_weekSummarySource, setWeekSummarySource] = useState<
     "ai" | "fallback" | null
   >(null);
-  const [analyticsView, setAnalyticsView] = useState<"today" | "week">("today");
+  const [analyticsView, setAnalyticsView] = useState<AnalyticsViewKey>("today");
   /** Measured relative to the inner row (thumb uses same coords + outer horizontal padding). */
   const [analyticsViewSegments, setAnalyticsViewSegments] = useState<{
     today: { x: number; w: number };
     week: { x: number; w: number };
+    last30: { x: number; w: number };
   }>({
     today: { x: 0, w: 0 },
     week: { x: 0, w: 0 },
+    last30: { x: 0, w: 0 },
   });
+  const [periodWrittenSummary, setPeriodWrittenSummary] = useState("");
   const [_weekSummaryTemplate, setWeekSummaryTemplate] = useState("");
   const [activeWeekPill, setActiveWeekPill] = useState<
     "days" | "checkins" | "streak" | null
@@ -816,7 +1026,7 @@ export default function Analytics() {
   }, [logs]);
 
   const onAnalyticsViewSegmentLayout = useCallback(
-    (key: "today" | "week", e: LayoutChangeEvent) => {
+    (key: AnalyticsViewKey, e: LayoutChangeEvent) => {
       const { x, width } = e.nativeEvent.layout;
       setAnalyticsViewSegments((prev) => {
         const next = { ...prev, [key]: { x, w: width } };
@@ -832,7 +1042,9 @@ export default function Analytics() {
     const seg =
       analyticsView === "today"
         ? analyticsViewSegments.today
-        : analyticsViewSegments.week;
+        : analyticsView === "week"
+          ? analyticsViewSegments.week
+          : analyticsViewSegments.last30;
     if (seg.w <= 0) return;
     const dur = reduceMotion ? 0 : 240;
     const easing = Easing.out(Easing.cubic);
@@ -904,23 +1116,6 @@ export default function Analytics() {
       setLoading(false);
       setRefreshing(false);
 
-      const today = new Date();
-      today.setHours(12, 0, 0, 0);
-      try {
-        setWeekSummaryGenerating(true);
-        setWeekSummaryTemplate("");
-        setWeekSummarySource(null);
-        const input = buildWeekSummaryInput(list);
-        const summary = await generateWeeklySummary(input);
-        setWeekSummaryTemplate(summary.summary);
-        setWeekSummarySource(summary.source);
-      } catch {
-        setWeekSummaryTemplate("");
-        setWeekSummarySource("fallback");
-      } finally {
-        setWeekSummaryGenerating(false);
-      }
-
       setAiLoading(true);
       setWeeklyAi(null);
       try {
@@ -950,10 +1145,94 @@ export default function Analytics() {
     }
   }, [user, load]);
 
+  useEffect(() => {
+    if (!user) return;
+    return subscribeMoodLogsRefresh(() => {
+      void load();
+    });
+  }, [user, load]);
+
+  useEffect(() => {
+    setActiveWeekPill(null);
+    setSelectedWeekMood(null);
+  }, [analyticsView]);
+
   const streak = useMemo(
     () => calculateCheckInStreak(logs as { log_date: Date }[], new Date()),
     [logs],
   );
+
+  const periodDays = periodDayCountForView(analyticsView);
+  const periodHighestStreak = useMemo(() => {
+    if (!periodDays) return 0;
+    return calculateHighestCheckInStreakInWindow(
+      logs as { log_date: Date }[],
+      periodDays,
+      new Date(),
+    );
+  }, [logs, periodDays]);
+  const periodDayKeySet = useMemo(() => {
+    if (!periodDays) return new Set<string>();
+    return buildRollingDayKeySet(periodDays);
+  }, [periodDays]);
+
+  const periodDaysLogged = useMemo(() => {
+    if (!periodDays) return 0;
+    const keysWithData = new Set<string>();
+    for (const log of logs) {
+      const dk = calendarDayKeyLocal(new Date(log.log_date));
+      if (periodDayKeySet.has(dk)) keysWithData.add(dk);
+    }
+    return keysWithData.size;
+  }, [logs, periodDayKeySet, periodDays]);
+
+  /** One mood score per logged day in the window, then averaged (7- or 30-day). */
+  const periodAvgMood = useMemo(() => {
+    if (!periodDays) return null;
+    const entries = moodLogsToMoodEntries(
+      logs as (MoodData & { log_date: Date })[],
+    ).filter((e) => e.dayKey && periodDayKeySet.has(e.dayKey));
+    const dayScores: number[] = [];
+    for (const dk of periodDayKeySet) {
+      const agg = aggregateByDay(entries, dk);
+      if (agg.entryCount > 0) {
+        dayScores.push(
+          Math.min(5, Math.max(1, Math.round(agg.avgIntensity / 2))),
+        );
+      }
+    }
+    if (dayScores.length === 0) return null;
+    return dayScores.reduce((a, b) => a + b, 0) / dayScores.length;
+  }, [logs, periodDayKeySet, periodDays]);
+
+  useEffect(() => {
+    if (!periodDays) {
+      setPeriodWrittenSummary("");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setWeekSummaryGenerating(true);
+      try {
+        const label =
+          periodDays === 30 ? "the last 30 days" : "the last 7 days";
+        const input = buildPeriodSummaryInput(
+          logs as (MoodData & { log_date: Date })[],
+          periodDays,
+          label,
+        );
+        const summary = await generateWeeklySummary(input);
+        if (!cancelled) setPeriodWrittenSummary(summary.summary);
+      } catch {
+        if (!cancelled) setPeriodWrittenSummary("");
+      } finally {
+        if (!cancelled) setWeekSummaryGenerating(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [periodDays, logs]);
 
   const todayMoodAgg = useMemo(() => {
     const dk = calendarDayKeyLocal(new Date());
@@ -994,22 +1273,25 @@ export default function Analytics() {
       };
     });
   }, [todayHourly]);
-  const todayStressPointCount = useMemo(
-    () =>
-      todayMetricBars.reduce<number>(
-        (count, value) => (value.stress == null ? count : count + 1),
-        0,
-      ),
-    [todayMetricBars],
-  );
-  const todayEnergyPointCount = useMemo(
-    () =>
-      todayMetricBars.reduce<number>(
-        (count, value) => (value.energy == null ? count : count + 1),
-        0,
-      ),
-    [todayMetricBars],
-  );
+
+  /** Always 24 hourly slots; unlocks after 2+ check-ins today. */
+  const todayStressEnergyTrend = useMemo(() => {
+    const checkInCount = todayEntries.length;
+    const bars = todayMetricBars.map((item) => ({
+      key: `hour-${item.hour}`,
+      hour: item.hour,
+      stress: item.stress,
+      energy: item.energy,
+    }));
+    return {
+      canShow: checkInCount >= 2,
+      showStressChart:
+        checkInCount >= 2 && bars.some((b) => b.stress != null),
+      showEnergyChart:
+        checkInCount >= 2 && bars.some((b) => b.energy != null),
+      bars,
+    };
+  }, [todayEntries.length, todayMetricBars]);
 
   const todayBlended = useMemo(() => {
     if (!todayEntries.length) return AURORA.blue;
@@ -1023,25 +1305,6 @@ export default function Analytics() {
     return moodStabilityScore(intensities);
   }, [todayEntries]);
 
-  const weekMoodFromEntries = useMemo(() => {
-    const entries = moodLogsToMoodEntries(
-      logs as (MoodData & { log_date: Date })[],
-    );
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    const keySet = new Set<string>();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      keySet.add(calendarDayKeyLocal(d));
-    }
-    const slice = entries.filter((x) => keySet.has(x.dayKey || ""));
-    if (!slice.length) return null;
-    const scales = slice.map((x) =>
-      Math.min(5, Math.max(1, Math.ceil(x.intensity / 2))),
-    );
-    return scales.reduce((a, b) => a + b, 0) / scales.length;
-  }, [logs]);
   useEffect(() => {
     if (reduceMotion) {
       prevStreakRef.current = streak;
@@ -1090,21 +1353,17 @@ export default function Analytics() {
     return () => sub.remove();
   }, [user, analyticsView, refreshMoodLogs]);
 
-  const weeklyPayload = buildLast7DaysPayload(
-    logs as (MoodData & { log_date: Date })[],
-  );
-  const weekCard = summarizeWeekSeries(weeklyPayload);
-
   const totalCheckIns = logs.length;
-  const weekDaysLogged = weeklyPayload.daily_mood.filter(
-    (m) => m >= 1 && m <= 5,
-  ).length;
-
-  const displayWeekAvgMood = weekMoodFromEntries ?? weekCard.avgMood;
   const animStreak = useCountUp(streak, 640, true, reduceMotion);
-  const weekMoodMeta = useMemo(
-    () => weekMoodTone(displayWeekAvgMood),
-    [displayWeekAvgMood],
+  const animPeriodHighestStreak = useCountUp(
+    periodHighestStreak,
+    640,
+    true,
+    reduceMotion,
+  );
+  const periodMoodMeta = useMemo(
+    () => periodMoodTone(periodAvgMood),
+    [periodAvgMood],
   );
   const todayDayLogs = useMemo(() => {
     const dk = calendarDayKeyLocal(new Date());
@@ -1168,15 +1427,8 @@ export default function Analytics() {
     [todayDayLogs],
   );
   const weekSchoolAnalysis = useMemo(() => {
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    const keySet = new Set<string>();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      keySet.add(calendarDayKeyLocal(d));
-    }
-    const weekLogs = (
+    if (!periodDays) return null;
+    const periodLogsForSchool = (
       logs as Array<
         MoodData & {
           log_date: Date;
@@ -1184,21 +1436,13 @@ export default function Analytics() {
           event_categories?: string[];
         }
       >
-    ).filter((l) => keySet.has(calendarDayKeyLocal(new Date(l.log_date))));
-    return analyzeSchoolLogs(weekLogs as any);
-  }, [logs]);
-  const last7DayKeySet = useMemo(() => {
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    const keySet = new Set<string>();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      keySet.add(calendarDayKeyLocal(d));
-    }
-    return keySet;
-  }, []);
-  const last7Logs = useMemo(() => {
+    ).filter((l) =>
+      periodDayKeySet.has(calendarDayKeyLocal(new Date(l.log_date))),
+    );
+    return analyzeSchoolLogs(periodLogsForSchool as any);
+  }, [logs, periodDayKeySet, periodDays]);
+  const periodLogs = useMemo(() => {
+    if (!periodDays) return [];
     return (
       logs as Array<
         MoodData & {
@@ -1210,13 +1454,13 @@ export default function Analytics() {
         }
       >
     ).filter((l) =>
-      last7DayKeySet.has(calendarDayKeyLocal(new Date(l.log_date))),
+      periodDayKeySet.has(calendarDayKeyLocal(new Date(l.log_date))),
     );
-  }, [logs, last7DayKeySet]);
+  }, [logs, periodDayKeySet, periodDays]);
   const weekEventInsight = useMemo(
     () =>
       analyzeTodayEvents(
-        last7Logs as Array<
+        periodLogs as Array<
           MoodData & {
             log_date: Date;
             event_tags?: string[];
@@ -1224,31 +1468,36 @@ export default function Analytics() {
           }
         >,
       ),
-    [last7Logs],
+    [periodLogs],
   );
-  const weekTopActivityRow = useMemo(() => {
-    if (!weekEventInsight) return null;
-    const topTag = weekEventInsight.topEvents[0];
-    if (topTag) return { label: topTag.label, count: topTag.count };
+  const periodTopActivities = useMemo(() => {
+    if (!weekEventInsight) return [];
+    const fromTags = weekEventInsight.topEvents.slice(0, 3);
+    if (fromTags.length > 0) return fromTags;
     if (
       weekEventInsight.topCategoryCount > 0 &&
       weekEventInsight.topCategory
     ) {
-      return {
-        label: weekEventInsight.topCategory,
-        count: weekEventInsight.topCategoryCount,
-      };
+      return [
+        {
+          label: weekEventInsight.topCategory,
+          count: weekEventInsight.topCategoryCount,
+        },
+      ];
     }
-    return null;
+    return [];
   }, [weekEventInsight]);
-  const last7TotalCheckIns = last7Logs.length;
+  const periodTotalCheckIns = periodLogs.length;
   const weekMoodCharts = useMemo(() => {
+    if (!periodDays) {
+      return { byMood: [], totalCheckIns: 0 };
+    }
     const end = new Date();
     const start = new Date(end);
     start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - 6);
-    return buildMoodCharts(last7Logs, start.getTime(), end.getTime());
-  }, [last7Logs]);
+    start.setDate(start.getDate() - (periodDays - 1));
+    return buildMoodCharts(periodLogs, start.getTime(), end.getTime());
+  }, [periodLogs, periodDays]);
   const weekFrequencySegments = useMemo(
     () =>
       weekMoodCharts.byMood
@@ -1287,7 +1536,7 @@ export default function Analytics() {
     );
   }, [selectedWeekMood, weekMoodCharts]);
   const weekWellnessStats = useMemo(() => {
-    if (last7Logs.length === 0) {
+    if (periodLogs.length === 0) {
       return {
         stressLabel: "not enough stress data",
         energyLabel: "not enough energy data",
@@ -1304,7 +1553,7 @@ export default function Analytics() {
     let sleepFair = 0;
     let sleepPoor = 0;
     const emotionCount = new Map<string, number>();
-    for (const log of last7Logs) {
+    for (const log of periodLogs) {
       if (typeof log.stress_level === "number") {
         stressSum += toFiveScale(log.stress_level, 3);
         stressN += 1;
@@ -1331,7 +1580,7 @@ export default function Analytics() {
     const energyAvg = energyN > 0 ? energySum / energyN : null;
     const entries = moodLogsToMoodEntries(
       logs as (MoodData & { log_date: Date })[],
-    ).filter((e) => !!e.dayKey && last7DayKeySet.has(e.dayKey));
+    ).filter((e) => !!e.dayKey && periodDayKeySet.has(e.dayKey));
     const stability =
       entries.length > 0
         ? moodStabilityScore(entries.map((e) => e.intensity))
@@ -1357,17 +1606,37 @@ export default function Analytics() {
       sleepLabel,
       emotionLabel,
     };
-  }, [last7Logs, logs, last7DayKeySet]);
+  }, [periodLogs, logs, periodDayKeySet]);
   const weekAverageMoodColor = useMemo(() => {
     const key = (weekWellnessStats.emotionLabel || "").toLowerCase().trim();
-    if (key === "happy" || key === "joy" || key === "happiness")
+    if (key === "happy" || key === "happy" || key === "happiness")
       return AURORA.moodHappy;
     if (key === "sad" || key === "sadness") return AURORA.moodSad;
     if (key === "angry" || key === "anger") return AURORA.moodAngry;
     if (key === "neutral") return AURORA.moodNeutral;
     if (key === "surprise" || key === "surprised") return AURORA.moodSurprise;
-    return weekMoodMeta.color;
-  }, [weekWellnessStats.emotionLabel, weekMoodMeta.color]);
+    return periodMoodMeta.color;
+  }, [weekWellnessStats.emotionLabel, periodMoodMeta.color]);
+  const periodDominantMoodDisplay = useMemo(() => {
+    if (periodTotalCheckIns === 0) {
+      return { label: "Not enough check-ins", icon: null as ImageSourcePropType | null };
+    }
+    const fromEmotion = weekWellnessStats.emotionLabel;
+    if (fromEmotion && !fromEmotion.toLowerCase().includes("not enough")) {
+      return {
+        label: fromEmotion,
+        icon: moodIconForLabel(fromEmotion),
+      };
+    }
+    const top = [...weekMoodCharts.byMood]
+      .filter((x) => x.count > 0)
+      .sort((a, b) => b.count - a.count)[0];
+    if (!top) return { label: "Not enough data", icon: null };
+    return {
+      label: top.label,
+      icon: moodIconForLabel(top.mood),
+    };
+  }, [periodTotalCheckIns, weekWellnessStats.emotionLabel, weekMoodCharts]);
 
   const openGuide = (title: string, body: string) => {
     setActiveGuide({ title, body });
@@ -1390,10 +1659,13 @@ export default function Analytics() {
     );
   };
   const showAcademicAnalyticsGuide = () => {
-    openGuide(
-      "Academic analytics",
-      "This section explains how school-related events may be affecting your mood today.\n\nUse it to spot patterns, adjust study habits, and plan support strategies before stress builds.",
-    );
+    const timeWindow =
+      analyticsView === "last30"
+        ? "over the last 30 days"
+        : analyticsView === "week"
+          ? "over the last 7 days"
+          : "today";
+    openGuide("Academic analytics", buildAcademicAnalyticsGuideBody(timeWindow));
   };
   const showMoodIntensityGuide = () => {
     openGuide(
@@ -1413,6 +1685,13 @@ export default function Analytics() {
       "This chart shows energy per hourly slot today.\n\nY-axis: 1 (low) to 5 (high).\nX-axis: hour slot index.\n\nEnergy categories:\n- 1.0 to 1.8: Very low energy\n- 1.9 to 2.6: Low energy\n- 2.7 to 3.5: Steady energy\n- 3.6 to 5.0: High energy",
     );
   };
+  const showPeriodAverageMoodGuide = () => {
+    const days = periodDays ?? 7;
+    openGuide(
+      "Average mood",
+      `This card only shows your average mood or your most frequent mood from the last ${days} days.\n\nThe icon and label match that mood for this period.\n\nIt is a simple snapshot to help you notice patterns over time — not a clinical score or comparison with others.`,
+    );
+  };
 
   const stressLabelFriendly = useMemo(() => {
     const raw = (weekWellnessStats.stressLabel || "").toLowerCase().trim();
@@ -1420,6 +1699,15 @@ export default function Analytics() {
     if (raw === "stressed") return "elevated";
     return raw || "not enough data";
   }, [weekWellnessStats.stressLabel]);
+
+  const isPeriodView = analyticsView === "week" || analyticsView === "last30";
+  const periodHeading =
+    analyticsView === "last30" ? "Your last 30 days" : "Your last 7 days";
+  const periodSubtitle =
+    analyticsView === "last30"
+      ? "Quick mood highlights from your last 30 days."
+      : "Quick mood highlights from your last 7 days.";
+  const periodWindowDays = periodDays ?? 7;
 
   if (loading && !refreshing) {
     return (
@@ -1537,10 +1825,10 @@ export default function Analytics() {
                 onPress={() => setAnalyticsView("week")}
                 onLayout={(e) => onAnalyticsViewSegmentLayout("week", e)}
                 style={{
-                  width: 104,
+                  width: 88,
                   minWidth: 72,
                   paddingVertical: 7,
-                  paddingHorizontal: 12,
+                  paddingHorizontal: 10,
                   borderRadius: 999,
                   alignItems: "center",
                   justifyContent: "center",
@@ -1559,6 +1847,36 @@ export default function Analytics() {
                   }}
                 >
                   7 days
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setAnalyticsView("last30")}
+                onLayout={(e) => onAnalyticsViewSegmentLayout("last30", e)}
+                style={{
+                  width: 88,
+                  minWidth: 72,
+                  paddingVertical: 7,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                  style={{
+                    color:
+                      analyticsView === "last30"
+                        ? "#FFFFFF"
+                        : AURORA.textMuted,
+                    fontWeight: "700",
+                    fontSize: 12,
+                    textAlign: "center",
+                  }}
+                >
+                  30 days
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1620,7 +1938,7 @@ export default function Analytics() {
                       >
                         <Text
                           style={{
-                            color: AURORA.textMuted,
+                            color: AURORA.textSec,
                             fontSize: 10,
                             fontWeight: "700",
                           }}
@@ -1676,7 +1994,7 @@ export default function Analytics() {
                       >
                         <Text
                           style={{
-                            color: AURORA.textMuted,
+                            color: AURORA.textSec,
                             fontSize: 10,
                             fontWeight: "700",
                           }}
@@ -1692,12 +2010,13 @@ export default function Analytics() {
                           }}
                         >
                           {todayMoodAgg.entryCount}
-                        </Text>
-                        <Text
-                          style={{ color: UI_TEXT_SECONDARY, fontSize: 12 }}
+                          {/* <Text
+                          style={{ color: UI_TEXT_SECONDARY, fontSize: 12, marginLeft: 4 }}
                         >
                           today
+                        </Text> */}
                         </Text>
+      
                       </View>
                     </View>
                   </AnalyticsPanel>
@@ -1722,7 +2041,7 @@ export default function Analytics() {
                         <Sparkles size={12} color="#F59E0B" />
                         <Text
                           style={{
-                            color: AURORA.textMuted,
+                            color: AURORA.textSec,
                             fontSize: 10,
                             fontWeight: "700",
                           }}
@@ -1756,15 +2075,7 @@ export default function Analytics() {
                         >
                           {todayStability}%
                         </Text>
-                        <Text
-                          style={{
-                            color: UI_TEXT_SECONDARY,
-                            fontSize: 12,
-                            marginBottom: 6,
-                          }}
-                        >
-                          based on today&apos;s check-ins
-                        </Text>
+                       
                       </View>
                     </View>
                   </AnalyticsPanel>
@@ -1796,7 +2107,7 @@ export default function Analytics() {
                               fontWeight: "700",
                             }}
                           >
-                            ACADEMIC ANALYTICS
+                            ACADEMIC LOAD
                           </Text>
                           <TouchableOpacity
                             onPress={showAcademicAnalyticsGuide}
@@ -1820,25 +2131,32 @@ export default function Analytics() {
                           wellbeing decisions.
                         </Text> */}
 
-                        {/* <Text
-                          style={{
-                            color: UI_TEXT_MUTED,
-                            fontSize: 10,
-                            fontWeight: "800",
-                            letterSpacing: 0.5,
-                          }}
-                        >
-                          INSIGHT
-                        </Text> */}
+                        
                         <Text
                           style={{
-                            color: AURORA.textSec,
-                            fontSize: 13,
+                            color: schoolLoadBandColor(
+                              todaySchoolAnalysis.loadBand,
+                            ),
+                            fontSize: 26,
                             fontWeight: "900",
                             marginTop: 4,
                           }}
                         >
-                          {todaySchoolAnalysis.summary}
+                          {todaySchoolAnalysis.loadBand}
+                        </Text>
+                        <Text
+                          style={{
+                            color: UI_TEXT_SECONDARY,
+                            fontSize: 12,
+                            marginTop: 6,
+                          }}
+                        >
+                          {todaySchoolAnalysis.totalSchoolEvents} school tag
+                          {todaySchoolAnalysis.totalSchoolEvents === 1
+                            ? ""
+                            : "s"}{" "}
+                          across {todaySchoolAnalysis.schoolCheckIns} check-in
+                          {todaySchoolAnalysis.schoolCheckIns === 1 ? "" : "s"}
                         </Text>
 
                         {/* <Text
@@ -1968,115 +2286,88 @@ export default function Analytics() {
                         borderColor: AURORA.border,
                       }}
                     >
-                      <Text
-                        style={{
-                          color: AURORA.textMuted,
-                          fontSize: 10,
-                          fontWeight: "700",
-                        }}
-                      >
-                        TODAY EVENT FOCUS
-                      </Text>
                       {todayEventInsight ? (
                         <>
-                          <View
+                          <Text
                             style={{
-                              marginTop: 8,
-                              backgroundColor: "rgba(124, 58, 237, 0.14)",
-                              borderColor: "rgba(124, 58, 237, 0.28)",
-                              borderWidth: 1,
-                              borderRadius: 12,
-                              paddingHorizontal: 10,
-                              paddingVertical: 8,
-                              alignSelf: "flex-start",
+                              color: AURORA.textSec,
+                              fontSize: 10,
+                              fontWeight: "700",
                             }}
                           >
-                            <Text
-                              style={{
-                                color: AURORA.textPrimary,
-                                fontSize: 13,
-                                fontWeight: "800",
-                              }}
-                            >
-                              {categoryEmoji(todayEventInsight.topCategory)}{" "}
-                              {todayEventInsight.topCategory}
-                            </Text>
-                            <Text
-                              style={{
-                                color: AURORA.textSec,
-                                fontSize: 11,
-                                marginTop: 2,
-                              }}
-                            >
-                              Most used category today
-                            </Text>
-                          </View>
+                            TOP ACTIVITY FOR TODAY
+                          </Text>
                           {todayEventInsight.categoryBreakdown.length > 0 ? (
-                            <View style={{ marginTop: 10, gap: 7 }}>
-                              {todayEventInsight.categoryBreakdown.map(
-                                (item) => {
-                                  const widthPct = Math.max(
-                                    18,
-                                    Math.round(
-                                      (item.count /
-                                        Math.max(
-                                          1,
-                                          todayEventInsight.topCategoryCount,
-                                        )) *
-                                        100,
-                                    ),
-                                  );
-                                  return (
-                                    <View key={`category-${item.label}`}>
-                                      <View
-                                        style={{
-                                          flexDirection: "row",
-                                          justifyContent: "space-between",
-                                          marginBottom: 4,
-                                        }}
-                                      >
-                                        <Text
-                                          style={{
-                                            color: AURORA.textMuted,
-                                            fontSize: 11,
-                                            fontWeight: "700",
-                                          }}
-                                        >
-                                          {item.label}
-                                        </Text>
-                                        <Text
-                                          style={{
-                                            color: AURORA.textMuted,
-                                            fontSize: 11,
-                                            fontWeight: "700",
-                                          }}
-                                        >
-                                          {item.count}
-                                        </Text>
-                                      </View>
-                                      <View
-                                        style={{
-                                          height: 8,
-                                          borderRadius: 999,
-                                          backgroundColor:
-                                            "rgba(255,255,255,0.09)",
-                                        }}
-                                      >
-                                        <View
-                                          style={{
-                                            width: `${widthPct}%`,
-                                            height: 8,
-                                            borderRadius: 999,
-                                            backgroundColor: AURORA.purple,
-                                          }}
-                                        />
-                                      </View>
-                                    </View>
-                                  );
-                                },
-                              )}
+                            <View style={{ marginTop: 8, gap: 8 }}>
+                              {todayEventInsight.categoryBreakdown
+                                .slice(0, 3)
+                                .map((item) => (
+                                  <TodayFocusMetricRow
+                                    key={`activity-${item.label}`}
+                                    label={item.label}
+                                    count={item.count}
+                                    maxCount={Math.max(
+                                      1,
+                                      ...todayEventInsight.categoryBreakdown.map(
+                                        (x) => x.count,
+                                      ),
+                                    )}
+                                    barColor={AURORA.purple}
+                                  />
+                                ))}
                             </View>
-                          ) : null}
+                          ) : (
+                            <Text
+                              style={{
+                                color: AURORA.textMuted,
+                                fontSize: 12,
+                                marginTop: 8,
+                              }}
+                            >
+                              No activity categories tagged today.
+                            </Text>
+                          )}
+
+                          <Text
+                            style={{
+                              color: AURORA.textSec,
+                              fontSize: 10,
+                              fontWeight: "700",
+                              marginTop: 14,
+                            }}
+                          >
+                            TOP EVENT
+                          </Text>
+                          {todayEventInsight.topEvents.length > 0 ? (
+                            <View style={{ marginTop: 8, gap: 8 }}>
+                              {todayEventInsight.topEvents
+                                .slice(0, 3)
+                                .map((item) => (
+                                  <TodayFocusMetricRow
+                                    key={`event-${item.label}`}
+                                    label={item.label}
+                                    count={item.count}
+                                    maxCount={Math.max(
+                                      1,
+                                      ...todayEventInsight.topEvents.map(
+                                        (x) => x.count,
+                                      ),
+                                    )}
+                                    barColor={AURORA.blue}
+                                  />
+                                ))}
+                            </View>
+                          ) : (
+                            <Text
+                              style={{
+                                color: AURORA.textMuted,
+                                fontSize: 12,
+                                marginTop: 8,
+                              }}
+                            >
+                              No event tags in today&apos;s check-ins yet.
+                            </Text>
+                          )}
                         </>
                       ) : (
                         <View
@@ -2490,8 +2781,7 @@ export default function Analytics() {
                     </View>
                   </AnalyticsPanel>
                   <AnalyticsPanel reduceMotion={reduceMotion} delayMs={490}>
-                    {todayStressPointCount >= 2 ||
-                    todayEnergyPointCount >= 2 ? (
+                    {todayStressEnergyTrend.canShow ? (
                       <View
                         style={{
                           backgroundColor: AURORA.cardAlt,
@@ -2548,7 +2838,7 @@ export default function Analytics() {
                           Each bar compares average level in an hourly slot
                           today.
                         </Text> */}
-                        {todayStressPointCount >= 2 ? (
+                        {todayStressEnergyTrend.showStressChart ? (
                           <View style={{ marginBottom: 12 }}>
                             <View
                               style={{
@@ -2559,7 +2849,7 @@ export default function Analytics() {
                             >
                               <Text
                                 style={{
-                                  color: AURORA.textMuted,
+                                  color: AURORA.textSec,
                                   fontSize: 10,
                                   fontWeight: "700",
                                 }}
@@ -2590,128 +2880,14 @@ export default function Analytics() {
                             >
                               Higher bars show hours where stress was higher.
                             </Text> */}
-                            <ScrollView
-                              horizontal
-                              showsHorizontalScrollIndicator={false}
-                            >
-                              <View>
-                                <View style={{ flexDirection: "row", gap: 8 }}>
-                                  <View
-                                    style={{
-                                      height: 120,
-                                      justifyContent: "space-between",
-                                      alignItems: "flex-end",
-                                      paddingTop: 2,
-                                      paddingBottom: 2,
-                                    }}
-                                  >
-                                    {[5, 4, 3, 2, 1].map((tick) => (
-                                      <Text
-                                        key={`stress-y-${tick}`}
-                                        style={{
-                                          color: AURORA.textMuted,
-                                          fontSize: 9,
-                                          width: 12,
-                                          textAlign: "right",
-                                        }}
-                                      >
-                                        {tick}
-                                      </Text>
-                                    ))}
-                                  </View>
-                                  <View>
-                                    {[1, 2, 3, 4, 5].map((tick) => (
-                                      <View
-                                        key={`stress-grid-${tick}`}
-                                        style={{
-                                          position: "absolute",
-                                          left: 0,
-                                          right: 0,
-                                          top: ((5 - tick) / 4) * 112 + 4,
-                                          borderTopWidth: 1,
-                                          borderTopColor:
-                                            "rgba(255,255,255,0.09)",
-                                        }}
-                                      />
-                                    ))}
-                                    <View
-                                      style={{
-                                        flexDirection: "row",
-                                        alignItems: "flex-end",
-                                        height: 120,
-                                        gap: 4,
-                                      }}
-                                    >
-                                      {todayMetricBars.map((item) => {
-                                        const hasData = item.stress != null;
-                                        const barHeight = hasData
-                                          ? Math.max(
-                                              8,
-                                              (item.stress! / 5) * 104,
-                                            )
-                                          : 8;
-                                        return (
-                                          <View
-                                            key={`stress-hour-${item.hour}`}
-                                            style={{
-                                              width: 14,
-                                              height: 120,
-                                              justifyContent: "flex-end",
-                                            }}
-                                          >
-                                            <View
-                                              style={{
-                                                width: 14,
-                                                height: barHeight,
-                                                borderRadius: 4,
-                                                backgroundColor: hasData
-                                                  ? AURORA.moodAngry
-                                                  : "rgba(148,163,184,0.35)",
-                                              }}
-                                            />
-                                          </View>
-                                        );
-                                      })}
-                                    </View>
-                                  </View>
-                                </View>
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    gap: 4,
-                                    marginTop: 6,
-                                    marginLeft: 20,
-                                  }}
-                                >
-                                  {todayMetricBars.map((item, index) => (
-                                    <Text
-                                      key={`stress-hour-label-${item.hour}`}
-                                      style={{
-                                        width: 14,
-                                        color: AURORA.textMuted,
-                                        fontSize: 8,
-                                        textAlign: "center",
-                                      }}
-                                    >
-                                      {index % 2 === 0 ? String(index + 1) : ""}
-                                    </Text>
-                                  ))}
-                                </View>
-                                <Text
-                                  style={{
-                                    color: AURORA.textMuted,
-                                    fontSize: 10,
-                                    marginTop: 6,
-                                    marginLeft: 20,
-                                  }}
-                                >
-                                  Unit: hour
-                                </Text>
-                              </View>
-                            </ScrollView>
+                            <TodayHourlyMetricChart
+                              bars={todayStressEnergyTrend.bars}
+                              metric="stress"
+                              barColor={AURORA.moodAngry}
+                            />
                           </View>
                         ) : null}
-                        {todayEnergyPointCount >= 2 ? (
+                        {todayStressEnergyTrend.showEnergyChart ? (
                           <View>
                             <View
                               style={{
@@ -2722,7 +2898,7 @@ export default function Analytics() {
                             >
                               <Text
                                 style={{
-                                  color: AURORA.textMuted,
+                                  color: AURORA.textSec,
                                   fontSize: 10,
                                   fontWeight: "700",
                                 }}
@@ -2753,125 +2929,11 @@ export default function Analytics() {
                             >
                               Higher bars show hours where energy felt stronger.
                             </Text> */}
-                            <ScrollView
-                              horizontal
-                              showsHorizontalScrollIndicator={false}
-                            >
-                              <View>
-                                <View style={{ flexDirection: "row", gap: 8 }}>
-                                  <View
-                                    style={{
-                                      height: 120,
-                                      justifyContent: "space-between",
-                                      alignItems: "flex-end",
-                                      paddingTop: 2,
-                                      paddingBottom: 2,
-                                    }}
-                                  >
-                                    {[5, 4, 3, 2, 1].map((tick) => (
-                                      <Text
-                                        key={`energy-y-${tick}`}
-                                        style={{
-                                          color: AURORA.textMuted,
-                                          fontSize: 9,
-                                          width: 12,
-                                          textAlign: "right",
-                                        }}
-                                      >
-                                        {tick}
-                                      </Text>
-                                    ))}
-                                  </View>
-                                  <View>
-                                    {[1, 2, 3, 4, 5].map((tick) => (
-                                      <View
-                                        key={`energy-grid-${tick}`}
-                                        style={{
-                                          position: "absolute",
-                                          left: 0,
-                                          right: 0,
-                                          top: ((5 - tick) / 4) * 112 + 4,
-                                          borderTopWidth: 1,
-                                          borderTopColor:
-                                            "rgba(255,255,255,0.09)",
-                                        }}
-                                      />
-                                    ))}
-                                    <View
-                                      style={{
-                                        flexDirection: "row",
-                                        alignItems: "flex-end",
-                                        height: 120,
-                                        gap: 4,
-                                      }}
-                                    >
-                                      {todayMetricBars.map((item) => {
-                                        const hasData = item.energy != null;
-                                        const barHeight = hasData
-                                          ? Math.max(
-                                              8,
-                                              (item.energy! / 5) * 104,
-                                            )
-                                          : 8;
-                                        return (
-                                          <View
-                                            key={`energy-hour-${item.hour}`}
-                                            style={{
-                                              width: 14,
-                                              height: 120,
-                                              justifyContent: "flex-end",
-                                            }}
-                                          >
-                                            <View
-                                              style={{
-                                                width: 14,
-                                                height: barHeight,
-                                                borderRadius: 4,
-                                                backgroundColor: hasData
-                                                  ? AURORA.moodHappy
-                                                  : "rgba(148,163,184,0.35)",
-                                              }}
-                                            />
-                                          </View>
-                                        );
-                                      })}
-                                    </View>
-                                  </View>
-                                </View>
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    gap: 4,
-                                    marginTop: 6,
-                                    marginLeft: 20,
-                                  }}
-                                >
-                                  {todayMetricBars.map((item, index) => (
-                                    <Text
-                                      key={`energy-hour-label-${item.hour}`}
-                                      style={{
-                                        width: 14,
-                                        color: AURORA.textMuted,
-                                        fontSize: 8,
-                                        textAlign: "center",
-                                      }}
-                                    >
-                                      {index % 2 === 0 ? String(index + 1) : ""}
-                                    </Text>
-                                  ))}
-                                </View>
-                                <Text
-                                  style={{
-                                    color: AURORA.textMuted,
-                                    fontSize: 10,
-                                    marginTop: 6,
-                                    marginLeft: 20,
-                                  }}
-                                >
-                                  Unit: hour
-                                </Text>
-                              </View>
-                            </ScrollView>
+                            <TodayHourlyMetricChart
+                              bars={todayStressEnergyTrend.bars}
+                              metric="energy"
+                              barColor={AURORA.moodHappy}
+                            />
                           </View>
                         ) : null}
                       </View>
@@ -2937,8 +2999,8 @@ export default function Analytics() {
           </View>
         ) : null}
 
-        {analyticsView === "week" ? (
-          <View key="analytics-week">
+        {isPeriodView ? (
+          <View key={`analytics-period-${analyticsView}`}>
             <AnalyticsPanel reduceMotion={reduceMotion} delayMs={0}>
               <Text
                 style={{
@@ -2948,7 +3010,7 @@ export default function Analytics() {
                   marginBottom: 8,
                 }}
               >
-                Your last 7 days
+                {periodHeading}
               </Text>
               <Text
                 style={{
@@ -2958,7 +3020,7 @@ export default function Analytics() {
                   marginBottom: 0,
                 }}
               >
-                Quick mood highlights from your last 7 days.
+                {periodSubtitle}
               </Text>
               {/* <EthicsLine /> */}
             </AnalyticsPanel>
@@ -2970,26 +3032,26 @@ export default function Analytics() {
                     {
                       key: "days" as const,
                       label: "Days logged",
-                      value: `${weekDaysLogged}/7`,
+                      value: `${periodDaysLogged}/${periodWindowDays}`,
                     },
                     {
                       key: "checkins" as const,
                       label: "Check-ins",
-                      value: String(last7TotalCheckIns),
+                      value: String(periodTotalCheckIns),
                     },
                     {
                       key: "streak" as const,
-                      label: "Streak",
-                      value: String(Math.round(animStreak)),
+                      label: "Best streak",
+                      value: String(Math.round(animPeriodHighestStreak)),
                     },
                   ];
                   const explainer =
                     activeWeekPill === "days"
-                      ? `${weekDaysLogged} out of 7 days had at least one mood check-in.`
+                      ? `${periodDaysLogged} out of ${periodWindowDays} days had at least one mood check-in.`
                       : activeWeekPill === "checkins"
-                        ? `You logged ${last7TotalCheckIns} mood entries in the last 7 days.`
+                        ? `You logged ${periodTotalCheckIns} mood entries in the last ${periodWindowDays} days.`
                         : activeWeekPill === "streak"
-                          ? `You are on a ${Math.round(animStreak)} day streak.`
+                          ? `Your longest check-in streak in the last ${periodWindowDays} days was ${Math.round(animPeriodHighestStreak)} day${Math.round(animPeriodHighestStreak) === 1 ? "" : "s"}.`
                           : null;
                   return (
                     <>
@@ -3128,64 +3190,65 @@ export default function Analytics() {
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      justifyContent: "space-between",
+                      gap: 6,
                     }}
                   >
-                    <View
+                    <Text
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 10,
+                        color: AURORA.textPrimary,
+                        fontSize: 11,
+                        fontWeight: "800",
+                        letterSpacing: 0.6,
                       }}
                     >
-                      <TrendingUp size={22} color={weekAverageMoodColor} />
-                      <Text
-                        style={{
-                          color: AURORA.textPrimary,
-                          fontSize: 11,
-                          fontWeight: "800",
-                          letterSpacing: 0.6,
-                        }}
-                      >
-                        AVERAGE MOOD
-                      </Text>
-                    </View>
-                    <View
-                      style={{
-                        backgroundColor: hexToRgba(weekAverageMoodColor, 0.22),
-                        borderRadius: 999,
-                        paddingHorizontal: 10,
-                        paddingVertical: 4,
-                      }}
+                      AVERAGE MOOD
+                    </Text>
+                    <TouchableOpacity
+                      onPress={showPeriodAverageMoodGuide}
+                      onLongPress={() => {}}
+                      delayLongPress={10000}
+                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                      style={{ padding: 2 }}
                     >
-                      <Text
-                        style={{
-                          color: weekAverageMoodColor,
-                          fontSize: 11,
-                          fontWeight: "800",
-                        }}
-                      >
-                        {weekWellnessStats.emotionLabel}
-                      </Text>
-                    </View>
+                      <CircleHelp size={14} color={UI_TEXT_MUTED} />
+                    </TouchableOpacity>
                   </View>
-                  <Text
+                  <View
                     style={{
-                      color: AURORA.textPrimary,
-                      fontSize: 32,
-                      fontWeight: "900",
-                      marginTop: 4,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingTop: 16,
+                      paddingBottom: 4,
+                      gap: 10,
                     }}
                   >
-                    {`Mood trend: ${weekMoodMeta.label}`}
-                  </Text>
+                    {periodDominantMoodDisplay.icon ? (
+                      <Image
+                        source={periodDominantMoodDisplay.icon}
+                        style={{ width: 56, height: 56 }}
+                        resizeMode="contain"
+                        accessibilityLabel={periodDominantMoodDisplay.label}
+                      />
+                    ) : null}
+                    <Text
+                      style={{
+                        color: AURORA.textPrimary,
+                        fontSize: 28,
+                        fontWeight: "900",
+                        textAlign: "center",
+                      }}
+                    >
+                      {periodDominantMoodDisplay.label}
+                    </Text>
+                  </View>
                 </View>
               </AnalyticsPanel>
 
-              {totalCheckIns > 0 ? (
+              {periodTotalCheckIns > 0 ? (
                 <ChartSection>
                   <AnalyticsMoodWidgets
                     logs={logs as (MoodData & { log_date: Date })[]}
+                    period={analyticsView === "last30" ? "last30" : "week"}
                   />
                 </ChartSection>
               ) : null}
@@ -3332,7 +3395,7 @@ export default function Analytics() {
                   </View>
                   {weekDurationBars.length === 0 ? (
                     <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
-                      No duration entries yet for the last 7 days.
+                      {`No duration entries yet for the last ${periodWindowDays} days.`}
                     </Text>
                   ) : (
                     <View style={{ gap: 10 }}>
@@ -3443,7 +3506,7 @@ export default function Analytics() {
                   </View>
                   {weekIntensityBars.length === 0 ? (
                     <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
-                      No intensity entries yet for the last 7 days.
+                      {`No intensity entries yet for the last ${periodWindowDays} days.`}
                     </Text>
                   ) : (
                     <View style={{ gap: 10 }}>
@@ -3625,7 +3688,7 @@ export default function Analytics() {
                     flex: 1,
                   }}
                 >
-                  Written summary for the last 7 days
+                  {`Written summary for the last ${periodWindowDays} days`}
                 </Text>
               </View>
               <View style={{ marginBottom: 10 }}>
@@ -3650,10 +3713,22 @@ export default function Analytics() {
                         Weekly summary source: {weekSummarySource === 'ai' ? 'AI' : 'fallback template'}
                     </Text>
                 ) : null} */}
-              {aiLoading ? (
+              {periodDays === 7 && aiLoading ? (
                 <AISummarySkeleton reduceMotion={reduceMotion} />
-              ) : weeklyAi ? (
+              ) : periodDays === 30 || weeklyAi ? (
                 <>
+                  {periodWrittenSummary ? (
+                    <Text
+                      style={{
+                        color: AURORA.textSec,
+                        fontSize: 14,
+                        lineHeight: 22,
+                        marginBottom: 12,
+                      }}
+                    >
+                      {periodWrittenSummary}
+                    </Text>
+                  ) : null}
                   <View style={{ marginBottom: 14, gap: 6 }}>
                     <Text
                       style={{
@@ -3705,20 +3780,45 @@ export default function Analytics() {
                           : "not enough data"}
                       </Text>
                     </Text>
-                    <Text
+                    <View
                       style={{
-                        color: AURORA.textPrimary,
-                        fontSize: 14,
-                        lineHeight: 22,
+                        flexDirection: "row",
+                        alignItems: "flex-start",
+                        gap: 6,
                         marginTop: 6,
                       }}
                     >
-                      Academic pattern:{" "}
-                      <Text style={{ color: UI_TEXT_SECONDARY }}>
-                        {weekSchoolAnalysis?.summary ??
-                          "No school-tagged check-ins in the last 7 days."}
+                      <Text
+                        style={{
+                          color: AURORA.textPrimary,
+                          fontSize: 14,
+                          lineHeight: 22,
+                          flex: 1,
+                        }}
+                      >
+                        School load:{" "}
+                        <Text
+                          style={{
+                            color: weekSchoolAnalysis
+                              ? schoolLoadBandColor(weekSchoolAnalysis.loadBand)
+                              : UI_TEXT_SECONDARY,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {weekSchoolAnalysis?.loadBand ??
+                            `No school-tagged check-ins in the last ${periodWindowDays} days.`}
+                        </Text>
                       </Text>
-                    </Text>
+                      <TouchableOpacity
+                        onPress={showAcademicAnalyticsGuide}
+                        onLongPress={() => {}}
+                        delayLongPress={10000}
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                        style={{ padding: 2, marginTop: 1 }}
+                      >
+                        <CircleHelp size={16} color={AURORA.textMuted} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   {weekSchoolAnalysis?.topSchoolEvents?.length ? (
                     <View
@@ -3801,7 +3901,7 @@ export default function Analytics() {
                       })}
                     </View>
                   ) : null}
-                  {weekTopActivityRow ? (
+                  {periodTopActivities.length > 0 ? (
                     <View
                       style={{
                         marginTop: weekSchoolAnalysis?.topSchoolEvents?.length
@@ -3823,56 +3923,69 @@ export default function Analytics() {
                           fontWeight: "700",
                         }}
                       >
-                        TOP ACTIVITY
+                        TOP ACTIVITIES
                       </Text>
-                     
-                      <View>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            justifyContent: "space-between",
-                            marginBottom: 3,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: AURORA.textSec,
-                              fontSize: 11,
-                              fontWeight: "700",
-                            }}
-                          >
-                            {weekTopActivityRow.label}
-                          </Text>
-                          <Text
-                            style={{
-                              color: AURORA.textSec,
-                              fontSize: 11,
-                              fontWeight: "700",
-                            }}
-                          >
-                            {weekTopActivityRow.count}
-                          </Text>
-                        </View>
-                        <View
-                          style={{
-                            height: 7,
-                            borderRadius: 999,
-                            backgroundColor: "rgba(255,255,255,0.08)",
-                          }}
-                        >
+                      {periodTopActivities.map((item) => {
+                        const maxCount = Math.max(
+                          1,
+                          periodTopActivities[0]?.count ?? 1,
+                        );
+                        const widthPct = Math.max(
+                          18,
+                          Math.round((item.count / maxCount) * 100),
+                        );
+                        return (
                           <View
-                            style={{
-                              width: "100%",
-                              height: 7,
-                              borderRadius: 999,
-                              backgroundColor: AURORA.blue,
-                            }}
-                          />
-                        </View>
-                      </View>
+                            key={`period-summary-activity-${item.label}`}
+                          >
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                justifyContent: "space-between",
+                                marginBottom: 3,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: AURORA.textSec,
+                                  fontSize: 11,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {item.label}
+                              </Text>
+                              <Text
+                                style={{
+                                  color: AURORA.textSec,
+                                  fontSize: 11,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {item.count}
+                              </Text>
+                            </View>
+                            <View
+                              style={{
+                                height: 7,
+                                borderRadius: 999,
+                                backgroundColor: "rgba(255,255,255,0.08)",
+                              }}
+                            >
+                              <View
+                                style={{
+                                  width: `${widthPct}%`,
+                                  height: 7,
+                                  borderRadius: 999,
+                                  backgroundColor: AURORA.blue,
+                                }}
+                              />
+                            </View>
+                          </View>
+                        );
+                      })}
                     </View>
                   ) : null}
-                  {weeklyAi.support_note ? (
+                  {weeklyAi?.support_note ? (
                     <Text
                       style={{
                         color: AURORA.amber,
