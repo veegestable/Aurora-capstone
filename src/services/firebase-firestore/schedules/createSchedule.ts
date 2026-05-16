@@ -14,7 +14,7 @@ export const createSchedule = async (scheduleData: Omit<ScheduleData, 'user_id'>
     const docRef = await addDoc(collection(db, 'schedules'), docData)
     console.log('✅ Schedule created with ID:', docRef.id)
     return { id: docRef.id, ...docData }
-  } catch (error: any) {
+  } catch(error: unknown) {
     console.error('❌ Error creating schedule:', error)
     throw error
   }

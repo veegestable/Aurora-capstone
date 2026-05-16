@@ -184,7 +184,7 @@ export function AddAnnouncementModal({
       setSelectedCollegeCodes([]);
       onSuccess?.();
       onClose();
-    } catch (e) {
+    } catch {
       Alert.alert("Error", "Failed to create announcement. Please try again.");
     } finally {
       setSaving(false);

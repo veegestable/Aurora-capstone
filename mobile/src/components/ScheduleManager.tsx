@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react"; import {   View, TouchableOpacity, ScrollView, Modal, Alert, FlatList } from "react-native";
-import { Plus, Calendar, Trash2, Edit2, X, Clock } from "lucide-react-native";
+import { useState, useEffect } from "react";
+ import {
+   View, TouchableOpacity, ScrollView, Modal, Alert, FlatList } from "react-native";
+import { Plus, Calendar, Trash2, Edit2, X } from "lucide-react-native";
 import { useAuth } from "../stores/AuthContext";
 import { scheduleService, ScheduleData } from "../services/schedule.service";
-import { Card } from "./common/Card";
 import { Button } from "./common/Button";
 import { AppText as Text } from "./common/AppText";
 import { AppTextInput as TextInput } from "./common/AppTextInput";
@@ -47,7 +48,7 @@ export default function ScheduleManager() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
 
   // Form State
   const [title, setTitle] = useState("");
@@ -62,6 +63,7 @@ export default function ScheduleManager() {
     if (user) {
       loadSchedules();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadSchedules = async () => {

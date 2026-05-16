@@ -5,7 +5,6 @@ import {
   query,
   where,
   orderBy,
-  limit,
   getDocs,
   getDoc,
   setDoc,
@@ -393,7 +392,7 @@ export const firestoreService = {
       const docRef = await addDoc(collection(db, "mood_logs"), docData);
       console.log("✅ Mood log created with ID:", docRef.id);
       return { id: docRef.id, ...docData };
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error creating mood log:", error);
       throw error;
     }
@@ -437,7 +436,7 @@ export const firestoreService = {
 
       console.log("✅ Retrieved", moodLogs.length, "mood logs");
       return moodLogs;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("❌ Error getting mood logs:", error);
       throw error;
     }
@@ -492,7 +491,7 @@ export const firestoreService = {
         },
         (err) => onError?.(err instanceof Error ? err : new Error(String(err))),
       );
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ subscribeMoodLogs setup error:", error);
       onError?.(error instanceof Error ? error : new Error(String(error)));
       return () => {};
@@ -515,7 +514,7 @@ export const firestoreService = {
       await updateDoc(logRef, updatePayload);
       console.log("✅ Mood log updated");
       return { id: logId, ...updatePayload };
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error updating mood log:", error);
       throw error;
     }
@@ -537,7 +536,7 @@ export const firestoreService = {
       const docRef = await addDoc(collection(db, "schedules"), docData);
       console.log("✅ Schedule created with ID:", docRef.id);
       return { id: docRef.id, ...docData };
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error creating schedule:", error);
       throw error;
     }
@@ -568,7 +567,7 @@ export const firestoreService = {
 
       console.log("✅ Retrieved", schedules.length, "schedules");
       return schedules;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error getting schedules:", error);
       throw error;
     }
@@ -590,7 +589,7 @@ export const firestoreService = {
       await updateDoc(scheduleRef, updatePayload);
       console.log("✅ Schedule updated");
       return { id: scheduleId, ...updatePayload };
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error updating schedule:", error);
       throw error;
     }
@@ -600,7 +599,7 @@ export const firestoreService = {
     try {
       await deleteDoc(doc(db, "schedules", scheduleId));
       console.log("✅ Schedule deleted");
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error deleting schedule:", error);
       throw error;
     }
@@ -622,7 +621,7 @@ export const firestoreService = {
       const docRef = await addDoc(collection(db, "notifications"), docData);
       console.log("✅ Notification created with ID:", docRef.id);
       return { id: docRef.id, ...docData };
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error creating notification:", error);
       throw error;
     }
@@ -652,7 +651,7 @@ export const firestoreService = {
 
       console.log("✅ Retrieved", notifications.length, "notifications");
       return notifications;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error getting notifications:", error);
       throw error;
     }
@@ -681,7 +680,7 @@ export const firestoreService = {
       }
 
       return Object.values(usersById);
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error fetching users by role:", error);
       throw error;
     }
@@ -714,7 +713,7 @@ export const firestoreService = {
       );
       collect(await getDocs(qDept));
       return Object.values(byId);
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error fetching verified students for college:", error);
       throw error;
     }
@@ -855,7 +854,7 @@ export const firestoreService = {
       collect(await getDocs(approvedCounselorsLegacyRole));
 
       return Object.values(byId);
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error(
         "❌ Error fetching verified approved counselors for college:",
         error,
@@ -1121,7 +1120,7 @@ export const firestoreService = {
         updated_at: Timestamp.now(),
       });
       console.log("✅ Notification marked as read");
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error marking notification as read:", error);
       throw error;
     }
@@ -1339,7 +1338,7 @@ export const firestoreService = {
         }),
       );
       return results;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error getting conversations:", error);
       throw error;
     }
@@ -1415,7 +1414,7 @@ export const firestoreService = {
         }),
       );
       return results;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error getting student conversations:", error);
       throw error;
     }
@@ -1444,7 +1443,7 @@ export const firestoreService = {
       // Do not force `createdAt` ordering: some older rows use `created_at`.
       const snapshot = await getDocs(messagesRef);
       return await buildChatMessagesFromQuerySnapshot(snapshot, userId);
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error getting messages:", error);
       throw error;
     }
@@ -1494,7 +1493,7 @@ export const firestoreService = {
       });
 
       await Promise.all(updates);
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error marking conversation as read:", error);
       throw error;
     }
@@ -1551,10 +1550,11 @@ export const firestoreService = {
         await this.counselorClearInboxArchive(senderId, conversationId);
       }
       return out.messageId;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error sending message:", error);
-      if (String(error?.code ?? "").includes("resource-exhausted")) {
-        const details = error?.customData?.details ?? error?.details;
+      const err = error as { code?: string; customData?: { details?: unknown }; details?: unknown };
+      if (String(err?.code ?? "").includes("resource-exhausted")) {
+        const details = err?.customData?.details ?? err?.details;
         const retryAfter =
           details &&
           typeof details === "object" &&
@@ -1612,7 +1612,7 @@ export const firestoreService = {
       });
 
       await batch.commit();
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error marking student conversation as read:", error);
     }
   },
@@ -1674,7 +1674,7 @@ export const firestoreService = {
           (conv?.unreadCountCounselor ?? 0) + 1;
       await updateDoc(convRef, updatePayload);
       return msgId;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error sending session message:", error);
       throw error;
     }
@@ -1689,7 +1689,7 @@ export const firestoreService = {
       await deleteDoc(
         doc(db, "conversations", conversationId, "messages", messageId),
       );
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error deleting conversation message:", error);
       throw error;
     }
@@ -1742,7 +1742,7 @@ export const firestoreService = {
       });
 
       return messageId;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error updating session invite message:", error);
       throw error;
     }
@@ -1816,7 +1816,7 @@ export const firestoreService = {
         session,
       );
       return keepMessageId;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error(
         "❌ Error updating session invite message schedule:",
         error,
@@ -1851,10 +1851,11 @@ export const firestoreService = {
         note,
       });
       return out.messageId;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("❌ Error sending session request:", error);
-      if (String(error?.code ?? "").includes("resource-exhausted")) {
-        const details = error?.customData?.details ?? error?.details;
+      const err = error as { code?: string; customData?: { details?: unknown }; details?: unknown };
+      if (String(err?.code ?? "").includes("resource-exhausted")) {
+        const details = err?.customData?.details ?? err?.details;
         const retryAfter =
           details &&
           typeof details === "object" &&
@@ -1919,7 +1920,7 @@ export const firestoreService = {
       }
       const docRef = await addDoc(collection(db, "sessions"), docData);
       return docRef.id;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error creating session request:", error);
       throw error;
     }
@@ -1966,7 +1967,7 @@ export const firestoreService = {
         `session:${docRef.id}:counselor_invite_created`,
       );
       return docRef.id;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error creating counselor session invite:", error);
       throw error;
     }
@@ -2042,7 +2043,7 @@ export const firestoreService = {
         `session:${sessionId}:student_request_created`,
       );
       return docRef.id;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error adding session request to conversation:", error);
       throw error;
     }
@@ -2071,7 +2072,7 @@ export const firestoreService = {
           ),
         )
         .map((d) => ({ id: d.id, ...d.data() }));
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error getting student sessions:", error);
       throw error;
     }
@@ -2100,7 +2101,7 @@ export const firestoreService = {
           ),
         )
         .map((d) => ({ id: d.id, ...d.data() }));
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error getting counselor sessions:", error);
       throw error;
     }
@@ -2137,7 +2138,7 @@ export const firestoreService = {
         else if (st === "missed") missed += 1;
       }
       return { completed, missed };
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error(
         "❌ Error counting session outcomes for counselor/student:",
         error,
@@ -2186,7 +2187,7 @@ export const firestoreService = {
           `session:${sessionId}:slots_proposed_to_student`,
         );
       }
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error proposing slots:", error);
       throw error;
     }
@@ -2212,7 +2213,7 @@ export const firestoreService = {
           `session:${sessionId}:confirmed_for_student`,
         );
       }
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error confirming slot:", error);
       throw error;
     }
@@ -2277,7 +2278,7 @@ export const firestoreService = {
           `session:${sessionId}:confirmed_for_counselor`,
         );
       }
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error confirming final slot:", error);
       throw error;
     }
@@ -2322,7 +2323,7 @@ export const firestoreService = {
         }
       });
       await Promise.all(updates);
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error updating session request message status:", error);
       throw error;
     }
@@ -2387,7 +2388,7 @@ export const firestoreService = {
         lastMessageAt: Timestamp.now(),
         lastSenderId: senderId,
       });
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error updating session request schedule:", error);
       throw error;
     }
@@ -2458,7 +2459,7 @@ export const firestoreService = {
             }
           : {}),
       });
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error marking attendance:", error);
       throw error;
     }
@@ -2630,7 +2631,7 @@ export const firestoreService = {
       const syncSchedulingStatus = async (
         s: (typeof sessions)[0],
       ): Promise<string> => {
-        let status = s.status;
+        const status = s.status;
         const terminal = ["completed", "missed", "cancelled", "rescheduled"];
         if (terminal.includes(status)) return status;
 
@@ -2702,7 +2703,7 @@ export const firestoreService = {
       );
 
       return results;
-    } catch (error: any) {
+    } catch(error: unknown) {
       console.error("❌ Error getting session history:", error);
       throw error;
     }
@@ -2801,14 +2802,14 @@ async function buildChatMessagesFromQuerySnapshot(
     ...new Set([...requestSessionIds, ...inviteSessionIds]),
   ];
 
-  let sessionStatusMap: Record<string, string> = {};
-  let sessionFinalSlotMap: Record<
+  const sessionStatusMap: Record<string, string> = {};
+  const sessionFinalSlotMap: Record<
     string,
     { date: string; time: string } | null
   > = {};
-  let sessionHasProposedSlotsMap: Record<string, boolean> = {};
+  const sessionHasProposedSlotsMap: Record<string, boolean> = {};
   /** Present when `sessions/{id}` exists — used for student 24h open-invite expiry. */
-  let sessionDocTimestampsMap: Record<
+  const sessionDocTimestampsMap: Record<
     string,
     { createdAt?: unknown; updatedAt?: unknown }
   > = {};

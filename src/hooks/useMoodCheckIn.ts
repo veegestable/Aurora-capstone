@@ -142,6 +142,7 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
   useEffect(() => {
     if (selectedEmotions.length === 0 || moodInputMode !== 'manual') return
     setSelectedEmotions((prev) => prev.map((e) => ({ ...e, confidence: intensity / 10 })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intensity, moodInputMode])
 
   const toggleTag = (tag: string) => {

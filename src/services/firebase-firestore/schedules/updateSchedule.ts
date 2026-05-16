@@ -18,7 +18,7 @@ export const updateSchedule = async (scheduleId: string, updateData: Partial<Sch
     await updateDoc(scheduleRef, updatePayload)
     console.log('✅ Schedule updated')
     return { id: scheduleId, ...updatePayload }
-  } catch (error: any) {
+  } catch(error: unknown) {
     console.error('❌ Error updating schedule:', error)
     throw error
   }

@@ -14,7 +14,7 @@ export const createNotification = async (notificationData: Omit<NotificationData
     const docRef = await addDoc(collection(db, 'notifications'), docData)
     console.log('✅ Notification created with ID:', docRef.id)
     return { id: docRef.id, ...docData }
-  } catch (error: any) {
+  } catch(error: unknown) {
     console.error('❌ Error creating notification:', error)
     throw error
   }

@@ -438,8 +438,8 @@ export const authService = {
     try {
       await signOut(auth);
       console.log("✅ User signed out successfully");
-    } catch (error: any) {
-      console.error("❌ Signout error:", error.message);
+    } catch(error: unknown) {
+      console.error("❌ Signout error:", error instanceof Error? error.message : error);
     }
   },
 
@@ -491,9 +491,9 @@ export const authService = {
         await backfillStudentCollegeCodeFromProgramIfNeeded(uid, refreshed);
       }
       console.log("✅ User profile updated successfully");
-    } catch (error: any) {
-      console.error("❌ Update profile error:", error.message);
-      throw new Error(error.message);
+    } catch(error: unknown) {
+      console.error("❌ Update profile error:", error instanceof Error? error.message : error);
+      throw new Error(error instanceof Error? error.message : "Unknown error");
     }
   },
 
@@ -517,9 +517,9 @@ export const authService = {
 
       await this.updateProfile(uid, { avatar_url: downloadUrl });
       return downloadUrl;
-    } catch (error: any) {
-      console.error("❌ Avatar upload error:", error.message);
-      throw new Error(error.message);
+    } catch(error: unknown) {
+      console.error("❌ Avatar upload error:", error instanceof Error? error.message : error);
+      throw new Error(error instanceof Error? error.message : "Unknown error");
     }
   },
 
@@ -545,8 +545,8 @@ export const authService = {
         email: profile?.email ?? user.email ?? "",
         email_verified: emailVerifiedEffective,
       };
-    } catch (error: any) {
-      console.error("❌ Get current user error:", error.message);
+    } catch(error: unknown) {
+      console.error("❌ Get current user error:", error instanceof Error? error.message : error);
       return null;
     }
   },
@@ -576,9 +576,9 @@ export const authService = {
       }
       await updateDoc(doc(db, "users", uid), updates);
       console.log("✅ Counselor approval updated:", uid, approval_status);
-    } catch (error: any) {
-      console.error("❌ Update counselor approval error:", error.message);
-      throw new Error(error.message);
+    } catch(error: unknown) {
+      console.error("❌ Update counselor approval error:", error instanceof Error? error.message : error);
+      throw new Error(error instanceof Error? error.message : "Unknown error");
     }
   },
 };

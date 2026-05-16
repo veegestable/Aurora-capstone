@@ -7,18 +7,14 @@ import { AppTextInput as TextInput } from "../../components/common/AppTextInput"
  */
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
+import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
-  Search,
-  Settings2,
-  Info,
   Plus,
   Send,
-  PenSquare,
-  Phone,
+  PenSquare
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../stores/AuthContext";
@@ -1294,6 +1290,7 @@ export default function MessagesScreen() {
       cancelled = true;
       counselorDeepLinkHandledRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.counselorId, params.openSessionRequest, user?.id, router]);
 
   if (selectedContact) {

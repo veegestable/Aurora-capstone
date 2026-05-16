@@ -37,7 +37,7 @@ export async function markConversationAsRead(conversationId: string, viewerId: s
     })
 
     await Promise.all(updates)
-  } catch (error: any) {
+  } catch(error: unknown) {
     console.error('Failed to mark conversation as read:', error)
   }
 }

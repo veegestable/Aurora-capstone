@@ -4,7 +4,7 @@ import { AppText as Text } from "./common/AppText";
  * stagger + count-up animations (respects Reduce Motion).
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"; import {   View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, AppState, useWindowDimensions, Platform, type AppStateStatus, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"; import {   View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, AppState, Platform, type AppStateStatus, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
 import * as Animatable from "react-native-animatable";
 import Animated, {
   Easing,
@@ -33,7 +33,6 @@ import type { MoodData } from "../services/firebase-firestore.service";
 import {
   fetchWeeklyAiAnalyticsWithPayload,
   deterministicWeeklyFallback,
-  WEEKLY_SUMMARY_FALLBACK_STUDENT_INTRO,
   type WeeklyAiResult,
 } from "../services/weeklyAnalyticsAi.service";
 import {
@@ -54,7 +53,6 @@ import {
   ETHICS_ANALYTICS_FOOTER,
 } from "./analytics/DescriptiveCharts";
 import { AnalyticsMoodWidgets } from "./analytics/AnalyticsMoodWidgets";
-import { averageMoodPlainLine } from "../utils/analytics/studentInsightsCopy";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import { useCountUp } from "../hooks/useCountUp";
 import { AURORA } from "../constants/aurora-colors";
@@ -65,7 +63,6 @@ import {
   getEmotionLabel,
 } from "../utils/moodColors";
 import {
-  moodCategoryFromFive,
   stressCategoryFromFive,
   energyCategoryFromFive,
   sentenceCase,
@@ -759,15 +756,13 @@ function ChartSection({ children }: { children: React.ReactNode }) {
 }
 
 export default function Analytics() {
-  const { width: screenWidth } = useWindowDimensions();
-  const isCompactWidth = screenWidth <= 380;
   const { user } = useAuth();
   const reduceMotion = useReducedMotion();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [weekSummaryGenerating, setWeekSummaryGenerating] = useState(false);
-  const [weekSummarySource, setWeekSummarySource] = useState<
+  const [_weekSummarySource, setWeekSummarySource] = useState<
     "ai" | "fallback" | null
   >(null);
   const [analyticsView, setAnalyticsView] = useState<"today" | "week">("today");
@@ -779,7 +774,7 @@ export default function Analytics() {
     today: { x: 0, w: 0 },
     week: { x: 0, w: 0 },
   });
-  const [weekSummaryTemplate, setWeekSummaryTemplate] = useState("");
+  const [_weekSummaryTemplate, setWeekSummaryTemplate] = useState("");
   const [activeWeekPill, setActiveWeekPill] = useState<
     "days" | "checkins" | "streak" | null
   >(null);
@@ -791,7 +786,7 @@ export default function Analytics() {
   const [logs, setLogs] = useState<
     (MoodData & { log_date: Date; id?: string })[]
   >([]);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [_lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [weeklyAi, setWeeklyAi] = useState<WeeklyAiResult | null>(null);
   const [celebrateMilestone, setCelebrateMilestone] = useState(false);
   const prevStreakRef = useRef<number | null>(null);
@@ -856,7 +851,7 @@ export default function Analytics() {
       analyticsViewThumbW.value = withTiming(seg.w, { duration: dur, easing });
       analyticsViewThumbX.value = withTiming(seg.x, { duration: dur, easing });
     }
-  }, [analyticsView, analyticsViewSegments, reduceMotion]);
+  }, [analyticsView, analyticsViewSegments, reduceMotion, analyticsViewThumbW, analyticsViewThumbX]);
 
   const refreshMoodLogs = useCallback(
     async (opts?: {
@@ -1191,17 +1186,6 @@ export default function Analytics() {
     ).filter((l) => keySet.has(calendarDayKeyLocal(new Date(l.log_date))));
     return analyzeSchoolLogs(weekLogs as any);
   }, [logs]);
-  const weekAcademicSummaryLine = useMemo(() => {
-    if (!weekSchoolAnalysis)
-      return "No school-tagged check-ins in the last 7 days.";
-    const topEvents =
-      weekSchoolAnalysis.topSchoolEvents.length > 0
-        ? weekSchoolAnalysis.topSchoolEvents
-            .map((e) => `${e.label} (${e.count})`)
-            .join(", ")
-        : "no frequent school events yet";
-    return `Academic pattern: ${weekSchoolAnalysis.summary}`;
-  }, [weekSchoolAnalysis]);
   const last7DayKeySet = useMemo(() => {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
@@ -1428,120 +1412,7 @@ export default function Analytics() {
       "This chart shows energy per hourly slot today.\n\nY-axis: 1 (low) to 5 (high).\nX-axis: hour slot index.\n\nEnergy categories:\n- 1.0 to 1.8: Very low energy\n- 1.9 to 2.6: Low energy\n- 2.7 to 3.5: Steady energy\n- 3.6 to 5.0: High energy",
     );
   };
-  const weekBestWorstInsight = useMemo(() => {
-    const entries = moodLogsToMoodEntries(
-      logs as (MoodData & { log_date: Date })[],
-    );
-    const points: Array<{
-      label: string;
-      avgIntensity: number;
-      avgStress: number;
-      dominantEmotion: "happy" | "angry" | "surprise" | "neutral" | "sad" | "";
-    }> = [];
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const key = calendarDayKeyLocal(d);
-      const agg = aggregateByDay(entries, key);
-      const dayLogs = last7Logs.filter(
-        (l) => calendarDayKeyLocal(new Date(l.log_date)) === key,
-      );
-      const dayEmotionCount = new Map<string, number>();
-      for (const log of dayLogs) {
-        const norm = Array.isArray(log.emotions)
-          ? normalizeEmotionBucket(log.emotions[0]?.emotion || "")
-          : "";
-        if (norm)
-          dayEmotionCount.set(norm, (dayEmotionCount.get(norm) ?? 0) + 1);
-      }
-      const dominantEmotion = [...dayEmotionCount.entries()].sort(
-        (a, b) => b[1] - a[1],
-      )[0]?.[0] as
-        | "happy"
-        | "angry"
-        | "surprise"
-        | "neutral"
-        | "sad"
-        | undefined;
-      if (agg.entryCount > 0) {
-        points.push({
-          label: d.toLocaleDateString("en-US", { weekday: "short" }),
-          avgIntensity: agg.avgIntensity,
-          avgStress: agg.avgStress,
-          dominantEmotion: dominantEmotion ?? "",
-        });
-      }
-    }
-    if (points.length < 2) return "";
-    let best = points[0];
-    let hardest = points[0];
-    for (const p of points) {
-      const emotionBonus =
-        p.dominantEmotion === "happy"
-          ? 1.1
-          : p.dominantEmotion === "surprise"
-            ? 0.35
-            : p.dominantEmotion === "neutral"
-              ? 0.15
-              : p.dominantEmotion === "sad"
-                ? -0.65
-                : p.dominantEmotion === "angry"
-                  ? -0.85
-                  : 0;
-      const bestScore = p.avgIntensity - p.avgStress * 1.1 + emotionBonus;
-      const prevBestBonus =
-        best.dominantEmotion === "happy"
-          ? 1.1
-          : best.dominantEmotion === "surprise"
-            ? 0.35
-            : best.dominantEmotion === "neutral"
-              ? 0.15
-              : best.dominantEmotion === "sad"
-                ? -0.65
-                : best.dominantEmotion === "angry"
-                  ? -0.85
-                  : 0;
-      const prevBestScore =
-        best.avgIntensity - best.avgStress * 1.1 + prevBestBonus;
-      if (bestScore > prevBestScore) best = p;
-      const currentRank = -p.avgIntensity + p.avgStress;
-      const hardestRank = -hardest.avgIntensity + hardest.avgStress;
-      if (currentRank > hardestRank) hardest = p;
-    }
-    return `You felt best on ${best.label} and most stressed on ${hardest.label}.`;
-  }, [logs, last7Logs]);
-  const lastUpdatedLabel = useMemo(() => {
-    if (!lastUpdatedAt) return "Updated just now";
-    return `Updated ${lastUpdatedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-  }, [lastUpdatedAt]);
 
-  const trendPlainSentence = useMemo(() => {
-    if (!weeklyAi) return "";
-    switch (weeklyAi.trend) {
-      case "Improving":
-        return "Later days in the last 7 days showed higher mood numbers than earlier days (from your logs only).";
-      case "Declining":
-        return "Later days in the last 7 days showed lower mood numbers than earlier days (from your logs only).";
-      case "Stable":
-      default:
-        return "Early and late days in the last 7 days stayed in a similar mood range (from your logs only).";
-    }
-  }, [weeklyAi]);
-  const weeklySummaryBody = useMemo(() => {
-    const stabilityLine =
-      weekWellnessStats.stability != null
-        ? `${weekWellnessStats.stability}% mood stability`
-        : "not enough stability data";
-    const base =
-      `In the last 7 days, stress was ${weekWellnessStats.stressLabel}, energy was ${weekWellnessStats.energyLabel}, ` +
-      `sleep quality looked ${weekWellnessStats.sleepLabel}, mood stability was ${stabilityLine}, and the most common emotion was ${weekWellnessStats.emotionLabel}.`;
-    const withBestWorst = weekBestWorstInsight
-      ? `${base} ${weekBestWorstInsight}`
-      : base;
-    return `${withBestWorst} ${weekAcademicSummaryLine}`;
-  }, [weekWellnessStats, weekBestWorstInsight, weekAcademicSummaryLine]);
   const stressLabelFriendly = useMemo(() => {
     const raw = (weekWellnessStats.stressLabel || "").toLowerCase().trim();
     if (raw === "very stressed") return "high";
@@ -1691,9 +1562,6 @@ export default function Analytics() {
               </TouchableOpacity>
             </View>
           </View>
-          {/* <Text style={{ color: UI_TEXT_MUTED, fontSize: 11, marginTop: 6 }}>
-          {lastUpdatedLabel}
-        </Text> */}
         </View>
 
         {analyticsView === "today" ? (
@@ -2366,15 +2234,6 @@ export default function Analytics() {
                           <CircleHelp size={16} color={AURORA.textMuted} />
                         </TouchableOpacity>
                       </View>
-                      {/* <Text
-                        style={{
-                          color: AURORA.textSec,
-                          fontSize: isCompactWidth ? 11 : 12,
-                          marginBottom: 10,
-                        }}
-                      >
-                        Total minutes spent in each mood.
-                      </Text> */}
                       {todayDurationBars.length === 0 ? (
                         <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
                           No duration entries yet for today.
@@ -2488,16 +2347,6 @@ export default function Analytics() {
                           <CircleHelp size={16} color={AURORA.textMuted} />
                         </TouchableOpacity>
                       </View>
-                      {/* <Text
-                        style={{
-                          color: AURORA.textSec,
-                          fontSize: isCompactWidth ? 11 : 12,
-                          marginBottom: 10,
-                        }}
-                      >
-                        Compare which moods had higher or lower average
-                        intensity today.
-                      </Text> */}
                       {todayIntensityBars.length === 0 ? (
                         <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
                           No intensity entries yet for today.
@@ -3433,15 +3282,6 @@ export default function Analytics() {
                       <CircleHelp size={16} color={AURORA.textMuted} />
                     </TouchableOpacity>
                   </View>
-                  {/* <Text
-                    style={{
-                      color: AURORA.textSec,
-                      fontSize: isCompactWidth ? 11 : 12,
-                      marginVertical: 10,
-                    }}
-                  >
-                    Total minutes spent in each mood in the last 7 days.
-                  </Text> */}
                   {weekDurationBars.length === 0 ? (
                     <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
                       No duration entries yet for the last 7 days.
@@ -3553,16 +3393,6 @@ export default function Analytics() {
                       <CircleHelp size={16} color={AURORA.textMuted} />
                     </TouchableOpacity>
                   </View>
-                  {/* <Text
-                    style={{
-                      color: AURORA.textSec,
-                      fontSize: isCompactWidth ? 11 : 12,
-                      marginVertical: 10,
-                    }}
-                  >
-                    Compare which moods had higher or lower average intensity in
-                    the last 7 days.
-                  </Text> */}
                   {weekIntensityBars.length === 0 ? (
                     <Text style={{ color: AURORA.textSec, fontSize: 12 }}>
                       No intensity entries yet for the last 7 days.

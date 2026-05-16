@@ -26,7 +26,7 @@ export const getSchedules = async (userId: string, startDate?: Date, endDate?: D
 
     console.log('✅ Retrieved', schedules.length, 'schedules')
     return schedules
-  } catch (error: any) {
+  } catch(error: unknown) {
     console.error('❌ Error getting schedules:', error)
     throw error
   }

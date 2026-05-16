@@ -551,7 +551,6 @@ export const migrateOldMoodLogs = onCall({ region: 'asia-southeast2' }, async (r
     if (!uid) continue;
     const logTs = d.log_date as admin.firestore.Timestamp | undefined;
     if (!logTs) continue;
-    const logDate = logTs.toDate();
     const emotions = Array.isArray(d.emotions) ? d.emotions : [];
     const primary = emotions[0] || { emotion: 'neutral', confidence: 0.5, color: '#888888' };
     const mood = String(primary.emotion || 'neutral');

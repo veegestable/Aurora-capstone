@@ -7,6 +7,7 @@ import { EmotionDetection } from "../../src/components/EmotionDetection";
 import { AURORA } from "../../src/constants/aurora-colors";
 import { triggerHaptic } from "../../src/utils/haptics";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const options = { headerShown: false as const };
 
 export default function DailySelfieScreen() {

@@ -9,16 +9,13 @@ import { AppTextInput as TextInput } from "../../src/components/common/AppTextIn
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { View, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable, Modal, StyleSheet } from "react-native";
+import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable, Modal, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  Search,
   ArrowLeft,
-  Info,
   Plus,
   Send,
-  RotateCcw,
   PenSquare,
   ChevronRight,
 } from "lucide-react-native";

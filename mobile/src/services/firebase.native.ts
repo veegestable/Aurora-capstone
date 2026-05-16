@@ -18,7 +18,6 @@ const databaseURL =
  * `getReactNativePersistence`. The top-level `firebase/auth` typings omit this
  * helper (it's exported from @firebase/auth's RN bundle).
  */
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- RN-only auth entry
 const nativeAuth = require("@firebase/auth/dist/rn/index.js") as {
   initializeAuth: (app: FirebaseApp, deps?: { persistence?: unknown }) => Auth;
   getAuth: (app?: FirebaseApp) => Auth;

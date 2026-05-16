@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { TouchableOpacity, Vibration, View } from "react-native";
 import { AppText as Text } from "../common/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Pause, Play } from "lucide-react-native";
+import { ArrowLeft } from "lucide-react-native";
 import { AURORA } from "../../constants/aurora-colors";
 import { triggerHaptic, triggerHapticSuccess } from "../../utils/haptics";
 import {

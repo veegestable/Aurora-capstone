@@ -9,9 +9,9 @@ import { AppTextInput as TextInput } from "../../../src/components/common/AppTex
  */
 
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import { View, ScrollView, TouchableOpacity, Image, FlatList, ActivityIndicator } from "react-native";
+import { View, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Bell, Search, ChevronDown } from "lucide-react-native";
+import { Search, ChevronDown } from "lucide-react-native";
 import { AURORA } from "../../../src/constants/aurora-colors";
 import { LetterAvatar } from "../../../src/components/common/LetterAvatar";
 import { firestoreService } from "../../../src/services/firebase-firestore.service";

@@ -137,9 +137,9 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
       setTimeout(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
       }, 100)
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Failed to confirm session time:', e)
-      alert('Could not confirm session: ' + (e.message || 'Please try again.'))
+      alert('Could not confirm session: ' + (e instanceof Error ? e.message : 'Please try again.'))
     } finally {
       setIsSending(false)
     }

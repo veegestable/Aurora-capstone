@@ -58,8 +58,8 @@ export default function Login() {
       } else {
         await signIn(formData.email, formData.password)
       }
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Authentication failed')
     } finally {
       setLoading(false)
     }

@@ -116,7 +116,6 @@ export function SpotlightTourOverlay({
     const cardTop = winH - cardMetrics.cardBottom - cardMetrics.cardMaxH;
     const cardMidX = (cardLeft + cardRight) / 2;
     const spotCx = hole.x + hole.w / 2;
-    const spotCy = hole.y + hole.h / 2;
 
     const cardAboveSpotlight = cardTop + cardMetrics.cardMaxH < hole.y;
     if (cardAboveSpotlight) {

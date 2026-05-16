@@ -11,8 +11,8 @@ export const getResourceById = async (id: string): Promise<ResourceRecord | null
       id: snap.id,
       ...(snap.data() as Omit<ResourceRecord, 'id'>)
     }
-  } catch (error: any) {
-    console.error('❌ Get resource by ID error:', error.message)
+  } catch (error: unknown) {
+    console.error('❌ Get resource by ID error:', error instanceof Error ? error.message : error)
     return null
   }
 }

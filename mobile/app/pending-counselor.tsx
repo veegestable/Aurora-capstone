@@ -14,7 +14,7 @@ import { Clock, LogOut } from "lucide-react-native";
 import { AURORA } from "../src/constants/aurora-colors";
 
 export default function PendingCounselorScreen() {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
 
   const handleSignOut = async () => {
     await signOut();

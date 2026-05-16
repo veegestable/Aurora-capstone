@@ -50,6 +50,7 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
     setYearLevel(user.year_level || '')
     setStudentNumber(user.student_number || '')
     setContactNumber(user.contact_number || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const handlePickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {

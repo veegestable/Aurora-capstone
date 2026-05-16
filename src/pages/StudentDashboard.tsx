@@ -57,6 +57,7 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     loadStats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
   return (

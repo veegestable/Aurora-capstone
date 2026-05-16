@@ -671,7 +671,7 @@ export default function CounselorHomeScreen() {
   const [recentFlags, setRecentFlags] = useState<FlagItem[]>([]);
   const [upcomingAcceptedSessions, setUpcomingAcceptedSessions] =
     useState<number>(0);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [_lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingSessions, setPendingSessions] = useState<PendingSessionItem[]>(
     [],

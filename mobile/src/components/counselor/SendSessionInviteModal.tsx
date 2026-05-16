@@ -21,7 +21,7 @@ import {
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { X, Send, Calendar, Pencil, Info } from "lucide-react-native";
+import { Send, Calendar, Pencil, Info } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { AURORA } from "../../constants/aurora-colors";
 import { LetterAvatar } from "../common/LetterAvatar";
@@ -196,7 +196,6 @@ export default function SendSessionInviteModal({
   visible,
   mode = "invite",
   student,
-  counselorName = "Counselor",
   initialData,
   onClose,
   onSend,
@@ -362,6 +361,7 @@ export default function SendSessionInviteModal({
     if (Platform.OS !== "android" || !pickingSlot) return;
     const activeSlotDate = getSlotDate(pickingSlot);
     seedWheelFromDate(activeSlotDate || new Date());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickingSlot]);
 
   const handleConfirmDate = () => {

@@ -416,6 +416,7 @@ export default function StudentProfileModal({
                 setBaselineLogs([]);
             })
             .finally(() => setLoading(false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [visible, student?.id, counselorId]);
 
     if (!student) return null;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { View, ScrollView, TouchableOpacity, Switch, Alert, Image, Modal, Platform, ActivityIndicator, KeyboardAvoidingView } from "react-native";
+import { View, ScrollView, TouchableOpacity, Switch, Alert, Modal, Platform, ActivityIndicator, KeyboardAvoidingView } from "react-native";
 import { AppText as Text } from "../../components/common/AppText";
 import { AppTextInput as TextInput } from "../../components/common/AppTextInput";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -13,7 +13,6 @@ import {
   Eye,
   Lock,
   Bell,
-  Video,
   LogOut,
   User,
   UtensilsCrossed,
@@ -35,8 +34,7 @@ import { SignOutConfirmModal } from "../../components/common/SignOutConfirmModal
 import {
   clearDailyCheckInReminder,
   hasNotificationPermission,
-  scheduleDailyCheckInReminder,
-  sendTestDailyCheckInNotification,
+  scheduleDailyCheckInReminder
 } from "../../services/push-notifications.service";
 import { syncExpoPushTokenToUserDoc } from "../../services/expo-push-token.service";
 import {
@@ -58,22 +56,6 @@ import { firestoreService } from "../../services/firebase-firestore.service";
 import { COUNSELOR_VISIBLE_CHECKIN_SUMMARY } from "../../constants/counselor-checkin-policy";
 import type { MealScheduleItem } from "../../services/mood-firestore-v2.service";
 
-function SectionLabel({ text }: { text: string }) {
-  return (
-    <Text
-      style={{
-        color: AURORA.textMuted,
-        fontSize: 11,
-        fontWeight: "700",
-        letterSpacing: 1.5,
-        marginTop: 28,
-        marginBottom: 8,
-      }}
-    >
-      {text}
-    </Text>
-  );
-}
 // ─── Section Header ───────────────────────────────────────────────────────────
 function SectionHeader({
   icon,
@@ -377,7 +359,7 @@ function EditProfileModal({
       setUploadingAvatar(true);
       try {
         await onPickAvatar(result.assets[0].uri);
-      } catch (e) {
+      } catch {
         Alert.alert(
           "Upload failed",
           "Could not upload profile picture. Please try again.",
@@ -798,7 +780,6 @@ export default function ProfileScreen() {
     setUsualBathTime,
     loading: settingsLoading,
   } = useUserDaySettings();
-  const [aiCamera, setAiCamera] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [collegeShiftOpen, setCollegeShiftOpen] = useState(false);
   const [shiftTargetCollege, setShiftTargetCollege] = useState<CollegeCode | "">(
@@ -857,6 +838,7 @@ export default function ProfileScreen() {
     );
     if (cc) score += 5;
     return Math.min(score, 100);
+// eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     user?.preferred_name,
     user?.full_name,

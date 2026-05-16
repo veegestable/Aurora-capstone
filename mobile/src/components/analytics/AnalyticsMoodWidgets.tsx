@@ -31,13 +31,6 @@ import {
 const UI_TEXT_SECONDARY = "#C1CEE9";
 const UI_TEXT_MUTED = "#9AA9C8";
 
-function stabilityCopy(score: number): string {
-  if (score >= 80) return "Very stable — your mood has been consistent";
-  if (score >= 60) return "Mostly stable — a few noticeable shifts";
-  if (score >= 40) return "Some fluctuation this period";
-  return "High variability — your mood shifted a lot";
-}
-
 type Props = {
   logs: (MoodData & { log_date: Date })[];
 };
