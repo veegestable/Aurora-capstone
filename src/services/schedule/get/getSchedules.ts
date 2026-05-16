@@ -1,4 +1,4 @@
-import { firestoreService } from '../../firebase-firestore'
+import { type ScheduleData, firestoreService } from '../../firebase-firestore'
 import { auth } from '../../../config/firebase'
 
 export const getSchedules = async (_userId?: string, startDate?: string, endDate?: string) => {
@@ -18,15 +18,18 @@ export const getSchedules = async (_userId?: string, startDate?: string, endDate
     )
     
     // Convert schedules to expected format
-    const formattedSchedules = schedules.map((schedule: any) => ({
-      id: schedule.id,
-      title: schedule.title || '',
-      description: schedule.description || '',
-      event_date: schedule.event_date instanceof Date 
-        ? schedule.event_date.toISOString() 
-        : new Date(schedule.event_date.toDate()).toISOString(),
-      event_type: schedule.event_type
-    }))
+    const formattedSchedules = schedules.map((schedule) => {
+      const s = schedule as ScheduleData & { id: string; event_date: Date; created_at?: Date }
+      return {
+        id: s.id,
+        title: s.title || '',
+        description: s.description || '',
+        event_date: s.event_date instanceof Date 
+          ? s.event_date.toISOString() 
+          : new Date((s.event_date as unknown as { toDate: () => Date }).toDate()).toISOString(),
+        event_type: s.event_type
+      }
+    })
     
     console.log('✅ Schedules fetched:', formattedSchedules.length, 'entries')
     return formattedSchedules

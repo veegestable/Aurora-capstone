@@ -448,7 +448,7 @@ export const authService = {
     try {
       console.log("🔥 Updating user profile:", uid, data);
 
-      const updates: any = {
+      const updates: Record<string, unknown> = {
         updated_at: new Date(),
       };
 

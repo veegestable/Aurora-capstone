@@ -124,7 +124,7 @@ export function SessionHistoryDetailModal({
                 className="w-full bg-aurora-bg border border-aurora-border rounded-xl px-3 py-2.5 text-sm text-white"
               >
                 {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
+                  <option key={s} value={s} className="bg-[#0B0D30] text-white">
                     {s.replace(/_/g, ' ')}
                   </option>
                 ))}

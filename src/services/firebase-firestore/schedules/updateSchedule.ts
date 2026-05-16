@@ -6,7 +6,7 @@ export const updateSchedule = async (scheduleId: string, updateData: Partial<Sch
   try {
     const scheduleRef = doc(db, 'schedules', scheduleId)
 
-    const updatePayload: any = {
+    const updatePayload: Record<string, unknown> = {
       ...updateData,
       updated_at: Timestamp.now()
     }

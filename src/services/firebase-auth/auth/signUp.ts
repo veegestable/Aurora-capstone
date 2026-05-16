@@ -41,7 +41,7 @@ export const signUp = async (data: SignUpData): Promise<UserProfile> => {
     // Create user profile in Firestore
     const userProfile: UserProfile = {
       uid: user.uid,
-      email: data.email,
+      email: data.email.toLowerCase(),
       full_name: data.fullName,
       role: data.role,
       ...(data.role === 'counselor'
