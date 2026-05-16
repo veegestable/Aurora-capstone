@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image } from "react-native";
+import { type ImageSourcePropType, View, ScrollView, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { AppText as Text } from "../../components/common/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -306,7 +306,7 @@ function ruleBasedSchoolInsight(entry: MoodEntry): string | null {
   return `${loadBand}: this check-in shows a tougher mood-stress pattern around school activities.`;
 }
 
-const MOOD_ICON_BY_MOOD: Record<MoodLog["mood"], any> = {
+const MOOD_ICON_BY_MOOD: Record<MoodLog["mood"], ImageSourcePropType> = {
   Happy: require("../../assets/moodIcon/happy.png"),
   Sad: require("../../assets/moodIcon/sad.png"),
   Angry: require("../../assets/moodIcon/angry.png"),

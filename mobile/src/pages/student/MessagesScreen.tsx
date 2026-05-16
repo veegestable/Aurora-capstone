@@ -7,7 +7,7 @@ import { AppTextInput as TextInput } from "../../components/common/AppTextInput"
  */
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
+import { type AlertButton, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -716,7 +716,7 @@ function DirectMessageView({
                           Alert.alert(
                             "Message options",
                             undefined,
-                            buttons as any,
+                            buttons as AlertButton[],
                           );
                         }}
                       >
@@ -1148,7 +1148,7 @@ export default function MessagesScreen() {
       .getConversationsForStudent(user.id, {
         activeCollegeCode: user.college_code,
       })
-      .then(setContacts as any)
+      .then((result) => setContacts(result as CounselorContact[]))
       .catch(() => setContacts([]));
   };
 
@@ -1290,7 +1290,7 @@ export default function MessagesScreen() {
       cancelled = true;
       counselorDeepLinkHandledRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.counselorId, params.openSessionRequest, user?.id, router]);
 
   if (selectedContact) {

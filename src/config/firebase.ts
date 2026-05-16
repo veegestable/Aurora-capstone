@@ -4,6 +4,7 @@ import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getDatabase, type Database } from 'firebase/database'
 import { getFunctions } from 'firebase/functions'
+import type { Analytics } from 'firebase/analytics'
 
 const inferredDatabaseUrl = import.meta.env.VITE_FIREBASE_PROJECT_ID 
   ? `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID}-default-rtdb.asia-southeast1.firebasedatabase.app` 
@@ -46,7 +47,7 @@ if (databaseURL) {
 export { rtdb }
 
 // Only initialize analytics in production or if explicitly enabled
-let analytics: any = null
+let analytics: Analytics | null = null
 if (typeof window !== 'undefined' && import.meta.env.PROD) {
   import('firebase/analytics').then(({ getAnalytics }) => {
     analytics = getAnalytics(app)

@@ -79,8 +79,27 @@ function mergeAndSort(
   });
 }
 
+interface CreateMoodLogInput {
+  log_date?: string | Date;
+  emotions?: Array<{ emotion?: string; confidence?: number; color?: string }>;
+  mood?: string;
+  stress_level?: number;
+  energy_level?: number;
+  duration_in_minutes?: number;
+  sleep_quality?: string;
+  event_categories?: string[];
+  event_tags?: string[];
+  notes?: string;
+  journal_source?: string;
+  detection_method?: string;
+  dayKey?: string;
+  bath_taken?: boolean;
+  journal_image_url?: string;
+  meal_responses?: Array<Record<string, unknown>>;
+}
+
 export const moodService = {
-  async createMoodLog(moodData: any) {
+  async createMoodLog(moodData: CreateMoodLogInput) {
     const user = auth.currentUser;
     if (!user) throw new Error("User not authenticated");
 
@@ -270,7 +289,7 @@ export const moodService = {
     };
   },
 
-  async updateMoodLog(_logId: string, _moodData: any) {
+  async updateMoodLog(_logId: string, _moodData: unknown) {
     console.warn(
       "[moodService] updateMoodLog is deprecated for v2 entries; add a new check-in instead.",
     );

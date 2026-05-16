@@ -5,7 +5,7 @@ export const updateSchedule = async (scheduleId: string, data: Partial<ScheduleD
   try {
     console.log('🔥 Updating schedule: ', scheduleId)
 
-    const updateData: any = { ...data }
+    const updateData: Record<string, unknown> = { ...data }
 
     if (data.event_date) updateData.event_date = new Date(data.event_date)
 

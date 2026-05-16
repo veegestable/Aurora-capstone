@@ -307,7 +307,15 @@ function EditProfileModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  user: any;
+  user: {
+    preferred_name?: string;
+    full_name?: string;
+    sex?: SexOption;
+    year_level?: string;
+    student_number?: string;
+    contact_number?: string;
+    avatar_url?: string;
+  } | null;
   onSave: (data: {
     preferredName: string;
     sex?: SexOption;

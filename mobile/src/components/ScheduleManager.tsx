@@ -307,7 +307,7 @@ export default function ScheduleManager() {
                   {["exam", "deadline", "meeting", "other"].map((type) => (
                     <TouchableOpacity
                       key={type}
-                      onPress={() => setEventType(type as any)}
+                      onPress={() => setEventType(type as "exam" | "deadline" | "meeting" | "other")}
                       className={`px-4 py-2 rounded-lg border ${eventType === type ? "bg-teal-500 border-teal-500" : "bg-white border-gray-300"}`}
                     >
                       <Text

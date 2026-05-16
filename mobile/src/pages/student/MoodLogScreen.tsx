@@ -888,14 +888,14 @@ export default function MoodLogScreen() {
         todayCount: todayEntries.length,
       });
       const todayAgg = aggregateByDay(entries, dk);
-      const sorted = [...logs].sort((a: any, b: any) => {
+      const sorted = [...logs].sort((a, b) => {
         const da =
           a.log_date instanceof Date ? a.log_date : new Date(a.log_date);
         const db =
           b.log_date instanceof Date ? b.log_date : new Date(b.log_date);
         return db.getTime() - da.getTime();
       });
-      const latest = sorted[0] as any;
+      const latest = sorted[0];
       const moodScale =
         todayAgg.entryCount > 0
           ? Math.min(5, Math.max(1, Math.round(todayAgg.avgEnergy)))
@@ -1101,6 +1101,7 @@ export default function MoodLogScreen() {
                 router.push({
                   pathname: "/(student)/messages",
                   params: { counselorId: row.counselorId },
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
                 } as any);
               }}
               style={{ flex: 1, padding: 14 }}
@@ -1580,6 +1581,7 @@ export default function MoodLogScreen() {
           router.push({
             pathname: "/(student)/messages",
             params: { counselorId, openSessionRequest: "1" },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } as any)
         }
       />
