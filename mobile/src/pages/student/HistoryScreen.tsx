@@ -1280,6 +1280,7 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
   const [journalTab, setJournalTab] = useState<JournalTab>("calendar");
+  const [pageGuide, setPageGuide] = useState<InfoGuideContent | null>(null);
   const [journalTrackW, setJournalTrackW] = useState(0);
   const journalThumbX = useSharedValue(0);
   const journalThumbW = useSharedValue(0);
@@ -1420,14 +1421,34 @@ export default function HistoryScreen() {
             paddingBottom: 12,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View>
-              <Text
-                style={{ color: "#FFFFFF", fontSize: 17, fontWeight: "800" }}
-              >
-                Aurora Mood Blend
-              </Text>
-            </View>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              flex: 1,
+            }}
+          >
+            <Text
+              style={{ color: "#FFFFFF", fontSize: 17, fontWeight: "800" }}
+            >
+              Aurora Mood Blend
+            </Text>
+            <TouchableOpacity
+              onPress={() =>
+                setPageGuide({
+                  title: "Aurora Mood Blend",
+                  body:
+                    "This page is your mood history in Aurora. Journal shows a calendar of check-ins — tap a colored day to read entries, notes, tags, and photos from that day. Analytics charts trends, streaks, and patterns across your logs.\n\nEach day’s tint is an Aurora blend: your logged moods (Happy, Sad, Angry, Surprise, Neutral) are mixed into one color, weighted by how strongly you felt each one (1–5). One mood fills the day with its color; several moods merge into a new shade — a visual summary, not a judgment. Days with no check-in stay dark. See Mood colors under the calendar for the five base colors.",
+                })
+              }
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Aurora Mood Blend info"
+              style={{ padding: 4 }}
+            >
+              <CircleHelp size={18} color={AURORA.textSec} />
+            </TouchableOpacity>
           </View>
           {/* <TouchableOpacity style={{
                         width: 38, height: 38, borderRadius: 19,
@@ -1699,6 +1720,7 @@ export default function HistoryScreen() {
             </>
           )}
         </ScrollView>
+        <InfoGuideModal guide={pageGuide} onClose={() => setPageGuide(null)} />
       </SafeAreaView>
     </View>
   );

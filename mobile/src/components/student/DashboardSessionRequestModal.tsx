@@ -7,8 +7,13 @@ import { AppText as Text } from "../common/AppText";
 
 import React, { useState, useEffect } from "react";
 import { Modal, View, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from "react-native";
-import { X, ArrowRight } from "lucide-react-native";
+import { X, ArrowRight, CircleHelp } from "lucide-react-native";
 import { AURORA } from "../../constants/aurora-colors";
+import {
+  InfoGuideOverlay,
+  type InfoGuideContent,
+} from "../common/InfoGuideModal";
+import { triggerHaptic } from "../../utils/haptics";
 import { LetterAvatar } from "../common/LetterAvatar";
 import { firestoreService } from "../../services/firebase-firestore.service";
 import { counselorHasJournalAccessForCounselor } from "../../services/mood-firestore-v2.service";
@@ -41,6 +46,7 @@ export default function DashboardSessionRequestModal({
   const [selectedCounselorId, setSelectedCounselorId] = useState<string | null>(
     null,
   );
+  const [infoGuide, setInfoGuide] = useState<InfoGuideContent | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -110,7 +116,13 @@ export default function DashboardSessionRequestModal({
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={() => {
+        if (infoGuide) {
+          setInfoGuide(null);
+        } else {
+          onClose();
+        }
+      }}
     >
       <KeyboardAvoidingView
         style={styles.overlay}
@@ -131,17 +143,29 @@ export default function DashboardSessionRequestModal({
             contentContainerStyle={{ paddingBottom: 8 }}
           >
             <View style={styles.header}>
-              <Text style={styles.title}>Request a Session</Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.title}>Request a Session</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    triggerHaptic("light");
+                    setInfoGuide({
+                      title: "Request a Session",
+                      body:
+                        "Choose your counselor here. Next you'll open Messages with the same preferred time and note form used when you tap Request session in chat — only one request is sent after you confirm there.",
+                    });
+                  }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Request a Session info"
+                  style={{ padding: 4 }}
+                >
+                  <CircleHelp size={20} color={AURORA.textSec} />
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity onPress={onClose} hitSlop={12}>
                 <X size={24} color={AURORA.textSec} />
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.hint}>
-              Choose your counselor here. Next you'll open Messages with the same
-              preferred time and note form used when you tap Request session in
-              chat — only one request is sent after you confirm there.
-            </Text>
 
             <Text style={styles.label}>Select Counselor</Text>
             {loading ? (
@@ -210,6 +234,10 @@ export default function DashboardSessionRequestModal({
             </TouchableOpacity>
           </ScrollView>
         </View>
+        <InfoGuideOverlay
+          guide={infoGuide}
+          onClose={() => setInfoGuide(null)}
+        />
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -245,18 +273,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  titleRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingRight: 8,
   },
   title: {
     color: "#FFFFFF",
     fontSize: 20,
     fontWeight: "700",
-  },
-  hint: {
-    color: AURORA.textSec,
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 16,
   },
   label: {
     color: AURORA.textSec,

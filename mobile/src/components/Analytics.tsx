@@ -21,6 +21,7 @@ import {
   PieChart,
   Clock3,
   BarChart3,
+  Tags,
 } from "lucide-react-native";
 import { useAuth } from "../stores/AuthContext";
 import { moodService } from "../services/mood.service";
@@ -2210,16 +2211,39 @@ export default function Analytics() {
                           ) : null}
                         </>
                       ) : (
-                        <Text
+                        <View
                           style={{
-                            color: AURORA.textSec,
-                            fontSize: 12,
-                            marginTop: 8,
-                            lineHeight: 18,
+                            alignItems: "center",
+                            paddingVertical: 20,
+                            paddingHorizontal: 8,
+                            marginTop: 4,
                           }}
                         >
-                          No event tags in today&apos;s check-ins yet.
-                        </Text>
+                          <Tags size={40} color={AURORA.textMuted} />
+                          <Text
+                            style={{
+                              color: "#FFFFFF",
+                              fontSize: 15,
+                              fontWeight: "700",
+                              marginTop: 12,
+                            }}
+                          >
+                            No event tags yet
+                          </Text>
+                          <Text
+                            style={{
+                              color: AURORA.textMuted,
+                              fontSize: 13,
+                              textAlign: "center",
+                              marginTop: 6,
+                              lineHeight: 18,
+                              maxWidth: 280,
+                            }}
+                          >
+                            None in today&apos;s check-ins. Add tags when you
+                            log your mood to see categories here.
+                          </Text>
+                        </View>
                       )}
                     </View>
                   </AnalyticsPanel>
@@ -3009,6 +3033,8 @@ export default function Analytics() {
                           borderRadius: 14,
                           padding: 12,
                           marginBottom: 12,
+                          borderWidth: 1,
+                          borderColor: AURORA.border,
                         }}
                       >
                         <Text
@@ -3020,17 +3046,39 @@ export default function Analytics() {
                         >
                           STRESS & ENERGY TREND
                         </Text>
-                        <Text
+                        <View
                           style={{
-                            color: AURORA.textSec,
-                            fontSize: 12,
-                            marginTop: 6,
-                            lineHeight: 18,
+                            alignItems: "center",
+                            paddingVertical: 20,
+                            paddingHorizontal: 8,
+                            marginTop: 4,
                           }}
                         >
-                          Log at least 2 check-ins today to unlock your stress
-                          and energy trend graphs.
-                        </Text>
+                          <TrendingUp size={40} color={AURORA.textMuted} />
+                          <Text
+                            style={{
+                              color: "#FFFFFF",
+                              fontSize: 15,
+                              fontWeight: "700",
+                              marginTop: 12,
+                            }}
+                          >
+                            Need more check-ins
+                          </Text>
+                          <Text
+                            style={{
+                              color: AURORA.textMuted,
+                              fontSize: 13,
+                              textAlign: "center",
+                              marginTop: 6,
+                              lineHeight: 18,
+                              maxWidth: 280,
+                            }}
+                          >
+                            Log at least 2 check-ins today to unlock your stress
+                            and energy trend graphs.
+                          </Text>
+                        </View>
                       </View>
                     )}
                   </AnalyticsPanel>
