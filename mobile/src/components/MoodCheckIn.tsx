@@ -306,6 +306,53 @@ const SimpleSlider = ({
   );
 };
 
+const parseMealMinutes = (time: string): number | null => {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+  return hour * 60 + minute;
+};
+
+/** Minutes since midnight on the device wall clock. Used only for meal unlock vs `HH:mm` schedule. */
+const getCurrentMinutesInTimezone = (): number | null => {
+  const now = new Date();
+  // Always use the device clock. Meal times are plain `HH:mm` from profile (same
+  // basis as wake/bath in `wellnessDayKey`). Comparing against `Intl` with a
+  // stored IANA `timezone` breaks on Android (Hermes often lacks full ICU: the
+  // `timeZone` option is ignored and you get UTC), and any mismatch between
+  // Firestore `timezone` and `resolvedOptions().timeZone` also routed into that
+  // broken path — leaving evening meals locked while local time had passed.
+  return now.getHours() * 60 + now.getMinutes();
+};
+
+const formatMealTime = (time: string): string => {
+  const totalMinutes = parseMealMinutes(time);
+  if (totalMinutes === null) return time;
+  const hour24 = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  const suffix = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+  return `${hour12}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+
+const isMealAvailableNow = (time: string): boolean => {
+  const mealMinutes = parseMealMinutes(time);
+  const nowMinutes = getCurrentMinutesInTimezone();
+  if (mealMinutes === null || nowMinutes === null) return true;
+  return nowMinutes >= mealMinutes;
+};
+
 export function MoodCheckIn({
   onComplete,
   initialMood = null,
@@ -334,7 +381,7 @@ export function MoodCheckIn({
   const [energyLevel, setEnergyLevel] = useState(3);
   const [stressLevel, setStressLevel] = useState(3);
   const [sleepQuality, setSleepQuality] = useState<SleepQuality | null>(null);
-  const [dailyContext, setDailyContextState] = useState<DailyContextDoc | null>(
+  const [_dailyContext, setDailyContextState] = useState<DailyContextDoc | null>(
     null,
   );
   const [sleepCapturedToday, setSleepCapturedToday] = useState(false);
@@ -548,53 +595,6 @@ export function MoodCheckIn({
         fadeDuration={0}
       />
     );
-  };
-
-  const parseMealMinutes = (time: string): number | null => {
-    const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
-    if (!match) return null;
-    const hour = Number(match[1]);
-    const minute = Number(match[2]);
-    if (
-      Number.isNaN(hour) ||
-      Number.isNaN(minute) ||
-      hour < 0 ||
-      hour > 23 ||
-      minute < 0 ||
-      minute > 59
-    ) {
-      return null;
-    }
-    return hour * 60 + minute;
-  };
-
-  /** Minutes since midnight on the device wall clock. Used only for meal unlock vs `HH:mm` schedule. */
-  const getCurrentMinutesInTimezone = (): number | null => {
-    const now = new Date();
-    // Always use the device clock. Meal times are plain `HH:mm` from profile (same
-    // basis as wake/bath in `wellnessDayKey`). Comparing against `Intl` with a
-    // stored IANA `timezone` breaks on Android (Hermes often lacks full ICU: the
-    // `timeZone` option is ignored and you get UTC), and any mismatch between
-    // Firestore `timezone` and `resolvedOptions().timeZone` also routed into that
-    // broken path — leaving evening meals locked while local time had passed.
-    return now.getHours() * 60 + now.getMinutes();
-  };
-
-  const formatMealTime = (time: string): string => {
-    const totalMinutes = parseMealMinutes(time);
-    if (totalMinutes === null) return time;
-    const hour24 = Math.floor(totalMinutes / 60);
-    const minute = totalMinutes % 60;
-    const suffix = hour24 >= 12 ? "PM" : "AM";
-    const hour12 = hour24 % 12 || 12;
-    return `${hour12}:${String(minute).padStart(2, "0")} ${suffix}`;
-  };
-
-  const isMealAvailableNow = (time: string): boolean => {
-    const mealMinutes = parseMealMinutes(time);
-    const nowMinutes = getCurrentMinutesInTimezone();
-    if (mealMinutes === null || nowMinutes === null) return true;
-    return nowMinutes >= mealMinutes;
   };
 
   const enabledCategorySet = new Set<ContextCategoryKey>(
@@ -957,7 +957,6 @@ export function MoodCheckIn({
   }, [
     bathChoiceMade,
     bathLockedFromEarlier,
-    bathTakenToday,
     currentStep,
     detectionMethod,
     mealSchedule,
