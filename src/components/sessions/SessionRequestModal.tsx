@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Send, Loader2, Check } from 'lucide-react'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '../../config/firebase'
 import { sessionsService } from '../../services/sessions'
+import { usersService } from '../../services/users'
 import { LetterAvatar } from '../LetterAvatar'
 
 interface Counselor {
@@ -11,16 +10,42 @@ interface Counselor {
   avatar_url?: string
 }
 
+/** `datetime-local` values are always `YYYY-MM-DDTHH:mm` (no timezone). */
+function isValidDatetimeLocal(value: string): boolean {
+  const t = value.trim()
+  if (!t) return false
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(t)) return false
+  const d = new Date(t)
+  return !Number.isNaN(d.getTime())
+}
+
 /** `datetime-local` value → string shown in chat / Firestore */
 function formatDatetimeLocalForDisplay(isoLocal: string): string {
   const t = isoLocal.trim()
-  if (!t) return ''
+  if (!isValidDatetimeLocal(t)) return ''
   const d = new Date(t)
-  if (Number.isNaN(d.getTime())) return t
   return d.toLocaleString(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
+}
+
+function toDatetimeLocalValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function defaultDatetimeLocalValue(): string {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() + 60)
+  d.setSeconds(0, 0)
+  return toDatetimeLocalValue(d)
+}
+
+function minDatetimeLocalValue(): string {
+  const d = new Date()
+  d.setSeconds(0, 0)
+  return toDatetimeLocalValue(d)
 }
 
 interface SessionRequestModalProps {
@@ -51,21 +76,27 @@ export function SessionRequestModal({
   const [preferredSlotLocal, setPreferredSlotLocal] = useState('')
 
   useEffect(() => {
-    if (!visible) return
-    setPreferredSlotLocal('')
+    if (!visible || !studentId) return
+    setSelectedCounselorId(null)
+    setPreferredSlotLocal(defaultDatetimeLocalValue())
     setLoading(true)
-    const q = query(collection(db, 'users'), where('role', '==', 'counselor'))
-    getDocs(q)
-      .then((snap) => {
-        const approved = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() } as Counselor & { approval_status?: string }))
-          .filter((c) => (c as Counselor & { approval_status?: string }).approval_status === 'approved'
-            || !(c as Counselor & { approval_status?: string }).approval_status)
-        setCounselors(approved)
+    usersService
+      .getCounselorsForStudent(studentId)
+      .then((rows) => setCounselors(rows as Counselor[]))
+      .catch((e) => {
+        console.error('Failed to load counselors:', e)
+        setCounselors([])
       })
-      .catch(() => setCounselors([]))
       .finally(() => setLoading(false))
-  }, [visible])
+  }, [visible, studentId])
+
+  useEffect(() => {
+    if (!visible || counselors.length === 0) return
+    setSelectedCounselorId((prev) => {
+      if (prev && counselors.some((c) => c.id === prev)) return prev
+      return counselors[0]?.id ?? null
+    })
+  }, [visible, counselors])
 
   const handleSend = async () => {
     const preferredTime = formatDatetimeLocalForDisplay(preferredSlotLocal)
@@ -88,7 +119,7 @@ export function SessionRequestModal({
       onClose()
     } catch (e) {
       console.error('Failed to create session request:', e)
-      alert('Failed to send request. Please try again.')
+      alert(e instanceof Error ? e.message : 'Failed to send request. Please try again.')
     } finally {
       setSending(false)
     }
@@ -96,7 +127,9 @@ export function SessionRequestModal({
 
   if (!visible) return null
 
-  const preferredTimeReady = !!formatDatetimeLocalForDisplay(preferredSlotLocal).trim()
+  const preferredTimeReady = isValidDatetimeLocal(preferredSlotLocal)
+  const canSend =
+    !!selectedCounselorId && !!note.trim() && preferredTimeReady && !sending
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -164,10 +197,17 @@ export function SessionRequestModal({
         <input
           type="datetime-local"
           value={preferredSlotLocal}
+          min={minDatetimeLocalValue()}
           onChange={(e) => setPreferredSlotLocal(e.target.value)}
-          className="w-full bg-white/3 border border-aurora-border rounded-xl px-3.5 py-3 text-sm text-white mb-5
-                     focus:outline-none focus:border-aurora-blue/50 transition-colors scheme:dark"
+          className="w-full bg-white/3 border border-aurora-border rounded-xl px-3.5 py-3 text-sm text-white mb-1
+                     focus:outline-none focus:border-aurora-blue/50 transition-colors [color-scheme:dark]"
         />
+        {!preferredTimeReady && (
+          <p className="text-xs text-aurora-text-muted mb-4">
+            Use the date picker to choose a preferred time (typing DD/MM/YYYY may not register).
+          </p>
+        )}
+        {preferredTimeReady && <div className="mb-4" />}
 
         <label className="text-xs font-semibold text-aurora-text-sec uppercase tracking-wider mb-2 block">
           Your Note
@@ -180,10 +220,20 @@ export function SessionRequestModal({
           onChange={(e) => setNote(e.target.value)}
         />
 
+        {!canSend && !sending && counselors.length > 0 && (
+          <p className="mt-3 text-xs text-aurora-text-muted text-center">
+            {!selectedCounselorId
+              ? 'Select a counselor above.'
+              : !preferredTimeReady
+                ? 'Choose a valid date and time.'
+                : 'Add a short note about what you’d like to discuss.'}
+          </p>
+        )}
+
         <button
           type="button"
           onClick={handleSend}
-          disabled={!selectedCounselorId || !note.trim() || !preferredTimeReady || sending}
+          disabled={!canSend}
           className="mt-5 w-full btn-aurora flex items-center justify-center gap-2.5 py-3.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {sending ? (

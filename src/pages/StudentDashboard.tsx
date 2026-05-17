@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import MoodCheckIn from '../components/mood-checkin'
 import { moodService } from '../services/mood'
 import { computeStreak, computeStability, computeDailyInsight, type StabilityMetrics } from '../utils/analytics'
-import { SessionRequestModal } from '../components/sessions/SessionRequestModal'
+import { DashboardSessionRequestModal } from '../components/sessions/DashboardSessionRequestModal'
 import { AnnouncementBanner } from '../components/announcements/AnnouncementBanner'
 import { StudentSessionsPane } from '../components/student/StudentSessionsPane'
 import {
@@ -216,13 +216,17 @@ export default function StudentDashboard() {
       </div>
 
       {/* Session Request Modal */}
-      <SessionRequestModal
+      <DashboardSessionRequestModal
         visible={showSessionModal}
         studentId={user?.id ?? ''}
-        studentName={user?.full_name}
-        studentAvatar={user?.avatar_url ?? undefined}
         onClose={() => setShowSessionModal(false)}
-        onSuccess={() => setShowSessionModal(false)}
+        onSuccess={({ counselorId }) => {
+          setShowSessionModal(false)
+          navigate(
+            `/student/messages?counselorId=${encodeURIComponent(counselorId)}&openSessionRequest=1`,
+            { state: { counselorId, openSessionRequest: true } },
+          )
+        }}
       />
 
       {/* My Sessions Pane (welcome-row CalendarClock icon) */}

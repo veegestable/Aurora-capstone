@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   View,
   TouchableOpacity,
-  Alert,
   Platform,
   StyleSheet,
   Modal,
@@ -15,11 +14,21 @@ import { useAuth } from "../../stores/AuthContext";
 import { router } from "expo-router";
 import { Button } from "../common/Button";
 import { Input } from "../common/Input";
+import {
+  AuroraMessageModal,
+  type AuroraMessageTone,
+} from "../common/AuroraMessageModal";
 import { triggerHaptic } from "../../utils/haptics";
 import {
   getSignupEmailRejectionMessage,
   isMsuiitInstitutionalEmail,
 } from "../../utils/signupEmailPolicy";
+import {
+  getRetryAfterSecondsFromError,
+  parseRetryAfterSecondsFromText,
+  stripRetrySecondsFromMessage,
+} from "../../utils/rateLimitError";
+import { toUserFacingSignUpTrustedErrorResult } from "../../utils/signUpTrustedErrors";
 import {
   COLLEGES,
   getCollegeName,
@@ -59,6 +68,44 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
     useState(false);
   const [collegePickerOpen, setCollegePickerOpen] = useState(false);
   const [programPickerOpen, setProgramPickerOpen] = useState(false);
+  const [messageModal, setMessageModal] = useState<{
+    title: string;
+    body: string;
+    tone: AuroraMessageTone;
+    retryAfterSeconds?: number | null;
+  } | null>(null);
+
+  const showMessage = (
+    title: string,
+    body: string,
+    tone: AuroraMessageTone = "error",
+    retryAfterSeconds?: number | null,
+  ) => {
+    if (tone === "error") triggerHaptic("heavy");
+    else if (tone === "success") triggerHaptic("medium");
+    else triggerHaptic("light");
+
+    const parsed =
+      retryAfterSeconds ??
+      parseRetryAfterSecondsFromText(body) ??
+      null;
+    const displayBody =
+      parsed != null ? stripRetrySecondsFromMessage(body) : body;
+
+    setMessageModal({
+      title,
+      body: displayBody,
+      tone,
+      retryAfterSeconds: parsed,
+    });
+  };
+
+  const showErrorFromUnknown = (title: string, err: unknown) => {
+    const trusted = toUserFacingSignUpTrustedErrorResult(err);
+    const retry =
+      trusted.retryAfterSeconds ?? getRetryAfterSecondsFromError(err);
+    showMessage(title, trusted.message, "error", retry);
+  };
 
   const [formData, setFormData] = useState({
     email: "",
@@ -110,7 +157,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
   const handleResendVerificationFromSignIn = async () => {
     if (signInResendCooldownSeconds > 0 || signInResendLoading) return;
     if (!formData.email.trim() || !formData.password) {
-      Alert.alert("Required", "Enter your email and password first.");
+      showMessage("Required", "Enter your email and password first.", "info");
       return;
     }
     setSignInResendLoading(true);
@@ -121,9 +168,13 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       );
       if (result.success) {
         setSignInResendCooldownSeconds(SIGN_IN_RESEND_COOLDOWN_SEC);
-        Alert.alert("Sent", "Check your inbox for a new verification link.");
+        showMessage(
+          "Email sent",
+          "Check your inbox for a new verification link.",
+          "success",
+        );
       } else {
-        Alert.alert("Could not resend", result.message);
+        showMessage("Could not resend", result.message, "error");
       }
     } finally {
       setSignInResendLoading(false);
@@ -141,7 +192,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       if (result.success) {
         setResendCooldownSeconds(REGISTRATION_RESEND_COOLDOWN_SEC);
       } else {
-        Alert.alert("Could not resend", result.message);
+        showMessage("Could not resend", result.message, "error");
       }
     } finally {
       setResendLoading(false);
@@ -165,24 +216,29 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
 
   const handleSubmit = async () => {
     if (!formData.email || !formData.password) {
-      Alert.alert("Error", "Please fill in all fields");
+      showMessage("Missing information", "Please fill in all fields.", "info");
       return;
     }
 
     if (isSignUp && !formData.fullName) {
-      Alert.alert("Error", "Please enter your full name");
+      showMessage("Missing information", "Please enter your full name.", "info");
       return;
     }
 
     if (isSignUp && !formData.contactNumber.trim()) {
-      Alert.alert("Error", "Please enter your contact number (mobile phone).");
+      showMessage(
+        "Missing information",
+        "Please enter your contact number (mobile phone).",
+        "info",
+      );
       return;
     }
 
     if (isSignUp && formData.contactNumber.trim().length < 7) {
-      Alert.alert(
-        "Error",
+      showMessage(
+        "Invalid contact number",
         "Please enter a valid contact number (at least 7 digits).",
+        "info",
       );
       return;
     }
@@ -191,7 +247,11 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       isSignUp &&
       (!formData.collegeCode.trim() || !isCollegeCode(formData.collegeCode.trim()))
     ) {
-      Alert.alert("College required", "Please select your college from the list.");
+      showMessage(
+        "College required",
+        "Please select your college from the list.",
+        "info",
+      );
       return;
     }
 
@@ -201,9 +261,10 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       (!formData.program.trim() ||
         !isProgramInCollege(formData.collegeCode.trim(), formData.program.trim()))
     ) {
-      Alert.alert(
+      showMessage(
         "Program required",
         "After choosing your college, select your degree program from the list.",
+        "info",
       );
       return;
     }
@@ -211,7 +272,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
     if (isSignUp) {
       const policyError = getSignupEmailRejectionMessage(formData.email);
       if (policyError) {
-        Alert.alert("Email not allowed", policyError);
+        showMessage("Email not allowed", policyError, "error");
         return;
       }
     }
@@ -232,7 +293,12 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
         if (result.success) {
           setSignUpPhase("verifyEmail");
         } else {
-          Alert.alert("Registration Failed", result.message);
+          showMessage(
+            "Registration failed",
+            result.message,
+            "error",
+            parseRetryAfterSecondsFromText(result.message),
+          );
         }
       } else {
         await signIn(formData.email, formData.password);
@@ -248,9 +314,9 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
       ) {
         setShowMsuiitSignInResendOption(true);
       }
-      Alert.alert(
+      showErrorFromUnknown(
         isSignUp ? "Registration failed" : "Couldn't sign in",
-        msg,
+        err,
       );
     } finally {
       setLoading(false);
@@ -484,7 +550,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
               variant="glass"
               dense={compact}
               label="Email"
-              placeholder="Enter your email"
+              placeholder="Enter your MSU-IIT email"
               className="pl-4"
               value={formData.email}
               onChangeText={(text) => updateFormData("email", text)}
@@ -750,6 +816,15 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
           </View>
         </View>
       </Modal>
+
+      <AuroraMessageModal
+        visible={messageModal != null}
+        title={messageModal?.title ?? ""}
+        body={messageModal?.body ?? ""}
+        tone={messageModal?.tone ?? "error"}
+        retryAfterSeconds={messageModal?.retryAfterSeconds}
+        onDismiss={() => setMessageModal(null)}
+      />
     </>
   );
 }

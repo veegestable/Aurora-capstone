@@ -29,6 +29,7 @@ export interface UserProfile {
   email: string
   full_name: string
   role: 'student' | 'counselor' | 'admin'
+  email_verified?: boolean
   approval_status?: CounselorApprovalStatus
   preferred_name?: string
   /**

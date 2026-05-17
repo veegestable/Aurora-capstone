@@ -9,6 +9,9 @@
 
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { createResendRegistrationVerificationTrusted } from './resendVerification';
+import { createSignUpTrusted } from './signUpTrusted';
+import { ensureConversationDocument } from './ensureConversationAdmin';
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -139,6 +142,8 @@ export const generateWeeklySummaryAi = onCall({ region: 'asia-southeast2' }, asy
 });
 
 export { deliverSessionExpoPush } from './deliverSessionExpoPush';
+export { generateWeeklyAnalyticsAi } from './weeklyAnalyticsAi';
+export { cleanupUnverifiedAuthUsers } from './cleanupUnverifiedAuthUsers';
 
 type TrustedAuditInput = {
   action: string;
@@ -244,6 +249,11 @@ async function enforceRateLimit(
   });
 }
 
+export const resendRegistrationVerificationTrusted =
+  createResendRegistrationVerificationTrusted(enforceRateLimit);
+
+export const signUpTrusted = createSignUpTrusted(enforceRateLimit);
+
 type SendTextMessageTrustedInput = {
   conversationId: string;
   text: string;
@@ -303,9 +313,14 @@ export const sendTextMessageTrusted = onCall({ region: 'asia-southeast2' }, asyn
 });
 
 type SendSessionRequestTrustedInput = {
-  conversationId: string;
+  conversationId?: string;
+  counselorId?: string;
   preferredTime: string;
   note?: string;
+  studentName?: string;
+  studentAvatar?: string;
+  counselorName?: string;
+  counselorAvatar?: string;
 };
 
 export const sendSessionRequestTrusted = onCall({ region: 'asia-southeast2' }, async (request) => {
@@ -313,27 +328,70 @@ export const sendSessionRequestTrusted = onCall({ region: 'asia-southeast2' }, a
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
 
   const data = (request.data ?? {}) as Partial<SendSessionRequestTrustedInput>;
-  const conversationId =
-    typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
   const preferredTime =
     typeof data.preferredTime === 'string' ? data.preferredTime.trim() : '';
   const note = typeof data.note === 'string' ? data.note.trim() : '';
-  if (!conversationId || !preferredTime) {
+  const counselorIdParam =
+    typeof data.counselorId === 'string' ? data.counselorId.trim() : '';
+  let conversationId =
+    typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
+
+  if (!preferredTime) {
+    throw new HttpsError('invalid-argument', 'preferredTime is required.');
+  }
+
+  let counselorId = counselorIdParam;
+  if (!conversationId && counselorId) {
+    conversationId = `${counselorId}_${uid}`;
+  }
+  if (!conversationId) {
     throw new HttpsError(
       'invalid-argument',
-      'conversationId and preferredTime are required.',
+      'conversationId or counselorId is required.',
     );
   }
 
+  if (!counselorId) {
+    const underscore = conversationId.indexOf('_');
+    if (underscore <= 0) {
+      throw new HttpsError('invalid-argument', 'Invalid conversation id.');
+    }
+    counselorId = conversationId.slice(0, underscore);
+    const parsedStudentId = conversationId.slice(underscore + 1);
+    if (parsedStudentId !== uid) {
+      throw new HttpsError(
+        'permission-denied',
+        'Only the student can send a session request in this thread.',
+      );
+    }
+  }
+
+  if (conversationId !== `${counselorId}_${uid}`) {
+    throw new HttpsError(
+      'permission-denied',
+      'Only the student can send a session request in this thread.',
+    );
+  }
+
+  await ensureConversationDocument({
+    counselorId,
+    studentId: uid,
+    studentName: typeof data.studentName === 'string' ? data.studentName : undefined,
+    studentAvatar:
+      typeof data.studentAvatar === 'string' ? data.studentAvatar : undefined,
+    counselorName:
+      typeof data.counselorName === 'string' ? data.counselorName : undefined,
+    counselorAvatar:
+      typeof data.counselorAvatar === 'string' ? data.counselorAvatar : undefined,
+  });
+
   const convRef = db.collection('conversations').doc(conversationId);
   const convSnap = await convRef.get();
-  if (!convSnap.exists) throw new HttpsError('not-found', 'Conversation not found.');
-  const conv = convSnap.data() ?? {};
-  const counselorId = typeof conv.counselorId === 'string' ? conv.counselorId : '';
-  const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
-  if (!counselorId || !studentId) {
-    throw new HttpsError('failed-precondition', 'Conversation participants invalid.');
+  if (!convSnap.exists) {
+    throw new HttpsError('failed-precondition', 'Conversation could not be created.');
   }
+  const conv = convSnap.data() ?? {};
+  const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
   if (studentId !== uid) {
     throw new HttpsError(
       'permission-denied',

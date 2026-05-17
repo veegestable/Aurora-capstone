@@ -22,16 +22,18 @@ export function SelectStudentForChatModal({
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    if (!open) return
+    if (!open || !user?.id) return
     let cancelled = false
     setLoading(true)
     counselorService
-      .getStudents(user?.college_code ?? '')
+      .getStudentsForCounselor(user.id, {
+        activeCollegeCode: user.college_code,
+      })
       .then((s) => { if (!cancelled) setStudents(s) })
       .catch(() => { if (!cancelled) setStudents([]) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [open])
+  }, [open, user?.id, user?.college_code])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()

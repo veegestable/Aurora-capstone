@@ -1,8 +1,8 @@
-import { collection, addDoc, doc, getDoc, updateDoc, setDoc, Timestamp } from 'firebase/firestore'
-import { db } from '../../../config/firebase'
-import { grantJournalAccessToCounselor } from '../../user-settings/put/grantJournalAccessToCounselor'
-import { resolveConversationCollegeCode } from '../../messages/helpers/resolveConversationCollegeCode'
-import { enqueueSessionRequestCounselorPush } from '../../notifications/enqueueSessionRequestCounselorPush'
+import { auth } from '../../../config/firebase'
+import {
+  grantCounselorJournalAccessTrusted,
+  sendSessionRequestTrusted,
+} from '../../trusted-backend.service'
 
 interface CreateSessionRequestParams {
   studentId: string
@@ -15,96 +15,68 @@ interface CreateSessionRequestParams {
   counselorAvatar?: string
 }
 
-export async function createSessionRequest(params: CreateSessionRequestParams): Promise<string> {
+function parseCallableError(error: unknown): string {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const code = String((error as { code: unknown }).code)
+    if (code.includes('resource-exhausted')) {
+      return 'Session request sent too recently. Please wait a moment and try again.'
+    }
+    if (code.includes('permission-denied')) {
+      return 'You cannot request a session with this counselor. Check that you share the same college.'
+    }
+    if ('message' in error && typeof (error as { message: unknown }).message === 'string') {
+      return (error as { message: string }).message
+    }
+  }
+  if (error instanceof Error && error.message) return error.message
+  return 'Failed to send request. Please try again.'
+}
+
+/**
+ * Student session request — conversation + session are created server-side
+ * (`sendSessionRequestTrusted`), matching mobile's trusted callable flow.
+ */
+export async function createSessionRequest(
+  params: CreateSessionRequestParams,
+): Promise<string> {
   const {
-    studentId, counselorId, note, preferredTime,
-    studentName, studentAvatar, counselorName, counselorAvatar,
+    studentId,
+    counselorId,
+    note,
+    preferredTime,
+    studentName,
+    studentAvatar,
+    counselorName,
+    counselorAvatar,
   } = params
 
-  const collegeCode = await resolveConversationCollegeCode(counselorId, studentId)
-
-  const sessionDoc = {
-    counselorId,
-    studentId,
-    ...(collegeCode ? { college_code: collegeCode } : {}),
-    riskFlagId: null,
-    initiatedBy: 'student',
-    studentRequestNote: note.trim(),
-    preferredTimeFromStudent: preferredTime.trim(),
-    proposedSlots: [],
-    confirmedSlot: null,
-    finalSlot: null,
-    status: 'requested',
-    attendanceNote: null,
-    cancelReason: null,
-    reminderSent: false,
-    sessionHistoryBadge: 'pending',
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
+  if ((auth.currentUser?.uid ?? '') !== studentId) {
+    throw new Error('You can only request sessions as the signed-in student.')
   }
-
-  const sessionRef = await addDoc(collection(db, 'sessions'), sessionDoc)
-  const sessionId = sessionRef.id
-
-  // Special Population: a student's request to this counselor automatically
-  // grants the counselor journal access for that student's check-ins.
-  await grantJournalAccessToCounselor(studentId, counselorId)
 
   const conversationId = `${counselorId}_${studentId}`
-  const convRef = doc(db, 'conversations', conversationId)
-  const convSnap = await getDoc(convRef)
 
-  const summary = preferredTime.trim()
-    ? `Session request: ${preferredTime.trim()}`
-    : 'Session request'
-
-  if (!convSnap.exists()) {
-    await setDoc(convRef, {
+  try {
+    const { sessionId } = await sendSessionRequestTrusted({
+      conversationId,
       counselorId,
-      studentId,
-      student_name: studentName ?? 'Student',
-      student_avatar: studentAvatar ?? '',
-      counselor_name: counselorName ?? 'Counselor',
-      counselor_avatar: counselorAvatar ?? '',
-      ...(collegeCode ? { college_code: collegeCode } : {}),
-      lastMessage: summary,
-      lastMessageAt: Timestamp.now(),
-      lastSenderId: studentId,
-      unreadCountCounselor: 1,
-      unreadCountStudent: 0,
-      createdAt: Timestamp.now(),
-    })
-  }
-
-  const messagesRef = collection(db, 'conversations', conversationId, 'messages')
-  await addDoc(messagesRef, {
-    senderId: studentId,
-    content: summary,
-    type: 'session_request',
-    sessionId,
-    sessionData: {
-      sessionId,
-      note: note.trim(),
       preferredTime: preferredTime.trim(),
-      status: 'requested'
-    },
-    isRead: false,
-    readAt: null,
-    isUrgent: false,
-    createdAt: Timestamp.now()
-  })
-
-  if (convSnap.exists()) {
-    const conv = convSnap.data()
-    await updateDoc(convRef, {
-      lastMessage: summary,
-      lastMessageAt: Timestamp.now(),
-      lastSenderId: studentId,
-      unreadCountCounselor: (conv?.unreadCountCounselor ?? 0) + 1
+      note: note.trim(),
+      studentName,
+      studentAvatar,
+      counselorName,
+      counselorAvatar,
     })
+
+    try {
+      await grantCounselorJournalAccessTrusted({ studentId, counselorId })
+    } catch (e) {
+      console.warn('[sessions] grantCounselorJournalAccessTrusted skipped:', e)
+    }
+
+    return sessionId
+  } catch (error: unknown) {
+    console.error('sendSessionRequestTrusted failed:', error)
+    throw new Error(parseCallableError(error))
   }
-
-  await enqueueSessionRequestCounselorPush(counselorId, sessionId, preferredTime.trim())
-
-  return sessionId
 }

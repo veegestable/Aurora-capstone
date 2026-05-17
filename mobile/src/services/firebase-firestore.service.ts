@@ -1232,8 +1232,10 @@ export const firestoreService = {
           e && typeof e === "object" && "code" in e
             ? String((e as { code: unknown }).code)
             : "";
+        // Missing docs often surface as permission-denied (no resource.data), not not-found.
         const isMissingDoc =
           code === "not-found" ||
+          code === "permission-denied" ||
           code === "5" ||
           /no document to update/i.test(
             e && typeof e === "object" && "message" in e
@@ -1886,46 +1888,6 @@ export const firestoreService = {
   //   reminderSent, createdAt, updatedAt, expiredAt, schedulingOverdueAt, sessionHistoryBadge
   // status: requested | pending | confirmed | needs_rescheduling | expired | completed | missed | rescheduled | cancelled
 
-  async createSessionRequest(
-    studentId: string,
-    counselorId: string,
-    studentRequestNote: string,
-    opts?: { preferredTime?: string },
-  ) {
-    try {
-      const collegeCode = await resolveConversationCollegeCode(
-        counselorId,
-        studentId,
-      );
-      const docData: Record<string, unknown> = {
-        counselorId,
-        studentId,
-        ...(collegeCode ? { college_code: collegeCode } : {}),
-        riskFlagId: null,
-        initiatedBy: "student",
-        studentRequestNote: studentRequestNote.trim(),
-        proposedSlots: [],
-        confirmedSlot: null,
-        finalSlot: null,
-        status: "requested",
-        attendanceNote: null,
-        cancelReason: null,
-        reminderSent: false,
-        sessionHistoryBadge: "pending",
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      };
-      if (opts?.preferredTime) {
-        docData.preferredTimeFromStudent = opts.preferredTime;
-      }
-      const docRef = await addDoc(collection(db, "sessions"), docData);
-      return docRef.id;
-    } catch(error: unknown) {
-      console.error("❌ Error creating session request:", error);
-      throw error;
-    }
-  },
-
   /**
    * Counselor-initiated invite: creates `sessions/{id}` with proposed slots so the student can
    * confirm via `studentConfirmFinalSlot` using this document id (not a client `session_*` placeholder).
@@ -1969,82 +1931,6 @@ export const firestoreService = {
       return docRef.id;
     } catch(error: unknown) {
       console.error("❌ Error creating counselor session invite:", error);
-      throw error;
-    }
-  },
-
-  async addSessionRequestToConversation(
-    counselorId: string,
-    studentId: string,
-    sessionId: string,
-    note: string,
-    opts?: {
-      preferredTime?: string;
-      studentData?: { name: string; avatar: string };
-      counselorData?: { name: string; avatar?: string };
-    },
-  ) {
-    try {
-      const conversationId = `${counselorId}_${studentId}`;
-      if (opts?.studentData) {
-        await this.addConversation(
-          counselorId,
-          {
-            id: studentId,
-            name: opts.studentData.name,
-            avatar: opts.studentData.avatar,
-          },
-          opts.counselorData,
-        );
-      }
-      const preferredTimeStr = opts?.preferredTime ?? "";
-      const sessionData: Record<string, unknown> = {
-        sessionId,
-        note: note.trim(),
-        status: "requested",
-      };
-      if (preferredTimeStr) sessionData.preferredTime = preferredTimeStr;
-      const messagesRef = collection(
-        db,
-        "conversations",
-        conversationId,
-        "messages",
-      );
-      const docRef = await addDoc(messagesRef, {
-        senderId: studentId,
-        content: preferredTimeStr
-          ? `Session request: ${preferredTimeStr}`
-          : "Session request",
-        type: "session_request",
-        sessionId,
-        sessionData,
-        isRead: false,
-        readAt: null,
-        isUrgent: false,
-        createdAt: Timestamp.now(),
-      });
-      const convRef = doc(db, "conversations", conversationId);
-      const convSnap = await getDoc(convRef);
-      const conv = convSnap.data();
-      await updateDoc(convRef, {
-        lastMessage: preferredTimeStr
-          ? `Session request: ${preferredTimeStr}`
-          : "Session request",
-        lastMessageAt: Timestamp.now(),
-        lastSenderId: studentId,
-        unreadCountCounselor: (conv?.unreadCountCounselor ?? 0) + 1,
-      });
-      await createSessionNotification(
-        counselorId,
-        preferredTimeStr
-          ? `A student requested a counseling session for ${preferredTimeStr}.`
-          : "A student requested a counseling session.",
-        "/(counselor)/messages",
-        `session:${sessionId}:student_request_created`,
-      );
-      return docRef.id;
-    } catch(error: unknown) {
-      console.error("❌ Error adding session request to conversation:", error);
       throw error;
     }
   },

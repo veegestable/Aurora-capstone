@@ -1,14 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Camera, User as UserIcon, Loader2, ChevronDown } from 'lucide-react'
+import { X, Camera, User as UserIcon, Loader2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { LetterAvatar } from '../LetterAvatar'
-import {
-  CCS_COLLEGE_DEPARTMENT,
-  DEGREE_PROGRAM_OPTIONS,
-  matchLegacyDepartmentToProgramValue,
-} from '../../constants/student/programs'
+import { CCS_COLLEGE_DEPARTMENT } from '../../constants/student/programs'
 import { resolveCollegeCodeFromUserData, getCollegeName } from '../../constants/colleges'
-import { getProgramsForCollege } from '../../constants/college-programs-iit'
 import type { User } from '../../types/user.types'
 
 type SexOption = 'male' | 'female'
@@ -23,34 +18,22 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
 
   const [name, setName] = useState('')
   const [sex, setSex] = useState<SexOption | undefined>(undefined)
-  const [program, setProgram] = useState('')
   const [yearLevel, setYearLevel] = useState('')
   const [studentNumber, setStudentNumber] = useState('')
   const [contactNumber, setContactNumber] = useState('')
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const [programPickerOpen, setProgramPickerOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const resolvedCollege = resolveCollegeCodeFromUserData(user as Record<string, unknown> | null)
-  const collegeProgramOptions = resolvedCollege
-    ? getProgramsForCollege(resolvedCollege)
-    : DEGREE_PROGRAM_OPTIONS.map(o => o.value)
-
-  const resolveProgramFromUser = (u: User | null) =>
-    (u?.program && collegeProgramOptions.includes(u.program) ? u.program : '') ||
-    (u?.program && DEGREE_PROGRAM_OPTIONS.some(o => o.value === u.program) ? u.program : '') ||
-    matchLegacyDepartmentToProgramValue(u?.department)
 
   useEffect(() => {
     if (!user) return
     setName(user.preferred_name || user.full_name || '')
     setSex(user.sex ?? undefined)
-    setProgram(resolveProgramFromUser(user))
     setYearLevel(user.year_level || '')
     setStudentNumber(user.student_number || '')
     setContactNumber(user.contact_number || '')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const handlePickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,7 +54,6 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
     const studentNumTrim = studentNumber.trim()
     const contactTrim = contactNumber.trim()
 
-    if (!program) { alert('Please select your program from the list.'); return }
     if (!yearTrim) { alert('Please enter your year level (e.g. 1st Year, 2nd Year).'); return }
     if (!studentNumTrim) { alert('Please enter your student number.'); return }
     if (!contactTrim) { alert('Please enter your contact number.'); return }
@@ -83,7 +65,6 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
         preferred_name: name.trim() || user?.full_name || 'Student',
         sex,
         ...(resolvedCollege ? { college_code: resolvedCollege } : { department: CCS_COLLEGE_DEPARTMENT }),
-        program,
         year_level: yearTrim,
         student_number: studentNumTrim,
         contact_number: contactTrim,
@@ -153,6 +134,14 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
             <p className="text-xs text-aurora-gray-500 mt-2">
               {resolvedCollege ? `${getCollegeName(resolvedCollege)} • MSU-IIT` : 'MSU-IIT'}
             </p>
+            {user?.program ? (
+              <p className="text-xs text-aurora-gray-500 mt-1 text-center max-w-sm">
+                {user.program}
+              </p>
+            ) : null}
+            <p className="text-xs text-aurora-gray-400 mt-1 text-center max-w-sm">
+              To change college or program, use Request college change on your profile.
+            </p>
           </div>
 
           {/* Name */}
@@ -167,40 +156,6 @@ export function EditProfileModal({ onClose, user }: EditProfileModalProps) {
               className="flex-1 py-3.5 text-[15px] text-aurora-primary-dark bg-transparent placeholder:text-aurora-gray-400 outline-none"
             />
           </div>
-
-          {/* Program (dropdown) */}
-          <FieldLabel label="Program" required />
-          <button
-            type="button"
-            onClick={() => setProgramPickerOpen(o => !o)}
-            className="w-full flex items-center justify-between gap-2 border border-aurora-border rounded-xl
-                       px-3.5 py-3.5 bg-aurora-card-alt cursor-pointer"
-          >
-            <span className={`text-[15px] ${program ? 'text-aurora-primary-dark' : 'text-aurora-gray-400'}`}>
-              {program || 'Select program'}
-            </span>
-            <ChevronDown
-              className={`w-4.5 h-4.5 text-aurora-gray-500 transition-transform ${programPickerOpen ? 'rotate-180' : ''}`}
-            />
-          </button>
-          {programPickerOpen && (
-            <div className="rounded-xl border border-aurora-border bg-aurora-card overflow-hidden">
-              {collegeProgramOptions.map(label => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => { setProgram(label); setProgramPickerOpen(false) }}
-                  className={`w-full text-left px-4 py-3 text-[14px] border-t border-aurora-border first:border-t-0 cursor-pointer transition-colors ${
-                    program === label
-                      ? 'bg-aurora-secondary-blue/12 text-aurora-secondary-blue font-bold'
-                      : 'text-aurora-primary-dark hover:bg-aurora-card-alt'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* Year Level */}
           <FieldLabel label="Year Level" required />

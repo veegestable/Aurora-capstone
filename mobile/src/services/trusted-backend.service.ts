@@ -65,6 +65,38 @@ export async function sendTextMessageTrusted(input: {
   return { messageId: result.data.messageId };
 }
 
+export type SignUpTrustedInput = {
+  email: string;
+  password: string;
+  fullName: string;
+  role: "student" | "counselor";
+  college_code: string;
+  program?: string;
+  contact_number?: string;
+};
+
+export async function signUpTrusted(
+  input: SignUpTrustedInput,
+): Promise<{ uid: string }> {
+  const callable = httpsCallable<SignUpTrustedInput, { ok: boolean; uid: string }>(
+    functions,
+    "signUpTrusted",
+  );
+  const result = await callable(input);
+  return { uid: result.data.uid };
+}
+
+export async function resendRegistrationVerificationTrusted(input: {
+  email: string;
+  password: string;
+}): Promise<void> {
+  const callable = httpsCallable<
+    { email: string; password: string },
+    { ok: boolean }
+  >(functions, "resendRegistrationVerificationTrusted");
+  await callable(input);
+}
+
 export async function sendSessionRequestTrusted(input: {
   conversationId: string;
   preferredTime: string;

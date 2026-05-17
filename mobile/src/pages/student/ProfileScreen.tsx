@@ -496,12 +496,7 @@ function EditProfileModal({
                     <Camera size={14} color="#FFFFFF" />
                   )}
                 </TouchableOpacity>
-              </View>
-              <Text
-                style={{ color: AURORA.textSec, fontSize: 13, marginTop: 8 }}
-              >
-                MSU-IIT · College and program are changed via “Request college / program change”
-              </Text>
+              </View>          
             </View>
 
             <Text

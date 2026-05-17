@@ -30,7 +30,8 @@ const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
-export const functions = getFunctions(app)
+/** Region must match `functions/src/index.ts` (`asia-southeast2`). */
+export const functions = getFunctions(app, 'asia-southeast2')
 
 // Realtime Database (RTDB) - null if no databaseURL (presence disabled)
 let rtdb: Database | null = null

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import { ContactRow } from '../../components/messages/ContactRow'
 import { DirectMessageView } from '../../components/messages/DirectMessageView'
-import { SessionRequestModal } from '../../components/sessions/SessionRequestModal'
+import { DashboardSessionRequestModal } from '../../components/sessions/DashboardSessionRequestModal'
 import type { CounselorContact } from '../../types/message.types'
 import { CalendarPlus } from 'lucide-react'
 
@@ -11,13 +12,34 @@ type TabType = 'All messages' | 'Unread'
 
 const TABS: TabType[] = ['All messages', 'Unread']
 
+type SessionRequestNavState = {
+  counselorId?: string
+  openSessionRequest?: boolean
+}
+
 export default function Messages() {
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<TabType>('All messages')
   const [selectedContact, setSelectedContact] = useState<CounselorContact | null>(null)
   const [contacts, setContacts] = useState<CounselorContact[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [sessionModalOpen, setSessionModalOpen] = useState(false)
+  const [autoOpenSessionRequest, setAutoOpenSessionRequest] = useState(false)
+  const [openingThread, setOpeningThread] = useState(false)
+  const openThreadRequestIdRef = useRef(0)
+
+  const refreshConversations = useCallback(() => {
+    if (!user?.id) return
+    messagesService
+      .getConversationsForStudent(user.id, {
+        activeCollegeCode: user.college_code,
+      })
+      .then(setContacts)
+      .catch(() => setContacts([]))
+  }, [user?.id, user?.college_code])
 
   useEffect(() => {
     if (!user?.id) {
@@ -26,7 +48,9 @@ export default function Messages() {
     }
     let isCancelled = false
     messagesService
-      .getConversationsForStudent(user.id)
+      .getConversationsForStudent(user.id, {
+        activeCollegeCode: user.college_code,
+      })
       .then((convos) => {
         if (!isCancelled) setContacts(convos)
       })
@@ -39,22 +63,125 @@ export default function Messages() {
     return () => {
       isCancelled = true
     }
-  }, [user?.id])
+  }, [user?.id, user?.college_code])
 
-  const refreshConversations = () => {
+  const clearSessionRequestRoute = useCallback(() => {
+    const navState = location.state as SessionRequestNavState | null
+    if (navState?.counselorId || navState?.openSessionRequest) {
+      navigate(location.pathname, { replace: true, state: null })
+    }
+    if (searchParams.get('counselorId') || searchParams.get('openSessionRequest')) {
+      setSearchParams({}, { replace: true })
+    }
+  }, [location.pathname, location.state, navigate, searchParams, setSearchParams])
+
+  const openCounselorThread = useCallback(
+    async (counselorId: string, shouldOpenRequest: boolean) => {
+      if (!user?.id) return
+
+      const requestId = ++openThreadRequestIdRef.current
+      setOpeningThread(true)
+
+      try {
+        const convos = await messagesService.getConversationsForStudent(user.id, {
+          activeCollegeCode: user.college_code,
+        })
+        if (requestId !== openThreadRequestIdRef.current) return
+
+        let contact = convos.find((c) => c.id === counselorId)
+
+        if (!contact) {
+          contact = await messagesService.openCounselorThreadForStudent({
+            studentId: user.id,
+            studentName: user.full_name ?? 'Student',
+            studentAvatar: user.avatar_url ?? undefined,
+            counselorId,
+          })
+        }
+
+        if (requestId !== openThreadRequestIdRef.current) return
+
+        setSelectedContact(contact)
+        setAutoOpenSessionRequest(shouldOpenRequest)
+        clearSessionRequestRoute()
+        refreshConversations()
+      } catch (e) {
+        if (requestId !== openThreadRequestIdRef.current) return
+        console.error('Failed opening counselor thread:', e)
+        clearSessionRequestRoute()
+        alert(
+          e instanceof Error
+            ? e.message
+            : 'Could not open your counselor conversation. Please try again.',
+        )
+      } finally {
+        if (requestId === openThreadRequestIdRef.current) {
+          setOpeningThread(false)
+        }
+      }
+    },
+    [
+      user?.id,
+      user?.college_code,
+      user?.full_name,
+      user?.avatar_url,
+      clearSessionRequestRoute,
+      refreshConversations,
+    ],
+  )
+
+  useEffect(() => {
     if (!user?.id) return
-    messagesService
-      .getConversationsForStudent(user.id)
-      .then(setContacts)
-      .catch(() => setContacts([]))
+
+    const navState = (location.state ?? {}) as SessionRequestNavState
+    const counselorId =
+      (navState.counselorId?.trim() ||
+        searchParams.get('counselorId')?.trim() ||
+        '') ?? ''
+    const shouldOpenRequest =
+      navState.openSessionRequest === true ||
+      searchParams.get('openSessionRequest') === '1'
+
+    if (!counselorId) return
+
+    if (
+      selectedContact?.id === counselorId &&
+      (!shouldOpenRequest || autoOpenSessionRequest)
+    ) {
+      clearSessionRequestRoute()
+      return
+    }
+
+    void openCounselorThread(counselorId, shouldOpenRequest)
+  }, [
+    user?.id,
+    location.state,
+    searchParams,
+    openCounselorThread,
+    selectedContact?.id,
+    autoOpenSessionRequest,
+    clearSessionRequestRoute,
+  ])
+
+  const handleCounselorPicked = (counselorId: string) => {
+    navigate('/student/messages', {
+      replace: true,
+      state: { counselorId, openSessionRequest: true },
+    })
+    setSearchParams(
+      { counselorId, openSessionRequest: '1' },
+      { replace: true },
+    )
   }
 
   if (selectedContact) {
     return (
       <DirectMessageView
         contact={selectedContact}
+        autoOpenSessionRequestModal={autoOpenSessionRequest}
         onBack={() => {
           setSelectedContact(null)
+          setAutoOpenSessionRequest(false)
           refreshConversations()
         }}
       />
@@ -98,11 +225,13 @@ export default function Messages() {
       </div>
 
       <div>
-        {isLoading ? (
+        {isLoading || openingThread ? (
           <div className="flex flex-col items-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-aurora-blue" />
             <p className="text-[#4B5693] text-sm mt-4">
-              Loading conversations...
+              {openingThread
+                ? 'Opening your counselor conversation...'
+                : 'Loading conversations...'}
             </p>
           </div>
         ) : filtered.length > 0 ? (
@@ -133,16 +262,17 @@ export default function Messages() {
         <CalendarPlus className="w-5 h-5" />
       </button>
 
-      <SessionRequestModal
+      <DashboardSessionRequestModal
         visible={sessionModalOpen}
         studentId={user?.id ?? ''}
-        studentName={user?.full_name}
-        studentAvatar={user?.avatar_url ?? undefined}
         onClose={() => setSessionModalOpen(false)}
-        onSuccess={() => {
-          refreshConversations()
+        onSuccess={({ counselorId }) => {
+          setSessionModalOpen(false)
+          handleCounselorPicked(counselorId)
         }}
       />
     </div>
   )
 }
+
+

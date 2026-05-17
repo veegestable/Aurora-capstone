@@ -9,7 +9,7 @@
     "build": "tsc",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "npm run build",
-    "deploy:firebase": "npm run build && cd .. && firebase deploy --only functions:migrateOldMoodLogs,functions:generateWeeklySummaryAi,functions:deliverSessionExpoPush"
+    "deploy:firebase": "npm run build && cd .. && firebase deploy --only functions:signUpTrusted,functions:resendRegistrationVerificationTrusted,functions:generateWeeklyAnalyticsAi,functions:migrateOldMoodLogs,functions:generateWeeklySummaryAi,functions:deliverSessionExpoPush,functions:cleanupUnverifiedAuthUsers"
   },
   "dependencies": {
     "firebase-admin": "^12.6.0",

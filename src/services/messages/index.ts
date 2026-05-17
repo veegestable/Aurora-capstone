@@ -3,7 +3,10 @@ import { getConversationsForCounselor } from "./get/getConversationsForCounselor
 import { getMessagesForStudent } from "./get/getMessagesForStudent"
 import { sendTextMessage } from "./post/sendTextMessage"
 import { createConversation } from "./post/createConversation"
+import { openCounselorThreadForStudent } from "./post/openCounselorThreadForStudent"
 import { markConversationAsRead } from "./put/markConversationAsRead"
+import { counselorArchiveConversation } from "./put/counselorArchiveConversation"
+import { counselorClearInboxArchive } from "./delete/counselorClearInboxArchive"
 
 export const messagesService = {
   getConversationsForStudent,
@@ -11,5 +14,8 @@ export const messagesService = {
   getMessagesForStudent,
   sendTextMessage,
   createConversation,
-  markConversationAsRead
+  openCounselorThreadForStudent,
+  markConversationAsRead,
+  counselorArchiveConversation,
+  counselorClearInboxArchive,
 }

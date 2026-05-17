@@ -1,13 +1,10 @@
 /**
- * Weekly analytics via OpenAI (gpt-4o-mini, JSON mode).
- * Falls back to deterministic descriptive copy if the API is unavailable or invalid.
- *
- * Set EXPO_PUBLIC_OPENAI_API_KEY in the environment for production-like runs.
- * Capstone note: embedding keys in the client is not secure; prefer a backend proxy later.
+ * Weekly analytics narrative — server-side via Cloud Function.
+ * Falls back to deterministic copy if the function is unavailable (no client API keys).
  */
 
-import Constants from "expo-constants";
-import { WEEKLY_ANALYTICS_SYSTEM_PROMPT } from "../constants/weeklyAnalyticsPrompt";
+import { getApp } from "firebase/app";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   buildLast7DaysPayload,
   summarizeWeekSeries,
@@ -15,6 +12,8 @@ import {
 } from "../utils/analytics/weeklySeries";
 import type { MoodData } from "./firebase-firestore.service";
 import { moodService } from "./mood.service";
+
+const functions = getFunctions(getApp(), "asia-southeast2");
 
 /** Shown when live OpenAI is unavailable — student-friendly, not technical. */
 export const WEEKLY_SUMMARY_FALLBACK_STUDENT_INTRO =
@@ -30,52 +29,6 @@ export interface WeeklyAiResult {
   support_note: string;
   /** True when OpenAI returned valid JSON; false when fallback was used. */
   fromAi: boolean;
-}
-
-function getOpenAiKey(): string | undefined {
-  const extra = Constants.expoConfig?.extra as
-    | { openAiApiKey?: string }
-    | undefined;
-  const fromExtra =
-    typeof extra?.openAiApiKey === "string" ? extra.openAiApiKey.trim() : "";
-  if (fromExtra.length > 0) return fromExtra;
-  const fromEnv =
-    typeof process.env.EXPO_PUBLIC_OPENAI_API_KEY === "string"
-      ? process.env.EXPO_PUBLIC_OPENAI_API_KEY.trim()
-      : "";
-  return fromEnv.length > 0 ? fromEnv : undefined;
-}
-
-function isWeeklyTrend(s: string): s is WeeklyTrend {
-  return s === "Improving" || s === "Declining" || s === "Stable";
-}
-
-function parseWeeklyJson(raw: string): WeeklyAiResult | null {
-  try {
-    const o = JSON.parse(raw) as Record<string, unknown>;
-    const trend =
-      typeof o.trend === "string" && isWeeklyTrend(o.trend) ? o.trend : null;
-    const summary = typeof o.summary === "string" ? o.summary : null;
-    const observations = Array.isArray(o.observations)
-      ? o.observations.filter((x) => typeof x === "string")
-      : [];
-    const recommendations = Array.isArray(o.recommendations)
-      ? o.recommendations.filter((x) => typeof x === "string")
-      : [];
-    const support_note =
-      typeof o.support_note === "string" ? o.support_note : "";
-    if (!trend || !summary) return null;
-    return {
-      trend,
-      summary,
-      observations,
-      recommendations,
-      support_note,
-      fromAi: true,
-    };
-  } catch {
-    return null;
-  }
 }
 
 /** Observable week-over-week mood slope; descriptive label only (no forecasting). */
@@ -197,64 +150,38 @@ export async function getLast7Days(
 export async function fetchWeeklyAiAnalyticsWithPayload(
   weeklyData: WeeklySeriesPayload,
 ): Promise<WeeklyAiResult> {
-  const key = getOpenAiKey();
-  if (!key) {
-    return deterministicWeeklyFallback(weeklyData);
-  }
-
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: WEEKLY_ANALYTICS_SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: JSON.stringify({
-              ...weeklyData,
-              note: "daily_mood uses -1 when there was no check-in; daily_stress uses None in that case.",
-            }),
-          },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
-
-    if (!res.ok) {
-      let detail = "";
-      try {
-        const errBody = await res.text();
-        const parsed = JSON.parse(errBody) as { error?: { message?: string } };
-        detail = parsed?.error?.message || errBody.slice(0, 200);
-      } catch {
-        /* ignore */
-      }
-      console.warn("[weeklyAnalyticsAi] OpenAI HTTP", res.status, detail);
-      return deterministicWeeklyFallback(weeklyData);
+    const callable = httpsCallable<
+      { weeklyData: WeeklySeriesPayload },
+      WeeklyAiResult
+    >(functions, "generateWeeklyAnalyticsAi");
+    const resp = await callable({ weeklyData });
+    const data = resp.data;
+    if (
+      data &&
+      (data.trend === "Improving" ||
+        data.trend === "Declining" ||
+        data.trend === "Stable") &&
+      typeof data.summary === "string"
+    ) {
+      return {
+        trend: data.trend,
+        summary: data.summary,
+        observations: Array.isArray(data.observations)
+          ? data.observations.filter((x) => typeof x === "string")
+          : [],
+        recommendations: Array.isArray(data.recommendations)
+          ? data.recommendations.filter((x) => typeof x === "string")
+          : [],
+        support_note:
+          typeof data.support_note === "string" ? data.support_note : "",
+        fromAi: data.fromAi === true,
+      };
     }
-
-    const body = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string | null } }>;
-    };
-    const raw = body.choices?.[0]?.message?.content;
-    if (!raw || typeof raw !== "string") {
-      return deterministicWeeklyFallback(weeklyData);
-    }
-
-    const parsed = parseWeeklyJson(raw);
-    if (!parsed) {
-      return deterministicWeeklyFallback(weeklyData);
-    }
-    return parsed;
   } catch (e) {
-    console.warn("[weeklyAnalyticsAi] request failed", e);
-    return deterministicWeeklyFallback(weeklyData);
+    console.warn("[weeklyAnalyticsAi] Cloud Function unavailable", e);
   }
+  return deterministicWeeklyFallback(weeklyData);
 }
 
 export async function fetchWeeklyAiAnalytics(

@@ -41,9 +41,12 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrateOldMoodLogs = exports.grantCounselorJournalAccessTrusted = exports.createSessionNotificationTrusted = exports.sendSessionRequestTrusted = exports.sendTextMessageTrusted = exports.writeAuditLogTrusted = exports.deliverSessionExpoPush = exports.generateWeeklySummaryAi = void 0;
+exports.migrateOldMoodLogs = exports.grantCounselorJournalAccessTrusted = exports.createSessionNotificationTrusted = exports.sendSessionRequestTrusted = exports.sendTextMessageTrusted = exports.signUpTrusted = exports.resendRegistrationVerificationTrusted = exports.writeAuditLogTrusted = exports.cleanupUnverifiedAuthUsers = exports.generateWeeklyAnalyticsAi = exports.deliverSessionExpoPush = exports.generateWeeklySummaryAi = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
+const resendVerification_1 = require("./resendVerification");
+const signUpTrusted_1 = require("./signUpTrusted");
+const ensureConversationAdmin_1 = require("./ensureConversationAdmin");
 admin.initializeApp();
 const db = admin.firestore();
 function pad2(n) {
@@ -147,6 +150,10 @@ exports.generateWeeklySummaryAi = (0, https_1.onCall)({ region: 'asia-southeast2
 });
 var deliverSessionExpoPush_1 = require("./deliverSessionExpoPush");
 Object.defineProperty(exports, "deliverSessionExpoPush", { enumerable: true, get: function () { return deliverSessionExpoPush_1.deliverSessionExpoPush; } });
+var weeklyAnalyticsAi_1 = require("./weeklyAnalyticsAi");
+Object.defineProperty(exports, "generateWeeklyAnalyticsAi", { enumerable: true, get: function () { return weeklyAnalyticsAi_1.generateWeeklyAnalyticsAi; } });
+var cleanupUnverifiedAuthUsers_1 = require("./cleanupUnverifiedAuthUsers");
+Object.defineProperty(exports, "cleanupUnverifiedAuthUsers", { enumerable: true, get: function () { return cleanupUnverifiedAuthUsers_1.cleanupUnverifiedAuthUsers; } });
 async function getRoleForUid(uid) {
     const snap = await db.collection('users').doc(uid).get();
     const role = snap.data()?.role;
@@ -208,6 +215,8 @@ async function enforceRateLimit(kind, key, windowMs, maxCount) {
         }, { merge: true });
     });
 }
+exports.resendRegistrationVerificationTrusted = (0, resendVerification_1.createResendRegistrationVerificationTrusted)(enforceRateLimit);
+exports.signUpTrusted = (0, signUpTrusted_1.createSignUpTrusted)(enforceRateLimit);
 exports.sendTextMessageTrusted = (0, https_1.onCall)({ region: 'asia-southeast2' }, async (request) => {
     const uid = request.auth?.uid;
     if (!uid)
@@ -257,22 +266,49 @@ exports.sendSessionRequestTrusted = (0, https_1.onCall)({ region: 'asia-southeas
     if (!uid)
         throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
     const data = (request.data ?? {});
-    const conversationId = typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
     const preferredTime = typeof data.preferredTime === 'string' ? data.preferredTime.trim() : '';
     const note = typeof data.note === 'string' ? data.note.trim() : '';
-    if (!conversationId || !preferredTime) {
-        throw new https_1.HttpsError('invalid-argument', 'conversationId and preferredTime are required.');
+    const counselorIdParam = typeof data.counselorId === 'string' ? data.counselorId.trim() : '';
+    let conversationId = typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
+    if (!preferredTime) {
+        throw new https_1.HttpsError('invalid-argument', 'preferredTime is required.');
     }
+    let counselorId = counselorIdParam;
+    if (!conversationId && counselorId) {
+        conversationId = `${counselorId}_${uid}`;
+    }
+    if (!conversationId) {
+        throw new https_1.HttpsError('invalid-argument', 'conversationId or counselorId is required.');
+    }
+    if (!counselorId) {
+        const underscore = conversationId.indexOf('_');
+        if (underscore <= 0) {
+            throw new https_1.HttpsError('invalid-argument', 'Invalid conversation id.');
+        }
+        counselorId = conversationId.slice(0, underscore);
+        const parsedStudentId = conversationId.slice(underscore + 1);
+        if (parsedStudentId !== uid) {
+            throw new https_1.HttpsError('permission-denied', 'Only the student can send a session request in this thread.');
+        }
+    }
+    if (conversationId !== `${counselorId}_${uid}`) {
+        throw new https_1.HttpsError('permission-denied', 'Only the student can send a session request in this thread.');
+    }
+    await (0, ensureConversationAdmin_1.ensureConversationDocument)({
+        counselorId,
+        studentId: uid,
+        studentName: typeof data.studentName === 'string' ? data.studentName : undefined,
+        studentAvatar: typeof data.studentAvatar === 'string' ? data.studentAvatar : undefined,
+        counselorName: typeof data.counselorName === 'string' ? data.counselorName : undefined,
+        counselorAvatar: typeof data.counselorAvatar === 'string' ? data.counselorAvatar : undefined,
+    });
     const convRef = db.collection('conversations').doc(conversationId);
     const convSnap = await convRef.get();
-    if (!convSnap.exists)
-        throw new https_1.HttpsError('not-found', 'Conversation not found.');
-    const conv = convSnap.data() ?? {};
-    const counselorId = typeof conv.counselorId === 'string' ? conv.counselorId : '';
-    const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
-    if (!counselorId || !studentId) {
-        throw new https_1.HttpsError('failed-precondition', 'Conversation participants invalid.');
+    if (!convSnap.exists) {
+        throw new https_1.HttpsError('failed-precondition', 'Conversation could not be created.');
     }
+    const conv = convSnap.data() ?? {};
+    const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
     if (studentId !== uid) {
         throw new https_1.HttpsError('permission-denied', 'Only the student can send a session request in this thread.');
     }
@@ -444,7 +480,6 @@ exports.migrateOldMoodLogs = (0, https_1.onCall)({ region: 'asia-southeast2' }, 
         const logTs = d.log_date;
         if (!logTs)
             continue;
-        const logDate = logTs.toDate();
         const emotions = Array.isArray(d.emotions) ? d.emotions : [];
         const primary = emotions[0] || { emotion: 'neutral', confidence: 0.5, color: '#888888' };
         const mood = String(primary.emotion || 'neutral');

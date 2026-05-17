@@ -233,6 +233,8 @@ function DirectMessageView({
     useState<SessionRequestData | null>(null);
   const [editingSessionRequest, setEditingSessionRequest] =
     useState<SessionRequestData | null>(null);
+  const [pendingSessionRequestAfterConsent, setPendingSessionRequestAfterConsent] =
+    useState<SessionRequestFormData | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   /** One-shot scroll after switching threads; cleared after first successful scroll. */
   const pendingScrollToEndRef = useRef(false);
@@ -501,19 +503,7 @@ function DirectMessageView({
         contact.id,
       );
       if (!hasAccess) {
-        Alert.alert(
-          "Confirm session request",
-          `Are you sure you want to request a session with ${contact.name}? If you continue, they may review your mood check-ins and journals in Aurora so they can support you. Only continue if you genuinely want help.`,
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Yes, send request",
-              onPress: () => {
-                void executeSendSessionRequest(data);
-              },
-            },
-          ],
-        );
+        setPendingSessionRequestAfterConsent(data);
         return;
       }
       await executeSendSessionRequest(data);
@@ -1063,9 +1053,26 @@ function DirectMessageView({
             : null
         }
         initialNote={editingSessionRequest?.note ?? undefined}
+        journalConsent={
+          pendingSessionRequestAfterConsent
+            ? {
+                title: "Confirm session request",
+                body: `Are you sure you want to request a session with ${contact.name}? If you continue, they may review your mood check-ins and journals in Aurora so they can support you. Only continue if you genuinely want help.`,
+                cancelLabel: "Cancel",
+                confirmLabel: "Yes, send request",
+                onCancel: () => setPendingSessionRequestAfterConsent(null),
+                onConfirm: () => {
+                  const data = pendingSessionRequestAfterConsent;
+                  setPendingSessionRequestAfterConsent(null);
+                  if (data) void executeSendSessionRequest(data);
+                },
+              }
+            : null
+        }
         onClose={() => {
           setShowSessionRequestModal(false);
           setEditingSessionRequest(null);
+          setPendingSessionRequestAfterConsent(null);
         }}
         onSend={handleSendSessionRequest}
       />
