@@ -70,7 +70,7 @@ export default function StudentWorkspace() {
     return () => {
       cancelled = true
     }
-  }, [studentId])
+  }, [studentId, user?.college_code])
 
   const subtitle = useMemo(() => {
     const parts = [student?.program, student?.yearLevel].filter(Boolean)

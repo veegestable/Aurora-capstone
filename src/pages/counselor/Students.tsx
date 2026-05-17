@@ -169,7 +169,7 @@ export default function Students() {
 
     fetchStudents()
     return () => { cancelled = true }
-  }, [])
+  }, [user?.college_code])
 
   const filtered = useMemo(() => {
     let list = students

@@ -89,7 +89,7 @@ export function CounselorSessionsPane({
 
     run()
     return () => { cancelled = true }
-  }, [visible, counselorId])
+  }, [visible, counselorId, user?.college_code])
 
   const grouped = useMemo(() => {
     const buckets: Record<TabKey, Session[]> = {

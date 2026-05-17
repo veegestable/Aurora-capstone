@@ -84,7 +84,7 @@ export default function CounselorDashboard() {
 
     run()
     return () => { cancelled = true }
-  }, [user?.id])
+  }, [user?.id, user?.college_code])
 
   return (
     <div className="space-y-6">
