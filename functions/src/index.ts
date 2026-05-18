@@ -12,6 +12,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { createResendRegistrationVerificationTrusted } from './resendVerification';
 import { createSignUpTrusted } from './signUpTrusted';
 import { ensureConversationDocument } from './ensureConversationAdmin';
+import { assertConversationMessagingOpen } from './conversationMessagingPolicy';
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -287,6 +288,8 @@ export const sendTextMessageTrusted = onCall({ region: 'asia-southeast2' }, asyn
     throw new HttpsError('permission-denied', 'Not a conversation participant.');
   }
 
+  await assertConversationMessagingOpen(db, conversationId, uid);
+
   await enforceRateLimit('msg', `${uid}:${conversationId}`, 10_000, 5);
 
   const msgRef = await convRef.collection('messages').add({
@@ -398,6 +401,8 @@ export const sendSessionRequestTrusted = onCall({ region: 'asia-southeast2' }, a
       'Only the student can send a session request in this thread.',
     );
   }
+
+  await assertConversationMessagingOpen(db, conversationId, uid);
 
   await enforceRateLimit('session_request', `${studentId}:${counselorId}`, 30_000, 1);
 

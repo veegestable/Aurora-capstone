@@ -43,8 +43,57 @@ import {
   type CollegeCode,
 } from "../constants/colleges";
 import { isProgramInCollege } from "../constants/college-programs-iit";
+import {
+  conversationCollegeTagFromData,
+  isActiveCollegeInboxThread,
+  isPastCollegeThread,
+  MESSAGING_CLOSED_ERROR,
+  resolveCollegeFromUserRecord,
+} from "../utils/conversationCollegeMessaging";
 
 const AUTO_ACCEPTED_PREFIX = "__AUTO_ACCEPTED__";
+
+export type ConversationInboxScope = "active" | "past";
+
+async function fetchUserCollegeMap(
+  userIds: string[],
+): Promise<Record<string, string>> {
+  const unique = [...new Set(userIds.filter((id) => id.trim()))];
+  const map: Record<string, string> = {};
+  await Promise.all(
+    unique.map(async (id) => {
+      try {
+        const snap = await getDoc(doc(db, "users", id));
+        map[id] = resolveCollegeFromUserRecord(
+          (snap.data() ?? {}) as Record<string, unknown>,
+        );
+      } catch {
+        map[id] = "";
+      }
+    }),
+  );
+  return map;
+}
+
+function conversationInboxClassifyInput(
+  data: Record<string, unknown>,
+  viewerCollege: string,
+  collegeByUserId: Record<string, string>,
+): {
+  conversationCollegeCode: string;
+  viewerCollegeCode: string;
+  counselorCollegeCode: string;
+  studentCollegeCode: string;
+} {
+  const counselorId = String(data.counselorId ?? "");
+  const studentId = String(data.studentId ?? "");
+  return {
+    conversationCollegeCode: conversationCollegeTagFromData(data),
+    viewerCollegeCode: viewerCollege,
+    counselorCollegeCode: collegeByUserId[counselorId] ?? "",
+    studentCollegeCode: collegeByUserId[studentId] ?? "",
+  };
+}
 
 function sameResolvedCollege(
   a: Record<string, unknown> | undefined,
@@ -1264,11 +1313,93 @@ export const firestoreService = {
     }
   },
 
+  async _assertMessagingClosedCheck(
+    senderId: string,
+    conversationData: Record<string, unknown>,
+    counselorId: string,
+    studentId: string,
+  ): Promise<void> {
+    if (senderId !== counselorId && senderId !== studentId) {
+      throw new Error("Not a conversation participant.");
+    }
+    const collegeMap = await fetchUserCollegeMap([
+      counselorId,
+      studentId,
+      senderId,
+    ]);
+    const viewerCollege = collegeMap[senderId] ?? "";
+    const classify = conversationInboxClassifyInput(
+      conversationData,
+      viewerCollege,
+      collegeMap,
+    );
+    if (isPastCollegeThread(classify)) {
+      throw new Error(MESSAGING_CLOSED_ERROR);
+    }
+  },
+
+  async assertConversationMessagingOpen(
+    conversationId: string,
+    senderId: string,
+  ): Promise<void> {
+    const convSnap = await getDoc(doc(db, "conversations", conversationId));
+    if (!convSnap.exists()) {
+      throw new Error("Conversation not found.");
+    }
+    const data = (convSnap.data() ?? {}) as Record<string, unknown>;
+    await this._assertMessagingClosedCheck(
+      senderId,
+      data,
+      String(data.counselorId ?? ""),
+      String(data.studentId ?? ""),
+    );
+  },
+
+  async assertMessagingOpenForParticipants(
+    counselorId: string,
+    studentId: string,
+    senderId: string,
+  ): Promise<void> {
+    const conversationId = `${counselorId}_${studentId}`;
+    const convSnap = await getDoc(doc(db, "conversations", conversationId));
+    const data = (
+      convSnap.exists()
+        ? (convSnap.data() ?? {})
+        : { counselorId, studentId }
+    ) as Record<string, unknown>;
+    await this._assertMessagingClosedCheck(
+      senderId,
+      data,
+      counselorId,
+      studentId,
+    );
+  },
+
+  async assertSessionMessagingOpen(
+    sessionId: string,
+    senderId: string,
+  ): Promise<void> {
+    const snap = await getDoc(doc(db, "sessions", sessionId));
+    if (!snap.exists()) throw new Error("Session not found.");
+    const data = snap.data() as Record<string, unknown>;
+    const counselorId = String(data.counselorId ?? "");
+    const studentId = String(data.studentId ?? "");
+    if (!counselorId || !studentId) {
+      throw new Error("Session is missing counselor or student.");
+    }
+    await this.assertMessagingOpenForParticipants(
+      counselorId,
+      studentId,
+      senderId,
+    );
+  },
+
   async getConversations(
     counselorId: string,
     options?: {
       activeCollegeCode?: string | null;
       includeArchived?: boolean;
+      inboxScope?: ConversationInboxScope;
     },
   ) {
     const isPlaceholderAvatar = (url: string) =>
@@ -1287,6 +1418,8 @@ export const firestoreService = {
       }
     }
 
+    const inboxScope = options?.inboxScope ?? "active";
+
     try {
       const q = query(
         collection(db, "conversations"),
@@ -1298,18 +1431,35 @@ export const firestoreService = {
         counselorId,
       );
       const includeArchived = options?.includeArchived === true;
+      const eligibleDocs = snapshot.docs.filter(
+        (d) => includeArchived || !archivedIds.has(d.id),
+      );
+      const collegeMap = await fetchUserCollegeMap([
+        counselorId,
+        ...eligibleDocs.map((d) => String(d.data().studentId ?? "")),
+      ]);
+      const scopedDocs = eligibleDocs.filter((d) => {
+        const data = d.data() as Record<string, unknown>;
+        const classify = conversationInboxClassifyInput(
+          data,
+          activeCollege,
+          collegeMap,
+        );
+        const past = isPastCollegeThread(classify);
+        if (inboxScope === "past") return past;
+        return isActiveCollegeInboxThread(classify);
+      });
+
       const results = await Promise.all(
-        snapshot.docs
-          .filter((d) => includeArchived || !archivedIds.has(d.id))
-          .filter((d) =>
-            conversationMatchesActiveCollege(
-              d.data() as Record<string, unknown>,
-              activeCollege,
-            ),
-          )
-          .map(async (d) => {
+        scopedDocs.map(async (d) => {
           const data = d.data();
           const isArchived = archivedIds.has(d.id);
+          const classify = conversationInboxClassifyInput(
+            data as Record<string, unknown>,
+            activeCollege,
+            collegeMap,
+          );
+          const messagingClosed = isPastCollegeThread(classify);
           let avatar = data.student_avatar ?? "";
           if ((!avatar || isPlaceholderAvatar(avatar)) && data.studentId) {
             try {
@@ -1341,6 +1491,8 @@ export const firestoreService = {
             isUnread: (data.unreadCountCounselor ?? 0) > 0,
             program: data.student_program ?? undefined,
             studentId: data.studentId,
+            messagingClosed,
+            isPastCollege: messagingClosed,
             ...(isArchived ? { isArchived: true } : {}),
           };
         }),
@@ -1354,7 +1506,10 @@ export const firestoreService = {
 
   async getConversationsForStudent(
     studentId: string,
-    options?: { activeCollegeCode?: string | null },
+    options?: {
+      activeCollegeCode?: string | null;
+      inboxScope?: ConversationInboxScope;
+    },
   ) {
     const isPlaceholderAvatar = (url: string) =>
       !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url);
@@ -1372,6 +1527,8 @@ export const firestoreService = {
       }
     }
 
+    const inboxScope = options?.inboxScope ?? "active";
+
     try {
       const q = query(
         collection(db, "conversations"),
@@ -1379,16 +1536,31 @@ export const firestoreService = {
         orderBy("lastMessageAt", "desc"),
       );
       const snapshot = await getDocs(q);
+      const collegeMap = await fetchUserCollegeMap([
+        studentId,
+        ...snapshot.docs.map((d) => String(d.data().counselorId ?? "")),
+      ]);
+      const scopedDocs = snapshot.docs.filter((d) => {
+        const data = d.data() as Record<string, unknown>;
+        const classify = conversationInboxClassifyInput(
+          data,
+          activeCollege,
+          collegeMap,
+        );
+        const past = isPastCollegeThread(classify);
+        if (inboxScope === "past") return past;
+        return isActiveCollegeInboxThread(classify);
+      });
+
       const results = await Promise.all(
-        snapshot.docs
-          .filter((d) =>
-            conversationMatchesActiveCollege(
-              d.data() as Record<string, unknown>,
-              activeCollege,
-            ),
-          )
-          .map(async (d) => {
+        scopedDocs.map(async (d) => {
           const data = d.data();
+          const classify = conversationInboxClassifyInput(
+            data as Record<string, unknown>,
+            activeCollege,
+            collegeMap,
+          );
+          const messagingClosed = isPastCollegeThread(classify);
           let avatar = data.counselor_avatar ?? "";
           if ((!avatar || isPlaceholderAvatar(avatar)) && data.counselorId) {
             try {
@@ -1418,6 +1590,8 @@ export const firestoreService = {
             avatar,
             isOnline: false,
             isUnread: (data.unreadCountStudent ?? 0) > 0,
+            messagingClosed,
+            isPastCollege: messagingClosed,
           };
         }),
       );
@@ -1467,6 +1641,23 @@ export const firestoreService = {
       const conv = convSnap.data();
       if (!conv) return;
 
+      const convData = conv as Record<string, unknown>;
+      const counselorId = String(convData.counselorId ?? "");
+      const studentId = String(convData.studentId ?? "");
+      const collegeMap = await fetchUserCollegeMap([
+        viewerId,
+        counselorId,
+        studentId,
+      ]);
+      const classify = conversationInboxClassifyInput(
+        convData,
+        collegeMap[viewerId] ?? "",
+        collegeMap,
+      );
+      if (isPastCollegeThread(classify)) {
+        return;
+      }
+
       const isCounselorViewer = conv.counselorId === viewerId;
       const unreadField = isCounselorViewer
         ? "unreadCountCounselor"
@@ -1501,9 +1692,8 @@ export const firestoreService = {
       });
 
       await Promise.all(updates);
-    } catch(error: unknown) {
+    } catch (error: unknown) {
       console.error("❌ Error marking conversation as read:", error);
-      throw error;
     }
   },
 
@@ -1550,6 +1740,7 @@ export const firestoreService = {
       if ((auth.currentUser?.uid ?? "") !== senderId) {
         throw new Error("You can only send messages as the signed-in user.");
       }
+      await this.assertConversationMessagingOpen(conversationId, senderId);
       const out = await sendTextMessageTrustedCallable({
         conversationId,
         text,
@@ -1631,6 +1822,7 @@ export const firestoreService = {
     session: Record<string, unknown>,
   ) {
     try {
+      await this.assertConversationMessagingOpen(conversationId, senderId);
       const messagesRef = collection(
         db,
         "conversations",
@@ -1692,8 +1884,15 @@ export const firestoreService = {
    * Deletes a single conversation message card (chat-only).
    * This should NOT delete/modify the canonical `sessions` docs.
    */
-  async deleteConversationMessage(conversationId: string, messageId: string) {
+  async deleteConversationMessage(
+    conversationId: string,
+    messageId: string,
+    senderId?: string,
+  ) {
     try {
+      if (senderId) {
+        await this.assertConversationMessagingOpen(conversationId, senderId);
+      }
       await deleteDoc(
         doc(db, "conversations", conversationId, "messages", messageId),
       );
@@ -1714,6 +1913,7 @@ export const firestoreService = {
     session: Record<string, unknown>,
   ) {
     try {
+      await this.assertConversationMessagingOpen(conversationId, senderId);
       const linkedSessionId =
         session?.id != null
           ? String(session.id).trim()
@@ -1769,6 +1969,8 @@ export const firestoreService = {
     session: Record<string, unknown>,
   ) {
     try {
+      await this.assertConversationMessagingOpen(conversationId, senderId);
+      await this.assertSessionMessagingOpen(sessionId, senderId);
       const messagesRef = collection(
         db,
         "conversations",
@@ -1853,6 +2055,7 @@ export const firestoreService = {
           "You can only request sessions as the signed-in student.",
         );
       }
+      await this.assertConversationMessagingOpen(conversationId, studentId);
       const out = await sendSessionRequestTrustedCallable({
         conversationId,
         preferredTime: preferredTimeStr,
@@ -1905,6 +2108,11 @@ export const firestoreService = {
     opts?: { note?: string },
   ) {
     try {
+      await this.assertMessagingOpenForParticipants(
+        counselorId,
+        studentId,
+        counselorId,
+      );
       const collegeCode = await resolveConversationCollegeCode(
         counselorId,
         studentId,
@@ -2045,9 +2253,14 @@ export const firestoreService = {
     opts?: {
       /** Counselor moved a session (e.g. from attendance "needs rescheduling"). */
       proposalKind?: "attendance_reschedule" | "counselor_new_times";
+      actorId?: string;
     },
   ) {
     try {
+      const actorId = opts?.actorId ?? auth.currentUser?.uid ?? "";
+      if (actorId) {
+        await this.assertSessionMessagingOpen(sessionId, actorId);
+      }
       const sessionRef = doc(db, "sessions", sessionId);
       const snap = await getDoc(sessionRef);
       const session = snap.data() as Record<string, unknown> | undefined;
@@ -2085,8 +2298,16 @@ export const firestoreService = {
     }
   },
 
-  async confirmSlot(sessionId: string, slot: { date: string; time: string }) {
+  async confirmSlot(
+    sessionId: string,
+    slot: { date: string; time: string },
+    actorId?: string,
+  ) {
     try {
+      const uid = actorId ?? auth.currentUser?.uid ?? "";
+      if (uid) {
+        await this.assertSessionMessagingOpen(sessionId, uid);
+      }
       const sessionRef = doc(db, "sessions", sessionId);
       const snap = await getDoc(sessionRef);
       const session = snap.data() as Record<string, unknown> | undefined;
@@ -2151,6 +2372,16 @@ export const firestoreService = {
 
       if (!authorized) throw new Error("Not authorized");
 
+      const counselorIdForCheck = String(data.counselorId ?? "");
+      const studentIdForCheck = String(data.studentId ?? uid);
+      if (counselorIdForCheck && studentIdForCheck) {
+        await this.assertMessagingOpenForParticipants(
+          counselorIdForCheck,
+          studentIdForCheck,
+          uid,
+        );
+      }
+
       const patch: Record<string, unknown> = {
         finalSlot: slot,
         confirmedSlot: slot,
@@ -2184,8 +2415,10 @@ export const firestoreService = {
     conversationId: string,
     sessionId: string,
     status: "confirmed" | "cancelled",
+    senderId: string,
   ) {
     try {
+      await this.assertConversationMessagingOpen(conversationId, senderId);
       const messagesRef = collection(
         db,
         "conversations",
@@ -2234,6 +2467,8 @@ export const firestoreService = {
     note: string,
   ) {
     try {
+      await this.assertConversationMessagingOpen(conversationId, senderId);
+      await this.assertSessionMessagingOpen(sessionId, senderId);
       const trimmedNote = (note ?? "").trim();
       const content = preferredTime
         ? `Session request: ${preferredTime}`
@@ -2324,8 +2559,13 @@ export const firestoreService = {
     sessionId: string,
     outcome: "completed" | "missed" | "rescheduled",
     attendanceNote?: string,
+    actorId?: string,
   ) {
     try {
+      const uid = actorId ?? auth.currentUser?.uid ?? "";
+      if (uid) {
+        await this.assertSessionMessagingOpen(sessionId, uid);
+      }
       const sessionRef = doc(db, "sessions", sessionId);
       const badge: SessionHistoryBadge =
         outcome === "completed"

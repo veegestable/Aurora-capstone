@@ -3,6 +3,7 @@ import { View, TextInputProps, type TextInput as RNTextInput } from 'react-nativ
 import { AppText as Text } from './AppText';
 import { AppTextInput as TextInput } from './AppTextInput';
 import { twMerge } from 'tailwind-merge';
+import { AURORA } from '../../constants/aurora-colors';
 
 interface InputProps extends TextInputProps {
     label?: string;
@@ -48,7 +49,7 @@ export const Input = forwardRef<RNTextInput, InputProps>(({
             <TextInput
                 ref={ref}
                 style={isGlass ? {
-                    color: '#FFFFFF',
+                    color: AURORA.textSec,
                     backgroundColor: 'rgba(166, 166, 166, 0.22)',
                     borderWidth: 0.5,
                     // borderColor: 'rgba(255, 255, 255, 0.4)',
@@ -67,7 +68,7 @@ export const Input = forwardRef<RNTextInput, InputProps>(({
                     error ? "border-red-500" : !isGlass && "focus:border-blue-500",
                     className
                 )}
-                placeholderTextColor={placeholderTextColor ?? (isGlass ? "#F8FAFC" : "#9CA3AF")}
+                placeholderTextColor={placeholderTextColor ?? (isGlass ? AURORA.textSecPale : "#9CA3AF")}
                 {...props}
             />
             {error && (

@@ -1,6 +1,7 @@
 import { doc, getDoc, updateDoc, Timestamp, collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
 import { grantJournalAccessToCounselor } from '../../user-settings/put/grantJournalAccessToCounselor'
+import { assertMessagingOpenForParticipants } from '../../messages/helpers/assertMessagingOpen'
 
 export async function studentConfirmFinalSlot(
   sessionId: string,
@@ -35,6 +36,16 @@ export async function studentConfirmFinalSlot(
   }
 
   if (!authorized) throw new Error('Not authorized')
+
+  const counselorIdForCheck = String(data.counselorId ?? '')
+  const studentIdForCheck = String(data.studentId ?? uid)
+  if (counselorIdForCheck && studentIdForCheck) {
+    await assertMessagingOpenForParticipants(
+      counselorIdForCheck,
+      studentIdForCheck,
+      uid,
+    )
+  }
 
   const patch: { [field: string]: unknown } = {
     finalSlot: slot,

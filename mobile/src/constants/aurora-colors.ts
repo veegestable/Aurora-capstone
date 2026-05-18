@@ -23,6 +23,8 @@ export const AURORA = {
     // Text
     textPrimary: '#FFFFFF',
     textSec: '#7B8EC8',
+    /** Lighter textSec — glass input placeholders on dark backgrounds */
+    textSecPale: '#B8C5E6',
     textMuted: '#4B5693',
     // Borders
     border: 'rgba(255,255,255,0.08)',

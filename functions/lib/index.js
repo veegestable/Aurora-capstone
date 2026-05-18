@@ -47,6 +47,7 @@ const https_1 = require("firebase-functions/v2/https");
 const resendVerification_1 = require("./resendVerification");
 const signUpTrusted_1 = require("./signUpTrusted");
 const ensureConversationAdmin_1 = require("./ensureConversationAdmin");
+const conversationMessagingPolicy_1 = require("./conversationMessagingPolicy");
 admin.initializeApp();
 const db = admin.firestore();
 function pad2(n) {
@@ -240,6 +241,7 @@ exports.sendTextMessageTrusted = (0, https_1.onCall)({ region: 'asia-southeast2'
     if (!isCounselor && !isStudent) {
         throw new https_1.HttpsError('permission-denied', 'Not a conversation participant.');
     }
+    await (0, conversationMessagingPolicy_1.assertConversationMessagingOpen)(db, conversationId, uid);
     await enforceRateLimit('msg', `${uid}:${conversationId}`, 10000, 5);
     const msgRef = await convRef.collection('messages').add({
         senderId: uid,
@@ -312,6 +314,7 @@ exports.sendSessionRequestTrusted = (0, https_1.onCall)({ region: 'asia-southeas
     if (studentId !== uid) {
         throw new https_1.HttpsError('permission-denied', 'Only the student can send a session request in this thread.');
     }
+    await (0, conversationMessagingPolicy_1.assertConversationMessagingOpen)(db, conversationId, uid);
     await enforceRateLimit('session_request', `${studentId}:${counselorId}`, 30000, 1);
     const sessionRef = await db.collection('sessions').add({
         counselorId,

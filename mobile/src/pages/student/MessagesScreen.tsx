@@ -15,7 +15,8 @@ import {
   Plus,
   CalendarPlus,
   Send,
-  PenSquare
+  PenSquare,
+  Check,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../stores/AuthContext";
@@ -60,6 +61,7 @@ import {
   type AuroraActionSheetContent,
 } from "../../components/common/AuroraActionSheetModal";
 import { buildFeedback } from "../../utils/aurora-feedback";
+import ConversationReadOnlyBanner from "../../components/messages/ConversationReadOnlyBanner";
 
 type TabType = "All messages" | "Unread";
 
@@ -81,6 +83,8 @@ interface CounselorContact {
   avatar: string;
   isOnline: boolean;
   isUnread: boolean;
+  messagingClosed?: boolean;
+  isPastCollege?: boolean;
 }
 
 function formatConversationTimeLabel(raw: string): string {
@@ -134,6 +138,8 @@ function ContactRow({
   item: CounselorContact;
   onPress: () => void;
 }) {
+  const isPastCollege =
+    item.isPastCollege === true || item.messagingClosed === true;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -181,9 +187,36 @@ function ContactRow({
             marginBottom: 4,
           }}
         >
-          <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}>
-            {item.name}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+            <Text
+              style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}
+              numberOfLines={1}
+            >
+              {item.name}
+            </Text>
+            {isPastCollege ? (
+              <View
+                style={{
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 6,
+                  backgroundColor: "rgba(251,191,36,0.15)",
+                  borderWidth: 1,
+                  borderColor: "rgba(251,191,36,0.4)",
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#FCD34D",
+                    fontSize: 8,
+                    fontWeight: "700",
+                  }}
+                >
+                  PAST
+                </Text>
+              </View>
+            ) : null}
+          </View>
           <Text
             style={{
               fontSize: 12,
@@ -232,6 +265,8 @@ function DirectMessageView({
   autoOpenSessionRequestModal?: boolean;
 }) {
   const { user } = useAuth();
+  const readOnly =
+    contact.messagingClosed === true || contact.isPastCollege === true;
   const [message, setMessage] = useState("");
   /** Mirrors the composer so Send uses the latest text (avoids Android RN lag vs `message` state). */
   const messageDraftRef = useRef("");
@@ -291,9 +326,11 @@ function DirectMessageView({
       setLoadingMessages(false);
       return;
     }
-    firestoreService
-      .markConversationAsRead(contact.conversationId, user.id)
-      .catch(() => {});
+    if (!readOnly) {
+      firestoreService
+        .markConversationAsRead(contact.conversationId, user.id)
+        .catch(() => {});
+    }
     setLoadingMessages(true);
     const unsub = firestoreService.subscribeConversationMessages(
       contact.conversationId,
@@ -308,7 +345,7 @@ function DirectMessageView({
       },
     );
     return unsub;
-  }, [contact.conversationId, user?.id]);
+  }, [contact.conversationId, user?.id, readOnly]);
 
   useEffect(() => {
     if (loadingMessages || messages.length === 0) return;
@@ -333,6 +370,7 @@ function DirectMessageView({
   }, [loadingMessages, messages.length]);
 
   const sendMessage = async () => {
+    if (readOnly) return;
     const text = messageDraftRef.current.trim();
     if (!text || !user?.id || !contact.conversationId || sending) return;
     setSending(true);
@@ -372,7 +410,7 @@ function DirectMessageView({
   };
 
   const confirmDeleteMessage = (messageId: string, messageType: string) => {
-    if (!user?.id) return;
+    if (!user?.id || readOnly) return;
     setPendingDelete({ messageId, messageType });
   };
 
@@ -380,6 +418,7 @@ function DirectMessageView({
     slot: TimeSlot,
     invite: ScheduleInviteData,
   ) => {
+    if (readOnly) return;
     if (!user?.id || !contact.conversationId || sending) return;
     const sid = invite.id?.trim();
     if (!sid || String(sid).startsWith("session_")) {
@@ -589,7 +628,7 @@ function DirectMessageView({
           </View>
 
           {/* Privacy Banner */}
-          <View
+          {/* <View
             style={{
               backgroundColor: "rgba(124,58,237,0.15)",
               borderWidth: 1,
@@ -612,7 +651,9 @@ function DirectMessageView({
             >
               THIS IS A PRIVATE CONVERSATION WITH YOUR COUNSELOR.
             </Text>
-          </View>
+          </View> */}
+
+          {readOnly ? <ConversationReadOnlyBanner role="student" /> : null}
 
           {/* Date label */}
           <Text
@@ -867,6 +908,7 @@ function DirectMessageView({
                             isFromMe={isMe}
                             confirmBusy={sending}
                             onConfirm={
+                              !readOnly &&
                               !isMe &&
                               msg.session.id &&
                               !String(msg.session.id).startsWith("session_") &&
@@ -972,6 +1014,29 @@ function DirectMessageView({
             />
           </View>
 
+          {readOnly ? (
+            <View
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                borderTopWidth: 1,
+                borderTopColor: AURORA.border,
+                marginBottom: 24,
+              }}
+            >
+              <Text
+                style={{
+                  color: AURORA.textMuted,
+                  fontSize: 13,
+                  textAlign: "center",
+                  lineHeight: 18,
+                }}
+              >
+                Messaging is closed for this conversation.
+              </Text>
+            </View>
+          ) : (
+          <>
           {/* Input Bar */}
           <View
             style={{
@@ -1051,6 +1116,8 @@ function DirectMessageView({
           >
             Messages are encrypted and shared only with your counselor.
           </Text>
+          </>
+          )}
         </SafeAreaView>
       </KeyboardAvoidingView>
 
@@ -1109,6 +1176,7 @@ function DirectMessageView({
             await firestoreService.deleteConversationMessage(
               contact.conversationId,
               messageId,
+              user.id,
             );
             await auditLogsService.write({
               performedBy: user.id,
@@ -1154,6 +1222,9 @@ export default function MessagesScreen() {
   const [listFeedback, setListFeedback] = useState<InfoGuideContent | null>(
     null,
   );
+  const [showPastCollegeConversations, setShowPastCollegeConversations] =
+    useState(false);
+  const [pastContacts, setPastContacts] = useState<CounselorContact[]>([]);
 
   /** Avoid duplicate opens / Strict Mode double-invoke while dashboard deep-link runs */
   const counselorDeepLinkHandledRef = useRef<string | null>(null);
@@ -1164,15 +1235,27 @@ export default function MessagesScreen() {
       return;
     }
     let cancelled = false;
-    firestoreService
-      .getConversationsForStudent(user.id, {
+    Promise.all([
+      firestoreService.getConversationsForStudent(user.id, {
         activeCollegeCode: user.college_code,
-      })
-      .then((convos) => {
-        if (!cancelled) setContacts(convos as CounselorContact[]);
+        inboxScope: "active",
+      }),
+      firestoreService.getConversationsForStudent(user.id, {
+        activeCollegeCode: user.college_code,
+        inboxScope: "past",
+      }),
+    ])
+      .then(([active, past]) => {
+        if (!cancelled) {
+          setContacts(active as CounselorContact[]);
+          setPastContacts(past as CounselorContact[]);
+        }
       })
       .catch(() => {
-        if (!cancelled) setContacts([]);
+        if (!cancelled) {
+          setContacts([]);
+          setPastContacts([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -1183,24 +1266,34 @@ export default function MessagesScreen() {
   }, [user?.id, user?.college_code]);
 
   useEffect(() => {
-    if (contacts.length === 0) {
+    const ids = [...contacts, ...pastContacts].map((c) => c.id);
+    if (ids.length === 0) {
       setOnlineByCounselorId({});
       return;
     }
-    return subscribeToUsersPresence(
-      contacts.map((c) => c.id),
-      setOnlineByCounselorId,
-    );
-  }, [contacts]);
+    return subscribeToUsersPresence(ids, setOnlineByCounselorId);
+  }, [contacts, pastContacts]);
 
   const refreshConversations = () => {
     if (!user?.id) return;
-    firestoreService
-      .getConversationsForStudent(user.id, {
+    Promise.all([
+      firestoreService.getConversationsForStudent(user.id, {
         activeCollegeCode: user.college_code,
+        inboxScope: "active",
+      }),
+      firestoreService.getConversationsForStudent(user.id, {
+        activeCollegeCode: user.college_code,
+        inboxScope: "past",
+      }),
+    ])
+      .then(([active, past]) => {
+        setContacts(active as CounselorContact[]);
+        setPastContacts(past as CounselorContact[]);
       })
-      .then((result) => setContacts(result as CounselorContact[]))
-      .catch(() => setContacts([]));
+      .catch(() => {
+        setContacts([]);
+        setPastContacts([]);
+      });
   };
 
   const handleSelectCounselor = async (counselor: Counselor) => {
@@ -1262,15 +1355,23 @@ export default function MessagesScreen() {
 
     const openThreadFromParam = async () => {
       try {
-        const convos = await firestoreService.getConversationsForStudent(
-          user.id,
-          { activeCollegeCode: user.college_code },
-        );
+        const [activeConvos, pastConvos] = await Promise.all([
+          firestoreService.getConversationsForStudent(user.id, {
+            activeCollegeCode: user.college_code,
+            inboxScope: "active",
+          }),
+          firestoreService.getConversationsForStudent(user.id, {
+            activeCollegeCode: user.college_code,
+            inboxScope: "past",
+          }),
+        ]);
         if (cancelled) return;
 
-        let contact = (convos as CounselorContact[]).find(
-          (c) => c.id === counselorId,
-        );
+        let contact =
+          (activeConvos as CounselorContact[]).find(
+            (c) => c.id === counselorId,
+          ) ??
+          (pastConvos as CounselorContact[]).find((c) => c.id === counselorId);
 
         if (!contact) {
           const users = await firestoreService.getCounselorsForStudent(user.id);
@@ -1365,8 +1466,11 @@ export default function MessagesScreen() {
   }
 
   const TABS: TabType[] = ["All messages", "Unread"];
+  const listContacts = showPastCollegeConversations ? pastContacts : contacts;
   const visibleContacts =
-    activeTab === "Unread" ? contacts.filter((c) => c.isUnread) : contacts;
+    activeTab === "Unread"
+      ? listContacts.filter((c) => c.isUnread)
+      : listContacts;
 
   return (
     <View style={{ flex: 1, backgroundColor: AURORA.bgMessages }}>
@@ -1453,6 +1557,58 @@ export default function MessagesScreen() {
               );
             })}
           </View>
+          <Pressable
+            onPress={() => setShowPastCollegeConversations((prev) => !prev)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: showPastCollegeConversations }}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 10,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: showPastCollegeConversations
+                ? AURORA.blue
+                : AURORA.border,
+              alignSelf: "flex-start",
+              backgroundColor: showPastCollegeConversations
+                ? "rgba(45,107,255,0.14)"
+                : "transparent",
+            }}
+          >
+            <View
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: 4,
+                borderWidth: 1.5,
+                borderColor: showPastCollegeConversations
+                  ? AURORA.blue
+                  : AURORA.border,
+                backgroundColor: showPastCollegeConversations
+                  ? AURORA.blue
+                  : "transparent",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {showPastCollegeConversations ? (
+                <Check size={11} color="#FFFFFF" strokeWidth={3} />
+              ) : null}
+            </View>
+            <Text
+              style={{
+                color: showPastCollegeConversations ? AURORA.blue : AURORA.textSec,
+                fontSize: 13,
+                fontWeight: showPastCollegeConversations ? "700" : "500",
+              }}
+            >
+              Past college
+            </Text>
+          </Pressable>
         </View>
 
         {/* Contact List */}
@@ -1501,6 +1657,20 @@ export default function MessagesScreen() {
                 No unread counselor messages right now.
               </Text>
             </View>
+          ) : showPastCollegeConversations ? (
+            <View style={{ paddingTop: 60, alignItems: "center" }}>
+              <Text
+                style={{
+                  color: AURORA.textMuted,
+                  fontSize: 14,
+                  textAlign: "center",
+                  paddingHorizontal: 12,
+                }}
+              >
+                No past-college conversations. Older college threads appear here
+                as read-only history.
+              </Text>
+            </View>
           ) : (
             <View style={{ paddingTop: 60, alignItems: "center" }}>
               <Text
@@ -1517,7 +1687,7 @@ export default function MessagesScreen() {
           )}
         </ScrollView>
 
-        {/* FAB - open counselor list to start a conversation */}
+        {!showPastCollegeConversations ? (
         <TouchableOpacity
           onPress={() => setShowSelectCounselorModal(true)}
           style={{
@@ -1541,6 +1711,7 @@ export default function MessagesScreen() {
         >
           <PenSquare size={22} color="#FFFFFF" />
         </TouchableOpacity>
+        ) : null}
       </SafeAreaView>
 
       <SelectCounselorModal

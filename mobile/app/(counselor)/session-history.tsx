@@ -406,6 +406,8 @@ export default function SessionHistoryScreen() {
       await firestoreService.markSessionAttendance(
         selectedSession.id,
         mapAttendanceToStatus(status),
+        undefined,
+        user?.id,
       );
       setSessions((prev) =>
         prev.map((s) => {
@@ -458,6 +460,7 @@ export default function SessionHistoryScreen() {
       const conversationId = `${user.id}_${selectedSession.studentId}`;
       await firestoreService.proposeSlots(selectedSession.id, timeSlots, {
         proposalKind: "attendance_reschedule",
+        actorId: user.id,
       });
       const headline = timeSlots[0];
 

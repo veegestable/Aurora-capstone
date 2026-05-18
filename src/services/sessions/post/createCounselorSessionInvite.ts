@@ -1,6 +1,7 @@
 import { collection, addDoc, doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
 import { resolveConversationCollegeCode } from '../../messages/helpers/resolveConversationCollegeCode'
+import { assertMessagingOpenForParticipants } from '../../messages/helpers/assertMessagingOpen'
 import { enqueueSessionInviteStudentPush } from '../../notifications/enqueueSessionInviteStudentPush'
 
 interface ProposedSlot {
@@ -14,6 +15,8 @@ export async function createCounselorSessionInvite(
   proposedSlots: ProposedSlot[],
   opts?: { note?: string }
 ) {
+  await assertMessagingOpenForParticipants(counselorId, studentId, counselorId)
+
   // 1. Create the session document
   const collegeCode = await resolveConversationCollegeCode(counselorId, studentId)
 
