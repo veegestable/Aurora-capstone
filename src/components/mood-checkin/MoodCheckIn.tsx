@@ -4,7 +4,7 @@ import type { MoodCheckInProps, ManualEmotion } from '../../types/mood.types'
 import type { MoodIconName } from '../../constants/mood/moodIconPng'
 import { MANUAL_EMOTIONS } from '../../utils/emotions'
 import { useMoodCheckIn } from '../../hooks/useMoodCheckIn'
-import { getBlendedColorWeighted, getColorWithAlpha } from '../../utils/moodColors'
+import { getBlendedColorWeighted } from '../../utils/moodColors'
 import { MoodIcon } from '../student/MoodIcon'
 import { StepMoodSelection } from './StepMoodSelection'
 import { StepVitals } from './StepVitals'
@@ -25,8 +25,8 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
     sleepQuality, setSleepQuality, sleepCapturedToday,
     mealSchedule, mealResponses, setMealResponse, mealsTakenLockedToday,
     bathTaken, setBathTaken, bathLockedToday,
-    selectedTags, toggleTag, pressureLabel, schoolTagCount,
-    notes, setNotes, setJournalEdited, journalImage, setJournalImage,
+    selectedTags, toggleTag, schoolTagCount,
+    notes, setNotes, journalEdited, setJournalEdited, journalImage, setJournalImage,
     isSubmitting, handleAIEmotionDetected, clearDetectedEmotions,
     handleManualEmotionToggle, handleSubmit,
   } = useMoodCheckIn({
@@ -88,14 +88,7 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
       {/* Wizard modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-100 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div
-            className="bg-[#0f0f11] w-full max-w-xl h-[90vh] sm:h-[85vh] sm:rounded-3xl rounded-t-3xl border-t sm:border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300 transition-shadow"
-            style={
-              moodAccent
-                ? { boxShadow: `0 0 0 1px ${getColorWithAlpha(moodAccent, 0.28)}, 0 24px 48px -12px rgba(0,0,0,0.55)` }
-                : undefined
-            }
-          >
+          <div className="bg-[#0f0f11] w-full max-w-xl h-[90vh] sm:h-[85vh] sm:rounded-3xl rounded-t-3xl border-t sm:border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
             {/* Header + Progress */}
             {currentStep < 4 && (
               <div className="px-5 pt-5 pb-3 border-b border-white/5 bg-[#0f0f11] z-10">
@@ -115,11 +108,8 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                 </div>
                 <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                   <div
-                    className={`h-full transition-all duration-500 rounded-full ${moodAccent ? '' : 'bg-linear-to-r from-aurora-blue to-aurora-purple'}`}
-                    style={{
-                      width: `${progress}%`,
-                      ...(moodAccent ? { background: `linear-gradient(90deg, ${moodAccent} 0%, #7C3AED 100%)` } : {}),
-                    }}
+                    className="h-full transition-all duration-500 rounded-full bg-linear-to-r from-aurora-blue to-aurora-purple"
+                    style={{ width: `${progress}%` }}
                   />
                 </div>
               </div>
@@ -168,9 +158,10 @@ export default function MoodCheckIn({ onMoodLogged, onBackgroundChange }: MoodCh
                 <StepContext
                   selectedTags={selectedTags}
                   toggleTag={toggleTag}
-                  pressureLabel={pressureLabel}
+                  schoolTagCount={schoolTagCount}
                   notes={notes}
                   setNotes={setNotes}
+                  journalEdited={journalEdited}
                   setJournalEdited={setJournalEdited}
                   journalImage={journalImage}
                   setJournalImage={setJournalImage}

@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
   Plus,
+  CalendarPlus,
   Send,
   PenSquare
 } from "lucide-react-native";
@@ -992,7 +993,7 @@ function DirectMessageView({
                 borderColor: AURORA.border,
               }}
             >
-              <Plus size={18} color={AURORA.textSec} />
+              <CalendarPlus size={18} color={AURORA.textSec} />
             </TouchableOpacity>
             <TextInput
               style={{

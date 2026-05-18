@@ -1,4 +1,5 @@
 import type { ContextCategoryKey } from '../../services/mood/types'
+import type { UserSettingsDoc } from '../../types/user-settings.types'
 
 export const SCHOOL_TAGS = [
   'classes', 'study', 'quiz', 'exam', 'homework',
@@ -47,6 +48,23 @@ export const CONTEXT_CATEGORIES: readonly CategoryConfig[] = Object.freeze([
  * Returns the category keys whose tag list intersects `selectedTags`.
  * Used when persisting the mood log so we can index entries by category.
  */
+/** Categories visible in check-in step 3, respecting profile toggles (mirrors mobile). */
+export function getEnabledContextCategories(
+  settings: UserSettingsDoc | null | undefined,
+): readonly CategoryConfig[] {
+  const packs = settings?.moodCategoryPacks
+  const academicOn = settings?.academicContextMode !== 'off'
+  return CONTEXT_CATEGORIES.filter((category) => {
+    if (category.key === 'school') {
+      if (!academicOn) return false
+      if (packs?.school === false) return false
+      return true
+    }
+    if (packs && packs[category.key] === false) return false
+    return true
+  })
+}
+
 export function categoriesFromTags(selectedTags: string[]): ContextCategoryKey[] {
   return CONTEXT_CATEGORIES
     .filter((c) => c.tags.some((t) => selectedTags.includes(t)))

@@ -1,23 +1,38 @@
-import { useEffect, useMemo } from 'react'
-import { PenLine, TrendingUp, ImagePlus, Trash2 } from 'lucide-react'
-import { CONTEXT_CATEGORIES } from '../../hooks/useMoodCheckIn'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  GraduationCap, ShieldPlus, Users, PartyPopper, Briefcase,
+  ChevronDown, ChevronUp, MessageSquare, Camera, Trash2,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { useUserDaySettings } from '../../contexts/UserDaySettingsContext'
+import {
+  getEnabledContextCategories,
+  getSchoolWorkloadBand,
+  getSchoolWorkloadCaption,
+  type CategoryConfig,
+} from '../../constants/mood/journalTemplates'
+import type { ContextCategoryKey } from '../../services/mood/types'
 import { HintButton, HintPanel, type HintKey } from './HintSystem'
 
-type PressureLabel = 'Light' | 'Steady' | 'Heavy' | 'Intense'
+const CATEGORY_ICONS: Record<ContextCategoryKey, { icon: LucideIcon; colorClass: string }> = {
+  school: { icon: GraduationCap, colorClass: 'text-aurora-blue' },
+  health: { icon: ShieldPlus, colorClass: 'text-aurora-green' },
+  social: { icon: Users, colorClass: 'text-aurora-purple' },
+  fun: { icon: PartyPopper, colorClass: 'text-aurora-amber' },
+  productivity: { icon: Briefcase, colorClass: 'text-aurora-red' },
+}
 
-const PRESSURE_PILL_STYLE: Record<PressureLabel, string> = {
-  Light: 'bg-[rgba(34,197,94,0.15)] border-[rgba(34,197,94,0.4)] text-aurora-green',
-  Steady: 'bg-[rgba(45,107,255,0.15)] border-[rgba(45,107,255,0.4)] text-aurora-blue',
-  Heavy: 'bg-[rgba(254,189,3,0.15)] border-[rgba(254,189,3,0.4)] text-aurora-amber',
-  Intense: 'bg-[rgba(239,68,68,0.15)] border-[rgba(239,68,68,0.4)] text-aurora-red',
+function formatTagLabel(tag: string): string {
+  return tag.replace(/-/g, ' ')
 }
 
 interface StepContextProps {
   selectedTags: string[]
   toggleTag: (tag: string) => void
-  pressureLabel: PressureLabel
+  schoolTagCount: number
   notes: string
   setNotes: (v: string) => void
+  journalEdited: boolean
   setJournalEdited: (v: boolean) => void
   journalImage: File | null
   setJournalImage: (f: File | null) => void
@@ -26,11 +41,23 @@ interface StepContextProps {
 }
 
 export function StepContext({
-  selectedTags, toggleTag, pressureLabel,
-  notes, setNotes, setJournalEdited,
+  selectedTags, toggleTag, schoolTagCount,
+  notes, setNotes, journalEdited, setJournalEdited,
   journalImage, setJournalImage,
   activeHint, onHintToggle,
 }: StepContextProps) {
+  const { settings } = useUserDaySettings()
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+  const [showJournalEditor, setShowJournalEditor] = useState(false)
+
+  const categories = useMemo(
+    () => getEnabledContextCategories(settings),
+    [settings],
+  )
+
+  const workloadBand = getSchoolWorkloadBand(schoolTagCount)
+  const schoolTagCaption = getSchoolWorkloadCaption(schoolTagCount)
+
   const photoPreview = useMemo(
     () => (journalImage ? URL.createObjectURL(journalImage) : null),
     [journalImage],
@@ -40,79 +67,137 @@ export function StepContext({
     return () => URL.revokeObjectURL(photoPreview)
   }, [photoPreview])
 
+  const journalPreview = notes.trim() || (
+    selectedTags.length > 0
+      ? 'Your auto-draft will appear here after you select tags.'
+      : 'Add your reflection here...'
+  )
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
-      <div className="text-center mb-2">
-        <h2 className="text-2xl font-bold text-white mb-2">What's going on?</h2>
-        <p className="text-sm text-aurora-text-sec">Select tags that describe your day.</p>
+    <div className="space-y-3 animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
+      <div className="text-center mb-4">
+        <h2 className="text-2xl font-extrabold text-white mb-2">What affected your mood?</h2>
+        <p className="text-sm text-aurora-text-sec">Select tags that influenced how you felt today.</p>
       </div>
 
-      {/* Pressure pill */}
-      <div className="flex items-center justify-center gap-2">
-        <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-extrabold tracking-wide ${PRESSURE_PILL_STYLE[pressureLabel]}`}>
-          <TrendingUp className="w-3.5 h-3.5" />
-          Pressure: {pressureLabel}
-        </span>
-        <HintButton hint="pressure" active={activeHint} onToggle={onHintToggle} ariaLabel="Pressure hint" />
-      </div>
-      {activeHint === 'pressure' && <HintPanel hint="pressure" onClose={() => onHintToggle(null)} />}
-
-      {/* Context tag categories */}
-      <div className="space-y-7">
-        {CONTEXT_CATEGORIES.map((category) => (
-          <div key={category.key}>
-            <h4 className="text-sm font-semibold text-white mb-3 pl-1">{category.title}</h4>
-            <div className="flex flex-wrap gap-2.5">
-              {category.tags.map((tag) => {
-                const isSelected = selectedTags.includes(tag)
-                return (
-                  <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all border cursor-pointer ${
-                      isSelected
-                        ? 'bg-[rgba(45,107,255,0.2)] text-aurora-blue border-aurora-blue shadow-[0_0_10px_rgba(45,107,255,0.2)]'
-                        : 'bg-white/5 text-aurora-text-sec border-white/10 hover:bg-white/10 hover:text-white'
-                    }`}
-                    aria-pressed={isSelected}
-                  >
-                    {tag.replace('-', ' ')}
-                  </button>
-                )
-              })}
-            </div>
+      <div className="rounded-xl border border-white/10 bg-aurora-card-alt px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-xs font-semibold text-[#9CB0DE]">School pressure today</span>
+            <HintButton hint="schoolPressure" active={activeHint} onToggle={onHintToggle} ariaLabel="School pressure hint" />
           </div>
-        ))}
-      </div>
-
-      {/* Photo attachment */}
-      <div className="card-aurora p-5">
-        <div className="flex items-center gap-2 mb-3 pl-1">
-          <ImagePlus className="w-4 h-4 text-aurora-text-sec" />
-          <label className="text-sm font-semibold text-white">Photo (optional)</label>
-          <HintButton hint="photo" active={activeHint} onToggle={onHintToggle} ariaLabel="Photo hint" />
+          <span className="text-sm font-bold text-aurora-blue shrink-0">{workloadBand}</span>
         </div>
+        <p className="text-[11px] text-aurora-text-muted mt-1.5">{schoolTagCaption}</p>
+      </div>
+      {activeHint === 'schoolPressure' && (
+        <HintPanel hint="schoolPressure" onClose={() => onHintToggle(null)} />
+      )}
 
-        {photoPreview ? (
-          <div className="relative rounded-2xl overflow-hidden border border-white/10">
-            <img src={photoPreview} alt="Attached preview" className="w-full h-48 object-cover" />
+      {categories.length === 0 ? (
+        <div className="card-aurora p-4">
+          <p className="text-sm text-aurora-text-sec">No categories enabled. You can turn them on in Settings.</p>
+        </div>
+      ) : (
+        categories.map((category: CategoryConfig) => (
+          <CategoryAccordion
+            key={category.key}
+            category={category}
+            expanded={!!expandedGroups[category.key]}
+            onToggle={() => toggleGroup(category.key)}
+            selectedTags={selectedTags}
+            onTagToggle={toggleTag}
+          />
+        ))
+      )}
+
+      <div className="card-aurora p-3">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <MessageSquare className="w-4 h-4 text-aurora-blue shrink-0" />
+            <p className="text-sm font-bold text-white">
+              Quick Note <span className="text-aurora-text-muted font-medium">(optional)</span>
+            </p>
+          </div>
+          <div className="flex items-center shrink-0">
+            <span className="text-[11px] text-aurora-text-muted">{journalEdited ? 'Edited' : 'Auto-draft'}</span>
+            <HintButton hint="journal" active={activeHint} onToggle={onHintToggle} ariaLabel="Journal draft hint" />
+          </div>
+        </div>
+        {activeHint === 'journal' && (
+          <HintPanel hint="journal" onClose={() => onHintToggle(null)} />
+        )}
+
+        {!showJournalEditor ? (
+          <>
+            <div className="rounded-[10px] border border-white/10 bg-aurora-card-alt p-2.5 mb-2">
+              <p className="text-[13px] leading-relaxed text-aurora-text-muted line-clamp-4">{journalPreview}</p>
+            </div>
             <button
               type="button"
-              onClick={() => setJournalImage(null)}
-              className="absolute top-2 right-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 hover:bg-black/80 text-xs font-bold text-white border border-white/15 cursor-pointer"
-              aria-label="Remove photo"
+              onClick={() => setShowJournalEditor(true)}
+              className="px-3 py-1.5 rounded-full border border-aurora-blue bg-[rgba(45,107,255,0.18)] text-xs font-bold text-aurora-blue cursor-pointer hover:bg-[rgba(45,107,255,0.28)] transition-colors"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              Remove
+              {selectedTags.length > 0 ? 'Edit draft' : 'Write note'}
             </button>
-          </div>
+          </>
         ) : (
-          <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-2xl border border-dashed border-white/15 bg-white/0.02 hover:bg-white/5 transition-colors cursor-pointer">
-            <ImagePlus className="w-5 h-5 text-aurora-text-sec" />
-            <span className="text-sm font-semibold text-aurora-text-sec">Tap to attach a photo</span>
-            <span className="text-[11px] font-medium text-aurora-text-muted">
-              JPG or PNG · stored privately with this entry
-            </span>
+          <>
+            <textarea
+              value={notes}
+              onChange={(e) => { setNotes(e.target.value); setJournalEdited(true) }}
+              rows={4}
+              placeholder="Write your reflection..."
+              className="w-full min-h-[94px] p-2.5 mb-2 bg-aurora-card-alt border border-white/10 rounded-[10px] text-white text-sm placeholder:text-aurora-text-muted focus:outline-hidden focus:border-aurora-blue/50 resize-none"
+            />
+            <div className="flex flex-wrap gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setJournalEdited(false)
+                  if (selectedTags.length > 0) return
+                  setNotes('')
+                }}
+                className="px-3 py-1.5 rounded-full border border-white/10 bg-aurora-card-alt text-xs font-bold text-aurora-text-sec cursor-pointer hover:bg-white/10 transition-colors"
+              >
+                {selectedTags.length > 0 ? 'Use auto draft' : 'Clear note'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowJournalEditor(false)}
+                className="px-3 py-1.5 rounded-full border border-aurora-blue bg-[rgba(45,107,255,0.18)] text-xs font-bold text-aurora-blue cursor-pointer hover:bg-[rgba(45,107,255,0.28)] transition-colors"
+              >
+                Done editing
+              </button>
+            </div>
+          </>
+        )}
+
+        <div className="mt-3 pt-3 border-t border-white/10">
+          <div className="flex items-center gap-2 mb-2">
+            <Camera className="w-4 h-4 text-aurora-blue" />
+            <p className="text-sm font-bold text-white">
+              Photo <span className="text-aurora-text-muted font-medium">(optional)</span>
+            </p>
+          </div>
+          {photoPreview ? (
+            <div className="relative rounded-[10px] overflow-hidden border border-white/10 mb-2">
+              <img src={photoPreview} alt="Attached preview" className="w-full aspect-3/4 object-cover" />
+              <button
+                type="button"
+                onClick={() => setJournalImage(null)}
+                className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-[11px] font-bold text-white border border-white/15 cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" /> Remove
+              </button>
+            </div>
+          ) : null}
+          <label className="inline-flex px-3 py-1.5 rounded-full border border-aurora-blue bg-[rgba(45,107,255,0.18)] text-xs font-bold text-aurora-blue cursor-pointer hover:bg-[rgba(45,107,255,0.28)] transition-colors">
+            {journalImage ? 'Change photo' : 'Add photo'}
             <input
               type="file" accept="image/*" className="sr-only"
               onChange={(e) => {
@@ -122,26 +207,71 @@ export function StepContext({
               }}
             />
           </label>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CategoryAccordion({
+  category, expanded, onToggle, selectedTags, onTagToggle,
+}: {
+  category: CategoryConfig
+  expanded: boolean
+  onToggle: () => void
+  selectedTags: string[]
+  onTagToggle: (tag: string) => void
+}) {
+  const { icon: Icon, colorClass } = CATEGORY_ICONS[category.key]
+
+  return (
+    <div className="card-aurora p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Icon className={`w-4 h-4 shrink-0 ${colorClass}`} />
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-white">{category.title}</p>
+            <p className="text-xs text-aurora-text-muted">{category.helper}</p>
+          </div>
+        </div>
+        {category.tags.length > 0 && (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="p-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+            aria-expanded={expanded}
+            aria-label={expanded ? `Collapse ${category.title}` : `Expand ${category.title}`}
+          >
+            {expanded ? (
+              <ChevronUp className="w-[18px] h-[18px] text-aurora-blue" />
+            ) : (
+              <ChevronDown className="w-[18px] h-[18px] text-aurora-blue" />
+            )}
+          </button>
         )}
       </div>
-      {activeHint === 'photo' && <HintPanel hint="photo" onClose={() => onHintToggle(null)} />}
-
-      {/* Journal draft */}
-      <div className="mt-2 pt-6 border-t border-white/10">
-        <div className="flex items-center gap-2 mb-3 pl-1">
-          <PenLine className="w-4 h-4 text-aurora-text-sec" />
-          <label htmlFor="mood-journal" className="text-sm font-semibold text-white">
-            Journal Draft (Auto-filled)
-          </label>
+      {expanded && category.tags.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2 animate-in fade-in duration-200">
+          {category.tags.map((tag) => {
+            const selected = selectedTags.includes(tag)
+            return (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => onTagToggle(tag)}
+                aria-pressed={selected}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
+                  selected
+                    ? 'bg-[rgba(45,107,255,0.22)] border-[rgba(88,138,255,0.6)] text-[#C8D8FF]'
+                    : 'bg-[rgba(28,36,86,0.55)] border-[rgba(120,139,198,0.25)] text-[#AFC0E8] hover:border-white/20'
+                }`}
+              >
+                {formatTagLabel(tag)}
+              </button>
+            )
+          })}
         </div>
-        <textarea
-          id="mood-journal"
-          value={notes}
-          onChange={(e) => { setNotes(e.target.value); setJournalEdited(true) }}
-          className="w-full h-32 p-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-aurora-text-muted focus:outline-hidden focus:border-aurora-blue/50 focus:bg-white/10 transition-colors resize-none"
-          placeholder="Add more details about your day..."
-        />
-      </div>
+      )}
     </div>
   )
 }

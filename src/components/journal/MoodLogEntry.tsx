@@ -228,7 +228,7 @@ export function MoodLogEntry({
                       <span
                         className={`text-[10px] font-extrabold tracking-wider uppercase px-2 py-1 rounded-md border shrink-0 ${m.taken ? 'bg-aurora-green/15 border-aurora-green/40 text-aurora-green' : 'bg-aurora-red/15 border-aurora-red/40 text-aurora-red'}`}
                       >
-                        {m.taken ? 'Taken' : 'Missed'}
+                        {m.taken ? 'Taken' : 'Not yet'}
                       </span>
                     </div>
                   ))}

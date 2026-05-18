@@ -181,15 +181,15 @@ export function StepVitals({
                   </button>
                   <button
                     type="button" disabled={takenLocked} aria-pressed={noActive}
-                    aria-label={`${meal.label} missed`}
+                    aria-label={`${meal.label} not yet`}
                     onClick={() => setMealResponse(meal.id, false)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                       noActive
-                        ? 'bg-[rgba(239,68,68,0.15)] border-[rgba(239,68,68,0.4)] text-aurora-red'
+                        ? 'bg-[rgba(245,158,11,0.18)] border-[rgba(245,158,11,0.45)] text-aurora-amber'
                         : 'bg-white/5 border-white/10 text-aurora-text-sec hover:bg-white/10'
                     }`}
                   >
-                    Missed
+                    Not yet
                   </button>
                 </div>
               </div>

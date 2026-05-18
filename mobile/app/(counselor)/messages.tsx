@@ -18,6 +18,7 @@ import {
   Send,
   PenSquare,
   ChevronRight,
+  CalendarPlus,
 } from "lucide-react-native";
 import { useAuth } from "../../src/stores/AuthContext";
 import {
@@ -1258,7 +1259,7 @@ function ChatView({
                 borderColor: AURORA.border,
               }}
             >
-              <Plus size={18} color={AURORA.textSec} />
+              <CalendarPlus size={18} color={AURORA.textSec} />
             </TouchableOpacity>
             <TextInput
               style={{
