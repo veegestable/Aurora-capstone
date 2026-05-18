@@ -19,6 +19,7 @@ import {
   PenSquare,
   ChevronRight,
   CalendarPlus,
+  Check,
 } from "lucide-react-native";
 import { useAuth } from "../../src/stores/AuthContext";
 import {
@@ -120,6 +121,7 @@ function ConversationRow({
   const previewIsSessionMeta = item.preview
     ?.toLowerCase()
     .startsWith("session:");
+  const isArchived = item.isArchived === true;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -129,17 +131,26 @@ function ConversationRow({
       style={{
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: item.isUnread ? "rgba(45,107,255,0.12)" : AURORA.card,
+        backgroundColor: item.isUnread
+          ? "rgba(45,107,255,0.12)"
+          : isArchived
+            ? "rgba(148,163,184,0.08)"
+            : AURORA.card,
         borderRadius: 16,
         marginBottom: 10,
         overflow: "hidden",
         borderWidth: 1,
-        borderColor: item.isUnread ? "rgba(45,107,255,0.45)" : AURORA.border,
+        borderColor: item.isUnread
+          ? "rgba(45,107,255,0.45)"
+          : isArchived
+            ? "rgba(148,163,184,0.35)"
+            : AURORA.border,
+        opacity: isArchived ? 0.88 : 1,
       }}
     >
       {/* Left color border */}
       <View
-        style={{ width: 3, backgroundColor: AURORA.blue, alignSelf: "stretch" }}
+        style={{ width: 0, backgroundColor: AURORA.blue, alignSelf: "stretch" }}
       />
 
       {/* Avatar */}
@@ -184,6 +195,29 @@ function ConversationRow({
             >
               {item.name}
             </Text>
+            {isArchived ? (
+              <View
+                style={{
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 6,
+                  backgroundColor: "rgba(148,163,184,0.2)",
+                  borderWidth: 1,
+                  borderColor: "rgba(148,163,184,0.35)",
+                }}
+              >
+                <Text
+                  style={{
+                    color: AURORA.textMuted,
+                    fontSize: 9,
+                    fontWeight: "700",
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  ARCHIVED
+                </Text>
+              </View>
+            ) : null}
           </View>
           <Text
             style={{
@@ -1202,13 +1236,13 @@ function ChatView({
                           {messageContent}
                         </View>
 
-                        {isMeForLayout && (
+                        {/* {isMeForLayout && (
                           <LetterAvatar
                             name={user?.full_name ?? "You"}
                             size={34}
                             avatarUrl={user?.avatar_url}
                           />
-                        )}
+                        )} */}
                       </View>
                     </View>
                   );
@@ -1440,6 +1474,8 @@ export default function CounselorMessagesScreen() {
   const [archiveModalContact, setArchiveModalContact] =
     useState<Conversation | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
+  const [showArchivedConversations, setShowArchivedConversations] =
+    useState(false);
 
   useEffect(() => {
     if (contacts.length === 0) {
@@ -1478,6 +1514,7 @@ export default function CounselorMessagesScreen() {
     firestoreService
       .getConversations(currentUserId, {
         activeCollegeCode: user?.college_code,
+        includeArchived: showArchivedConversations,
       })
       .then((convos) => {
         if (!cancelled) setContacts(convos);
@@ -1491,7 +1528,13 @@ export default function CounselorMessagesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [currentUserId, setContacts, studentId, user?.college_code]);
+  }, [
+    currentUserId,
+    setContacts,
+    studentId,
+    user?.college_code,
+    showArchivedConversations,
+  ]);
 
   useEffect(() => {
     if (loading) return;
@@ -1518,16 +1561,23 @@ export default function CounselorMessagesScreen() {
     firestoreService
       .getConversations(currentUserId, {
         activeCollegeCode: user?.college_code,
+        includeArchived: showArchivedConversations,
       })
       .then(setContacts)
       .catch(() => setContacts([]));
-  }, [currentUserId, setContacts, user?.college_code]);
+  }, [
+    currentUserId,
+    setContacts,
+    user?.college_code,
+    showArchivedConversations,
+  ]);
 
   const handleConversationCreated = async (studentId: string) => {
     if (!currentUserId) return;
     try {
       const convos = await firestoreService.getConversations(currentUserId, {
         activeCollegeCode: user?.college_code,
+        includeArchived: showArchivedConversations,
       });
       setContacts(convos);
       const added = convos.find((c) => c.id === studentId);
@@ -1731,6 +1781,62 @@ export default function CounselorMessagesScreen() {
                   </Text>
                 </TouchableOpacity>
               ))}
+              <Pressable
+                onPress={() =>
+                  setShowArchivedConversations((prev) => !prev)
+                }
+                accessibilityRole="checkbox"
+                accessibilityState={{
+                  checked: showArchivedConversations,
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 5,
+                  borderRadius: 30,
+                  
+                  borderColor: showArchivedConversations
+                    ? AURORA.blue
+                    : AURORA.borderLight,
+                  backgroundColor: showArchivedConversations
+                    ? "rgba(45,107,255,0.14)"
+                    : "transparent",
+                  alignSelf: "flex-start",
+                }}
+              >
+                <View
+                  style={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: 4,
+                    borderWidth: 1.5,
+                    borderColor: showArchivedConversations
+                      ? AURORA.blue
+                      : AURORA.borderLight,
+                    backgroundColor: showArchivedConversations
+                      ? AURORA.blue
+                      : "transparent",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {showArchivedConversations ? (
+                    <Check size={11} color="#FFFFFF" strokeWidth={3} />
+                  ) : null}
+                </View>
+                <Text
+                  style={{
+                    color: showArchivedConversations ? "#FFFFFF" : "#A8B8DC",
+                    fontSize: 12,
+                    fontWeight: showArchivedConversations ? "700" : "500",
+                  }}
+                >
+                  Show archived
+                </Text>
+              </Pressable>
             </ScrollView>
           </View>
         </View>
@@ -1765,7 +1871,11 @@ export default function CounselorMessagesScreen() {
               >
                 {contacts.length === 0
                   ? "No conversations yet. Tap + to add a student, or invite from the Student Directory."
-                  : "No conversations match this filter."}
+                  : activeTab === "Unread"
+                    ? "No unread conversations. Try All Messages or turn on Show archived."
+                    : !showArchivedConversations
+                      ? "No conversations match this filter. Turn on Show archived to see hidden threads."
+                      : "No conversations match this filter."}
               </Text>
             </View>
           ) : (

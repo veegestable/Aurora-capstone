@@ -1266,7 +1266,10 @@ export const firestoreService = {
 
   async getConversations(
     counselorId: string,
-    options?: { activeCollegeCode?: string | null },
+    options?: {
+      activeCollegeCode?: string | null;
+      includeArchived?: boolean;
+    },
   ) {
     const isPlaceholderAvatar = (url: string) =>
       !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url);
@@ -1294,9 +1297,10 @@ export const firestoreService = {
       const archivedIds = await this.getCounselorArchivedConversationIds(
         counselorId,
       );
+      const includeArchived = options?.includeArchived === true;
       const results = await Promise.all(
         snapshot.docs
-          .filter((d) => !archivedIds.has(d.id))
+          .filter((d) => includeArchived || !archivedIds.has(d.id))
           .filter((d) =>
             conversationMatchesActiveCollege(
               d.data() as Record<string, unknown>,
@@ -1305,6 +1309,7 @@ export const firestoreService = {
           )
           .map(async (d) => {
           const data = d.data();
+          const isArchived = archivedIds.has(d.id);
           let avatar = data.student_avatar ?? "";
           if ((!avatar || isPlaceholderAvatar(avatar)) && data.studentId) {
             try {
@@ -1336,6 +1341,7 @@ export const firestoreService = {
             isUnread: (data.unreadCountCounselor ?? 0) > 0,
             program: data.student_program ?? undefined,
             studentId: data.studentId,
+            ...(isArchived ? { isArchived: true } : {}),
           };
         }),
       );

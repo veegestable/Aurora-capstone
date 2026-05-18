@@ -12,6 +12,8 @@ export interface MessageContact {
   studentId?: string;
   /** Firestore conversation doc ID (counselorId_studentId) */
   conversationId?: string;
+  /** Hidden from counselor inbox via archive (only set when includeArchived fetch). */
+  isArchived?: boolean;
 }
 
 interface MessagesContactStore {

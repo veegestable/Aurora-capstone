@@ -942,7 +942,7 @@ function DirectMessageView({
                           </Text>
                           {messageContent}
                         </View>
-                        {isMe && (
+                        {/* {isMe && (
                           <View style={{ marginBottom: 14 }}>
                             <LetterAvatar
                               name={user?.full_name ?? "You"}
@@ -950,7 +950,7 @@ function DirectMessageView({
                               avatarUrl={user?.avatar_url}
                             />
                           </View>
-                        )}
+                        )} */}
                       </View>
                     </View>
                   );
