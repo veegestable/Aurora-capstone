@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AppState, Image, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
+import { AppState, Image, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
@@ -77,6 +77,11 @@ import {
   InfoGuideOverlay,
   type InfoGuideContent,
 } from "./common/InfoGuideModal";
+import {
+  AuroraActionSheetModal,
+  type AuroraActionSheetContent,
+} from "./common/AuroraActionSheetModal";
+import { buildFeedback } from "../utils/aurora-feedback";
 
 interface MoodCheckInProps {
   onComplete?: () => void;
@@ -395,6 +400,8 @@ export function MoodCheckIn({
   const [validationGuide, setValidationGuide] = useState<InfoGuideContent | null>(
     null,
   );
+  const [journalSelfieSheet, setJournalSelfieSheet] =
+    useState<AuroraActionSheetContent | null>(null);
   // Re-render whenever the next meal/wake/bath unlock boundary passes, instead
   // of polling on a fixed interval. Fires a single timer per boundary plus a
   // recompute on every foreground transition (covers the case where the app
@@ -977,9 +984,12 @@ export function MoodCheckIn({
   const pickJournalImageFromLibrary = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permission.status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "Please allow photo library access to attach a journal selfie.",
+      setValidationGuide(
+        buildFeedback(
+          "Permission needed",
+          "Please allow photo library access to attach a journal selfie.",
+          "warning",
+        ),
       );
       return;
     }
@@ -996,9 +1006,12 @@ export function MoodCheckIn({
   const captureJournalImage = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (permission.status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "Please allow camera access to take a journal selfie.",
+      setValidationGuide(
+        buildFeedback(
+          "Permission needed",
+          "Please allow camera access to take a journal selfie.",
+          "warning",
+        ),
       );
       return;
     }
@@ -1014,14 +1027,17 @@ export function MoodCheckIn({
   };
 
   const pickJournalImage = () => {
-    Alert.alert("Journal selfie", "Add your photo using camera or gallery.", [
-      { text: "Take photo", onPress: () => void captureJournalImage() },
-      {
-        text: "Choose from library",
-        onPress: () => void pickJournalImageFromLibrary(),
-      },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    setJournalSelfieSheet({
+      title: "Journal selfie",
+      body: "Add your photo using camera or gallery.",
+      actions: [
+        { label: "Take photo", onPress: () => void captureJournalImage() },
+        {
+          label: "Choose from library",
+          onPress: () => void pickJournalImageFromLibrary(),
+        },
+      ],
+    });
   };
 
   const applyAnalyzedMood = (emotion: DetectedEmotion) => {
@@ -1034,7 +1050,9 @@ export function MoodCheckIn({
 
   const handleSubmit = async () => {
     if (!user) {
-      Alert.alert("Error", "Please log in to save mood");
+      setValidationGuide(
+        buildFeedback("Error", "Please log in to save mood", "error"),
+      );
       return;
     }
     const now = new Date();
@@ -1053,9 +1071,12 @@ export function MoodCheckIn({
       selectedEmotions.length === 0 ||
       (!sleepCapturedToday && !sleepQuality && !sleepLocked)
     ) {
-      Alert.alert(
-        "Missing data",
-        "Mood is required. Sleep quality is needed only once per day.",
+      setValidationGuide(
+        buildFeedback(
+          "Missing data",
+          "Mood is required. Sleep quality is needed only once per day.",
+          "warning",
+        ),
       );
       return;
     }
@@ -1205,7 +1226,13 @@ export function MoodCheckIn({
     } catch (error: unknown) {
       setIsSubmitting(false);
       setUploadingJournalImage(false);
-      Alert.alert("Error", error instanceof Error ? error.message : "Failed to check in");
+      setValidationGuide(
+        buildFeedback(
+          "Error",
+          error instanceof Error ? error.message : "Failed to check in",
+          "error",
+        ),
+      );
     }
   };
 
@@ -1409,7 +1436,13 @@ export function MoodCheckIn({
                   // no-op
                 }
               }
-              Alert.alert("Well done", "You completed your quick reset.");
+              setValidationGuide(
+                buildFeedback(
+                  "Well done",
+                  "You completed your quick reset.",
+                  "success",
+                ),
+              );
             }}
           />
         </Modal>
@@ -3691,6 +3724,10 @@ export function MoodCheckIn({
       <InfoGuideModal
         guide={validationGuide}
         onClose={() => setValidationGuide(null)}
+      />
+      <AuroraActionSheetModal
+        sheet={journalSelfieSheet}
+        onClose={() => setJournalSelfieSheet(null)}
       />
     </KeyboardAvoidingView>
   );

@@ -3,7 +3,6 @@ import {
   View,
   Modal,
   TouchableOpacity,
-  Alert,
   Platform,
   StyleSheet,
   ScrollView,
@@ -28,6 +27,8 @@ import {
   isCollegeCode,
   resolveCollegeCodeFromUserData,
 } from "../../constants/colleges";
+import { InfoGuideOverlay, type InfoGuideContent } from "../common/InfoGuideModal";
+import { buildFeedback } from "../../utils/aurora-feedback";
 
 interface AddAnnouncementModalProps {
   visible: boolean;
@@ -47,6 +48,7 @@ export function AddAnnouncementModal({
   const [content, setContent] = useState("");
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
 
   const [adminAudience, setAdminAudience] =
     useState<AdminAudience>("students_all");
@@ -67,9 +69,12 @@ export function AddAnnouncementModal({
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "Please allow access to your photo library to add an image.",
+      setFeedback(
+        buildFeedback(
+          "Permission needed",
+          "Please allow access to your photo library to add an image.",
+          "warning",
+        ),
       );
       return;
     }
@@ -94,11 +99,13 @@ export function AddAnnouncementModal({
     const t = title.trim();
     const c = content.trim();
     if (!t) {
-      Alert.alert("Missing title", "Please enter a title.");
+      setFeedback(buildFeedback("Missing title", "Please enter a title.", "error"));
       return;
     }
     if (!c) {
-      Alert.alert("Missing content", "Please enter the announcement content.");
+      setFeedback(
+        buildFeedback("Missing content", "Please enter the announcement content.", "error"),
+      );
       return;
     }
     if (!user) return;
@@ -108,9 +115,12 @@ export function AddAnnouncementModal({
         user as unknown as Record<string, unknown>,
       );
       if (!cc) {
-        Alert.alert(
-          "College required",
-          "Your profile must have a college before you can post announcements.",
+        setFeedback(
+          buildFeedback(
+            "College required",
+            "Your profile must have a college before you can post announcements.",
+            "error",
+          ),
         );
         return;
       }
@@ -118,9 +128,12 @@ export function AddAnnouncementModal({
 
     if (isAdmin && adminAudience === "colleges_cross") {
       if (selectedCollegeCodes.length === 0) {
-        Alert.alert(
-          "Select colleges",
-          "Pick at least one college for this announcement.",
+        setFeedback(
+          buildFeedback(
+            "Select colleges",
+            "Pick at least one college for this announcement.",
+            "error",
+          ),
         );
         return;
       }
@@ -172,7 +185,9 @@ export function AddAnnouncementModal({
           createdByName: user.full_name || user.preferred_name || "Admin",
         };
       } else {
-        Alert.alert("Not allowed", "Only admins and counselors can post.");
+        setFeedback(
+          buildFeedback("Not allowed", "Only admins and counselors can post.", "error"),
+        );
         return;
       }
 
@@ -185,7 +200,9 @@ export function AddAnnouncementModal({
       onSuccess?.();
       onClose();
     } catch {
-      Alert.alert("Error", "Failed to create announcement. Please try again.");
+      setFeedback(
+        buildFeedback("Error", "Failed to create announcement. Please try again.", "error"),
+      );
     } finally {
       setSaving(false);
     }
@@ -357,6 +374,7 @@ export function AddAnnouncementModal({
             </TouchableOpacity>
           </ScrollView>
         </View>
+        <InfoGuideOverlay guide={feedback} onClose={() => setFeedback(null)} />
       </KeyboardAvoidingView>
     </Modal>
   );

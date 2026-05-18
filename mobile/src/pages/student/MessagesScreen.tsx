@@ -7,7 +7,7 @@ import { AppTextInput as TextInput } from "../../components/common/AppTextInput"
  */
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { type AlertButton, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
+import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -50,6 +50,16 @@ import { auditLogsService } from "../../services/audit-logs.service";
 import { subscribeToUsersPresence } from "../../services/firebase-presence.service";
 import { usePeerPresence } from "../../hooks/usePeerPresence";
 import * as Clipboard from "expo-clipboard";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../components/common/InfoGuideModal";
+import { AuroraConfirmModal } from "../../components/common/AuroraConfirmModal";
+import {
+  AuroraActionSheetModal,
+  type AuroraActionSheetContent,
+} from "../../components/common/AuroraActionSheetModal";
+import { buildFeedback } from "../../utils/aurora-feedback";
 
 type TabType = "All messages" | "Unread";
 
@@ -236,6 +246,13 @@ function DirectMessageView({
     useState<SessionRequestData | null>(null);
   const [pendingSessionRequestAfterConsent, setPendingSessionRequestAfterConsent] =
     useState<SessionRequestFormData | null>(null);
+  const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    messageId: string;
+    messageType: string;
+  } | null>(null);
+  const [messageOptionsSheet, setMessageOptionsSheet] =
+    useState<AuroraActionSheetContent | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   /** One-shot scroll after switching threads; cleared after first successful scroll. */
   const pendingScrollToEndRef = useRef(false);
@@ -340,7 +357,7 @@ function DirectMessageView({
       console.error("Failed to send message:", e);
       const msg =
         e instanceof Error ? e.message : "Please wait and try again.";
-      Alert.alert("Could not send message", msg);
+      setFeedback(buildFeedback("Could not send message", msg, "error"));
     } finally {
       setSending(false);
     }
@@ -349,7 +366,6 @@ function DirectMessageView({
   const handleCopyText = async (text: string) => {
     try {
       await Clipboard.setStringAsync(text);
-      Alert.alert("Copied", "Message copied to clipboard.");
     } catch (e) {
       console.error("Failed to copy text:", e);
     }
@@ -357,31 +373,7 @@ function DirectMessageView({
 
   const confirmDeleteMessage = (messageId: string, messageType: string) => {
     if (!user?.id) return;
-    Alert.alert(
-      "Delete message",
-      "Are you sure you want to delete this message?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            await firestoreService.deleteConversationMessage(
-              contact.conversationId,
-              messageId,
-            );
-            await auditLogsService.write({
-              performedBy: user.id,
-              performedByRole: user.role,
-              action: "delete_chat_message",
-              targetType: "chat",
-              targetId: user.id,
-              metadata: { messageType },
-            });
-          },
-        },
-      ],
-    );
+    setPendingDelete({ messageId, messageType });
   };
 
   const handleConfirmSession = async (
@@ -391,9 +383,12 @@ function DirectMessageView({
     if (!user?.id || !contact.conversationId || sending) return;
     const sid = invite.id?.trim();
     if (!sid || String(sid).startsWith("session_")) {
-      Alert.alert(
-        "Cannot confirm",
-        "This invite is missing a valid session link. Ask your counselor to send the times again.",
+      setFeedback(
+        buildFeedback(
+          "Cannot confirm",
+          "This invite is missing a valid session link. Ask your counselor to send the times again.",
+          "error",
+        ),
       );
       return;
     }
@@ -420,7 +415,7 @@ function DirectMessageView({
           ? e.message
           : "Something went wrong. Please try again.";
       console.error("Failed to confirm session time:", e);
-      Alert.alert("Could not confirm session", message);
+      setFeedback(buildFeedback("Could not confirm session", message, "error"));
     } finally {
       setSending(false);
     }
@@ -429,9 +424,12 @@ function DirectMessageView({
   const executeSendSessionRequest = async (data: SessionRequestFormData) => {
     if (!user?.id || sending) return;
     if (!contact.conversationId) {
-      Alert.alert(
-        "Can't send request",
-        "This conversation isn't ready yet. Go back and open your counselor's chat again.",
+      setFeedback(
+        buildFeedback(
+          "Can't send request",
+          "This conversation isn't ready yet. Go back and open your counselor's chat again.",
+          "warning",
+        ),
       );
       return;
     }
@@ -477,7 +475,7 @@ function DirectMessageView({
       console.error("Failed to send session request:", e);
       const msg =
         e instanceof Error ? e.message : "Please try again in a moment.";
-      Alert.alert("Could not send request", msg);
+      setFeedback(buildFeedback("Could not send request", msg, "error"));
     } finally {
       setSending(false);
     }
@@ -486,9 +484,12 @@ function DirectMessageView({
   const handleSendSessionRequest = async (data: SessionRequestFormData) => {
     if (!user?.id || sending) return;
     if (!contact.conversationId) {
-      Alert.alert(
-        "Can't send request",
-        "This conversation isn't ready yet. Go back and open your counselor's chat again.",
+      setFeedback(
+        buildFeedback(
+          "Can't send request",
+          "This conversation isn't ready yet. Go back and open your counselor's chat again.",
+          "warning",
+        ),
       );
       return;
     }
@@ -512,7 +513,7 @@ function DirectMessageView({
       console.error("Failed to verify journal consent:", e);
       const msg =
         e instanceof Error ? e.message : "Please try again in a moment.";
-      Alert.alert("Something went wrong", msg);
+      setFeedback(buildFeedback("Something went wrong", msg, "error"));
     }
   };
 
@@ -684,31 +685,38 @@ function DirectMessageView({
                       <Pressable
                         onLongPress={() => {
                           const canCopy = !displayText.startsWith("[Deleted");
-                          const buttons: {
-                            text: string;
-                            style?: "destructive" | "cancel";
-                            onPress?: () => void;
-                          }[] = [];
+                          const actions: AuroraActionSheetContent["actions"] =
+                            [];
                           if (canCopy) {
-                            buttons.push({
-                              text: "Copy",
-                              onPress: () => handleCopyText(displayText),
+                            actions.push({
+                              label: "Copy",
+                              onPress: () => {
+                                void (async () => {
+                                  await handleCopyText(displayText);
+                                  setFeedback(
+                                    buildFeedback(
+                                      "Copied",
+                                      "Message copied to clipboard.",
+                                      "success",
+                                    ),
+                                  );
+                                })();
+                              },
                             });
                           }
                           if (isMe) {
-                            buttons.push({
-                              text: "Delete",
-                              style: "destructive",
+                            actions.push({
+                              label: "Delete",
+                              destructive: true,
                               onPress: () =>
                                 confirmDeleteMessage(msg.id, "text"),
                             });
                           }
-                          buttons.push({ text: "Cancel", style: "cancel" });
-                          Alert.alert(
-                            "Message options",
-                            undefined,
-                            buttons as AlertButton[],
-                          );
+                          if (actions.length === 0) return;
+                          setMessageOptionsSheet({
+                            title: "Message options",
+                            actions,
+                          });
                         }}
                       >
                         <View
@@ -1085,6 +1093,38 @@ function DirectMessageView({
           setSelectedSessionRequest(null);
         }}
       />
+      <InfoGuideModal guide={feedback} onClose={() => setFeedback(null)} />
+      <AuroraConfirmModal
+        visible={!!pendingDelete}
+        title="Delete message"
+        body="Are you sure you want to delete this message?"
+        cancelLabel="Cancel"
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete || !user?.id) return;
+          void (async () => {
+            const { messageId, messageType } = pendingDelete;
+            setPendingDelete(null);
+            await firestoreService.deleteConversationMessage(
+              contact.conversationId,
+              messageId,
+            );
+            await auditLogsService.write({
+              performedBy: user.id,
+              performedByRole: user.role,
+              action: "delete_chat_message",
+              targetType: "chat",
+              targetId: user.id,
+              metadata: { messageType },
+            });
+          })();
+        }}
+      />
+      <AuroraActionSheetModal
+        sheet={messageOptionsSheet}
+        onClose={() => setMessageOptionsSheet(null)}
+      />
     </>
   );
 }
@@ -1111,6 +1151,9 @@ export default function MessagesScreen() {
     autoOpenSessionRequestForContact,
     setAutoOpenSessionRequestForContact,
   ] = useState(false);
+  const [listFeedback, setListFeedback] = useState<InfoGuideContent | null>(
+    null,
+  );
 
   /** Avoid duplicate opens / Strict Mode double-invoke while dashboard deep-link runs */
   const counselorDeepLinkHandledRef = useRef<string | null>(null);
@@ -1240,9 +1283,12 @@ export default function MessagesScreen() {
             !isCounselorSelectableByStudent(raw as unknown as Record<string, unknown>)
           ) {
             clearCounselorRouteParams();
-            Alert.alert(
-              "Counselor unavailable",
-              "That counselor is not available for messaging yet.",
+            setListFeedback(
+              buildFeedback(
+                "Counselor unavailable",
+                "That counselor is not available for messaging yet.",
+                "warning",
+              ),
             );
             return;
           }
@@ -1502,6 +1548,11 @@ export default function MessagesScreen() {
         studentId={user?.id ?? ""}
         onClose={() => setShowSelectCounselorModal(false)}
         onSelect={handleSelectCounselor}
+      />
+
+      <InfoGuideModal
+        guide={listFeedback}
+        onClose={() => setListFeedback(null)}
       />
     </View>
   );

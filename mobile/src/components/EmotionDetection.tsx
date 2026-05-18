@@ -1,10 +1,16 @@
-import { useState, useRef } from "react"; import {   View, TouchableOpacity, Image, Modal, Alert, StatusBar, Platform } from "react-native";
+import { useState, useRef } from "react";
+import { View, TouchableOpacity, Image, Modal, StatusBar, Platform } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { Camera, Upload, X, RefreshCw } from "lucide-react-native";
 import { AURORA } from "../constants/aurora-colors";
 import { getEmotionLabel } from "../utils/moodColors";
 import { AppText as Text } from "./common/AppText";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "./common/InfoGuideModal";
+import { buildFeedback } from "../utils/aurora-feedback";
 
 interface DetectedEmotion {
   emotion: string;
@@ -56,6 +62,7 @@ export function EmotionDetection({
   showSaveSuccessAlert = true,
 }: EmotionDetectionProps) {
   const [isCameraVisible, setIsCameraVisible] = useState(false);
+  const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [capturedWithFrontCamera, setCapturedWithFrontCamera] = useState(false);
@@ -84,9 +91,12 @@ export function EmotionDetection({
       if (!permission?.granted) {
         const result = await requestPermission();
         if (!result.granted) {
-          Alert.alert(
-            "Permission needed",
-            "Camera permission is required to take photos",
+          setFeedback(
+            buildFeedback(
+              "Permission needed",
+              "Camera permission is required to take photos",
+              "warning",
+            ),
           );
           return;
         }
@@ -94,9 +104,12 @@ export function EmotionDetection({
       setIsCameraVisible(true);
     } catch (error) {
       console.warn("Camera start failed (likely emulator issue):", error);
-      Alert.alert(
-        "Camera Error",
-        "Could not start camera. Try uploading a photo instead.",
+      setFeedback(
+        buildFeedback(
+          "Camera Error",
+          "Could not start camera. Try uploading a photo instead.",
+          "error",
+        ),
       );
     }
   };
@@ -228,9 +241,14 @@ export function EmotionDetection({
       onEmotionDetected(normalized);
     } catch (error: unknown) {
       console.error("Emotion analysis failed:", error);
-      Alert.alert(
-        "Analysis Failed",
-        error instanceof Error ? error.message : "Could not detect emotions. Please try again.",
+      setFeedback(
+        buildFeedback(
+          "Analysis Failed",
+          error instanceof Error
+            ? error.message
+            : "Could not detect emotions. Please try again.",
+          "error",
+        ),
       );
     } finally {
       setIsAnalyzing(false);
@@ -238,6 +256,7 @@ export function EmotionDetection({
   };
 
   return (
+    <>
     <View
       style={{
         // backgroundColor: AURORA.card,
@@ -555,7 +574,9 @@ export function EmotionDetection({
                   ) || detectedEmotions[0];
                 onUseAnalyzedMood?.(selected);
                 if (showSaveSuccessAlert !== false) {
-                  Alert.alert("Success", "Emotions captured!");
+                  setFeedback(
+                    buildFeedback("Success", "Emotions captured!", "success"),
+                  );
                 }
                 setCapturedImage(null);
                 setDetectedEmotions([]);
@@ -710,5 +731,7 @@ export function EmotionDetection({
         </View>
       </Modal>
     </View>
+    <InfoGuideModal guide={feedback} onClose={() => setFeedback(null)} />
+    </>
   );
 }

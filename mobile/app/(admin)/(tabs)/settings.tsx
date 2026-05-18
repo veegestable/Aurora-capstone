@@ -1,33 +1,23 @@
 /**
  * Admin Settings - Route: /(admin)/settings
  */
-import React from "react";
-import { View, TouchableOpacity, ScrollView, Alert } from "react-native";
+import React, { useState } from "react";
+import { View, TouchableOpacity, ScrollView } from "react-native";
 import { AppText as Text } from "../../../src/components/common/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LogOut, Shield } from "lucide-react-native";
 import { useAuth } from "../../../src/stores/AuthContext";
 import { AURORA } from "../../../src/constants/aurora-colors";
 import { ADMIN_TAB_BAR_BOTTOM_CLEARANCE } from "../../../constants/admin-tab-bar";
+import { AuroraConfirmModal } from "../../../src/components/common/AuroraConfirmModal";
 
 export default function AdminSettingsScreen() {
   const { user, signOut } = useAuth();
+  const [signOutVisible, setSignOutVisible] = useState(false);
+  const [signOutBusy, setSignOutBusy] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert("Sign out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign out",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await signOut();
-          } catch {
-            /* noop */
-          }
-        },
-      },
-    ]);
+    setSignOutVisible(true);
   };
 
   return (
@@ -139,6 +129,31 @@ export default function AdminSettingsScreen() {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
+
+      <AuroraConfirmModal
+        visible={signOutVisible}
+        title="Sign out"
+        body="Are you sure you want to sign out?"
+        cancelLabel="Cancel"
+        confirmLabel="Sign out"
+        busy={signOutBusy}
+        onCancel={() => {
+          if (!signOutBusy) setSignOutVisible(false);
+        }}
+        onConfirm={() => {
+          void (async () => {
+            setSignOutBusy(true);
+            try {
+              await signOut();
+              setSignOutVisible(false);
+            } catch {
+              /* noop */
+            } finally {
+              setSignOutBusy(false);
+            }
+          })();
+        }}
+      />
     </View>
   );
 }

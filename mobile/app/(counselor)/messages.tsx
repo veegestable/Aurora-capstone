@@ -9,7 +9,7 @@ import { AppTextInput as TextInput } from "../../src/components/common/AppTextIn
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { type AlertButton, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable, Modal, StyleSheet } from "react-native";
+import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable, Modal, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -47,6 +47,16 @@ import * as Clipboard from "expo-clipboard";
 import { subscribeToUsersPresence } from "../../src/services/firebase-presence.service";
 import { usePeerPresence } from "../../src/hooks/usePeerPresence";
 import { auth } from "../../src/services/firebase";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../src/components/common/InfoGuideModal";
+import { AuroraConfirmModal } from "../../src/components/common/AuroraConfirmModal";
+import {
+  AuroraActionSheetModal,
+  type AuroraActionSheetContent,
+} from "../../src/components/common/AuroraActionSheetModal";
+import { buildFeedback } from "../../src/utils/aurora-feedback";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type FilterTab = "All Messages" | "Unread";
@@ -253,6 +263,13 @@ function ChatView({
     useState<SessionCardData | null>(null);
   const [expandedSessionRequestNotes, setExpandedSessionRequestNotes] =
     useState<Record<string, boolean>>({});
+  const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    messageId: string;
+    messageType: string;
+  } | null>(null);
+  const [messageOptionsSheet, setMessageOptionsSheet] =
+    useState<AuroraActionSheetContent | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   /** One-shot scroll after switching threads; cleared after first successful scroll. */
   const pendingScrollToEndRef = useRef(false);
@@ -431,9 +448,12 @@ function ChatView({
         requestedAtMs: meta?.requestedAtMs,
       })
     ) {
-      Alert.alert(
-        "Expired request",
-        "This session request can no longer be accepted because 24 hours have passed without a response, or the preferred time has already passed.",
+      setFeedback(
+        buildFeedback(
+          "Expired request",
+          "This session request can no longer be accepted because 24 hours have passed without a response, or the preferred time has already passed.",
+          "warning",
+        ),
       );
       return;
     }
@@ -631,31 +651,7 @@ function ChatView({
 
   const confirmDeleteMessage = (messageId: string, messageType: string) => {
     if (!user?.id) return;
-    Alert.alert(
-      "Delete message",
-      "Are you sure you want to delete this message?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            await firestoreService.deleteConversationMessage(
-              conversationId,
-              messageId,
-            );
-            await auditLogsService.write({
-              performedBy: user.id,
-              performedByRole: user.role,
-              action: "delete_chat_message",
-              targetType: "chat",
-              targetId: user.id,
-              metadata: { messageType },
-            });
-          },
-        },
-      ],
-    );
+    setPendingDelete({ messageId, messageType });
   };
 
   const isLikelyDateLabel = (value: string) =>
@@ -830,37 +826,38 @@ function ChatView({
                       <Pressable
                         onLongPress={() => {
                           if (!user?.id) return;
-                          const buttons: {
-                            text: string;
-                            style?: "destructive" | "cancel";
-                            onPress?: () => void;
-                          }[] = [];
+                          const actions: AuroraActionSheetContent["actions"] =
+                            [];
                           if (canCopyText) {
-                            buttons.push({
-                              text: "Copy",
-                              onPress: async () => {
-                                await handleCopyText(displayText);
-                                Alert.alert(
-                                  "Copied",
-                                  "Message copied to clipboard.",
-                                );
+                            actions.push({
+                              label: "Copy",
+                              onPress: () => {
+                                void (async () => {
+                                  await handleCopyText(displayText);
+                                  setFeedback(
+                                    buildFeedback(
+                                      "Copied",
+                                      "Message copied to clipboard.",
+                                      "success",
+                                    ),
+                                  );
+                                })();
                               },
                             });
                           }
                           if (canDeleteText) {
-                            buttons.push({
-                              text: "Delete",
-                              style: "destructive",
+                            actions.push({
+                              label: "Delete",
+                              destructive: true,
                               onPress: () =>
                                 confirmDeleteMessage(msg.id, "text"),
                             });
                           }
-                          buttons.push({ text: "Cancel", style: "cancel" });
-                          Alert.alert(
-                            "Message options",
-                            undefined,
-                            buttons as AlertButton[],
-                          );
+                          if (actions.length === 0) return;
+                          setMessageOptionsSheet({
+                            title: "Message options",
+                            actions,
+                          });
                         }}
                       >
                         <View
@@ -1375,6 +1372,42 @@ function ChatView({
           onMarkStatus={handleMarkAttendance}
         />
       )}
+
+      <InfoGuideModal
+        guide={feedback}
+        onClose={() => setFeedback(null)}
+      />
+      <AuroraConfirmModal
+        visible={!!pendingDelete}
+        title="Delete message"
+        body="Are you sure you want to delete this message?"
+        cancelLabel="Cancel"
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete || !user?.id) return;
+          void (async () => {
+            const { messageId, messageType } = pendingDelete;
+            setPendingDelete(null);
+            await firestoreService.deleteConversationMessage(
+              conversationId,
+              messageId,
+            );
+            await auditLogsService.write({
+              performedBy: user.id,
+              performedByRole: user.role,
+              action: "delete_chat_message",
+              targetType: "chat",
+              targetId: user.id,
+              metadata: { messageType },
+            });
+          })();
+        }}
+      />
+      <AuroraActionSheetModal
+        sheet={messageOptionsSheet}
+        onClose={() => setMessageOptionsSheet(null)}
+      />
     </>
   );
 }
@@ -1401,6 +1434,9 @@ export default function CounselorMessagesScreen() {
   const [onlineByStudentId, setOnlineByStudentId] = useState<
     Record<string, boolean>
   >({});
+  const [listFeedback, setListFeedback] = useState<InfoGuideContent | null>(
+    null,
+  );
   const [archiveModalContact, setArchiveModalContact] =
     useState<Conversation | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
@@ -1512,9 +1548,12 @@ export default function CounselorMessagesScreen() {
     if (!currentUserId || !archiveModalContact) return;
     const convId = conversationIdFor(archiveModalContact);
     if (!convId) {
-      Alert.alert(
-        "Could not archive",
-        "Missing conversation id. Try again after the list refreshes.",
+      setListFeedback(
+        buildFeedback(
+          "Could not archive",
+          "Missing conversation id. Try again after the list refreshes.",
+          "error",
+        ),
       );
       return;
     }
@@ -1528,9 +1567,12 @@ export default function CounselorMessagesScreen() {
       refreshConversations();
     } catch (e) {
       console.error("Archive conversation failed:", e);
-      Alert.alert(
-        "Could not archive",
-        "Please check your connection and try again.",
+      setListFeedback(
+        buildFeedback(
+          "Could not archive",
+          "Please check your connection and try again.",
+          "error",
+        ),
       );
     } finally {
       setArchiveBusy(false);
@@ -1881,6 +1923,11 @@ export default function CounselorMessagesScreen() {
             </View>
           </View>
         </Modal>
+
+        <InfoGuideModal
+          guide={listFeedback}
+          onClose={() => setListFeedback(null)}
+        />
       </SafeAreaView>
     </View>
   );

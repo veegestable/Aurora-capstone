@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Modal, ScrollView, TouchableOpacity, View } from "react-native";
+import { Modal, ScrollView, TouchableOpacity, View } from "react-native";
 import { AppText as Text } from "../../components/common/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Sparkles, Wind } from "lucide-react-native";
@@ -24,6 +24,11 @@ import {
   getDailyContext,
   setDailyContext,
 } from "../../services/mood-firestore-v2.service";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../components/common/InfoGuideModal";
+import { buildFeedback } from "../../utils/aurora-feedback";
 
 export default function ResourcesScreen() {
   const { user } = useAuth();
@@ -38,6 +43,7 @@ export default function ResourcesScreen() {
     useState<BreathingExercise | null>(null);
   const [isSuggestedSessionVisible, setIsSuggestedSessionVisible] =
     useState(false);
+  const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
 
   const refreshPendingReminder = useCallback(async () => {
     const uid = user?.id;
@@ -110,7 +116,13 @@ export default function ResourcesScreen() {
         /* no-op */
       }
     }
-    Alert.alert("Nice work", "That counts toward your breathing practice.");
+    setFeedback(
+      buildFeedback(
+        "Nice work",
+        "That counts toward your breathing practice.",
+        "success",
+      ),
+    );
   };
 
   return (
@@ -391,6 +403,10 @@ export default function ResourcesScreen() {
         </ScrollView>
         <View style={{ height: 40 }} />
       </SafeAreaView>
+      <InfoGuideModal
+        guide={feedback}
+        onClose={() => setFeedback(null)}
+      />
     </View>
   );
 }

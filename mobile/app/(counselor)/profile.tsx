@@ -8,10 +8,10 @@ import { AppTextInput as TextInput } from "../../src/components/common/AppTextIn
  * Editable: personal details and profile picture via Edit Profile.
  */
 
-import React, { useState, useEffect } from "react";
-import { View, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator, Modal, Platform, KeyboardAvoidingView } from "react-native";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { View, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Modal, Platform, KeyboardAvoidingView } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   User,
   Bell,
@@ -37,9 +37,11 @@ import {
 import { firestoreService } from "../../src/services/firebase-firestore.service";
 import {
   InfoGuideModal,
+  InfoGuideOverlay,
   type InfoGuideContent,
 } from "../../src/components/common/InfoGuideModal";
 import { SignOutConfirmModal } from "../../src/components/common/SignOutConfirmModal";
+import { buildFeedback } from "../../src/utils/aurora-feedback";
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 function SectionLabel({ text }: { text: string }) {
@@ -157,9 +159,11 @@ function EditProfileModal({
   user,
   onSave,
   onPickAvatar,
+  onShowFeedback,
 }: {
   visible: boolean;
   onClose: () => void;
+  onShowFeedback: (title: string, body: string) => void;
   user: {
     full_name?: string;
     sex?: "male" | "female";
@@ -195,7 +199,7 @@ function EditProfileModal({
   const handlePickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
+      onShowFeedback(
         "Permission needed",
         "Please allow access to your photo library to change your profile picture.",
       );
@@ -212,7 +216,7 @@ function EditProfileModal({
       try {
         await onPickAvatar(result.assets[0].uri);
       } catch {
-        Alert.alert(
+        onShowFeedback(
           "Upload failed",
           "Could not upload profile picture. Please try again.",
         );
@@ -231,11 +235,11 @@ function EditProfileModal({
     //   return;
     // }
     if (!contactTrim) {
-      Alert.alert("Required field", "Please enter your contact number.");
+      onShowFeedback("Required field", "Please enter your contact number.");
       return;
     }
     if (contactTrim.length < 7) {
-      Alert.alert(
+      onShowFeedback(
         "Invalid number",
         "Contact number should be at least 7 digits.",
       );
@@ -250,7 +254,7 @@ function EditProfileModal({
       });
       onClose();
     } catch {
-      Alert.alert("Error", "Could not save profile. Please try again.");
+      onShowFeedback("Error", "Could not save profile. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -554,6 +558,17 @@ function EditProfileModal({
 export default function CounselorProfileScreen() {
   const { user, signOut, updateUser, uploadAvatar, refreshUserProfile } =
     useAuth();
+  const insets = useSafeAreaInsets();
+  const collegeShiftScrollRef = useRef<ScrollView>(null);
+  const shiftReasonYRef = useRef(0);
+  const scrollShiftReasonIntoView = useCallback(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const y = Math.max(0, shiftReasonYRef.current - 32);
+        collegeShiftScrollRef.current?.scrollTo({ y, animated: true });
+      }, 100);
+    });
+  }, []);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [collegeShiftOpen, setCollegeShiftOpen] = useState(false);
   const [shiftTargetCollege, setShiftTargetCollege] = useState<CollegeCode | "">(
@@ -561,7 +576,12 @@ export default function CounselorProfileScreen() {
   );
   const [shiftReason, setShiftReason] = useState("");
   const [shiftSubmitting, setShiftSubmitting] = useState(false);
-  const [collegeShiftSubmittedGuide, setCollegeShiftSubmittedGuide] =
+  const [profileFeedbackGuide, setProfileFeedbackGuide] =
+    useState<InfoGuideContent | null>(null);
+  const showProfileFeedback = useCallback((title: string, body: string) => {
+    setProfileFeedbackGuide(buildFeedback(title, body));
+  }, []);
+  const [collegeShiftErrorGuide, setCollegeShiftErrorGuide] =
     useState<InfoGuideContent | null>(null);
   const [signOutModalVisible, setSignOutModalVisible] = useState(false);
   const [signOutLeaving, setSignOutLeaving] = useState(false);
@@ -600,7 +620,7 @@ export default function CounselorProfileScreen() {
       if (value && user?.id) void syncExpoPushTokenToUserDoc(user.id);
     } catch {
       setPushNotifications(previous);
-      Alert.alert("Could not update setting", "Please try again.");
+      showProfileFeedback("Could not update setting", "Please try again.");
     } finally {
       setSavingPushPreference(false);
     }
@@ -792,6 +812,7 @@ export default function CounselorProfileScreen() {
                 onPress={() => {
                   setShiftTargetCollege("");
                   setShiftReason("");
+                  setCollegeShiftErrorGuide(null);
                   setCollegeShiftOpen(true);
                 }}
               />
@@ -971,9 +992,18 @@ export default function CounselorProfileScreen() {
           visible={collegeShiftOpen}
           animationType="slide"
           presentationStyle="pageSheet"
-          onRequestClose={() => !shiftSubmitting && setCollegeShiftOpen(false)}
+          onRequestClose={() => {
+            if (!shiftSubmitting) {
+              setCollegeShiftErrorGuide(null);
+              setCollegeShiftOpen(false);
+            }
+          }}
         >
-          <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
+          <KeyboardAvoidingView
+            style={{ flex: 1, backgroundColor: AURORA.bgDeep }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+          >
             <SafeAreaView style={{ flex: 1 }}>
               <View
                 style={{
@@ -987,7 +1017,12 @@ export default function CounselorProfileScreen() {
                 }}
               >
                 <TouchableOpacity
-                  onPress={() => !shiftSubmitting && setCollegeShiftOpen(false)}
+                  onPress={() => {
+                    if (!shiftSubmitting) {
+                      setCollegeShiftErrorGuide(null);
+                      setCollegeShiftOpen(false);
+                    }
+                  }}
                 >
                   <Text style={{ color: AURORA.textSec, fontSize: 15 }}>
                     Cancel
@@ -1000,13 +1035,11 @@ export default function CounselorProfileScreen() {
                 </Text>
                 <View style={{ width: 56 }} />
               </View>
-              <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                keyboardVerticalOffset={0}
-              >
               <ScrollView
-                contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+                ref={collegeShiftScrollRef}
+                automaticallyAdjustKeyboardInsets
+                style={{ flex: 1 }}
+                contentContainerStyle={{ padding: 20, paddingBottom: 280 }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
               >
@@ -1054,41 +1087,59 @@ export default function CounselorProfileScreen() {
                     </Text>
                   </TouchableOpacity>
                 ))}
-                <Text
-                  style={{
-                    color: "#FFFFFF",
-                    fontSize: 14,
-                    fontWeight: "600",
-                    marginTop: 16,
-                    marginBottom: 8,
+                <View
+                  onLayout={(event) => {
+                    shiftReasonYRef.current = event.nativeEvent.layout.y;
                   }}
+                  style={{ marginTop: 16 }}
                 >
-                  Reason
-                </Text>
-                <TextInput
-                  style={{
-                    backgroundColor: AURORA.card,
-                    borderRadius: 14,
-                    padding: 14,
-                    color: "#FFFFFF",
-                    minHeight: 100,
-                    textAlignVertical: "top",
-                    borderWidth: 1,
-                    borderColor: AURORA.border,
-                  }}
-                  placeholder="Explain your college change (min. 8 characters)."
-                  placeholderTextColor={AURORA.textMuted}
-                  value={shiftReason}
-                  onChangeText={setShiftReason}
-                  multiline
-                />
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 14,
+                      fontWeight: "600",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Reason
+                  </Text>
+                  <TextInput
+                    style={{
+                      backgroundColor: AURORA.card,
+                      borderRadius: 14,
+                      padding: 14,
+                      color: "#FFFFFF",
+                      minHeight: 100,
+                      textAlignVertical: "top",
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
+                    }}
+                    placeholder="Explain your college change (min. 8 characters)."
+                    placeholderTextColor={AURORA.textMuted}
+                    value={shiftReason}
+                    onChangeText={setShiftReason}
+                    onFocus={scrollShiftReasonIntoView}
+                    multiline
+                  />
+                </View>
                 <TouchableOpacity
                   disabled={shiftSubmitting}
                   onPress={() => {
                     void (async () => {
                       if (!user?.id) return;
                       if (!shiftTargetCollege || !isCollegeCode(shiftTargetCollege)) {
-                        Alert.alert("College", "Select the college you are shifting to.");
+                        setCollegeShiftErrorGuide({
+                          title: "College",
+                          body: "Select the college you are shifting to.",
+                        });
+                        return;
+                      }
+                      const trimmedReason = shiftReason.trim();
+                      if (trimmedReason.length < 8) {
+                        setCollegeShiftErrorGuide({
+                          title: "Could not submit",
+                          body: "Please explain your college change (at least 8 characters).",
+                        });
                         return;
                       }
                       try {
@@ -1101,15 +1152,17 @@ export default function CounselorProfileScreen() {
                         );
                         await refreshUserProfile();
                         setCollegeShiftOpen(false);
-                        setCollegeShiftSubmittedGuide({
-                          title: "Submitted",
-                          body: "Your request is pending admin review.",
-                        });
-                      } catch (e) {
-                        Alert.alert(
-                          "Could not submit",
-                          e instanceof Error ? e.message : "Please try again.",
+                        setCollegeShiftErrorGuide(null);
+                        showProfileFeedback(
+                          "Submitted",
+                          "Your request is pending admin review.",
                         );
+                      } catch (e) {
+                        setCollegeShiftErrorGuide({
+                          title: "Could not submit",
+                          body:
+                            e instanceof Error ? e.message : "Please try again.",
+                        });
                       } finally {
                         setShiftSubmitting(false);
                       }
@@ -1131,14 +1184,18 @@ export default function CounselorProfileScreen() {
                   </Text>
                 </TouchableOpacity>
               </ScrollView>
-              </KeyboardAvoidingView>
+              <InfoGuideOverlay
+                guide={collegeShiftErrorGuide}
+                onClose={() => setCollegeShiftErrorGuide(null)}
+              />
             </SafeAreaView>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         <EditProfileModal
           visible={showEditProfile}
           onClose={() => setShowEditProfile(false)}
+          onShowFeedback={showProfileFeedback}
           user={user}
           onSave={async (data) => {
             await updateUser({
@@ -1154,8 +1211,8 @@ export default function CounselorProfileScreen() {
         />
 
         <InfoGuideModal
-          guide={collegeShiftSubmittedGuide}
-          onClose={() => setCollegeShiftSubmittedGuide(null)}
+          guide={profileFeedbackGuide}
+          onClose={() => setProfileFeedbackGuide(null)}
         />
 
         <SignOutConfirmModal
