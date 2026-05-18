@@ -14,7 +14,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
-  Plus,
   Send,
   PenSquare,
   ChevronRight,
@@ -123,8 +122,6 @@ function ConversationRow({
     ?.toLowerCase()
     .startsWith("session:");
   const isArchived = item.isArchived === true;
-  const isPastCollege =
-    item.isPastCollege === true || item.messagingClosed === true;
   return (
     <TouchableOpacity
       onPress={onPress}
