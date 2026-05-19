@@ -21,7 +21,7 @@ function resolveCollegeFromUserData(
   return '';
 }
 
-async function resolveConversationCollegeCode(
+export async function resolveConversationCollegeCode(
   db: admin.firestore.Firestore,
   counselorId: string,
   studentId: string,

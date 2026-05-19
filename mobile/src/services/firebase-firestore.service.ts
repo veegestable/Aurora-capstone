@@ -129,6 +129,48 @@ function conversationMatchesActiveCollege(
   return tag === active;
 }
 
+/** Legacy student requests omitted `college_code`; stamp from participants so list queries match inbox. */
+async function ensureSessionCollegeTagOnDoc(
+  data: Record<string, unknown>,
+  sessionId: string,
+): Promise<Record<string, unknown>> {
+  if (conversationCollegeTag(data)) return data;
+  const counselorId = String(data.counselorId ?? "");
+  const studentId = String(data.studentId ?? "");
+  if (!counselorId || !studentId) return data;
+  const collegeCode = await resolveConversationCollegeCode(
+    counselorId,
+    studentId,
+  );
+  if (!collegeCode) return data;
+  try {
+    await updateDoc(doc(db, "sessions", sessionId), {
+      college_code: collegeCode,
+      updatedAt: Timestamp.now(),
+    });
+  } catch {
+    // Still use resolved tag for this read path if rules block client stamp.
+  }
+  return { ...data, college_code: collegeCode };
+}
+
+async function mapSessionsDocsForActiveCollege(
+  docs: Array<{ id: string; data: () => Record<string, unknown> }>,
+  activeCollege: string,
+): Promise<Array<Record<string, unknown> & { id: string }>> {
+  const rows: Array<Record<string, unknown> & { id: string }> = [];
+  for (const d of docs) {
+    let data = d.data() as Record<string, unknown>;
+    if (!conversationCollegeTag(data)) {
+      data = await ensureSessionCollegeTagOnDoc(data, d.id);
+    }
+    if (conversationMatchesActiveCollege(data, activeCollege)) {
+      rows.push({ id: d.id, ...data });
+    }
+  }
+  return rows;
+}
+
 async function resolveConversationCollegeCode(
   counselorId: string,
   studentId: string,
@@ -2164,14 +2206,7 @@ export const firestoreService = {
         orderBy("updatedAt", "desc"),
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs
-        .filter((d) =>
-          conversationMatchesActiveCollege(
-            d.data() as Record<string, unknown>,
-            activeCollege,
-          ),
-        )
-        .map((d) => ({ id: d.id, ...d.data() }));
+      return mapSessionsDocsForActiveCollege(snapshot.docs, activeCollege);
     } catch(error: unknown) {
       console.error("❌ Error getting student sessions:", error);
       throw error;
@@ -2193,14 +2228,7 @@ export const firestoreService = {
         orderBy("updatedAt", "desc"),
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs
-        .filter((d) =>
-          conversationMatchesActiveCollege(
-            d.data() as Record<string, unknown>,
-            activeCollege,
-          ),
-        )
-        .map((d) => ({ id: d.id, ...d.data() }));
+      return mapSessionsDocsForActiveCollege(snapshot.docs, activeCollege);
     } catch(error: unknown) {
       console.error("❌ Error getting counselor sessions:", error);
       throw error;
@@ -2311,12 +2339,27 @@ export const firestoreService = {
       const sessionRef = doc(db, "sessions", sessionId);
       const snap = await getDoc(sessionRef);
       const session = snap.data() as Record<string, unknown> | undefined;
+      let collegePatch: Record<string, unknown> = {};
+      if (session && !conversationCollegeTag(session)) {
+        const counselorId = String(session.counselorId ?? "");
+        const studentId = String(session.studentId ?? "");
+        if (counselorId && studentId) {
+          const collegeCode = await resolveConversationCollegeCode(
+            counselorId,
+            studentId,
+          );
+          if (collegeCode) {
+            collegePatch = { college_code: collegeCode };
+          }
+        }
+      }
       await updateDoc(sessionRef, {
         finalSlot: slot,
         confirmedSlot: slot,
         status: "confirmed",
         slotConfirmedAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
+        ...collegePatch,
       });
       if (session?.studentId) {
         await createSessionNotification(
@@ -2640,15 +2683,12 @@ export const firestoreService = {
         orderBy("updatedAt", "desc"),
       );
       const snapshot = await getDocs(q);
-      const sessions = snapshot.docs
-        .filter((d) =>
-          conversationMatchesActiveCollege(
-            d.data() as Record<string, unknown>,
-            activeCollege,
-          ),
-        )
-        .map((d) => {
-        const data = d.data();
+      const taggedDocs = await mapSessionsDocsForActiveCollege(
+        snapshot.docs,
+        activeCollege,
+      );
+      const sessions = taggedDocs.map((row) => {
+        const data = row;
         const rawProposed = Array.isArray(data.proposedSlots)
           ? data.proposedSlots
           : [];
@@ -2672,7 +2712,7 @@ export const firestoreService = {
             ? (slotConfirmedRaw as { toDate: () => Date }).toDate()
             : null;
         return {
-          id: d.id,
+          id: String(data.id ?? ""),
           studentId:
             data.studentId != null && String(data.studentId).trim()
               ? String(data.studentId).trim()

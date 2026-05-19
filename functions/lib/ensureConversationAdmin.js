@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.resolveConversationCollegeCode = resolveConversationCollegeCode;
 exports.ensureConversationDocument = ensureConversationDocument;
 const admin = __importStar(require("firebase-admin"));
 const COLLEGE_CODES = new Set([

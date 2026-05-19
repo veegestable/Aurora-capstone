@@ -33,8 +33,13 @@ interface SessionRequestCardProps {
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
     pending: { label: 'Pending review', bg: 'rgba(254,189,3,0.2)', text: AURORA.amber },
+    requested: { label: 'Awaiting counselor', bg: 'rgba(254,189,3,0.2)', text: AURORA.amber },
+    confirmed: { label: 'Accepted', bg: 'rgba(34,197,94,0.2)', text: AURORA.green },
     approved: { label: 'Approved', bg: 'rgba(34,197,94,0.2)', text: AURORA.green },
     declined: { label: 'Declined', bg: 'rgba(239,68,68,0.2)', text: AURORA.red },
+    completed: { label: 'Completed', bg: 'rgba(59,130,246,0.2)', text: AURORA.blueLight },
+    missed: { label: 'Missed', bg: 'rgba(249,115,22,0.2)', text: AURORA.orange },
+    cancelled: { label: 'Cancelled', bg: 'rgba(239,68,68,0.2)', text: AURORA.red },
 };
 
 const COUNSELOR_SLOTS_STATUS = {

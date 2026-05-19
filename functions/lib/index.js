@@ -316,9 +316,13 @@ exports.sendSessionRequestTrusted = (0, https_1.onCall)({ region: 'asia-southeas
     }
     await (0, conversationMessagingPolicy_1.assertConversationMessagingOpen)(db, conversationId, uid);
     await enforceRateLimit('session_request', `${studentId}:${counselorId}`, 30000, 1);
+    const convCollege = typeof conv.college_code === 'string' ? conv.college_code.trim() : '';
+    const collegeCode = convCollege ||
+        (await (0, ensureConversationAdmin_1.resolveConversationCollegeCode)(db, counselorId, studentId));
     const sessionRef = await db.collection('sessions').add({
         counselorId,
         studentId,
+        ...(collegeCode ? { college_code: collegeCode } : {}),
         riskFlagId: null,
         initiatedBy: 'student',
         studentRequestNote: note,

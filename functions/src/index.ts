@@ -11,7 +11,10 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { createResendRegistrationVerificationTrusted } from './resendVerification';
 import { createSignUpTrusted } from './signUpTrusted';
-import { ensureConversationDocument } from './ensureConversationAdmin';
+import {
+  ensureConversationDocument,
+  resolveConversationCollegeCode,
+} from './ensureConversationAdmin';
 import { assertConversationMessagingOpen } from './conversationMessagingPolicy';
 
 admin.initializeApp();
@@ -406,9 +409,16 @@ export const sendSessionRequestTrusted = onCall({ region: 'asia-southeast2' }, a
 
   await enforceRateLimit('session_request', `${studentId}:${counselorId}`, 30_000, 1);
 
+  const convCollege =
+    typeof conv.college_code === 'string' ? conv.college_code.trim() : '';
+  const collegeCode =
+    convCollege ||
+    (await resolveConversationCollegeCode(db, counselorId, studentId));
+
   const sessionRef = await db.collection('sessions').add({
     counselorId,
     studentId,
+    ...(collegeCode ? { college_code: collegeCode } : {}),
     riskFlagId: null,
     initiatedBy: 'student',
     studentRequestNote: note,
