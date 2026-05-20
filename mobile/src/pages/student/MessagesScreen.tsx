@@ -257,15 +257,18 @@ function ContactRow({
 function DirectMessageView({
   contact,
   onBack,
+  onThreadRepaired,
   autoOpenSessionRequestModal = false,
 }: {
   contact: CounselorContact;
   onBack: () => void;
+  onThreadRepaired?: () => void;
   autoOpenSessionRequestModal?: boolean;
 }) {
   const { user } = useAuth();
-  const readOnly =
-    contact.messagingClosed === true || contact.isPastCollege === true;
+  const [readOnly, setReadOnly] = useState(
+    contact.messagingClosed === true || contact.isPastCollege === true,
+  );
   const [message, setMessage] = useState("");
   /** Mirrors the composer so Send uses the latest text (avoids Android RN lag vs `message` state). */
   const messageDraftRef = useRef("");
@@ -312,6 +315,40 @@ function DirectMessageView({
     setMessage("");
     pendingScrollToEndRef.current = true;
   }, [contact.conversationId]);
+
+  useEffect(() => {
+    setReadOnly(
+      contact.messagingClosed === true || contact.isPastCollege === true,
+    );
+  }, [contact.messagingClosed, contact.isPastCollege, contact.conversationId]);
+
+  useEffect(() => {
+    if (!contact.conversationId || !user?.id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const repaired =
+          await firestoreService.repairConversationCollegeTagIfAligned(
+            contact.conversationId!,
+            user.id,
+          );
+        const state = await firestoreService.getConversationMessagingState(
+          contact.conversationId!,
+          user.id,
+        );
+        if (cancelled) return;
+        setReadOnly(state.messagingClosed);
+        if (repaired || !state.messagingClosed) {
+          onThreadRepaired?.();
+        }
+      } catch {
+        // Keep list-derived read-only default.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [contact.conversationId, user?.id, onThreadRepaired]);
 
   useEffect(() => {
     if (!autoOpenSessionRequestModal) return;
@@ -1113,7 +1150,7 @@ function DirectMessageView({
               paddingHorizontal: 16,
             }}
           >
-            Messages are encrypted and shared only with your counselor.
+            {/* Messages are encrypted and shared only with your counselor. */}
           </Text>
           </>
           )}
@@ -1455,6 +1492,7 @@ export default function MessagesScreen() {
           isOnline: onlineByCounselorId[selectedContact.id] ?? false,
         }}
         autoOpenSessionRequestModal={autoOpenSessionRequestForContact}
+        onThreadRepaired={refreshConversations}
         onBack={() => {
           setSelectedContact(null);
           setAutoOpenSessionRequestForContact(false);

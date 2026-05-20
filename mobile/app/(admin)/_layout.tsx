@@ -24,6 +24,7 @@ export default function AdminLayout() {
       <Stack.Screen name="students" />
       <Stack.Screen name="resources" />
       <Stack.Screen name="college-shifts" />
+      <Stack.Screen name="messaging-repair" />
     </Stack>
   );
 }

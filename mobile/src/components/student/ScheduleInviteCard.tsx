@@ -128,8 +128,8 @@ export default function ScheduleInviteCard({
                     >
                         {st === 'confirmed'
                             ? data.agreedSlot
-                                ? `Accepted — ${data.agreedSlot.date}, ${data.agreedSlot.time}`
-                                : 'Accepted — saved to your schedule.'
+                                ? `Scheduled — ${data.agreedSlot.date}, ${data.agreedSlot.time}`
+                                : 'Scheduled — saved to your calendar in Messages.'
                             : st === 'completed'
                               ? 'This session was completed.'
                               : st === 'missed'

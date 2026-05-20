@@ -29,6 +29,7 @@ import { MoodCheckIn } from "../../components/MoodCheckIn";
 import DashboardSessionRequestModal from "../../components/student/DashboardSessionRequestModal";
 import { AnnouncementSection } from "../../components/announcements/AnnouncementSection";
 import { triggerHaptic } from "../../utils/haptics";
+import { getStudentSessionChipLabel } from "../../utils/sessionPresentation";
 import {
   calculateStressLevel,
   classifyStress,
@@ -172,9 +173,6 @@ function studentSessionChipLabelForBucket(row: StudentSessionOverviewRow): strin
     case "past_agreed":
       return "Past appointment";
     case "action":
-      if (st === "pending") return "Counselor invite";
-      if (st === "requested") return "Awaiting counselor";
-      if (st === "needs_rescheduling") return "Reschedule needed";
       return studentSessionChipLabel(st);
     case "closed":
     default:
@@ -182,29 +180,11 @@ function studentSessionChipLabelForBucket(row: StudentSessionOverviewRow): strin
   }
 }
 
-function studentSessionChipLabel(status: string): string {
-  switch (status.toLowerCase()) {
-    case "requested":
-      return "Awaiting counselor";
-    case "pending":
-      return "Pick a time";
-    case "needs_rescheduling":
-      return "Reschedule";
-    case "confirmed":
-      return "Confirmed";
-    case "rescheduled":
-      return "Rescheduled";
-    case "completed":
-      return "Completed";
-    case "missed":
-      return "Missed";
-    case "cancelled":
-      return "Cancelled";
-    case "expired":
-      return "Expired";
-    default:
-      return status || "Session";
-  }
+function studentSessionChipLabel(
+  status: string,
+  opts?: { counselorOfferedSlots?: boolean },
+): string {
+  return getStudentSessionChipLabel(status, opts);
 }
 
 function formatStudentSessionTimeAgo(date: Date): string {

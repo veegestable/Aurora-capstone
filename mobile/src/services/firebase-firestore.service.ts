@@ -15,6 +15,7 @@ import {
   deleteDoc,
   deleteField,
   onSnapshot,
+  limit,
   type QuerySnapshot,
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
@@ -37,6 +38,13 @@ import {
   isPlaceholderSessionDocId,
   resolveSessionsDocIdForSessionCard,
 } from "../utils/sessionInviteIds";
+import {
+  type LinkedSessionSnapshot,
+  linkedSessionFromFirestoreData,
+  collectLinkedSessionIdsFromSnapshot,
+  buildSessionMapsFromLinkedCache,
+  applyLinkedSessionMapsToChatMessage,
+} from "../utils/chatSessionHydration";
 import {
   resolveCollegeCodeFromUserData,
   isCollegeCode,
@@ -237,6 +245,145 @@ async function stampParticipantConversationsWithCollege(
   );
 }
 
+/**
+ * After a college change: re-tag threads where both participants are now in the
+ * same college so they return to the active inbox (repairs mistaken overwrites).
+ */
+export type ConversationCollegeRepairResult = {
+  collegeCode: CollegeCode;
+  scanned: number;
+  repaired: number;
+  alreadyCorrect: number;
+  skippedNotAligned: number;
+  failed: number;
+};
+
+async function reactivateConversationsForUserCollege(
+  uid: string,
+  collegeCode: CollegeCode,
+): Promise<ConversationCollegeRepairResult> {
+  const result: ConversationCollegeRepairResult = {
+    collegeCode,
+    scanned: 0,
+    repaired: 0,
+    alreadyCorrect: 0,
+    skippedNotAligned: 0,
+    failed: 0,
+  };
+
+  const seen = new Set<string>();
+  const convRefs: ReturnType<typeof doc>[] = [];
+
+  const collect = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
+    snapshot.docs.forEach((d) => {
+      if (seen.has(d.id)) return;
+      seen.add(d.id);
+      convRefs.push(doc(db, "conversations", d.id));
+    });
+  };
+
+  try {
+    const [asCounselor, asStudent] = await Promise.all([
+      getDocs(
+        query(collection(db, "conversations"), where("counselorId", "==", uid)),
+      ),
+      getDocs(
+        query(collection(db, "conversations"), where("studentId", "==", uid)),
+      ),
+    ]);
+    collect(asCounselor);
+    collect(asStudent);
+  } catch (e) {
+    console.warn("[conversations] reactivate college query failed:", e);
+    return result;
+  }
+
+  result.scanned = convRefs.length;
+
+  for (const ref of convRefs) {
+    try {
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        result.failed += 1;
+        continue;
+      }
+      const data = snap.data() as Record<string, unknown>;
+      const counselorId = String(data.counselorId ?? "");
+      const studentId = String(data.studentId ?? "");
+      if (!counselorId || !studentId) {
+        result.failed += 1;
+        continue;
+      }
+      const collegeMap = await fetchUserCollegeMap([counselorId, studentId]);
+      const counselorCollege = collegeMap[counselorId] ?? "";
+      const studentCollege = collegeMap[studentId] ?? "";
+      if (
+        counselorCollege !== collegeCode ||
+        studentCollege !== collegeCode
+      ) {
+        result.skippedNotAligned += 1;
+        continue;
+      }
+      const tag = conversationCollegeTag(data);
+      if (tag === collegeCode) {
+        result.alreadyCorrect += 1;
+        continue;
+      }
+      await updateDoc(ref, {
+        college_code: collegeCode,
+        updated_at: new Date(),
+      });
+      result.repaired += 1;
+    } catch {
+      result.failed += 1;
+    }
+  }
+
+  return result;
+}
+
+/** Re-tag one thread when both participants match the viewer's current college. */
+async function repairSingleConversationCollegeTagIfAligned(
+  conversationId: string,
+  viewerId: string,
+): Promise<boolean> {
+  try {
+    const convRef = doc(db, "conversations", conversationId);
+    const snap = await getDoc(convRef);
+    if (!snap.exists()) return false;
+    const data = snap.data() as Record<string, unknown>;
+    const counselorId = String(data.counselorId ?? "");
+    const studentId = String(data.studentId ?? "");
+    if (!counselorId || !studentId) return false;
+    if (viewerId !== counselorId && viewerId !== studentId) return false;
+
+    const collegeMap = await fetchUserCollegeMap([
+      viewerId,
+      counselorId,
+      studentId,
+    ]);
+    const viewerCollege = collegeMap[viewerId] ?? "";
+    if (!viewerCollege || !isCollegeCode(viewerCollege)) return false;
+    if (
+      collegeMap[counselorId] !== viewerCollege ||
+      collegeMap[studentId] !== viewerCollege
+    ) {
+      return false;
+    }
+    const tag = conversationCollegeTag(data);
+    if (tag === viewerCollege) return false;
+
+    await updateDoc(convRef, {
+      college_code: viewerCollege,
+      updated_at: new Date(),
+    });
+    return true;
+  } catch (e) {
+    console.warn("[conversations] tag repair skipped:", e);
+    return false;
+  }
+}
+
 /** Before college shift: stamp legacy sessions so they stay tied to the previous college. */
 async function stampParticipantSessionsWithCollege(
   uid: string,
@@ -302,6 +449,24 @@ async function resolveUserActiveCollegeCode(
 function normalizeDetectionMethod(raw: unknown): "manual" | "selfie_ai" {
   if (raw === "selfie_ai" || raw === "ai") return "selfie_ai";
   return "manual";
+}
+
+function isGenericConversationName(value: unknown, fallback: string): boolean {
+  if (value == null) return true;
+  const s = String(value).trim();
+  if (!s) return true;
+  return s.toLowerCase() === fallback.toLowerCase();
+}
+
+function resolveUserDisplayNameFromProfile(
+  raw: Record<string, unknown> | undefined,
+): string {
+  if (!raw) return "";
+  const preferred = String(raw.preferred_name ?? "").trim();
+  if (preferred) return preferred;
+  const full = String(raw.full_name ?? raw.fullName ?? "").trim();
+  if (full) return full;
+  return "";
 }
 
 export interface MoodData {
@@ -1185,6 +1350,7 @@ export const firestoreService = {
         college_shift_pending: false,
         updated_at: new Date(),
       });
+      await reactivateConversationsForUserCollege(uid, nextCode);
       return;
     }
     await updateDoc(doc(db, "users", uid), {
@@ -1193,6 +1359,7 @@ export const firestoreService = {
       college_shift_pending: false,
       updated_at: new Date(),
     });
+    await reactivateConversationsForUserCollege(uid, nextCode);
   },
 
   async adminRejectCollegeShift(uid: string): Promise<void> {
@@ -1201,6 +1368,55 @@ export const firestoreService = {
       college_shift_pending: false,
       updated_at: new Date(),
     });
+  },
+
+  /** Lookup a student or counselor by email (admin tooling). */
+  async findUserByEmailForAdmin(
+    email: string,
+  ): Promise<(Record<string, unknown> & { id: string }) | null> {
+    const trimmed = email.trim();
+    if (!trimmed) return null;
+    const candidates = [trimmed.toLowerCase(), trimmed];
+    const seen = new Set<string>();
+    for (const candidate of candidates) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      try {
+        const snap = await getDocs(
+          query(
+            collection(db, "users"),
+            where("email", "==", candidate),
+            limit(1),
+          ),
+        );
+        if (snap.empty) continue;
+        const docSnap = snap.docs[0];
+        return { id: docSnap.id, ...(docSnap.data() as Record<string, unknown>) };
+      } catch {
+        // try next casing
+      }
+    }
+    return null;
+  },
+
+  /**
+   * Admin-only: re-tag conversations where both participants are in the user's
+   * current college so active inbox / past-college classification is correct.
+   */
+  async adminRepairConversationCollegeTags(
+    uid: string,
+  ): Promise<ConversationCollegeRepairResult> {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (!snap.exists()) throw new Error("User not found.");
+    const college = resolveCollegeCodeFromUserData(
+      (snap.data() ?? {}) as Record<string, unknown>,
+    );
+    if (!college || !isCollegeCode(college)) {
+      throw new Error(
+        "User has no college on their profile. Set or approve a college first.",
+      );
+    }
+    return reactivateConversationsForUserCollege(uid, college);
   },
 
   async markNotificationAsRead(notificationId: string) {
@@ -1301,14 +1517,28 @@ export const firestoreService = {
         counselorId,
         studentData.id,
       );
+      let existingTag = "";
+      try {
+        const existing = await getDoc(convRef);
+        if (existing.exists()) {
+          existingTag = conversationCollegeTag(
+            (existing.data() ?? {}) as Record<string, unknown>,
+          );
+        }
+      } catch {
+        // Proceed with create/update; rules may block read on missing docs.
+      }
       const profileFields: Record<string, unknown> = {
         counselorId,
         studentId: studentData.id,
         student_name: studentData.name,
         student_avatar: studentData.avatar,
         student_program: studentData.program ?? "",
-        ...(collegeCode ? { college_code: collegeCode } : {}),
       };
+      // Never overwrite an existing college tag — it pins the thread to that era.
+      if (collegeCode && !existingTag) {
+        profileFields.college_code = collegeCode;
+      }
       if (counselorData) {
         profileFields.counselor_name = counselorData.name;
         profileFields.counselor_avatar = counselorData.avatar ?? "";
@@ -1378,6 +1608,42 @@ export const firestoreService = {
     if (isPastCollegeThread(classify)) {
       throw new Error(MESSAGING_CLOSED_ERROR);
     }
+  },
+
+  async getConversationMessagingState(
+    conversationId: string,
+    viewerId: string,
+  ): Promise<{ isPastCollege: boolean; messagingClosed: boolean }> {
+    const convSnap = await getDoc(doc(db, "conversations", conversationId));
+    if (!convSnap.exists()) {
+      return { isPastCollege: true, messagingClosed: true };
+    }
+    const data = (convSnap.data() ?? {}) as Record<string, unknown>;
+    const counselorId = String(data.counselorId ?? "");
+    const studentId = String(data.studentId ?? "");
+    const collegeMap = await fetchUserCollegeMap([
+      viewerId,
+      counselorId,
+      studentId,
+    ]);
+    const classify = conversationInboxClassifyInput(
+      data,
+      collegeMap[viewerId] ?? "",
+      collegeMap,
+    );
+    const past = isPastCollegeThread(classify);
+    return { isPastCollege: past, messagingClosed: past };
+  },
+
+  /**
+   * When profiles align on a college but the conversation tag is stale (common after
+   * transfer return), participants can fix the tag without admin.
+   */
+  async repairConversationCollegeTagIfAligned(
+    conversationId: string,
+    viewerId: string,
+  ): Promise<boolean> {
+    return repairSingleConversationCollegeTagIfAligned(conversationId, viewerId);
   },
 
   async assertConversationMessagingOpen(
@@ -1495,6 +1761,7 @@ export const firestoreService = {
       const results = await Promise.all(
         scopedDocs.map(async (d) => {
           const data = d.data();
+          const convRef = doc(db, "conversations", d.id);
           const isArchived = archivedIds.has(d.id);
           const classify = conversationInboxClassifyInput(
             data as Record<string, unknown>,
@@ -1503,27 +1770,48 @@ export const firestoreService = {
           );
           const messagingClosed = isPastCollegeThread(classify);
           let avatar = data.student_avatar ?? "";
-          if ((!avatar || isPlaceholderAvatar(avatar)) && data.studentId) {
+          let name = String(data.student_name ?? "").trim();
+          const needsStudentAvatarRepair =
+            !avatar || isPlaceholderAvatar(String(avatar));
+          const needsStudentNameRepair = isGenericConversationName(
+            data.student_name,
+            "Student",
+          );
+          if ((needsStudentAvatarRepair || needsStudentNameRepair) && data.studentId) {
             try {
               const userDoc = await getDoc(doc(db, "users", data.studentId));
-              const userAvatar = userDoc.data()?.avatar_url ?? "";
-              if (userAvatar && !isPlaceholderAvatar(userAvatar)) {
+              const userData = userDoc.data() as Record<string, unknown> | undefined;
+              const userAvatar = String(userData?.avatar_url ?? "");
+              const userDisplayName = resolveUserDisplayNameFromProfile(userData);
+              if (needsStudentAvatarRepair && userAvatar && !isPlaceholderAvatar(userAvatar)) {
                 avatar = userAvatar;
                 if (isPlaceholderAvatar(data.student_avatar ?? "")) {
-                  updateDoc(doc(db, "conversations", d.id), {
+                  updateDoc(convRef, {
                     student_avatar: userAvatar,
                   }).catch(() => {});
                 }
+              }
+              if (
+                userDisplayName &&
+                needsStudentNameRepair
+              ) {
+                name = userDisplayName;
+                updateDoc(convRef, {
+                  student_name: userDisplayName,
+                }).catch(() => {});
               }
             } catch {
               /* keep existing */
             }
           }
+          if (isGenericConversationName(name, "Student")) {
+            name = "Student";
+          }
           if (isPlaceholderAvatar(avatar)) avatar = "";
           return {
             id: data.studentId,
             conversationId: d.id,
-            name: data.student_name,
+            name,
             preview: sanitizeConversationPreview(data.lastMessage),
             time: data.lastMessageAt?.toDate
               ? formatMessageTime(data.lastMessageAt.toDate())
@@ -1597,6 +1885,7 @@ export const firestoreService = {
       const results = await Promise.all(
         scopedDocs.map(async (d) => {
           const data = d.data();
+          const convRef = doc(db, "conversations", d.id);
           const classify = conversationInboxClassifyInput(
             data as Record<string, unknown>,
             activeCollege,
@@ -1604,27 +1893,52 @@ export const firestoreService = {
           );
           const messagingClosed = isPastCollegeThread(classify);
           let avatar = data.counselor_avatar ?? "";
-          if ((!avatar || isPlaceholderAvatar(avatar)) && data.counselorId) {
+          let name = String(data.counselor_name ?? "").trim();
+          const needsCounselorAvatarRepair =
+            !avatar || isPlaceholderAvatar(String(avatar));
+          const needsCounselorNameRepair = isGenericConversationName(
+            data.counselor_name,
+            "Counselor",
+          );
+          if ((needsCounselorAvatarRepair || needsCounselorNameRepair) && data.counselorId) {
             try {
               const userDoc = await getDoc(doc(db, "users", data.counselorId));
-              const userAvatar = userDoc.data()?.avatar_url ?? "";
-              if (userAvatar && !isPlaceholderAvatar(userAvatar)) {
+              const userData = userDoc.data() as Record<string, unknown> | undefined;
+              const userAvatar = String(userData?.avatar_url ?? "");
+              const userDisplayName = resolveUserDisplayNameFromProfile(userData);
+              if (
+                needsCounselorAvatarRepair &&
+                userAvatar &&
+                !isPlaceholderAvatar(userAvatar)
+              ) {
                 avatar = userAvatar;
                 if (isPlaceholderAvatar(data.counselor_avatar ?? "")) {
-                  updateDoc(doc(db, "conversations", d.id), {
+                  updateDoc(convRef, {
                     counselor_avatar: userAvatar,
                   }).catch(() => {});
                 }
+              }
+              if (
+                userDisplayName &&
+                needsCounselorNameRepair
+              ) {
+                name = userDisplayName;
+                updateDoc(convRef, {
+                  counselor_name: userDisplayName,
+                }).catch(() => {});
               }
             } catch {
               /* keep existing */
             }
           }
+          if (isGenericConversationName(name, "Counselor")) {
+            name = "Counselor";
+          }
           if (isPlaceholderAvatar(avatar)) avatar = "";
           return {
             id: data.counselorId,
             conversationId: d.id,
-            name: data.counselor_name ?? "Counselor",
+            name,
             preview: sanitizeConversationPreview(data.lastMessage),
             time: data.lastMessageAt?.toDate
               ? formatMessageTime(data.lastMessageAt.toDate())
@@ -1741,6 +2055,7 @@ export const firestoreService = {
 
   /**
    * Real-time thread messages (student + counselor UIs).
+   * Also subscribes to linked `sessions/{id}` docs so status stays in sync without a new chat message.
    */
   subscribeConversationMessages(
     conversationId: string,
@@ -1754,23 +2069,80 @@ export const firestoreService = {
       conversationId,
       "messages",
     );
+    let messagesSnapshot: QuerySnapshot | null = null;
+    const sessionCache: Record<string, LinkedSessionSnapshot> = {};
+    const sessionUnsubs = new Map<string, () => void>();
     let generation = 0;
-    return onSnapshot(
+
+    const rebuild = () => {
+      if (!messagesSnapshot) return;
+      const g = ++generation;
+      buildChatMessagesFromQuerySnapshot(
+        messagesSnapshot,
+        userId,
+        sessionCache,
+      )
+        .then((msgs) => {
+          if (g === generation) onNext(msgs);
+        })
+        .catch((e) => {
+          if (g === generation) {
+            onError?.(e instanceof Error ? e : new Error(String(e)));
+          }
+        });
+    };
+
+    const syncSessionListeners = (sessionIds: string[]) => {
+      const idSet = new Set(sessionIds.filter(Boolean));
+      for (const [id, unsub] of sessionUnsubs) {
+        if (!idSet.has(id)) {
+          unsub();
+          sessionUnsubs.delete(id);
+          delete sessionCache[id];
+        }
+      }
+      for (const id of idSet) {
+        if (sessionUnsubs.has(id)) continue;
+        const unsub = onSnapshot(
+          doc(db, "sessions", id),
+          (snap) => {
+            if (snap.exists()) {
+              sessionCache[id] = linkedSessionFromFirestoreData(
+                snap.data() as Record<string, unknown>,
+              );
+            } else {
+              delete sessionCache[id];
+            }
+            rebuild();
+          },
+          (err) => {
+            const code =
+              err && typeof err === "object" && "code" in err
+                ? String((err as { code: unknown }).code)
+                : "";
+            if (code === "permission-denied") return;
+            onError?.(err instanceof Error ? err : new Error(String(err)));
+          },
+        );
+        sessionUnsubs.set(id, unsub);
+      }
+    };
+
+    const messagesUnsub = onSnapshot(
       messagesRef,
       (snapshot) => {
-        const g = ++generation;
-        buildChatMessagesFromQuerySnapshot(snapshot, userId)
-          .then((msgs) => {
-            if (g === generation) onNext(msgs);
-          })
-          .catch((e) => {
-            if (g === generation) {
-              onError?.(e instanceof Error ? e : new Error(String(e)));
-            }
-          });
+        messagesSnapshot = snapshot;
+        syncSessionListeners(collectLinkedSessionIdsFromSnapshot(snapshot));
+        rebuild();
       },
       (err) => onError?.(err instanceof Error ? err : new Error(String(err))),
     );
+
+    return () => {
+      messagesUnsub();
+      for (const unsub of sessionUnsubs.values()) unsub();
+      sessionUnsubs.clear();
+    };
   },
 
   async sendTextMessage(
@@ -2323,6 +2695,88 @@ export const firestoreService = {
     } catch(error: unknown) {
       console.error("❌ Error proposing slots:", error);
       throw error;
+    }
+  },
+
+  /**
+   * Counselor accepts a student session request — atomic session doc + chat card update.
+   */
+  async acceptStudentSessionRequest(
+    conversationId: string,
+    sessionId: string,
+    slot: { date: string; time: string },
+    counselorId: string,
+  ): Promise<void> {
+    await this.assertConversationMessagingOpen(conversationId, counselorId);
+    await this.assertSessionMessagingOpen(sessionId, counselorId);
+
+    const sessionRef = doc(db, "sessions", sessionId);
+    const sessionSnap = await getDoc(sessionRef);
+    if (!sessionSnap.exists()) {
+      throw new Error("Session not found.");
+    }
+    const session = sessionSnap.data() as Record<string, unknown>;
+
+    let collegePatch: Record<string, unknown> = {};
+    if (!conversationCollegeTag(session)) {
+      const studentId = String(session.studentId ?? "");
+      if (studentId) {
+        const collegeCode = await resolveConversationCollegeCode(
+          counselorId,
+          studentId,
+        );
+        if (collegeCode) {
+          collegePatch = { college_code: collegeCode };
+        }
+      }
+    }
+
+    const messagesRef = collection(
+      db,
+      "conversations",
+      conversationId,
+      "messages",
+    );
+    const messagesSnap = await getDocs(
+      query(messagesRef, orderBy("createdAt", "asc")),
+    );
+
+    const batch = writeBatch(db);
+    batch.update(sessionRef, {
+      finalSlot: slot,
+      confirmedSlot: slot,
+      status: "confirmed",
+      slotConfirmedAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      ...collegePatch,
+    });
+
+    messagesSnap.docs.forEach((d) => {
+      const data = d.data();
+      if (
+        data.type === "session_request" &&
+        (data.sessionId === sessionId ||
+          data.sessionData?.sessionId === sessionId)
+      ) {
+        const existingSessionData = data.sessionData ?? {};
+        batch.update(
+          doc(db, "conversations", conversationId, "messages", d.id),
+          {
+            sessionData: { ...existingSessionData, status: "confirmed" },
+          },
+        );
+      }
+    });
+
+    await batch.commit();
+
+    if (session.studentId) {
+      await createSessionNotification(
+        String(session.studentId),
+        `Your session has been scheduled for ${slot.date} at ${slot.time}.`,
+        "/(student)/messages",
+        `session:${sessionId}:confirmed_for_student`,
+      );
     }
   },
 
@@ -2882,6 +3336,7 @@ export const firestoreService = {
 async function buildChatMessagesFromQuerySnapshot(
   snapshot: QuerySnapshot,
   userId: string,
+  sessionCache?: Record<string, LinkedSessionSnapshot>,
 ) {
   const docsSorted = [...snapshot.docs].sort((a, b) => {
     const aMs = resolveMessageCreatedAtMillis(a.data() as Record<string, unknown>);
@@ -2971,125 +3426,45 @@ async function buildChatMessagesFromQuerySnapshot(
     ...new Set([...requestSessionIds, ...inviteSessionIds]),
   ];
 
-  const sessionStatusMap: Record<string, string> = {};
-  const sessionFinalSlotMap: Record<
-    string,
-    { date: string; time: string } | null
-  > = {};
-  const sessionHasProposedSlotsMap: Record<string, boolean> = {};
-  /** Present when `sessions/{id}` exists — used for student 24h open-invite expiry. */
-  const sessionDocTimestampsMap: Record<
-    string,
-    { createdAt?: unknown; updatedAt?: unknown }
-  > = {};
-  if (allSessionIds.length > 0) {
-    const sessionPromises = allSessionIds.map(async (id) => {
+  const mergedCache: Record<string, LinkedSessionSnapshot> = {
+    ...(sessionCache ?? {}),
+  };
+  const missingIds = allSessionIds.filter((id) => !mergedCache[id]);
+  if (missingIds.length > 0) {
+    const sessionPromises = missingIds.map(async (id) => {
       try {
         return await getDoc(doc(db, "sessions", id));
       } catch {
-        // Keep chat rendering even when one linked session is inaccessible.
         return null;
       }
     });
     const sessionSnaps = await Promise.all(sessionPromises);
     sessionSnaps.forEach((snap, i) => {
-      if (!snap) return;
-      const sid = allSessionIds[i];
+      if (!snap?.exists()) return;
       const s = snap.data();
       if (!s) return;
-      if (s?.status) sessionStatusMap[sid] = s.status;
-      sessionDocTimestampsMap[sid] = {
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-      };
-      const slots = s?.proposedSlots;
-      sessionHasProposedSlotsMap[sid] =
-        Array.isArray(slots) &&
-        slots.some(
-          (x: unknown) =>
-            x &&
-            typeof x === "object" &&
-            "date" in (x as object) &&
-            String((x as { date: unknown }).date).trim() !== "",
-        );
-      const fs = s?.finalSlot ?? s?.confirmedSlot;
-      if (fs && typeof fs === "object" && "date" in fs && "time" in fs) {
-        sessionFinalSlotMap[sid] = {
-          date: String(fs.date),
-          time: String(fs.time),
-        };
-      } else {
-        sessionFinalSlotMap[sid] = null;
-      }
+      mergedCache[missingIds[i]] = linkedSessionFromFirestoreData(
+        s as Record<string, unknown>,
+      );
     });
   }
 
-  return msgs.map((m) => {
-    if (m.type === "session_request" && m.sessionRequest.sessionId) {
-      const sessionStatus = sessionStatusMap[m.sessionRequest.sessionId];
-      const sid = m.sessionRequest.sessionId;
-      const hasProposed = sessionHasProposedSlotsMap[sid];
-      if (
-        sessionStatus &&
-        [
-          "requested",
-          "pending",
-          "confirmed",
-          "completed",
-          "missed",
-          "rescheduled",
-          "cancelled",
-          "needs_rescheduling",
-          "expired",
-        ].includes(sessionStatus)
-      ) {
-        return {
-          ...m,
-          sessionRequest: {
-            ...m.sessionRequest,
-            status: sessionStatus,
-            counselorOfferedSlots:
-              sessionStatus === "pending" && !!hasProposed,
-          },
-        };
-      }
-    }
-    if (m.type === "session") {
-      const sid = resolveSessionsDocIdForSessionCard(
-        m.session as Record<string, unknown>,
-      );
-      if (sid && (sessionStatusMap[sid] || sessionDocTimestampsMap[sid])) {
-        const fs = sessionFinalSlotMap[sid];
-        const ts = sessionDocTimestampsMap[sid];
-        const stFromDoc = sessionStatusMap[sid];
-        const stFromMsg = (m.session as Record<string, unknown>)?.sessionStatus;
-        const sessionStatus =
-          typeof stFromDoc === "string" && stFromDoc.trim()
-            ? stFromDoc.trim()
-            : typeof stFromMsg === "string" && stFromMsg.trim()
-              ? stFromMsg.trim()
-              : "pending";
-        return {
-          ...m,
-          session: {
-            ...m.session,
-            id: sid,
-            linkedSessionId: sid,
-            sessionId: sid,
-            sessionStatus,
-            ...(ts?.createdAt != null
-              ? { sessionDocCreatedAt: ts.createdAt }
-              : {}),
-            ...(ts?.updatedAt != null
-              ? { sessionDocUpdatedAt: ts.updatedAt }
-              : {}),
-            ...(fs ? { agreedSlot: fs } : {}),
-          },
-        };
-      }
-    }
-    return m;
-  });
+  const {
+    sessionStatusMap,
+    sessionFinalSlotMap,
+    sessionHasProposedSlotsMap,
+    sessionDocTimestampsMap,
+  } = buildSessionMapsFromLinkedCache(mergedCache);
+
+  return msgs.map((m) =>
+    applyLinkedSessionMapsToChatMessage(
+      m,
+      sessionStatusMap,
+      sessionFinalSlotMap,
+      sessionHasProposedSlotsMap,
+      sessionDocTimestampsMap,
+    ),
+  );
 }
 
 function resolveMessageCreatedAtDate(data: Record<string, unknown>): Date {

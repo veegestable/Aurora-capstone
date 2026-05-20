@@ -1,9 +1,7 @@
 import { AppText as Text } from "../../src/components/common/AppText";
 import { AppTextInput as TextInput } from "../../src/components/common/AppTextInput";
 /**
- * Session History - Counselor view of past/upcoming sessions
- * Shows accepted sessions with status badges (Completed, Missed, Cancelled, Pending).
- * Counselor can mark attendance when scheduled date/time is reached.
+ * Session History — Counselor list of sessions with timeline badges (upcoming, today, outcomes, reschedule).
  */
 
 import React, {
@@ -61,6 +59,10 @@ import {
   type InfoGuideContent,
 } from "../../src/components/common/InfoGuideModal";
 import { triggerHaptic } from "../../src/utils/haptics";
+import {
+  getSessionHistoryBadgePresentation,
+  sessionPresentationColors,
+} from "../../src/utils/sessionPresentation";
 
 function formatSlotForDisplay(
   slot: { date: string; time: string } | null | undefined,
@@ -179,19 +181,10 @@ function getEffectiveStatus(session: SessionHistoryItem): string {
   return session.status;
 }
 
-/** Pill labels come only from `computeSessionHistoryBadge` — never raw Firestore `status` (no "CONFIRMED"). */
+/** Badge row — labels from {@link getSessionHistoryBadgePresentation} (timeline, not raw Firestore status). */
 function SessionHistoryBadgePill({ badge }: { badge: SessionHistoryBadge }) {
-  const config: Record<SessionHistoryBadge, { label: string; color: string }> =
-    {
-      pending: { label: "PENDING", color: AURORA.blue },
-      today: { label: "TODAY", color: AURORA.green },
-      completed: { label: "COMPLETED", color: AURORA.green },
-      missed: { label: "MISSED", color: AURORA.red },
-      cancelled: { label: "CANCELLED", color: AURORA.textMuted },
-      expired: { label: "EXPIRED", color: AURORA.textMuted },
-      reschedule: { label: "RESCHEDULE", color: AURORA.orange },
-    };
-  const c = config[badge] ?? config.pending;
+  const p = getSessionHistoryBadgePresentation(badge);
+  const colors = sessionPresentationColors(p.variant);
   return (
     <View
       style={{
@@ -199,11 +192,11 @@ function SessionHistoryBadgePill({ badge }: { badge: SessionHistoryBadge }) {
         paddingVertical: 4,
         borderRadius: 8,
         borderWidth: 1.5,
-        borderColor: c.color,
+        borderColor: colors.text,
       }}
     >
-      <Text style={{ color: c.color, fontSize: 10, fontWeight: "700" }}>
-        {c.label}
+      <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+        {p.counselorPillUpper}
       </Text>
     </View>
   );
@@ -538,7 +531,7 @@ export default function SessionHistoryScreen() {
                 triggerHaptic("light");
                 setSessionHistoryGuide({
                   title: "Session History",
-                  body: "This is your record of counseling sessions with students: agreed times, statuses (today, pending, completed, missed, reschedule, and more), and notes you have saved.\n\nTap a row to open details or mark attendance after the scheduled time has passed. Use search and the program chips to filter. For invites and live scheduling threads, use Messages or the Sessions sheet on Home.",
+                  body: "This list shows counseling sessions tied to agreed or proposed times. Each row has a badge that describes where things stand:\n\n• UPCOMING — confirmed time on a later date.\n• TODAY — scheduled for today.\n• COMPLETED / DID NOT ATTEND / CANCELLED — how the appointment ended.\n• RESCHEDULE NEEDED — time passed recently; arrange a new time or mark attendance.\n• EXPIRED — far past scheduled time — follow-up was overdue.\n\nTap a row for details or to mark attendance after the scheduled time has passed.",
                 });
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -1028,11 +1021,11 @@ function SessionHistoryCard({
                   marginBottom: 8,
                 }}
               >
-                <AlertTriangle size={16} color={AURORA.red} />
+                <AlertTriangle size={16} color={AURORA.orange} />
                 <Text
-                  style={{ color: AURORA.red, fontSize: 13, fontWeight: "600" }}
+                  style={{ color: AURORA.orange, fontSize: 13, fontWeight: "600" }}
                 >
-                  Student did not show up
+                  Student did not attend
                 </Text>
               </View>
               <View

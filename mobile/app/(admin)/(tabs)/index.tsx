@@ -14,6 +14,7 @@ import {
   Megaphone,
   FileText,
   School,
+  MessageSquare,
 } from "lucide-react-native";
 import { useAuth } from "../../../src/stores/AuthContext";
 import { AURORA } from "../../../src/constants/aurora-colors";
@@ -190,6 +191,13 @@ export default function AdminDashboardScreen() {
           icon={<School size={24} color={AURORA.purple} />}
           iconContainerStyle={{ backgroundColor: "transparent" }}
           onPress={() => router.push("/(admin)/college-shifts")}
+        />
+        <AdminQuickActionRow
+          title="Repair message tags"
+          description="Fix inbox vs past-college after a student returns to a college"
+          icon={<MessageSquare size={24} color={AURORA.blue} />}
+          iconContainerStyle={{ backgroundColor: "transparent" }}
+          onPress={() => router.push("/(admin)/messaging-repair")}
         />
         <AdminQuickActionRow
           title="Announcements"

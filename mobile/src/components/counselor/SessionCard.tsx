@@ -10,26 +10,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Calendar, MapPin, X, FileText, Clock, User } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { isSessionScheduledTimeReached } from '../../utils/dateHelpers';
-
-/** Same pill pattern as `SessionRequestDetailsModal` (student). */
-function modalSessionStatusPill(internalLabel: string): { label: string; bg: string; text: string } {
-    switch (internalLabel) {
-        case 'ACCEPTED':
-            return { label: 'Accepted', bg: 'rgba(34,197,94,0.2)', text: AURORA.green };
-        case 'COMPLETED':
-            return { label: 'Completed', bg: 'rgba(59,130,246,0.2)', text: AURORA.blueLight };
-        case 'MISSED':
-            return { label: 'Missed', bg: 'rgba(249,115,22,0.2)', text: AURORA.orange };
-        case 'CANCELLED':
-            return { label: 'Cancelled', bg: 'rgba(239,68,68,0.2)', text: AURORA.red };
-        default:
-            return {
-                label: 'Awaiting student',
-                bg: 'rgba(254,189,3,0.2)',
-                text: AURORA.amber,
-            };
-    }
-}
+import {
+    formatCounselorSessionPillLabel,
+    getSessionPresentation,
+    sessionPresentationColors,
+} from '../../utils/sessionPresentation';
 
 export interface SessionCardData {
     id: string;
@@ -69,30 +54,34 @@ export default function SessionCard({ data, isFromMe: _isFromMe, onViewDetails, 
     const legacyConfirmed = data.type === 'confirmed';
     const hasAgreedTime = !!(data.agreedSlot?.date && data.agreedSlot?.time);
 
-    const statusLabel = (() => {
-        if (st === 'confirmed' || legacyConfirmed || hasAgreedTime) return 'ACCEPTED';
-        if (st === 'completed') return 'COMPLETED';
-        if (st === 'missed') return 'MISSED';
-        if (st === 'cancelled') return 'CANCELLED';
-        return 'SESSION INVITE';
+    const resolvedStatus = (() => {
+        if (st === 'completed' || st === 'missed' || st === 'cancelled') return st;
+        if (st === 'confirmed' || legacyConfirmed || hasAgreedTime) return 'confirmed';
+        return st ?? 'pending';
     })();
+
+    const presentation = getSessionPresentation({
+        status: resolvedStatus,
+        role: 'counselor',
+    });
+    const pillColors = sessionPresentationColors(presentation.variant);
 
     const displayDate = data.agreedSlot?.date ?? data.date;
     const displayTime = data.agreedSlot?.time ?? data.time;
     const scheduledTimeReached = isSessionScheduledTimeReached({ date: displayDate, time: displayTime });
 
+    const isScheduled = resolvedStatus === 'confirmed';
+    const isInviteOpen = !['completed', 'missed', 'cancelled', 'confirmed'].includes(
+        resolvedStatus,
+    );
+
     const showReschedule =
         !!onReschedule &&
-        (statusLabel === 'SESSION INVITE' || (statusLabel === 'ACCEPTED' && scheduledTimeReached));
+        (isInviteOpen || (isScheduled && scheduledTimeReached));
 
-    const statusHint = (() => {
-        if (statusLabel === 'ACCEPTED') return { text: 'Student confirmed this session time', color: AURORA.green };
-        if (statusLabel === 'SESSION INVITE') return { text: 'Awaiting student confirmation', color: AURORA.textSec };
-        if (statusLabel === 'COMPLETED') return { text: 'Session completed', color: AURORA.green };
-        if (statusLabel === 'MISSED') return { text: 'Student did not show up', color: AURORA.orange };
-        if (statusLabel === 'CANCELLED') return { text: 'Session cancelled', color: AURORA.textMuted };
-        return null;
-    })();
+    const statusHint = presentation.subtitle
+        ? { text: presentation.subtitle, color: pillColors.text }
+        : null;
 
     const openDetails = () => {
         setDetailOpen(true);
@@ -110,7 +99,11 @@ export default function SessionCard({ data, isFromMe: _isFromMe, onViewDetails, 
     //     onMarkAttendance?.();
     // };
 
-    const statusPill = modalSessionStatusPill(statusLabel);
+    const statusPill = {
+        label: formatCounselorSessionPillLabel(presentation.pillLabel),
+        bg: pillColors.bg,
+        text: pillColors.text,
+    };
     const dateTimeLine = `${displayDate} at ${displayTime}`;
 
     return (
@@ -122,7 +115,7 @@ export default function SessionCard({ data, isFromMe: _isFromMe, onViewDetails, 
                 style={styles.gradient}
             >
                 <View style={styles.statusRow}>
-                    <Text style={styles.statusLabel}>{statusLabel}</Text>
+                    <Text style={styles.statusLabel}>{statusPill.label}</Text>
                     <Calendar size={14} color="rgba(255,255,255,0.9)" />
                 </View>
                 <Text style={styles.title}>{data.title}</Text>

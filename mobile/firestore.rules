@@ -304,8 +304,23 @@ service cloud.firestore {
         );
     }
 
+    /** Participant may re-tag when both are back in the viewer's college (e.g. after transfer return). */
+    function conversationCollegeTagRepairAllowed() {
+      let viewer = docCollegeCode(userDoc(request.auth.uid).data);
+      let conv = resource.data;
+      let nextTag = request.resource.data.college_code;
+      return viewer.size() > 0 &&
+        nextTag is string &&
+        validCollegeCode(nextTag) &&
+        nextTag == viewer &&
+        docCollegeCode(userDocData(conv.counselorId)) == viewer &&
+        docCollegeCode(userDocData(conv.studentId)) == viewer;
+    }
+
     function conversationCollegeCodeUnchanged() {
-      return !resource.data.keys().hasAny(['college_code']) ||
+      return isAdmin() ||
+        conversationCollegeTagRepairAllowed() ||
+        !resource.data.keys().hasAny(['college_code']) ||
         !request.resource.data.keys().hasAny(['college_code']) ||
         request.resource.data.college_code == resource.data.college_code;
     }

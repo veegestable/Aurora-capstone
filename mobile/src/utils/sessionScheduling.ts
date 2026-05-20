@@ -8,7 +8,8 @@ import {
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Counselor session history pill — stored on `sessions.sessionHistoryBadge` and recomputed on load.
+ * Counselor session history badge key — stored on `sessions.sessionHistoryBadge` and recomputed on load.
+ * Display labels/copy: use `getSessionHistoryBadgePresentation()` in `sessionPresentation.ts`.
  * - pending: upcoming, on a future calendar day
  * - today: upcoming, scheduled later today
  * - reschedule: overdue ≤24h (still time to act)

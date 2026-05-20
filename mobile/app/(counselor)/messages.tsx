@@ -278,14 +278,17 @@ function ConversationRow({
 function ChatView({
   contact,
   onBack,
+  onThreadRepaired,
 }: {
   contact: Conversation;
   onBack: () => void;
+  onThreadRepaired?: () => void;
 }) {
   const { user } = useAuth();
   const peerOnline = usePeerPresence(contact.id);
-  const readOnly =
-    contact.messagingClosed === true || contact.isPastCollege === true;
+  const [readOnly, setReadOnly] = useState(
+    contact.messagingClosed === true || contact.isPastCollege === true,
+  );
   const conversationId =
     contact.conversationId || (user?.id ? `${user.id}_${contact.id}` : "");
   const [message, setMessage] = useState("");
@@ -345,6 +348,40 @@ function ChatView({
     setMessage("");
     pendingScrollToEndRef.current = true;
   }, [conversationId]);
+
+  useEffect(() => {
+    setReadOnly(
+      contact.messagingClosed === true || contact.isPastCollege === true,
+    );
+  }, [contact.messagingClosed, contact.isPastCollege, conversationId]);
+
+  useEffect(() => {
+    if (!conversationId || !user?.id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const repaired =
+          await firestoreService.repairConversationCollegeTagIfAligned(
+            conversationId,
+            user.id,
+          );
+        const state = await firestoreService.getConversationMessagingState(
+          conversationId,
+          user.id,
+        );
+        if (cancelled) return;
+        setReadOnly(state.messagingClosed);
+        if (repaired || !state.messagingClosed) {
+          onThreadRepaired?.();
+        }
+      } catch {
+        // Keep list-derived read-only default.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, user?.id, onThreadRepaired]);
 
   useEffect(() => {
     if (!conversationId || !user?.id) {
@@ -516,20 +553,28 @@ function ChatView({
     setSending(true);
     try {
       const slot = parsePreferredTimeToSlot(preferredTime);
-      await firestoreService.confirmSlot(sessionId, slot, user.id);
-      await firestoreService.updateSessionRequestMessageStatus(
+      await firestoreService.acceptStudentSessionRequest(
         conversationId,
         sessionId,
-        "confirmed",
+        slot,
         user.id,
       );
       await firestoreService.sendTextMessage(
         conversationId,
         user.id,
-        `${AUTO_ACCEPTED_PREFIX}Just accepted your request`,
+        `${AUTO_ACCEPTED_PREFIX}Your session is scheduled for ${slot.date} at ${slot.time}.`,
       );
     } catch (e) {
       console.error("Failed to accept session request:", e);
+      setFeedback(
+        buildFeedback(
+          "Could not accept request",
+          e instanceof Error
+            ? e.message
+            : "Something went wrong. Please try again.",
+          "error",
+        ),
+      );
     } finally {
       setSending(false);
     }
@@ -1395,7 +1440,7 @@ function ChatView({
                   paddingHorizontal: 16,
                 }}
               >
-                Messages are encrypted and shared only with this student.
+                {/* Messages are encrypted and shared only with this student. */}
               </Text>
             </>
           )}
@@ -1749,11 +1794,14 @@ export default function CounselorMessagesScreen() {
     return (
       <ChatView
         contact={selectedContact}
+        onThreadRepaired={refreshConversations}
         onBack={() => {
           setSelectedContact(null);
           refreshConversations();
           setAutoOpenLocked(true);
-          router.replace("/(counselor)/messages");
+          if (studentId) {
+            router.setParams({ studentId: undefined });
+          }
         }}
       />
     );

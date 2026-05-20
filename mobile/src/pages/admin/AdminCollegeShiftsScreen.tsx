@@ -141,7 +141,36 @@ export default function AdminCollegeShiftsScreen() {
               <Text style={{ color: AURORA.textMuted, fontSize: 14 }}>
                 No pending college change requests.
               </Text>
-            ) : (
+            ) : null}
+            <TouchableOpacity
+              onPress={() => router.push("/(admin)/messaging-repair")}
+              style={{
+                marginTop: rows.length === 0 ? 0 : 20,
+                marginBottom: rows.length === 0 ? 0 : 8,
+                paddingVertical: 14,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "rgba(59,130,246,0.4)",
+                backgroundColor: "rgba(59,130,246,0.12)",
+              }}
+            >
+              <Text style={{ color: "#93C5FD", fontWeight: "700", fontSize: 14 }}>
+                Repair message college tags
+              </Text>
+              <Text
+                style={{
+                  color: AURORA.textSec,
+                  fontSize: 12,
+                  lineHeight: 18,
+                  marginTop: 6,
+                }}
+              >
+                If someone already transferred back but chats stay read-only in
+                Past college, run a one-time tag repair by email.
+              </Text>
+            </TouchableOpacity>
+            {rows.length > 0 ? (
               rows.map((r) => {
                 const req = r.college_shift_request as
                   | {
@@ -256,7 +285,7 @@ export default function AdminCollegeShiftsScreen() {
                   </View>
                 );
               })
-            )}
+            ) : null}
           </ScrollView>
         )}
       </SafeAreaView>
