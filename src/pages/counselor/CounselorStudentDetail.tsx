@@ -9,7 +9,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import { counselorCheckInContextService } from '../../services/counselor-checkin-context'
 import { sessionsService } from '../../services/sessions'
+import { getStudentCounselingOutcomeCountsTrusted } from '../../services/trusted-backend.service'
+import type { StudentCounselingOutcomeCounts } from '../../services/trusted-backend.service'
 import { LetterAvatar } from '../../components/LetterAvatar'
+import { StudentCounselingHistorySummary } from '../../components/counselor/StudentCounselingHistorySummary'
 import { JournalCalendar } from '../../components/journal/JournalCalendar'
 import { CounselorLast7MoodBars } from '../../components/counselor/CounselorLast7MoodBars'
 import { formatCounselorStudentSubtitle } from '../../constants/student/programs'
@@ -55,7 +58,13 @@ export default function CounselorStudentDetail() {
   const [studentLoading, setStudentLoading] = useState(true)
   const [contextLoading, setContextLoading] = useState(true)
   const [journalAccessGranted, setJournalAccessGranted] = useState(false)
-  const [outcomeCounts, setOutcomeCounts] = useState({ completed: 0, missed: 0 })
+  const [counselingCounts, setCounselingCounts] =
+    useState<StudentCounselingOutcomeCounts | null>(null)
+  const [counselingCountsLoading, setCounselingCountsLoading] = useState(true)
+  const [withStudentOutcomeCounts, setWithStudentOutcomeCounts] = useState({
+    completed: 0,
+    missed: 0,
+  })
   const [inviteBusy, setInviteBusy] = useState(false)
   const [showAccessHint, setShowAccessHint] = useState(false)
 
@@ -97,17 +106,45 @@ export default function CounselorStudentDetail() {
         if (ctx.journalAccessGranted) {
           const counts = await sessionsService
             .getSessionOutcomeCountsForCounselorStudent(user.id, id)
-          if (!cancelled) setOutcomeCounts(counts)
-        } else {
-          setOutcomeCounts({ completed: 0, missed: 0 })
+          if (!cancelled) setWithStudentOutcomeCounts(counts)
+        } else if (!cancelled) {
+          setWithStudentOutcomeCounts({ completed: 0, missed: 0 })
         }
       } catch {
         if (!cancelled) {
           setJournalAccessGranted(false)
-          setOutcomeCounts({ completed: 0, missed: 0 })
+          setWithStudentOutcomeCounts({ completed: 0, missed: 0 })
         }
       } finally {
         if (!cancelled) setContextLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [id, user?.id])
+
+  useEffect(() => {
+    if (!id || !user?.id) {
+      setCounselingCountsLoading(false)
+      setCounselingCounts(null)
+      return
+    }
+    let cancelled = false
+    setCounselingCountsLoading(true)
+    ;(async () => {
+      try {
+        const counts = await getStudentCounselingOutcomeCountsTrusted(id)
+        if (!cancelled) setCounselingCounts(counts)
+      } catch {
+        if (!cancelled) {
+          setCounselingCounts({
+            completed: 0,
+            missed: 0,
+            withYouCompleted: 0,
+            withYouMissed: 0,
+          })
+        }
+      } finally {
+        if (!cancelled) setCounselingCountsLoading(false)
       }
     })()
     return () => { cancelled = true }
@@ -191,6 +228,11 @@ export default function CounselorStudentDetail() {
             </div>
           </div>
 
+          <StudentCounselingHistorySummary
+            counts={counselingCounts}
+            loading={counselingCountsLoading}
+          />
+
           {/* Invite to Session */}
           <button
             type="button"
@@ -228,12 +270,12 @@ export default function CounselorStudentDetail() {
               <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-aurora-border">
                 <OutcomeTile
                   label="Completed Sessions"
-                  value={outcomeCounts.completed}
-                  caption="Marked completed in Session History"
+                  value={withStudentOutcomeCounts.completed}
+                  caption="Your sessions with this student"
                 />
                 <OutcomeTile
                   label="Missed Sessions"
-                  value={outcomeCounts.missed}
+                  value={withStudentOutcomeCounts.missed}
                   caption="No-show or marked missed"
                 />
               </div>

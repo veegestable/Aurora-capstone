@@ -10,7 +10,7 @@ const COLLEGE_CODES = new Set([
   'CHS',
 ]);
 
-function resolveCollegeFromUserData(
+export function resolveCollegeFromUserData(
   data: Record<string, unknown> | undefined,
 ): string {
   if (!data) return '';

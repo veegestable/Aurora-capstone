@@ -24,6 +24,11 @@ import { LetterAvatar } from "../../components/common/LetterAvatar";
 import { formatCounselorStudentSubtitle } from "../../constants/ccs-student-programs";
 import { fetchStudentCounselorDetailedContext } from "../../services/counselor-checkin-context.service";
 import { firestoreService } from "../../services/firebase-firestore.service";
+import {
+  getStudentCounselingOutcomeCountsTrustedCallable,
+  type StudentCounselingOutcomeCounts,
+} from "../../services/trusted-backend.service";
+import { StudentCounselingHistorySummary } from "../../components/counselor/StudentCounselingHistorySummary";
 import { useAuth } from "../../stores/AuthContext";
 import { CounselorStudentJournalCalendar } from "../../components/counselor/CounselorStudentJournalCalendar";
 import { CounselorStudentLast7Charts } from "../../components/counselor/CounselorStudentLast7Charts";
@@ -60,10 +65,13 @@ export default function CounselorStudentDetailScreen() {
     ReturnType<typeof fetchStudentCounselorDetailedContext>
   >["logs"]>([]);
   const [inviteBusy, setInviteBusy] = useState(false);
-  const [sessionOutcomeCounts, setSessionOutcomeCounts] = useState<{
-    completed: number;
-    missed: number;
-  }>({ completed: 0, missed: 0 });
+  const [counselingHistoryCounts, setCounselingHistoryCounts] =
+    useState<StudentCounselingOutcomeCounts | null>(null);
+  const [counselingHistoryLoading, setCounselingHistoryLoading] = useState(true);
+  const [withStudentOutcomeCounts, setWithStudentOutcomeCounts] = useState({
+    completed: 0,
+    missed: 0,
+  });
   const [activeGuide, setActiveGuide] = useState<InfoGuideContent | null>(null);
 
   useEffect(() => {
@@ -99,7 +107,6 @@ export default function CounselorStudentDetailScreen() {
     if (!id || !counselorId) {
       setLoadingCtx(false);
       setLogs([]);
-      setSessionOutcomeCounts({ completed: 0, missed: 0 });
       return;
     }
     setLoadingCtx(true);
@@ -114,14 +121,14 @@ export default function CounselorStudentDetailScreen() {
             id,
             { activeCollegeCode: user?.college_code },
           );
-        setSessionOutcomeCounts(counts);
+        setWithStudentOutcomeCounts(counts);
       } else {
-        setSessionOutcomeCounts({ completed: 0, missed: 0 });
+        setWithStudentOutcomeCounts({ completed: 0, missed: 0 });
       }
     } catch {
       setJournalAccessGranted(false);
       setLogs([]);
-      setSessionOutcomeCounts({ completed: 0, missed: 0 });
+      setWithStudentOutcomeCounts({ completed: 0, missed: 0 });
     } finally {
       setLoadingCtx(false);
     }
@@ -130,6 +137,36 @@ export default function CounselorStudentDetailScreen() {
   useEffect(() => {
     void reloadContext();
   }, [reloadContext]);
+
+  useEffect(() => {
+    if (!id || !counselorId) {
+      setCounselingHistoryLoading(false);
+      setCounselingHistoryCounts(null);
+      return;
+    }
+    let cancelled = false;
+    setCounselingHistoryLoading(true);
+    void (async () => {
+      try {
+        const counts = await getStudentCounselingOutcomeCountsTrustedCallable(id);
+        if (!cancelled) setCounselingHistoryCounts(counts);
+      } catch {
+        if (!cancelled) {
+          setCounselingHistoryCounts({
+            completed: 0,
+            missed: 0,
+            withYouCompleted: 0,
+            withYouMissed: 0,
+          });
+        }
+      } finally {
+        if (!cancelled) setCounselingHistoryLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, counselorId]);
 
   const programLine =
     formatCounselorStudentSubtitle({
@@ -302,11 +339,9 @@ export default function CounselorStudentDetailScreen() {
               fontWeight: "900",
             }}
           >
-            {sessionOutcomeCounts.completed}
+            {withStudentOutcomeCounts.completed}
           </Text>
-          <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 4 }}>
-            Marked completed
-          </Text>
+         
         </View>
         <View style={{ flex: 1 }}>
           <Text
@@ -327,11 +362,9 @@ export default function CounselorStudentDetailScreen() {
               fontWeight: "900",
             }}
           >
-            {sessionOutcomeCounts.missed}
+            {withStudentOutcomeCounts.missed}
           </Text>
-          <Text style={{ color: AURORA.textSec, fontSize: 11, marginTop: 4 }}>
-            No-show or marked missed
-          </Text>
+         
         </View>
       </View>
     </View>
@@ -517,11 +550,18 @@ export default function CounselorStudentDetailScreen() {
               )}
             </TouchableOpacity>
 
+            <View style={{ marginTop: 14 }}>
+              <StudentCounselingHistorySummary
+                counts={counselingHistoryCounts}
+                loading={counselingHistoryLoading}
+              />
+            </View>
+
             <Text
               style={{
                 color: AURORA.textMuted,
                 fontSize: 12,
-                marginTop: 20,
+                marginTop: 16,
                 marginBottom: 12,
                 lineHeight: 18,
               }}

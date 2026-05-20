@@ -78,6 +78,7 @@ import {
   getEmotionColor,
   getEmotionLabel,
 } from "../utils/moodColors";
+import { getMoodIconSource } from "../utils/moodIconAssets";
 import {
   stressCategoryFromFive,
   energyCategoryFromFive,
@@ -251,21 +252,8 @@ function normalizeEmotionBucket(
   return "";
 }
 
-const MOOD_ICON_SOURCES: Record<
-  "happy" | "sad" | "angry" | "surprise" | "neutral",
-  ImageSourcePropType
-> = {
-  happy: require("../assets/moodIcon/happy.png"),
-  sad: require("../assets/moodIcon/sad.png"),
-  angry: require("../assets/moodIcon/angry.png"),
-  surprise: require("../assets/moodIcon/surprise.png"),
-  neutral: require("../assets/moodIcon/neutral.png"),
-};
-
-function moodIconForLabel(raw: string): ImageSourcePropType | null {
-  const bucket = normalizeEmotionBucket(raw);
-  if (!bucket) return null;
-  return MOOD_ICON_SOURCES[bucket];
+function moodIconForLabel(raw: string): ImageSourcePropType {
+  return getMoodIconSource(raw);
 }
 
 const EMOTION_BUCKET_TO_CANONICAL_MOOD: Record<
@@ -374,7 +362,7 @@ function dominantMoodDisplayFromLogs(
   if (!top) return { label: "Not enough data", icon: null };
   return {
     label: top.label,
-    icon: moodIconForLabel(top.mood),
+    icon: moodIconForLabel(top.label || top.mood),
   };
 }
 
@@ -2034,23 +2022,15 @@ export default function Analytics() {
                             marginTop: 8,
                           }}
                         >
-                          {todayDominantMoodDisplay.icon ? (
-                            <Image
-                              source={todayDominantMoodDisplay.icon}
-                              style={{ width: 32, height: 32 }}
-                              resizeMode="contain"
-                              accessibilityLabel={todayDominantMoodDisplay.label}
-                            />
-                          ) : (
-                            <View
-                              style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 4,
-                                backgroundColor: todayBlended,
-                              }}
-                            />
-                          )}
+                          <Image
+                            source={
+                              todayDominantMoodDisplay.icon ??
+                              getMoodIconSource(todayDominantMoodDisplay.label)
+                            }
+                            style={{ width: 32, height: 32 }}
+                            resizeMode="contain"
+                            accessibilityLabel={todayDominantMoodDisplay.label}
+                          />
                           <Text
                             style={{
                               color: AURORA.textPrimary,
@@ -3312,14 +3292,15 @@ export default function Analytics() {
                       gap: 10,
                     }}
                   >
-                    {periodDominantMoodDisplay.icon ? (
-                      <Image
-                        source={periodDominantMoodDisplay.icon}
-                        style={{ width: 56, height: 56 }}
-                        resizeMode="contain"
-                        accessibilityLabel={periodDominantMoodDisplay.label}
-                      />
-                    ) : null}
+                    <Image
+                      source={
+                        periodDominantMoodDisplay.icon ??
+                        getMoodIconSource(periodDominantMoodDisplay.label)
+                      }
+                      style={{ width: 56, height: 56 }}
+                      resizeMode="contain"
+                      accessibilityLabel={periodDominantMoodDisplay.label}
+                    />
                     <Text
                       style={{
                         color: AURORA.textPrimary,

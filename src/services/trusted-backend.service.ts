@@ -90,3 +90,32 @@ export async function createCounselorSessionInviteTrusted(input: {
   const result = await callable(input)
   return { sessionId: result.data.sessionId }
 }
+
+export type StudentCounselingOutcomeCounts = {
+  completed: number
+  missed: number
+  withYouCompleted: number
+  withYouMissed: number
+}
+
+export async function getStudentCounselingOutcomeCountsTrusted(
+  studentId: string,
+): Promise<StudentCounselingOutcomeCounts> {
+  const callable = httpsCallable<
+    { studentId: string },
+    {
+      ok: boolean
+      completed: number
+      missed: number
+      withYouCompleted: number
+      withYouMissed: number
+    }
+  >(functions, 'getStudentCounselingOutcomeCountsTrusted')
+  const result = await callable({ studentId })
+  return {
+    completed: result.data.completed ?? 0,
+    missed: result.data.missed ?? 0,
+    withYouCompleted: result.data.withYouCompleted ?? 0,
+    withYouMissed: result.data.withYouMissed ?? 0,
+  }
+}

@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.resolveCollegeFromUserData = resolveCollegeFromUserData;
 exports.resolveConversationCollegeCode = resolveConversationCollegeCode;
 exports.ensureConversationDocument = ensureConversationDocument;
 const admin = __importStar(require("firebase-admin"));

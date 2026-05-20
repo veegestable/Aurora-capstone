@@ -15,6 +15,7 @@ import {
   ensureConversationDocument,
   resolveConversationCollegeCode,
 } from './ensureConversationAdmin';
+import { createGetStudentCounselingOutcomeCountsTrusted } from './studentCounselingOutcomeCounts';
 import { assertConversationMessagingOpen } from './conversationMessagingPolicy';
 import {
   isSessionStartInFutureManila,
@@ -153,6 +154,8 @@ export const generateWeeklySummaryAi = onCall({ region: 'asia-southeast2' }, asy
 
 export { deliverSessionExpoPush } from './deliverSessionExpoPush';
 export { enqueueSessionReminders } from './sessionReminderScheduler';
+export const getStudentCounselingOutcomeCountsTrusted =
+  createGetStudentCounselingOutcomeCountsTrusted(db);
 export { generateWeeklyAnalyticsAi } from './weeklyAnalyticsAi';
 export { cleanupUnverifiedAuthUsers } from './cleanupUnverifiedAuthUsers';
 
