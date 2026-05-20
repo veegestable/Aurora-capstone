@@ -240,9 +240,7 @@ export default function SessionHistoryScreen() {
     }
     let cancelled = false;
     firestoreService
-      .getSessionHistoryForCounselor(user.id, {
-        activeCollegeCode: user.college_code,
-      })
+      .getSessionHistoryForCounselor(user.id)
       .then((data) => {
         if (!cancelled) setSessions(data as SessionHistoryItem[]);
       })
@@ -255,7 +253,7 @@ export default function SessionHistoryScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.college_code]);
+  }, [user?.id]);
 
   useEffect(() => {
     const routeSessionId = normalizeRouteSessionId(params.sessionId);

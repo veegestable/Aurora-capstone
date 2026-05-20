@@ -28,7 +28,6 @@ import {
 } from "./trusted-backend.service";
 import {
   type SessionHistoryBadge,
-  EXPIRED_SESSION_RETENTION_MS,
   computeSessionHistoryBadge,
   getConfirmedFinalSlot,
   getOverdueSchedulingState,
@@ -181,6 +180,29 @@ async function mapSessionsDocsForActiveCollege(
     }
   }
   return rows;
+}
+
+/** All sessions for a counselor (cross-college history after a college change). */
+function mapSessionsDocsForCounselorHistory(
+  docs: Array<{ id: string; data: () => Record<string, unknown> }>,
+): Array<Record<string, unknown> & { id: string }> {
+  return docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as Record<string, unknown>),
+  }));
+}
+
+async function getUserProfileByIdSafe(
+  userId: string,
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    const snap = await getDoc(doc(db, "users", userId));
+    return snap.exists()
+      ? (snap.data() as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Writes `scheduledStartAt` using Manila wall-clock interpretation + labels the doc. */
@@ -3092,43 +3114,6 @@ export const firestoreService = {
     }
   },
 
-  /**
-   * Deletes `sessions` docs that have been `expired` for more than 7 days (counselor scope).
-   */
-  async purgeExpiredSessionsPastRetention(
-    counselorId: string,
-    activeCollegeCode?: string | null,
-  ): Promise<void> {
-    try {
-      const activeCollege = await resolveUserActiveCollegeCode(
-        counselorId,
-        activeCollegeCode,
-      );
-      const q = query(
-        collection(db, "sessions"),
-        where("counselorId", "==", counselorId),
-        where("status", "==", "expired"),
-      );
-      const snapshot = await getDocs(q);
-      const cutoff = Date.now() - EXPIRED_SESSION_RETENTION_MS;
-      const deletes = snapshot.docs
-        .filter((d) =>
-          conversationMatchesActiveCollege(
-            d.data() as Record<string, unknown>,
-            activeCollege,
-          ),
-        )
-        .filter((d) => {
-          const ea = d.data().expiredAt?.toMillis?.();
-          return typeof ea === "number" && ea < cutoff;
-        })
-        .map((d) => deleteDoc(doc(db, "sessions", d.id)));
-      await Promise.all(deletes);
-    } catch (e) {
-      console.error("❌ Error purging expired sessions:", e);
-    }
-  },
-
   async markSessionAttendance(
     sessionId: string,
     outcome: "completed" | "missed" | "rescheduled",
@@ -3177,7 +3162,7 @@ export const firestoreService = {
    */
   async getSessionHistoryForCounselor(
     counselorId: string,
-    options?: { activeCollegeCode?: string | null },
+    _options?: { activeCollegeCode?: string | null },
   ): Promise<
     Array<{
       id: string;
@@ -3204,22 +3189,13 @@ export const firestoreService = {
     }>
   > {
     try {
-      const activeCollege = await resolveUserActiveCollegeCode(
-        counselorId,
-        options?.activeCollegeCode,
-      );
-      await this.purgeExpiredSessionsPastRetention(counselorId, activeCollege);
-
       const q = query(
         collection(db, "sessions"),
         where("counselorId", "==", counselorId),
         orderBy("updatedAt", "desc"),
       );
       const snapshot = await getDocs(q);
-      const taggedDocs = await mapSessionsDocsForActiveCollege(
-        snapshot.docs,
-        activeCollege,
-      );
+      const taggedDocs = mapSessionsDocsForCounselorHistory(snapshot.docs);
       const sessions = taggedDocs.map((row) => {
         const data = row as Record<string, unknown>;
         const tsToDate = (v: unknown): Date | null => {
@@ -3310,10 +3286,9 @@ export const firestoreService = {
             .filter((id): id is string => typeof id === "string" && id.trim().length > 0),
         ),
       ];
-      const userPromises = uniqueStudentIds.map((id) =>
-        getDoc(doc(db, "users", id)),
+      const userProfiles = await Promise.all(
+        uniqueStudentIds.map((id) => getUserProfileByIdSafe(id)),
       );
-      const userSnaps = await Promise.all(userPromises);
       const userMap: Record<
         string,
         {
@@ -3325,9 +3300,8 @@ export const firestoreService = {
           avatar_url?: string;
         }
       > = {};
-      userSnaps.forEach((snap, i) => {
+      userProfiles.forEach((u, i) => {
         const uid = uniqueStudentIds[i];
-        const u = snap.data() as Record<string, unknown> | undefined;
         const pickAvatar = (raw: Record<string, unknown> | undefined) => {
           if (!raw) return undefined;
           const a =
@@ -3423,6 +3397,9 @@ export const firestoreService = {
               /* ignore */
             }
           }
+          const sessionCollege = conversationCollegeTag(
+            merged as Record<string, unknown>,
+          );
           return {
             ...merged,
             sessionHistoryBadge: badge,
@@ -3430,7 +3407,9 @@ export const firestoreService = {
             studentAvatar: userMap[s.studentId]?.avatar_url,
             studentDepartment:
               userMap[s.studentId]?.college_code ||
-              userMap[s.studentId]?.department,
+              userMap[s.studentId]?.department ||
+              sessionCollege ||
+              undefined,
             studentProgram: userMap[s.studentId]?.program,
             studentYear: userMap[s.studentId]?.year,
           };
