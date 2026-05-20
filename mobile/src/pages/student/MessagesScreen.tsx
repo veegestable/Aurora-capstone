@@ -625,11 +625,11 @@ function DirectMessageView({
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
             >
-              <LetterAvatar
+              {/* <LetterAvatar
                 name={contact.name}
                 size={40}
                 avatarUrl={contact.avatar || undefined}
-              />
+              /> */}
               <View style={{ alignItems: "center" }}>
                 <Text
                   style={{ color: "#FFFFFF", fontSize: 17, fontWeight: "700" }}
@@ -1559,7 +1559,15 @@ export default function MessagesScreen() {
             paddingBottom: 10,
           }}
         >
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
             {TABS.map((tab) => {
               const active = activeTab === tab;
               return (
@@ -1591,8 +1599,7 @@ export default function MessagesScreen() {
                 </TouchableOpacity>
               );
             })}
-          </View>
-          <Pressable
+            <Pressable
             onPress={() => setShowPastCollegeConversations((prev) => !prev)}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: showPastCollegeConversations }}
@@ -1600,15 +1607,13 @@ export default function MessagesScreen() {
               flexDirection: "row",
               alignItems: "center",
               gap: 8,
-              marginTop: 10,
               paddingHorizontal: 12,
-              paddingVertical: 6,
+              paddingVertical: 8,
               borderRadius: 999,
               borderWidth: 1,
               borderColor: showPastCollegeConversations
                 ? AURORA.blue
                 : AURORA.border,
-              alignSelf: "flex-start",
               backgroundColor: showPastCollegeConversations
                 ? "rgba(45,107,255,0.14)"
                 : "transparent",
@@ -1644,6 +1649,7 @@ export default function MessagesScreen() {
               Past college
             </Text>
           </Pressable>
+          </ScrollView>
         </View>
 
         {/* Contact List */}
