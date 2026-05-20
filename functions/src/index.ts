@@ -146,6 +146,7 @@ export const generateWeeklySummaryAi = onCall({ region: 'asia-southeast2' }, asy
 });
 
 export { deliverSessionExpoPush } from './deliverSessionExpoPush';
+export { enqueueSessionReminders } from './sessionReminderScheduler';
 export { generateWeeklyAnalyticsAi } from './weeklyAnalyticsAi';
 export { cleanupUnverifiedAuthUsers } from './cleanupUnverifiedAuthUsers';
 

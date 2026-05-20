@@ -41,7 +41,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrateOldMoodLogs = exports.grantCounselorJournalAccessTrusted = exports.createSessionNotificationTrusted = exports.sendSessionRequestTrusted = exports.sendTextMessageTrusted = exports.signUpTrusted = exports.resendRegistrationVerificationTrusted = exports.writeAuditLogTrusted = exports.cleanupUnverifiedAuthUsers = exports.generateWeeklyAnalyticsAi = exports.deliverSessionExpoPush = exports.generateWeeklySummaryAi = void 0;
+exports.migrateOldMoodLogs = exports.grantCounselorJournalAccessTrusted = exports.createSessionNotificationTrusted = exports.sendSessionRequestTrusted = exports.sendTextMessageTrusted = exports.signUpTrusted = exports.resendRegistrationVerificationTrusted = exports.writeAuditLogTrusted = exports.cleanupUnverifiedAuthUsers = exports.generateWeeklyAnalyticsAi = exports.enqueueSessionReminders = exports.deliverSessionExpoPush = exports.generateWeeklySummaryAi = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const resendVerification_1 = require("./resendVerification");
@@ -151,6 +151,8 @@ exports.generateWeeklySummaryAi = (0, https_1.onCall)({ region: 'asia-southeast2
 });
 var deliverSessionExpoPush_1 = require("./deliverSessionExpoPush");
 Object.defineProperty(exports, "deliverSessionExpoPush", { enumerable: true, get: function () { return deliverSessionExpoPush_1.deliverSessionExpoPush; } });
+var sessionReminderScheduler_1 = require("./sessionReminderScheduler");
+Object.defineProperty(exports, "enqueueSessionReminders", { enumerable: true, get: function () { return sessionReminderScheduler_1.enqueueSessionReminders; } });
 var weeklyAnalyticsAi_1 = require("./weeklyAnalyticsAi");
 Object.defineProperty(exports, "generateWeeklyAnalyticsAi", { enumerable: true, get: function () { return weeklyAnalyticsAi_1.generateWeeklyAnalyticsAi; } });
 var cleanupUnverifiedAuthUsers_1 = require("./cleanupUnverifiedAuthUsers");
