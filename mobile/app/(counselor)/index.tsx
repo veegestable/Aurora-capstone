@@ -958,6 +958,7 @@ export default function CounselorHomeScreen() {
               if (!["confirmed", "rescheduled"].includes(status)) return false;
               if (String(s?.counselorId ?? "") !== user.id) return false;
               const dt = getSessionScheduledDate({
+                scheduledStartAt: s.scheduledStartAt,
                 finalSlot: (s.finalSlot as { date: string; time: string } | null) ?? null,
                 confirmedSlot: (s.confirmedSlot as { date: string; time: string } | null) ?? null,
                 proposedSlots: Array.isArray(s.proposedSlots)

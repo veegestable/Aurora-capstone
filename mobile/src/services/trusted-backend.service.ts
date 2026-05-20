@@ -109,3 +109,40 @@ export async function sendSessionRequestTrusted(input: {
   const result = await callable(input);
   return { messageId: result.data.messageId, sessionId: result.data.sessionId };
 }
+
+export async function updateSessionRequestTrusted(input: {
+  conversationId: string;
+  messageId: string;
+  sessionId: string;
+  preferredTime: string;
+  note?: string;
+}): Promise<void> {
+  const callable = httpsCallable<
+    {
+      conversationId: string;
+      messageId: string;
+      sessionId: string;
+      preferredTime: string;
+      note?: string;
+    },
+    { ok: boolean }
+  >(functions, "updateSessionRequestTrusted");
+  await callable(input);
+}
+
+export async function createCounselorSessionInviteTrusted(input: {
+  studentId: string;
+  proposedSlots: Array<{ date: string; time: string }>;
+  note?: string;
+}): Promise<{ sessionId: string }> {
+  const callable = httpsCallable<
+    {
+      studentId: string;
+      proposedSlots: Array<{ date: string; time: string }>;
+      note?: string;
+    },
+    { ok: boolean; sessionId: string }
+  >(functions, "createCounselorSessionInviteTrusted");
+  const result = await callable(input);
+  return { sessionId: result.data.sessionId };
+}

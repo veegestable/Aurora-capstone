@@ -4,6 +4,18 @@ import {
   resolveSessionsDocIdFromInviteMessageData,
 } from "./sessionInviteIds";
 
+function scheduledStartToMillis(v: unknown): number | null {
+  if (
+    v != null &&
+    typeof v === "object" &&
+    typeof (v as { toMillis?: () => number }).toMillis === "function"
+  ) {
+    const ms = (v as { toMillis: () => number }).toMillis();
+    return typeof ms === "number" && Number.isFinite(ms) ? ms : null;
+  }
+  return null;
+}
+
 /** Cached fields from `sessions/{id}` used when rendering chat cards. */
 export type LinkedSessionSnapshot = {
   status?: string;
@@ -11,6 +23,8 @@ export type LinkedSessionSnapshot = {
   hasProposedSlots?: boolean;
   createdAt?: unknown;
   updatedAt?: unknown;
+  /** Firestore `scheduledStartAt` — authoritative instant (Manila wall time encoded as UTC). */
+  scheduledStartMs?: number | null;
 };
 
 export function linkedSessionFromFirestoreData(
@@ -42,6 +56,7 @@ export function linkedSessionFromFirestoreData(
     hasProposedSlots,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
+    scheduledStartMs: scheduledStartToMillis(s.scheduledStartAt),
   };
 }
 
@@ -90,6 +105,7 @@ export function applyLinkedSessionMapsToChatMessage(
   sessionStatusMap: Record<string, string>,
   sessionFinalSlotMap: Record<string, { date: string; time: string } | null>,
   sessionHasProposedSlotsMap: Record<string, boolean>,
+  sessionScheduledStartMsMap: Record<string, number | null | undefined>,
   sessionDocTimestampsMap: Record<
     string,
     { createdAt?: unknown; updatedAt?: unknown }
@@ -130,6 +146,7 @@ export function applyLinkedSessionMapsToChatMessage(
     if (sid && (sessionStatusMap[sid] || sessionDocTimestampsMap[sid])) {
       const fs = sessionFinalSlotMap[sid];
       const ts = sessionDocTimestampsMap[sid];
+      const startMs = sessionScheduledStartMsMap[sid];
       const stFromDoc = sessionStatusMap[sid];
       const stFromMsg = m.session?.sessionStatus;
       const sessionStatus =
@@ -153,6 +170,9 @@ export function applyLinkedSessionMapsToChatMessage(
             ? { sessionDocUpdatedAt: ts.updatedAt }
             : {}),
           ...(fs ? { agreedSlot: fs } : {}),
+          ...(typeof startMs === "number" && Number.isFinite(startMs)
+            ? { scheduledStartAtMs: startMs }
+            : {}),
         },
       };
     }
@@ -167,6 +187,7 @@ export function buildSessionMapsFromLinkedCache(
   sessionStatusMap: Record<string, string>;
   sessionFinalSlotMap: Record<string, { date: string; time: string } | null>;
   sessionHasProposedSlotsMap: Record<string, boolean>;
+  sessionScheduledStartMsMap: Record<string, number | null | undefined>;
   sessionDocTimestampsMap: Record<
     string,
     { createdAt?: unknown; updatedAt?: unknown }
@@ -178,6 +199,10 @@ export function buildSessionMapsFromLinkedCache(
     { date: string; time: string } | null
   > = {};
   const sessionHasProposedSlotsMap: Record<string, boolean> = {};
+  const sessionScheduledStartMsMap: Record<
+    string,
+    number | null | undefined
+  > = {};
   const sessionDocTimestampsMap: Record<
     string,
     { createdAt?: unknown; updatedAt?: unknown }
@@ -191,12 +216,18 @@ export function buildSessionMapsFromLinkedCache(
       updatedAt: snap.updatedAt,
     };
     sessionFinalSlotMap[sid] = snap.finalSlot ?? null;
+    sessionScheduledStartMsMap[sid] =
+      typeof snap.scheduledStartMs === "number" &&
+      Number.isFinite(snap.scheduledStartMs)
+        ? snap.scheduledStartMs
+        : undefined;
   }
 
   return {
     sessionStatusMap,
     sessionFinalSlotMap,
     sessionHasProposedSlotsMap,
+    sessionScheduledStartMsMap,
     sessionDocTimestampsMap,
   };
 }

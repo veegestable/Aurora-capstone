@@ -31,6 +31,9 @@ export interface Session {
   cancelReason: string | null
   reminderSent: boolean
   sessionHistoryBadge: string
+  /** UTC instant agreed start (Firestore); wall time is schedulingTimezone (Asia/Manila). */
+  scheduledStartAt?: Date | null
+  schedulingTimezone?: string
   sessionNotesCount?: number
   attendanceMarkedAt?: Date | null
   createdAt: Date

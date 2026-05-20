@@ -2,6 +2,8 @@ import { doc, updateDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
 import type { SessionStatus, TimeSlot } from '../../../types/session.types'
 import { auditLogsService } from '../../audit-logs'
+import { SESSION_SCHEDULING_TIMEZONE } from '../../../constants/session-scheduling'
+import { parseSessionSlotToMillisManila } from '../../../utils/sessionSlotAuthority'
 
 interface UpdateSessionParams {
   sessionId: string
@@ -24,6 +26,11 @@ export async function updateSessionStatus(params: UpdateSessionParams): Promise<
   if (confirmedSlot) {
     patch.confirmedSlot = confirmedSlot
     patch.finalSlot = confirmedSlot
+    const ms = parseSessionSlotToMillisManila(confirmedSlot)
+    if (ms != null) {
+      patch.scheduledStartAt = Timestamp.fromMillis(ms)
+      patch.schedulingTimezone = SESSION_SCHEDULING_TIMEZONE
+    }
   }
   if (cancelReason !== undefined) patch.cancelReason = cancelReason
   if (attendanceNote !== undefined) patch.attendanceNote = attendanceNote

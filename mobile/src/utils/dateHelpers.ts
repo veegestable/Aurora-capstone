@@ -180,10 +180,19 @@ function parseEnglishMonthDayYearWithTime(
  */
 export function isSessionScheduledTimeReached(
   slot: { date: string; time: string } | null,
+  opts?: { scheduledStartMs?: number | null },
 ): boolean {
+  if (
+    opts?.scheduledStartMs != null &&
+    Number.isFinite(opts.scheduledStartMs)
+  ) {
+    return opts.scheduledStartMs <= Date.now();
+  }
   const parsed = parseSlotToDate(slot);
   return (
-    parsed != null && !isNaN(parsed.getTime()) && parsed.getTime() <= Date.now()
+    parsed != null &&
+    !isNaN(parsed.getTime()) &&
+    parsed.getTime() <= Date.now()
   );
 }
 

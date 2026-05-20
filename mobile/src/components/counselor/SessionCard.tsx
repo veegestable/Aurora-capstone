@@ -36,6 +36,8 @@ export interface SessionCardData {
     linkedSessionId?: string;
     /** Legacy alias for `sessions/{id}` on some payloads. */
     sessionId?: string;
+    /** Epoch ms from `sessions.scheduledStartAt` — authoritative “has start passed?” on clients. */
+    scheduledStartAtMs?: number | null;
 }
 
 interface SessionCardProps {
@@ -68,7 +70,12 @@ export default function SessionCard({ data, isFromMe: _isFromMe, onViewDetails, 
 
     const displayDate = data.agreedSlot?.date ?? data.date;
     const displayTime = data.agreedSlot?.time ?? data.time;
-    const scheduledTimeReached = isSessionScheduledTimeReached({ date: displayDate, time: displayTime });
+    const scheduledTimeReached = isSessionScheduledTimeReached(
+        { date: displayDate, time: displayTime },
+        typeof data.scheduledStartAtMs === 'number' && Number.isFinite(data.scheduledStartAtMs)
+            ? { scheduledStartMs: data.scheduledStartAtMs }
+            : undefined,
+    );
 
     const isScheduled = resolvedStatus === 'confirmed';
     const isInviteOpen = !['completed', 'missed', 'cancelled', 'confirmed'].includes(

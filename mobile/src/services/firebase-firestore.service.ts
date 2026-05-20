@@ -20,9 +20,11 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import {
+  createCounselorSessionInviteTrusted as createCounselorSessionInviteTrustedCallable,
   createSessionNotificationTrusted,
   sendTextMessageTrusted as sendTextMessageTrustedCallable,
   sendSessionRequestTrusted as sendSessionRequestTrustedCallable,
+  updateSessionRequestTrusted as updateSessionRequestTrustedCallable,
 } from "./trusted-backend.service";
 import {
   type SessionHistoryBadge,
@@ -50,6 +52,8 @@ import {
   isCollegeCode,
   type CollegeCode,
 } from "../constants/colleges";
+import { SESSION_SCHEDULING_TIMEZONE } from "../constants/session-scheduling";
+import { firestoreTimestampFromSlotManila } from "../utils/sessionSlotAuthority";
 import { isProgramInCollege } from "../constants/college-programs-iit";
 import {
   conversationCollegeTagFromData,
@@ -177,6 +181,17 @@ async function mapSessionsDocsForActiveCollege(
     }
   }
   return rows;
+}
+
+/** Writes `scheduledStartAt` using Manila wall-clock interpretation + labels the doc. */
+function sessionSchedulingAuthoritativePatch(slot: {
+  date: string;
+  time: string;
+}): Record<string, unknown> {
+  return {
+    scheduledStartAt: firestoreTimestampFromSlotManila(slot),
+    schedulingTimezone: SESSION_SCHEDULING_TIMEZONE,
+  };
 }
 
 async function resolveConversationCollegeCode(
@@ -2538,13 +2553,25 @@ export const firestoreService = {
           "Session request sent too recently. Please wait a moment.",
         );
       }
+      const codeStr = String(err?.code ?? "");
+      if (
+        codeStr.includes("failed-precondition") ||
+        codeStr.includes("invalid-argument")
+      ) {
+        const msg =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Could not submit this session request.";
+        throw new Error(msg);
+      }
       throw error;
     }
   },
 
   // ─── Sessions (counseling appointments) ─────────────────────────────────────
   // sessions/{sessionId}: counselorId, studentId, riskFlagId, initiatedBy, studentRequestNote,
-  //   finalSlot (agreed date+time — single source for history badges & overdue; set when either party confirms),
+  //   finalSlot (human-readable slot; aligns with schedulingTimezone),
+  //   schedulingTimezone ('Asia/Manila'), scheduledStartAt (Firestore Timestamp UTC instant when agreed),
   //   proposedSlots, confirmedSlot (kept in sync with finalSlot when agreed), status, attendanceNote, cancelReason,
   //   slotConfirmedAt (Timestamp when final/agreed time was last locked as confirmed),
   //   reminderSent, createdAt, updatedAt, expiredAt, schedulingOverdueAt, sessionHistoryBadge
@@ -2566,38 +2593,32 @@ export const firestoreService = {
         studentId,
         counselorId,
       );
-      const collegeCode = await resolveConversationCollegeCode(
-        counselorId,
+      if ((auth.currentUser?.uid ?? "") !== counselorId) {
+        throw new Error(
+          "You can only create session invites as the signed-in counselor.",
+        );
+      }
+      const out = await createCounselorSessionInviteTrustedCallable({
         studentId,
-      );
-      const docData: Record<string, unknown> = {
-        counselorId,
-        studentId,
-        ...(collegeCode ? { college_code: collegeCode } : {}),
-        riskFlagId: null,
-        initiatedBy: "counselor",
-        studentRequestNote: (opts?.note ?? "").trim(),
         proposedSlots,
-        confirmedSlot: null,
-        finalSlot: null,
-        status: "pending",
-        attendanceNote: null,
-        cancelReason: null,
-        reminderSent: false,
-        sessionHistoryBadge: "pending",
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      };
-      const docRef = await addDoc(collection(db, "sessions"), docData);
-      await createSessionNotification(
-        studentId,
-        "Your counselor sent a session invitation. Open Messages to review and confirm your preferred slot.",
-        "/(student)/messages",
-        `session:${docRef.id}:counselor_invite_created`,
-      );
-      return docRef.id;
+        note: opts?.note,
+      });
+      return out.sessionId;
     } catch(error: unknown) {
       console.error("❌ Error creating counselor session invite:", error);
+      const err = error as { code?: string };
+      const codeStr = String(err?.code ?? "");
+      if (
+        codeStr.includes("failed-precondition") ||
+        codeStr.includes("invalid-argument") ||
+        codeStr.includes("permission-denied")
+      ) {
+        const msg =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Could not create this session invite.";
+        throw new Error(msg);
+      }
       throw error;
     }
   },
@@ -2708,6 +2729,7 @@ export const firestoreService = {
         finalSlot: null,
         confirmedSlot: null,
         slotConfirmedAt: deleteField(),
+        scheduledStartAt: deleteField(),
         status: "pending",
         updatedAt: Timestamp.now(),
         ...(opts?.proposalKind === "attendance_reschedule"
@@ -2787,6 +2809,7 @@ export const firestoreService = {
       status: "confirmed",
       slotConfirmedAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
+      ...sessionSchedulingAuthoritativePatch(slot),
       ...collegePatch,
     });
 
@@ -2852,6 +2875,7 @@ export const firestoreService = {
         status: "confirmed",
         slotConfirmedAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
+        ...sessionSchedulingAuthoritativePatch(slot),
         ...collegePatch,
       });
       if (session?.studentId) {
@@ -2924,6 +2948,7 @@ export const firestoreService = {
         status: "confirmed",
         slotConfirmedAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
+        ...sessionSchedulingAuthoritativePatch(slot),
       };
       if (data.studentId == null) {
         patch.studentId = uid;
@@ -3004,52 +3029,31 @@ export const firestoreService = {
   ) {
     try {
       await this.assertConversationMessagingOpen(conversationId, senderId);
-      await this.assertSessionMessagingOpen(sessionId, senderId);
-      const trimmedNote = (note ?? "").trim();
-      const content = preferredTime
-        ? `Session request: ${preferredTime}`
-        : "Session request";
-
-      // Update the canonical session doc.
-      await updateDoc(doc(db, "sessions", sessionId), {
-        preferredTimeFromStudent: preferredTime,
-        studentRequestNote: trimmedNote,
-        status: "requested",
-        updatedAt: Timestamp.now(),
-      });
-
-      // Update the existing chat message card.
-      const msgRef = doc(
-        db,
-        "conversations",
+      if ((auth.currentUser?.uid ?? "") !== senderId) {
+        throw new Error("You can only edit your own session request.");
+      }
+      await updateSessionRequestTrustedCallable({
         conversationId,
-        "messages",
         messageId,
-      );
-      const msgSnap = await getDoc(msgRef);
-      const existing = msgSnap.data();
-      const existingSessionData = (existing?.sessionData ?? {}) as Record<string, unknown>;
-
-      await updateDoc(msgRef, {
-        content,
-        sessionData: {
-          ...existingSessionData,
-          sessionId,
-          note: trimmedNote,
-          status: "requested",
-          ...(preferredTime ? { preferredTime } : {}),
-        },
-      });
-
-      // Update conversation preview/last message without changing unread counters.
-      const convRef = doc(db, "conversations", conversationId);
-      await updateDoc(convRef, {
-        lastMessage: content,
-        lastMessageAt: Timestamp.now(),
-        lastSenderId: senderId,
+        sessionId,
+        preferredTime,
+        note,
       });
     } catch(error: unknown) {
       console.error("❌ Error updating session request schedule:", error);
+      const err = error as { code?: string };
+      const codeStr = String(err?.code ?? "");
+      if (
+        codeStr.includes("failed-precondition") ||
+        codeStr.includes("invalid-argument") ||
+        codeStr.includes("permission-denied")
+      ) {
+        const msg =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Could not update this session request.";
+        throw new Error(msg);
+      }
       throw error;
     }
   },
@@ -3120,6 +3124,7 @@ export const firestoreService = {
           ? {
               finalSlot: null,
               confirmedSlot: null,
+              scheduledStartAt: deleteField(),
               slotConfirmedAt: deleteField(),
             }
           : {}),
@@ -3161,6 +3166,7 @@ export const firestoreService = {
       initiatedBy?: string;
       /** When the agreed slot was last confirmed (student or counselor path). */
       slotConfirmedAt: Date | null;
+      scheduledStartAt?: Date | null;
     }>
   > {
     try {
@@ -3246,6 +3252,7 @@ export const firestoreService = {
           initiatedBy:
             typeof data.initiatedBy === "string" ? data.initiatedBy : undefined,
           slotConfirmedAt,
+          scheduledStartAt: tsToDate(data.scheduledStartAt),
         };
       });
 
@@ -3329,6 +3336,7 @@ export const firestoreService = {
         if (terminal.includes(status)) return status;
 
         const scheduled = getSessionScheduledDate({
+          scheduledStartAt: s.scheduledStartAt,
           finalSlot: s.finalSlot,
           confirmedSlot: s.confirmedSlot,
           proposedSlots: s.proposedSlots,
@@ -3523,6 +3531,7 @@ async function buildChatMessagesFromQuerySnapshot(
     sessionStatusMap,
     sessionFinalSlotMap,
     sessionHasProposedSlotsMap,
+    sessionScheduledStartMsMap,
     sessionDocTimestampsMap,
   } = buildSessionMapsFromLinkedCache(mergedCache);
 
@@ -3532,6 +3541,7 @@ async function buildChatMessagesFromQuerySnapshot(
       sessionStatusMap,
       sessionFinalSlotMap,
       sessionHasProposedSlotsMap,
+      sessionScheduledStartMsMap,
       sessionDocTimestampsMap,
     ),
   );

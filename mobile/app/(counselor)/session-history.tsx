@@ -111,6 +111,8 @@ interface SessionHistoryItem {
   initiatedBy?: string;
   /** When the current agreed time was locked (Firestore); null on older docs. */
   slotConfirmedAt?: Date | null;
+  /** Canonical instant when locked — Manila wall time stored as UTC Timestamp. */
+  scheduledStartAt?: Date | null;
 }
 
 function normalizeRouteSessionId(

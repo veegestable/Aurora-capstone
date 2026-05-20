@@ -37,8 +37,17 @@ exports.enqueueSessionReminders = void 0;
 const admin = __importStar(require("firebase-admin"));
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const logger = __importStar(require("firebase-functions/logger"));
+const sessionSlotAuthority_1 = require("./sessionSlotAuthority");
 const REGION = 'asia-southeast2';
-function parseSessionStartMs(raw) {
+function scheduledStartInstantMs(raw) {
+    const st = raw.scheduledStartAt;
+    if (st != null &&
+        typeof st === 'object' &&
+        typeof st.toMillis === 'function') {
+        const ms = st.toMillis();
+        if (typeof ms === 'number' && Number.isFinite(ms))
+            return ms;
+    }
     const slot = raw.finalSlot ??
         raw.confirmedSlot;
     if (!slot || typeof slot !== 'object')
@@ -47,11 +56,7 @@ function parseSessionStartMs(raw) {
     const time = typeof slot.time === 'string' ? slot.time.trim() : '';
     if (!date)
         return null;
-    const combined = `${date}${time ? ` ${time}` : ''}`.trim();
-    const parsed = new Date(combined);
-    if (!Number.isNaN(parsed.getTime()))
-        return parsed.getTime();
-    return null;
+    return (0, sessionSlotAuthority_1.parseSessionSlotToMillisManila)({ date, time });
 }
 function dueReminderKinds(startMs, nowMs) {
     const minsUntilStart = (startMs - nowMs) / 60000;
@@ -96,7 +101,7 @@ exports.enqueueSessionReminders = (0, scheduler_1.onSchedule)({
     for (const docSnap of sessionsSnap.docs) {
         scanned += 1;
         const data = docSnap.data();
-        const startMs = parseSessionStartMs(data);
+        const startMs = scheduledStartInstantMs(data);
         if (startMs == null)
             continue;
         const kinds = dueReminderKinds(startMs, nowMs);

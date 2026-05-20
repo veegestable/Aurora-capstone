@@ -2,11 +2,22 @@ import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as logger from 'firebase-functions/logger';
 
+import { parseSessionSlotToMillisManila } from './sessionSlotAuthority';
+
 type ReminderKind = '1h' | '5m';
 
 const REGION = 'asia-southeast2';
 
-function parseSessionStartMs(raw: Record<string, unknown>): number | null {
+function scheduledStartInstantMs(raw: Record<string, unknown>): number | null {
+  const st = raw.scheduledStartAt;
+  if (
+    st != null &&
+    typeof st === 'object' &&
+    typeof (st as { toMillis?: () => number }).toMillis === 'function'
+  ) {
+    const ms = (st as { toMillis: () => number }).toMillis();
+    if (typeof ms === 'number' && Number.isFinite(ms)) return ms;
+  }
   const slot =
     (raw.finalSlot as Record<string, unknown> | null | undefined) ??
     (raw.confirmedSlot as Record<string, unknown> | null | undefined);
@@ -14,11 +25,7 @@ function parseSessionStartMs(raw: Record<string, unknown>): number | null {
   const date = typeof slot.date === 'string' ? slot.date.trim() : '';
   const time = typeof slot.time === 'string' ? slot.time.trim() : '';
   if (!date) return null;
-
-  const combined = `${date}${time ? ` ${time}` : ''}`.trim();
-  const parsed = new Date(combined);
-  if (!Number.isNaN(parsed.getTime())) return parsed.getTime();
-  return null;
+  return parseSessionSlotToMillisManila({ date, time });
 }
 
 function dueReminderKinds(startMs: number, nowMs: number): ReminderKind[] {
@@ -70,7 +77,7 @@ export const enqueueSessionReminders = onSchedule(
     for (const docSnap of sessionsSnap.docs) {
       scanned += 1;
       const data = docSnap.data() as Record<string, unknown>;
-      const startMs = parseSessionStartMs(data);
+      const startMs = scheduledStartInstantMs(data);
       if (startMs == null) continue;
       const kinds = dueReminderKinds(startMs, nowMs);
       if (kinds.length === 0) continue;
