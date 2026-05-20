@@ -5,6 +5,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { View, TouchableOpacity } from "react-native";
+import { RollingDaysPeriodToggle } from "../analytics/RollingDaysPeriodToggle";
 import { AppText as Text } from "../common/AppText";
 import { CircleHelp, PieChart, Clock3, BarChart3 } from "lucide-react-native";
 import type { MoodData } from "../../services/firebase-firestore.service";
@@ -156,50 +157,14 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
           marginBottom: 12,
-          gap: 10,
         }}
       >
-      
-        <View
-          style={{
-            flexDirection: "row",
-            backgroundColor: "rgba(124, 58, 237, 0.14)",
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: "rgba(124, 58, 237, 0.3)",
-            padding: 3,
-            gap: 4,
-          }}
-        >
-          {([7, 30] as const).map((days) => {
-            const active = periodDays === days;
-            return (
-              <TouchableOpacity
-                key={days}
-                onPress={() => setPeriodDays(days)}
-                activeOpacity={0.9}
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 999,
-                  backgroundColor: active ? AURORA.purple : "transparent",
-                }}
-              >
-                <Text
-                  style={{
-                    color: active ? "#fff" : AURORA.textMuted,
-                    fontWeight: "700",
-                    fontSize: 12,
-                  }}
-                >
-                  {days} days
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <RollingDaysPeriodToggle
+          value={periodDays}
+          onChange={setPeriodDays}
+        />
       </View>
 
       <CounselorStudentLast7Highlights logs={logs} periodDays={periodDays} />
