@@ -260,7 +260,7 @@ const EMOTION_BUCKET_TO_CANONICAL_MOOD: Record<
   "happy" | "angry" | "surprise" | "neutral" | "sad",
   string
 > = {
-  happy: "joy",
+  happy: "happy",
   angry: "anger",
   surprise: "surprise",
   neutral: "neutral",
