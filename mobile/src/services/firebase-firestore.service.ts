@@ -2714,13 +2714,9 @@ export const firestoreService = {
   async getSessionOutcomeCountsForCounselorStudent(
     counselorId: string,
     studentId: string,
-    options?: { activeCollegeCode?: string | null },
+    _options?: { activeCollegeCode?: string | null },
   ): Promise<{ completed: number; missed: number }> {
     try {
-      const activeCollege = await resolveUserActiveCollegeCode(
-        counselorId,
-        options?.activeCollegeCode,
-      );
       const q = query(
         collection(db, "sessions"),
         where("counselorId", "==", String(counselorId)),
@@ -2731,7 +2727,6 @@ export const firestoreService = {
       let missed = 0;
       for (const d of snapshot.docs) {
         const data = d.data() as Record<string, unknown>;
-        if (!conversationMatchesActiveCollege(data, activeCollege)) continue;
         const st = String(data.status ?? "");
         if (st === "completed") completed += 1;
         else if (st === "missed") missed += 1;

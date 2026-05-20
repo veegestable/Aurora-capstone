@@ -34,7 +34,7 @@ export function StudentCounselingHistorySummary({
         <div className="min-w-0">
           <p className="text-xs font-bold text-white">Counseling history</p>
           <p className="text-[10px] text-aurora-text-muted mt-0.5 leading-snug">
-            All counselors at your college
+            All completed and missed sessions on Aurora (every counselor)
           </p>
         </div>
         <div className="flex shrink-0 gap-1.5">

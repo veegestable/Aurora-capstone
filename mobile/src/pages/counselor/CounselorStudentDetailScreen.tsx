@@ -151,14 +151,32 @@ export default function CounselorStudentDetailScreen() {
       try {
         const counts = await getStudentCounselingOutcomeCountsTrustedCallable(id);
         if (!cancelled) setCounselingHistoryCounts(counts);
-      } catch {
-        if (!cancelled) {
-          setCounselingHistoryCounts({
-            completed: 0,
-            missed: 0,
-            withYouCompleted: 0,
-            withYouMissed: 0,
-          });
+      } catch (e) {
+        console.warn(
+          "[Counseling history] getStudentCounselingOutcomeCountsTrusted failed — deploy Cloud Functions. Using with-you counts only.",
+          e,
+        );
+        if (!cancelled && counselorId) {
+          try {
+            const withYou =
+              await firestoreService.getSessionOutcomeCountsForCounselorStudent(
+                counselorId,
+                id,
+              );
+            setCounselingHistoryCounts({
+              completed: withYou.completed,
+              missed: withYou.missed,
+              withYouCompleted: withYou.completed,
+              withYouMissed: withYou.missed,
+            });
+          } catch {
+            setCounselingHistoryCounts({
+              completed: 0,
+              missed: 0,
+              withYouCompleted: 0,
+              withYouMissed: 0,
+            });
+          }
         }
       } finally {
         if (!cancelled) setCounselingHistoryLoading(false);
@@ -332,7 +350,7 @@ export default function CounselorStudentDetailScreen() {
               marginBottom: 6,
             }}
           >
-            COMPLETED SESSIONS
+            COMPLETED (WITH YOU)
           </Text>
           <Text
             style={{
@@ -355,7 +373,7 @@ export default function CounselorStudentDetailScreen() {
               marginBottom: 6,
             }}
           >
-            MISSED SESSIONS
+            MISSED (WITH YOU)
           </Text>
           <Text
             style={{

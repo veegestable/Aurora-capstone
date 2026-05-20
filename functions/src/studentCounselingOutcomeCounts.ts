@@ -70,20 +70,13 @@ async function assertCounselorCanViewStudentOutcomes(
   return collegeCode;
 }
 
-function sessionMatchesCollege(
-  data: Record<string, unknown>,
-  collegeCode: string,
-): boolean {
-  const tag =
-    typeof data.college_code === 'string' ? data.college_code.trim() : '';
-  if (!tag) return true;
-  return tag === collegeCode;
-}
-
+/**
+ * Lifetime totals for this student across every counselor and college tag on `sessions`.
+ * (College is only used in {@link assertCounselorCanViewStudentOutcomes} — not to filter rows.)
+ */
 export async function countStudentCounselingOutcomes(
   db: admin.firestore.Firestore,
   studentId: string,
-  collegeCode: string,
   viewingCounselorId: string,
 ): Promise<CounselingOutcomeCounts> {
   const snapshot = await db
@@ -98,8 +91,6 @@ export async function countStudentCounselingOutcomes(
 
   for (const docSnap of snapshot.docs) {
     const data = docSnap.data() as Record<string, unknown>;
-    if (!sessionMatchesCollege(data, collegeCode)) continue;
-
     const st = String(data.status ?? '');
     const isMine = String(data.counselorId ?? '') === viewingCounselorId;
 
@@ -129,17 +120,8 @@ export function createGetStudentCounselingOutcomeCountsTrusted(
       throw new HttpsError('invalid-argument', 'studentId is required.');
     }
 
-    const collegeCode = await assertCounselorCanViewStudentOutcomes(
-      db,
-      uid,
-      studentId,
-    );
-    const counts = await countStudentCounselingOutcomes(
-      db,
-      studentId,
-      collegeCode,
-      uid,
-    );
+    await assertCounselorCanViewStudentOutcomes(db, uid, studentId);
+    const counts = await countStudentCounselingOutcomes(db, studentId, uid);
 
     return { ok: true, ...counts };
   });

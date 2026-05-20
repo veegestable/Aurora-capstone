@@ -32,13 +32,11 @@ async function assertCounselorCanViewStudentOutcomes(db, counselorUid, studentId
     }
     return collegeCode;
 }
-function sessionMatchesCollege(data, collegeCode) {
-    const tag = typeof data.college_code === 'string' ? data.college_code.trim() : '';
-    if (!tag)
-        return true;
-    return tag === collegeCode;
-}
-async function countStudentCounselingOutcomes(db, studentId, collegeCode, viewingCounselorId) {
+/**
+ * Lifetime totals for this student across every counselor and college tag on `sessions`.
+ * (College is only used in {@link assertCounselorCanViewStudentOutcomes} — not to filter rows.)
+ */
+async function countStudentCounselingOutcomes(db, studentId, viewingCounselorId) {
     const snapshot = await db
         .collection('sessions')
         .where('studentId', '==', studentId)
@@ -49,8 +47,6 @@ async function countStudentCounselingOutcomes(db, studentId, collegeCode, viewin
     let withYouMissed = 0;
     for (const docSnap of snapshot.docs) {
         const data = docSnap.data();
-        if (!sessionMatchesCollege(data, collegeCode))
-            continue;
         const st = String(data.status ?? '');
         const isMine = String(data.counselorId ?? '') === viewingCounselorId;
         if (st === 'completed') {
@@ -76,8 +72,8 @@ function createGetStudentCounselingOutcomeCountsTrusted(db) {
         if (!studentId) {
             throw new https_1.HttpsError('invalid-argument', 'studentId is required.');
         }
-        const collegeCode = await assertCounselorCanViewStudentOutcomes(db, uid, studentId);
-        const counts = await countStudentCounselingOutcomes(db, studentId, collegeCode, uid);
+        await assertCounselorCanViewStudentOutcomes(db, uid, studentId);
+        const counts = await countStudentCounselingOutcomes(db, studentId, uid);
         return { ok: true, ...counts };
     });
 }
