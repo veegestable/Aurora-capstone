@@ -17,7 +17,7 @@ import {
   InfoGuideModal,
   type InfoGuideContent,
 } from "../common/InfoGuideModal";
-import { CounselorStressEnergyTrendChart } from "./CounselorStressEnergyTrendChart";
+import { CounselorStudentLast7Highlights } from "./CounselorStudentLast7Highlights";
 
 function last7DayKeySet(): Set<string> {
   const today = new Date();
@@ -163,7 +163,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         Last 7 days — same charts as student analytics
       </Text>
 
-      <CounselorStressEnergyTrendChart logs={logs} />
+      <CounselorStudentLast7Highlights logs={logs} />
 
       {last7Logs.length === 0 ? (
         <View
@@ -178,8 +178,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
         >
           <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 20 }}>
             No mood check-ins in the last 7 days — mood charts below will appear
-            when this student logs. Stress and energy bars above show grey
-            placeholders on days without data.
+            when this student logs.
           </Text>
         </View>
       ) : (
