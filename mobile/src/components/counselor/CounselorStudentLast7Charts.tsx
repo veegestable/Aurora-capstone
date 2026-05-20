@@ -161,17 +161,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
           gap: 10,
         }}
       >
-        <Text
-          style={{
-            color: "#E2E8F0",
-            fontSize: 13,
-            fontWeight: "800",
-            letterSpacing: 0.4,
-            flex: 1,
-          }}
-        >
-          Last {periodDays} days — same charts as student analytics
-        </Text>
+      
         <View
           style={{
             flexDirection: "row",

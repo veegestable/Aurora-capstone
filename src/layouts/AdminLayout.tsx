@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { LetterAvatar } from '../components/LetterAvatar'
 import { SignOutConfirmModal } from '../components/common/SignOutConfirmModal'
+import { AnnouncementGuideModal } from '../components/announcements/AnnouncementGuideModal'
 
 const PRIMARY_NAV = [
   { path: '/',                    label: 'Dashboard',     icon: Home },
@@ -84,23 +85,48 @@ export default function AdminLayout() {
               <p className="px-4 text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
                 Admin
               </p>
-              {PRIMARY_NAV.map(({ path, label, icon: Icon }) => (
-                <NavLink
-                  key={path}
-                  to={path}
-                  end={path === '/'}
-                  className={({ isActive }) =>
-                    `w-full flex items-center space-x-3 px-4 py-3 rounded-[14px] text-left font-semibold transition-all ${
-                      isActive
-                        ? 'bg-[rgba(45,107,255,0.2)] border border-[rgba(45,107,255,0.35)] text-[#2D6BFF]'
-                        : 'text-aurora-text-sec hover:text-white hover:bg-white/5 cursor-pointer'
-                    }`
-                  }
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{label}</span>
-                </NavLink>
-              ))}
+              {PRIMARY_NAV.map(({ path, label, icon: Icon }) =>
+                label === 'Announcements' ? (
+                  <div
+                    key={path}
+                    className="w-full flex items-center gap-1 px-2 py-1 rounded-[14px] hover:bg-white/5"
+                  >
+                    <NavLink
+                      to={path}
+                      className={({ isActive }) =>
+                        `flex-1 flex items-center space-x-3 px-2 py-2 rounded-[12px] text-left font-semibold transition-all ${
+                          isActive
+                            ? 'bg-[rgba(45,107,255,0.2)] border border-[rgba(45,107,255,0.35)] text-[#2D6BFF]'
+                            : 'text-aurora-text-sec hover:text-white cursor-pointer'
+                        }`
+                      }
+                    >
+                      <Icon className="w-5 h-5 shrink-0" />
+                      <span>{label}</span>
+                    </NavLink>
+                    <AnnouncementGuideModal
+                      audience="admin"
+                      iconClassName="w-4 h-4 text-aurora-text-muted"
+                    />
+                  </div>
+                ) : (
+                  <NavLink
+                    key={path}
+                    to={path}
+                    end={path === '/'}
+                    className={({ isActive }) =>
+                      `w-full flex items-center space-x-3 px-4 py-3 rounded-[14px] text-left font-semibold transition-all ${
+                        isActive
+                          ? 'bg-[rgba(45,107,255,0.2)] border border-[rgba(45,107,255,0.35)] text-[#2D6BFF]'
+                          : 'text-aurora-text-sec hover:text-white hover:bg-white/5 cursor-pointer'
+                      }`
+                    }
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{label}</span>
+                  </NavLink>
+                ),
+              )}
             </div>
 
             <div className="space-y-1">

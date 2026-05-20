@@ -107,7 +107,7 @@ export function StudentCounselingHistorySummary({ counts, loading }: Props) {
               lineHeight: 14,
             }}
           >
-            Their counseling record on campus
+            Their counseling record on the app
           </Text>
         </View>
         <View style={{ flexDirection: "row", gap: 6, flexShrink: 0 }}>

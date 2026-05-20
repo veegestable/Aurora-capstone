@@ -10,10 +10,12 @@ import React, { useCallback, useState } from "react";
 import { View, FlatList, StyleSheet, ActivityIndicator, RefreshControl, Image, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Megaphone, ArrowLeft } from "lucide-react-native";
+import { Megaphone, ArrowLeft, CircleHelp } from "lucide-react-native";
 import { AppText as Text } from "../../src/components/common/AppText";
 import { AURORA } from "../../src/constants/aurora-colors";
 import { announcementsService, type Announcement, formatAnnouncementAudienceLabel } from "../../src/services/announcements.service";
+import { InfoGuideModal } from "../../src/components/common/InfoGuideModal";
+import { ANNOUNCEMENT_GUIDE_ADMIN } from "../../src/constants/announcements/announcementGuideCopy";
 
 function formatAdminDate(date: Date): string {
   return new Date(date).toLocaleDateString("en-US", {
@@ -28,6 +30,7 @@ export default function AdminAnnouncementsScreen() {
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [guideVisible, setGuideVisible] = useState(false);
 
   const loadAnnouncements = useCallback(async () => {
     try {
@@ -61,6 +64,14 @@ export default function AdminAnnouncementsScreen() {
             <View style={styles.headerTitleWrap}>
               <Megaphone size={18} color={AURORA.amber} />
               <Text style={styles.title}>Announcements</Text>
+              <TouchableOpacity
+                onPress={() => setGuideVisible(true)}
+                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                style={{ padding: 2 }}
+                accessibilityLabel="How announcements work"
+              >
+                <CircleHelp size={16} color={AURORA.textMuted} />
+              </TouchableOpacity>
             </View>
           </View>
           <Text style={styles.subtitle}>All posts with publisher and date</Text>
@@ -115,6 +126,10 @@ export default function AdminAnnouncementsScreen() {
           />
         )}
       </View>
+      <InfoGuideModal
+        guide={guideVisible ? ANNOUNCEMENT_GUIDE_ADMIN : null}
+        onClose={() => setGuideVisible(false)}
+      />
     </SafeAreaView>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { AppText as Text } from "../common/AppText";
-import { Plus } from "lucide-react-native";
+import { Plus, CircleHelp } from "lucide-react-native";
 import { useAuth } from "../../stores/AuthContext";
 import { AnnouncementCarousel } from "./AnnouncementCarousel";
 import { AddAnnouncementModal } from "./AddAnnouncementModal";
@@ -11,6 +11,8 @@ import { announcementsService } from "../../services/announcements.service";
 import type { Announcement } from "../../services/announcements.service";
 import { AURORA } from "../../constants/aurora-colors";
 import { triggerHaptic } from "../../utils/haptics";
+import { InfoGuideModal } from "../common/InfoGuideModal";
+import { announcementGuideForRole } from "../../constants/announcements/announcementGuideCopy";
 
 interface AnnouncementSectionProps {
   role: "counselor" | "student" | "admin";
@@ -33,6 +35,11 @@ export function AnnouncementSection({
     useState<Announcement | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [guideVisible, setGuideVisible] = useState(false);
+  const showAnnouncementGuide = role === "counselor" || role === "admin";
+  const announcementGuide = announcementGuideForRole(
+    role === "admin" ? "admin" : "counselor",
+  );
 
   const handleAnnouncementPress = (item: Announcement) => {
     setSelectedAnnouncement(item);
@@ -87,6 +94,16 @@ export function AnnouncementSection({
         <View style={styles.titleWrap}>
           {titleIcon}
           <Text style={styles.sectionTitle}>Announcements</Text>
+          {showAnnouncementGuide ? (
+            <TouchableOpacity
+              onPress={() => setGuideVisible(true)}
+              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+              style={{ padding: 2 }}
+              accessibilityLabel="How announcements work"
+            >
+              <CircleHelp size={16} color={AURORA.textMuted} />
+            </TouchableOpacity>
+          ) : null}
         </View>
         {showAddButton && (
           <TouchableOpacity
@@ -130,6 +147,10 @@ export function AnnouncementSection({
         announcement={selectedAnnouncement}
         onClose={handleEditClose}
         onSuccess={() => setRefreshKey((k) => k + 1)}
+      />
+      <InfoGuideModal
+        guide={guideVisible ? announcementGuide : null}
+        onClose={() => setGuideVisible(false)}
       />
     </View>
   );

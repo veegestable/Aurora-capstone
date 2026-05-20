@@ -7,6 +7,7 @@ import type {
 } from '../../types/announcement.types'
 import { AnnouncementAdminCard } from '../../components/announcements/AnnouncementAdminCard'
 import { AnnouncementFormModal } from '../../components/announcements/AnnouncementFormModal'
+import { AnnouncementGuideModal } from '../../components/announcements/AnnouncementGuideModal'
 
 type Filter = 'all' | AnnouncementTargetRole
 
@@ -86,9 +87,15 @@ export default function AdminAnnouncements() {
           <p className="text-[10px] font-bold tracking-[0.15em] text-aurora-primary-dark/40 uppercase">
             Admin
           </p>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-aurora-primary-dark font-heading mt-1">
-            Announcements
-          </h2>
+          <div className="flex items-center gap-2 mt-1">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-aurora-primary-dark font-heading">
+              Announcements
+            </h2>
+            <AnnouncementGuideModal
+              audience="admin"
+              iconClassName="w-5 h-5 text-aurora-text-muted"
+            />
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <button

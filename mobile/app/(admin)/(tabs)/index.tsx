@@ -214,7 +214,7 @@ export default function AdminDashboardScreen() {
           onPress={() => router.push("/(admin)/audit-logs")}
         />
 
-        <AnnouncementSection role="counselor" showAddButton skipAudienceFilter />
+        <AnnouncementSection role="admin" showAddButton skipAudienceFilter />
       </ScrollView>
     </SafeAreaView>
   );
