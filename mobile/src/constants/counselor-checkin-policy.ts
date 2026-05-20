@@ -3,14 +3,23 @@
  * Counselors see self-reported data only — not a clinical assessment.
  */
 
-/** How many calendar days of mood data counselors review on student-facing surfaces. */
+/** Baseline / roster: recent mood signal window (date, time, mood only). */
 export const COUNSELOR_CHECKIN_WINDOW_DAYS = 7;
 
-export function counselorCheckInWindowStart(): Date {
-    const d = new Date();
-    d.setDate(d.getDate() - COUNSELOR_CHECKIN_WINDOW_DAYS);
-    d.setHours(0, 0, 0, 0);
-    return d;
+/** Special population: full journal + 7/30-day analytics (matches student analytics). */
+export const COUNSELOR_JOURNAL_ANALYTICS_WINDOW_DAYS = 30;
+
+export function counselorCheckInWindowStart(
+  windowDays: number = COUNSELOR_CHECKIN_WINDOW_DAYS,
+): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - windowDays);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+export function counselorJournalAnalyticsWindowStart(): Date {
+  return counselorCheckInWindowStart(COUNSELOR_JOURNAL_ANALYTICS_WINDOW_DAYS);
 }
 
 /**

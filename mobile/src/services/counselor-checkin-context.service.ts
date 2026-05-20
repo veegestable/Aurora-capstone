@@ -1,9 +1,16 @@
 import { getUserSettings } from "./mood-firestore-v2.service";
-import { counselorCheckInWindowStart } from "../constants/counselor-checkin-policy";
+import {
+  counselorCheckInWindowStart,
+  COUNSELOR_CHECKIN_WINDOW_DAYS,
+  COUNSELOR_JOURNAL_ANALYTICS_WINDOW_DAYS,
+} from "../constants/counselor-checkin-policy";
 import { moodService, type MergedMoodLog } from "./mood.service";
 
-async function loadMoodWindowForStudent(studentId: string): Promise<MergedMoodLog[]> {
-  const start = counselorCheckInWindowStart();
+async function loadMoodWindowForStudent(
+  studentId: string,
+  windowDays: number,
+): Promise<MergedMoodLog[]> {
+  const start = counselorCheckInWindowStart(windowDays);
   const end = new Date();
   return moodService.getMoodLogs(studentId, start.toISOString(), end.toISOString());
 }
@@ -54,7 +61,7 @@ export async function fetchStudentCheckInSignalContextForCounselor(
   counselorId: string,
 ): Promise<{ logs: MergedMoodLog[] }> {
   const settings = await getUserSettings(studentId);
-  const raw = await loadMoodWindowForStudent(studentId);
+  const raw = await loadMoodWindowForStudent(studentId, COUNSELOR_CHECKIN_WINDOW_DAYS);
   if (journalAccessForCounselor(settings, counselorId)) {
     return { logs: raw };
   }
@@ -77,7 +84,10 @@ export async function fetchStudentCounselorDetailedContext(
 }> {
   const settings = await getUserSettings(studentId);
   const journalAccessGranted = journalAccessForCounselor(settings, counselorId);
-  const raw = await loadMoodWindowForStudent(studentId);
+  const windowDays = journalAccessGranted
+    ? COUNSELOR_JOURNAL_ANALYTICS_WINDOW_DAYS
+    : COUNSELOR_CHECKIN_WINDOW_DAYS;
+  const raw = await loadMoodWindowForStudent(studentId, windowDays);
   if (journalAccessGranted) {
     return { journalAccessGranted: true, logs: raw };
   }

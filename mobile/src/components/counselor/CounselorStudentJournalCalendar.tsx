@@ -793,7 +793,7 @@ export function CounselorStudentJournalCalendar({
                 fontSize: 13,
               }}
             >
-              Last 7 days
+              Analytics
             </Text>
           </TouchableOpacity>
         </View>

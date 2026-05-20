@@ -1,9 +1,9 @@
 /**
- * Week summary widgets for counselor special-population analytics —
- * mirrors student “Your last 7 days” highlights (stats, dominant mood, stability/trend).
+ * Rolling-window summary widgets for counselor special-population analytics —
+ * mirrors student 7- / 30-day highlights (stats, dominant mood, stability/trend).
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   ScrollView,
@@ -21,7 +21,10 @@ import {
   buildRollingDayKeySet,
   calculateHighestCheckInStreakInWindow,
 } from "../../utils/analytics/dateKeys";
-import { buildMoodChartAggregatesFromLogs } from "../../utils/analytics/moodChartAggregates";
+import {
+  buildMoodChartAggregatesFromLogs,
+  pickDominantMoodFromAggregates,
+} from "../../utils/analytics/moodChartAggregates";
 import { getMoodIconSource } from "../../utils/moodIconAssets";
 import { AnalyticsMoodWidgets } from "../analytics/AnalyticsMoodWidgets";
 import {
@@ -30,7 +33,8 @@ import {
 } from "../common/InfoGuideModal";
 
 const UI_TEXT_MUTED = "#9AA9C8";
-const PERIOD_DAYS = 7;
+
+export type CounselorStudentAnalyticsPeriodDays = 7 | 30;
 
 function hexToRgba(hex: string, alpha: number): string {
   const cleaned = hex.replace("#", "");
@@ -58,39 +62,28 @@ function dominantMoodAccentColor(label: string, fallback: string): string {
   return fallback;
 }
 
-function pickDominantMoodLabel(
-  byMood: Array<{
-    mood: string;
-    label: string;
-    count: number;
-    totalMinutes: number;
-  }>,
-): { label: string; color: string } | null {
-  const withCheckIns = byMood.filter((x) => x.count > 0);
-  if (withCheckIns.length === 0) return null;
-  const maxCount = Math.max(...withCheckIns.map((x) => x.count));
-  const top = withCheckIns
-    .filter((x) => x.count === maxCount)
-    .sort(
-      (a, b) =>
-        b.totalMinutes - a.totalMinutes || a.mood.localeCompare(b.mood),
-    )[0];
-  return { label: top.label, color: top.color };
-}
-
 type WeekPillKey = "days" | "checkins" | "streak";
 
 type Props = {
   logs: MergedMoodLog[];
+  periodDays: CounselorStudentAnalyticsPeriodDays;
 };
 
-export function CounselorStudentLast7Highlights({ logs }: Props) {
+export function CounselorStudentLast7Highlights({
+  logs,
+  periodDays,
+}: Props) {
   const [activePill, setActivePill] = useState<WeekPillKey | null>(null);
   const [guide, setGuide] = useState<InfoGuideContent | null>(null);
+  const moodWidgetsPeriod = periodDays === 30 ? "last30" : "week";
+
+  useEffect(() => {
+    setActivePill(null);
+  }, [periodDays]);
 
   const periodDayKeySet = useMemo(
-    () => buildRollingDayKeySet(PERIOD_DAYS),
-    [],
+    () => buildRollingDayKeySet(periodDays),
+    [periodDays],
   );
 
   const normalizedLogs = useMemo(
@@ -127,10 +120,10 @@ export function CounselorStudentLast7Highlights({ logs }: Props) {
     () =>
       calculateHighestCheckInStreakInWindow(
         normalizedLogs,
-        PERIOD_DAYS,
+        periodDays,
         new Date(),
       ),
-    [normalizedLogs],
+    [normalizedLogs, periodDays],
   );
 
   const moodCharts = useMemo(
@@ -139,7 +132,7 @@ export function CounselorStudentLast7Highlights({ logs }: Props) {
   );
 
   const dominantMood = useMemo(
-    () => pickDominantMoodLabel(moodCharts.byMood),
+    () => pickDominantMoodFromAggregates(moodCharts.byMood),
     [moodCharts.byMood],
   );
 
@@ -153,7 +146,7 @@ export function CounselorStudentLast7Highlights({ logs }: Props) {
     {
       key: "days",
       label: "Days logged",
-      value: `${periodDaysLogged}/${PERIOD_DAYS}`,
+      value: `${periodDaysLogged}/${periodDays}`,
     },
     {
       key: "checkins",
@@ -169,9 +162,9 @@ export function CounselorStudentLast7Highlights({ logs }: Props) {
 
   const explainer =
     activePill === "days"
-      ? `This student logged on ${periodDaysLogged} of the last ${PERIOD_DAYS} days.`
+      ? `This student logged on ${periodDaysLogged} of the last ${periodDays} days.`
       : activePill === "checkins"
-        ? `${periodTotalCheckIns} mood check-in${periodTotalCheckIns === 1 ? "" : "s"} in the last ${PERIOD_DAYS} days.`
+        ? `${periodTotalCheckIns} mood check-in${periodTotalCheckIns === 1 ? "" : "s"} in the last ${periodDays} days.`
         : activePill === "streak"
           ? `Longest consecutive logging streak in this window: ${bestStreak} day${bestStreak === 1 ? "" : "s"}.`
           : null;
@@ -290,7 +283,7 @@ export function CounselorStudentLast7Highlights({ logs }: Props) {
             onPress={() =>
               setGuide({
                 title: "Most frequent mood",
-                body: "The mood or emotion this student logged most often in the last 7 days.\n\nBased on check-in count; ties use total logged duration.",
+                body: `The mood this student logged most often in the last ${periodDays} days.\n\nUses the same count as the Mood frequency chart below (logged mood per check-in, not face-detection alone). Ties use total logged duration.`,
               })
             }
             hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
@@ -330,7 +323,7 @@ export function CounselorStudentLast7Highlights({ logs }: Props) {
       </View>
 
       {periodTotalCheckIns > 0 ? (
-        <AnalyticsMoodWidgets logs={periodLogs} period="week" />
+        <AnalyticsMoodWidgets logs={periodLogs} period={moodWidgetsPeriod} />
       ) : (
         <View
           style={{
@@ -342,8 +335,8 @@ export function CounselorStudentLast7Highlights({ logs }: Props) {
           }}
         >
           <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 20 }}>
-            No mood check-ins in the last 7 days — stability and stress/energy
-            trends will appear when this student logs.
+            No mood check-ins in the last {periodDays} days — stability and
+            stress/energy trends will appear when this student logs.
           </Text>
         </View>
       )}

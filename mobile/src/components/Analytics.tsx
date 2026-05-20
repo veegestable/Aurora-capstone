@@ -84,6 +84,10 @@ import {
   energyCategoryFromFive,
   sentenceCase,
 } from "../utils/analytics/metricCategories";
+import {
+  pickDominantMoodFromAggregates,
+  type DominantMoodRow,
+} from "../utils/analytics/moodChartAggregates";
 
 const STREAK_MILESTONES = [3, 7, 14, 30];
 const ANALYTICS_VIEW_TOGGLE_PAD = 4;
@@ -283,19 +287,6 @@ function totalMinutesForEmotionBucket(
   return row?.totalMinutes ?? 0;
 }
 
-/** Pick mood with highest check-in count; ties broken by total logged duration. */
-function pickDominantMoodChartRow(
-  byMood: Array<{ mood: string; label: string; count: number; totalMinutes: number }>,
-): { mood: string; label: string } | null {
-  const withCheckIns = byMood.filter((x) => x.count > 0);
-  if (withCheckIns.length === 0) return null;
-  const maxCount = Math.max(...withCheckIns.map((x) => x.count));
-  const tied = withCheckIns.filter((x) => x.count === maxCount);
-  return tied.sort(
-    (a, b) =>
-      b.totalMinutes - a.totalMinutes || a.mood.localeCompare(b.mood),
-  )[0];
-}
 
 /** Most frequent primary emotion (`emotions[0]`); count ties use logged duration. */
 function dominantEmotionLabelFromLogs(
@@ -345,11 +336,21 @@ function dominantMoodDisplayFromLogs(
       label: string;
       count: number;
       totalMinutes: number;
+      color?: string;
     }>;
   },
 ): { label: string; icon: ImageSourcePropType | null } {
   if (inputLogs.length === 0) {
     return { label: "Not enough check-ins", icon: null };
+  }
+  const top = pickDominantMoodFromAggregates(
+    moodCharts.byMood as DominantMoodRow[],
+  );
+  if (top) {
+    return {
+      label: top.label,
+      icon: moodIconForLabel(top.label || top.mood),
+    };
   }
   const fromEmotion = dominantEmotionLabelFromLogs(inputLogs, moodCharts);
   if (fromEmotion) {
@@ -358,12 +359,7 @@ function dominantMoodDisplayFromLogs(
       icon: moodIconForLabel(fromEmotion),
     };
   }
-  const top = pickDominantMoodChartRow(moodCharts.byMood);
-  if (!top) return { label: "Not enough data", icon: null };
-  return {
-    label: top.label,
-    icon: moodIconForLabel(top.label || top.mood),
-  };
+  return { label: "Not enough data", icon: null };
 }
 
 type MoodChartAggregate = {
@@ -1755,7 +1751,7 @@ export default function Analytics() {
     const days = periodDays ?? 7;
     openGuide(
       "Most Frequent Mood",
-      `This card shows your most frequent mood from the last ${days} days (or today on the daily view).\n\nIf two moods tie on check-in count, the one with more total logged duration wins.\n\nIt is a simple snapshot to help you notice patterns over time — not a clinical score or comparison with others.`,
+      `This card shows your most frequent logged mood from the last ${days} days (or today on the daily view).\n\nIt uses the same count as the Mood frequency chart — the mood you chose on each check-in, not face detection alone.\n\nIf two moods tie on check-in count, the one with more total logged duration wins.`,
     );
   };
 

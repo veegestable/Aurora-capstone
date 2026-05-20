@@ -149,3 +149,28 @@ export function buildMoodChartAggregatesFromLogs(
     totalCheckIns: logs.length,
   };
 }
+
+export type DominantMoodRow = {
+  mood: string;
+  label: string;
+  count: number;
+  totalMinutes: number;
+  color?: string;
+};
+
+/**
+ * Dominant mood for summary cards — same rule as the MOOD FREQUENCY donut:
+ * highest check-in count per logged mood; ties break on total duration.
+ */
+export function pickDominantMoodFromAggregates(
+  byMood: DominantMoodRow[],
+): DominantMoodRow | null {
+  const withCheckIns = byMood.filter((x) => x.count > 0);
+  if (withCheckIns.length === 0) return null;
+  const maxCount = Math.max(...withCheckIns.map((x) => x.count));
+  const tied = withCheckIns.filter((x) => x.count === maxCount);
+  return tied.sort(
+    (a, b) =>
+      b.totalMinutes - a.totalMinutes || a.mood.localeCompare(b.mood),
+  )[0];
+}
