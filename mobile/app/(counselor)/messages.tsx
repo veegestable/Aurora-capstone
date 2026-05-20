@@ -996,13 +996,11 @@ function ChatView({
                           {isAutoAccepted ? (
                             <>
                               <Text
-                                numberOfLines={1}
-                                ellipsizeMode="tail"
                                 style={{
                                   color: AURORA.green,
                                   fontSize: 14,
                                   lineHeight: 20,
-                                  maxWidth: "100%",
+                                  flexShrink: 1,
                                   ...(Platform.OS === "android"
                                     ? ({ includeFontPadding: false } as const)
                                     : null),
