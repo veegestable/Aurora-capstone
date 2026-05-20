@@ -27,6 +27,10 @@ import type {
   RoleEngagementCounts,
 } from "../../types/audit.types";
 import { AdminStatCard } from "../../components/admin/AdminStatCard";
+import { AdminCollegeCountBarChart } from "../../components/admin/AdminCollegeCountBarChart";
+import { AdminCollegeProgramAnalytics } from "../../components/admin/AdminCollegeProgramAnalytics";
+import { getCollegeRosterCountsSnapshot } from "../../services/admin-college-roster-analytics.service";
+import type { CollegeRosterCountsSnapshot } from "../../utils/admin/collegeRosterCounts";
 
 const ACTION_ROWS: {
   key: keyof EngagementSnapshot7d["byAction"];
@@ -76,18 +80,22 @@ export default function AdminAnalyticsScreen() {
   const [studentCount, setStudentCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [collegeRoster, setCollegeRoster] =
+    useState<CollegeRosterCountsSnapshot | null>(null);
 
   const load = useCallback(async (isRefresh: boolean) => {
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
-      const [snap, counselors, students] = await Promise.all([
+      const [snap, counselors, students, rosterByCollege] = await Promise.all([
         auditLogsService.getEngagementSnapshotLastDays(7, 2000),
         firestoreService.getUsersByRole("counselor"),
         firestoreService.getUsersByRole("student"),
+        getCollegeRosterCountsSnapshot(),
       ]);
       setEngagement(snap);
+      setCollegeRoster(rosterByCollege);
       setCounselorCount(counselors.length);
       setStudentCount(students.length);
       setPendingCount(
@@ -243,6 +251,37 @@ export default function AdminAnalyticsScreen() {
               />
             </View>
 
+            {collegeRoster ? (
+              <>
+                <Text style={[styles.section, { marginTop: 8 }]}>
+                  Roster by college
+                </Text>
+                <Text style={styles.hintSmall}>
+                  COE, CSM, CCS, CED, CASS, CEBA, CHS — scroll charts if needed.
+                  {collegeRoster.unassignedStudents > 0
+                    ? ` ${collegeRoster.unassignedStudents} student(s) have no college set.`
+                    : ""}
+                </Text>
+                <AdminCollegeCountBarChart
+                  title="Students per college"
+                  caption="All active student accounts grouped by college code."
+                  points={collegeRoster.studentsByCollege}
+                  barColor={AURORA.green}
+                />
+                <AdminCollegeCountBarChart
+                  title="Special population per college"
+                  caption={`${collegeRoster.totalSpecialPopulation} student(s) have guidance session consent with at least one counselor (journal access granted).`}
+                  points={collegeRoster.specialPopulationByCollege}
+                  barColor={AURORA.purple}
+                  emptyHint="No students in special population yet."
+                />
+                <Text style={[styles.hintSmall, { marginBottom: 8 }]}>
+                  {COLLEGE_LEGEND}
+                </Text>
+                <AdminCollegeProgramAnalytics roster={collegeRoster} />
+              </>
+            ) : null}
+
             <Text style={[styles.section, { marginTop: 8 }]}>
               Last 7 days — engagement
             </Text>
@@ -298,6 +337,9 @@ export default function AdminAnalyticsScreen() {
     </View>
   );
 }
+
+const COLLEGE_LEGEND =
+  "COE Engineering · CSM Science & Math · CCS Computer Studies · CED Education · CASS Arts & Social Sciences · CEBA Economics, Business & Accountancy · CHS Health Services";
 
 const styles = StyleSheet.create({
   header: {

@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
-import { BarChart, TrendingUp, Users, Activity, Battery, Sliders } from 'lucide-react'
+import { TrendingUp, Users, Activity, Battery, Sliders } from 'lucide-react'
 import { adminService } from '../../services/admin'
 import type { SchoolAnalytics, ThresholdSnapshot } from '../../services/admin'
+import type { CollegeRosterCountsSnapshot } from '../../utils/admin/collegeRosterCounts'
+import { CollegeCountBarChart } from '../../components/admin/CollegeCountBarChart'
+import { CollegeProgramAnalytics } from '../../components/admin/CollegeProgramAnalytics'
 
 function StatTile({
   label,
@@ -33,6 +36,7 @@ function StatTile({
 export default function AdminAnalytics() {
   const [analytics, setAnalytics] = useState<SchoolAnalytics | null>(null)
   const [thresholds, setThresholds] = useState<ThresholdSnapshot | null>(null)
+  const [collegeRoster, setCollegeRoster] = useState<CollegeRosterCountsSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -41,13 +45,15 @@ export default function AdminAnalytics() {
     async function load() {
       setLoading(true)
       try {
-        const [a, t] = await Promise.all([
+        const [a, t, roster] = await Promise.all([
           adminService.getSchoolAnalytics(),
           adminService.getThresholdSnapshot(),
+          adminService.getCollegeRosterCounts(),
         ])
         if (!cancelled) {
           setAnalytics(a)
           setThresholds(t)
+          setCollegeRoster(roster)
         }
       } catch (e) {
         console.error('Failed to load analytics:', e)
@@ -139,13 +145,38 @@ export default function AdminAnalytics() {
             </div>
           </div>
 
-          <div className="card-aurora p-6 min-h-[220px] flex flex-col items-center justify-center text-center">
-            <BarChart className="w-14 h-14 text-aurora-primary-dark/10 mb-4" />
-            <h3 className="text-lg font-bold text-aurora-primary-dark">Charts Ready For Next Pass</h3>
-            <p className="text-sm text-aurora-primary-dark/50 max-w-md mt-2">
-              Tile metrics are now data-backed. Add trend charts once you decide on the charting component and index strategy.
-            </p>
-          </div>
+          {collegeRoster ? (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-aurora-primary-dark">Roster by college</h3>
+                <p className="text-sm text-aurora-primary-dark/55 mt-1">
+                  Student accounts grouped by college code (COE, CSM, CCS, CED, CASS, CEBA, CHS).
+                  {collegeRoster.unassignedStudents > 0
+                    ? ` ${collegeRoster.unassignedStudents} student(s) have no college set.`
+                    : ''}
+                </p>
+              </div>
+              <CollegeCountBarChart
+                title="Students per college"
+                caption="All active student accounts in the roster."
+                points={collegeRoster.studentsByCollege}
+                barClassName="bg-green-500"
+              />
+              <CollegeCountBarChart
+                title="Special population per college"
+                caption={`${collegeRoster.totalSpecialPopulation} student(s) have guidance session consent with at least one counselor.`}
+                points={collegeRoster.specialPopulationByCollege}
+                barClassName="bg-aurora-accent-purple"
+                emptyHint="No students in special population yet."
+              />
+              <p className="text-xs text-aurora-primary-dark/45 leading-relaxed">
+                COE Engineering · CSM Science &amp; Math · CCS Computer Studies · CED Education ·
+                CASS Arts &amp; Social Sciences · CEBA Economics, Business &amp; Accountancy · CHS
+                Health Services
+              </p>
+              <CollegeProgramAnalytics roster={collegeRoster} />
+            </div>
+          ) : null}
         </>
       )}
     </div>
