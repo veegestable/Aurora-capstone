@@ -18,14 +18,27 @@ function formatPreferredTime(date: Date): string {
 function parseCallableError(error: unknown): string {
   if (error && typeof error === 'object' && 'code' in error) {
     const code = String((error as { code: unknown }).code)
+    const rawMessage =
+      'message' in error && typeof (error as { message: unknown }).message === 'string'
+        ? (error as { message: string }).message
+        : ''
     if (code.includes('resource-exhausted')) {
       return 'Session request sent too recently. Please wait a moment and try again.'
     }
     if (code.includes('not-found')) {
       return "This conversation isn't ready yet. Go back and open your counselor's chat again."
     }
-    if ('message' in error && typeof (error as { message: unknown }).message === 'string') {
-      return (error as { message: string }).message
+    if (code.includes('failed-precondition')) {
+      if (rawMessage.toLowerCase().includes('future')) {
+        return 'Please choose a future schedule. Past time slots are not allowed.'
+      }
+      return 'This schedule is not allowed. Please choose a future date and time.'
+    }
+    if (code.includes('invalid-argument')) {
+      return 'Please provide a valid date and time for your session request.'
+    }
+    if (rawMessage) {
+      return rawMessage
     }
   }
   if (error instanceof Error && error.message) return error.message

@@ -2558,6 +2558,23 @@ export const firestoreService = {
         codeStr.includes("failed-precondition") ||
         codeStr.includes("invalid-argument")
       ) {
+        const rawMessage =
+          error instanceof Error && error.message
+            ? error.message.toLowerCase()
+            : "";
+        if (
+          codeStr.includes("failed-precondition") &&
+          (rawMessage.includes("future") || rawMessage.includes("past"))
+        ) {
+          throw new Error(
+            "Please choose a future schedule. Past time slots are not allowed.",
+          );
+        }
+        if (codeStr.includes("invalid-argument")) {
+          throw new Error(
+            "Please provide a valid date and time for your session request.",
+          );
+        }
         const msg =
           error instanceof Error && error.message.trim()
             ? error.message
@@ -3048,6 +3065,23 @@ export const firestoreService = {
         codeStr.includes("invalid-argument") ||
         codeStr.includes("permission-denied")
       ) {
+        const rawMessage =
+          error instanceof Error && error.message
+            ? error.message.toLowerCase()
+            : "";
+        if (
+          codeStr.includes("failed-precondition") &&
+          (rawMessage.includes("future") || rawMessage.includes("past"))
+        ) {
+          throw new Error(
+            "Please choose a future schedule. Past time slots are not allowed.",
+          );
+        }
+        if (codeStr.includes("invalid-argument")) {
+          throw new Error(
+            "Please provide a valid date and time for your session request.",
+          );
+        }
         const msg =
           error instanceof Error && error.message.trim()
             ? error.message

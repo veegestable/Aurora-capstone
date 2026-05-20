@@ -76,7 +76,7 @@ export function SendSessionInviteModal({
       onClose()
     } catch (e) {
       console.error('Failed to send invite:', e)
-      alert('Failed to send invite. Please try again.')
+      alert(e instanceof Error ? e.message : 'Failed to send invite. Please try again.')
     } finally {
       setSending(false)
     }
