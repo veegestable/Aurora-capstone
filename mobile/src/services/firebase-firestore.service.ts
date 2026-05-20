@@ -469,6 +469,79 @@ function resolveUserDisplayNameFromProfile(
   return "";
 }
 
+let didLogCounselorRepairStats = false;
+let didLogStudentRepairStats = false;
+
+async function repairConversationPeerProfile(params: {
+  userId: unknown;
+  existingAvatar: unknown;
+  existingName: unknown;
+  fallbackName: string;
+  avatarField: "student_avatar" | "counselor_avatar";
+  nameField: "student_name" | "counselor_name";
+  convRef: ReturnType<typeof doc>;
+  isPlaceholderAvatar: (url: string) => boolean;
+}): Promise<{
+  avatar: string;
+  name: string;
+  didRepairAvatar: boolean;
+  didRepairName: boolean;
+}> {
+  let avatar = String(params.existingAvatar ?? "");
+  let name = String(params.existingName ?? "").trim();
+  const userId = String(params.userId ?? "").trim();
+
+  const needsAvatarRepair =
+    !avatar || params.isPlaceholderAvatar(String(avatar));
+  const needsNameRepair = isGenericConversationName(
+    params.existingName,
+    params.fallbackName,
+  );
+
+  let didRepairAvatar = false;
+  let didRepairName = false;
+
+  if ((needsAvatarRepair || needsNameRepair) && userId) {
+    try {
+      const userDoc = await getDoc(doc(db, "users", userId));
+      const userData = userDoc.data() as Record<string, unknown> | undefined;
+      const userAvatar = String(userData?.avatar_url ?? "");
+      const userDisplayName = resolveUserDisplayNameFromProfile(userData);
+
+      if (
+        needsAvatarRepair &&
+        userAvatar &&
+        !params.isPlaceholderAvatar(userAvatar)
+      ) {
+        avatar = userAvatar;
+        didRepairAvatar = true;
+        if (params.isPlaceholderAvatar(String(params.existingAvatar ?? ""))) {
+          updateDoc(params.convRef, {
+            [params.avatarField]: userAvatar,
+          }).catch(() => {});
+        }
+      }
+
+      if (needsNameRepair && userDisplayName) {
+        name = userDisplayName;
+        didRepairName = true;
+        updateDoc(params.convRef, {
+          [params.nameField]: userDisplayName,
+        }).catch(() => {});
+      }
+    } catch {
+      // Keep current values.
+    }
+  }
+
+  if (isGenericConversationName(name, params.fallbackName)) {
+    name = params.fallbackName;
+  }
+  if (params.isPlaceholderAvatar(avatar)) avatar = "";
+
+  return { avatar, name, didRepairAvatar, didRepairName };
+}
+
 export interface MoodData {
   user_id: string;
   emotions: Array<{
@@ -1758,6 +1831,8 @@ export const firestoreService = {
         return isActiveCollegeInboxThread(classify);
       });
 
+      let repairedNames = 0;
+      let repairedAvatars = 0;
       const results = await Promise.all(
         scopedDocs.map(async (d) => {
           const data = d.data();
@@ -1769,54 +1844,27 @@ export const firestoreService = {
             collegeMap,
           );
           const messagingClosed = isPastCollegeThread(classify);
-          let avatar = data.student_avatar ?? "";
-          let name = String(data.student_name ?? "").trim();
-          const needsStudentAvatarRepair =
-            !avatar || isPlaceholderAvatar(String(avatar));
-          const needsStudentNameRepair = isGenericConversationName(
-            data.student_name,
-            "Student",
-          );
-          if ((needsStudentAvatarRepair || needsStudentNameRepair) && data.studentId) {
-            try {
-              const userDoc = await getDoc(doc(db, "users", data.studentId));
-              const userData = userDoc.data() as Record<string, unknown> | undefined;
-              const userAvatar = String(userData?.avatar_url ?? "");
-              const userDisplayName = resolveUserDisplayNameFromProfile(userData);
-              if (needsStudentAvatarRepair && userAvatar && !isPlaceholderAvatar(userAvatar)) {
-                avatar = userAvatar;
-                if (isPlaceholderAvatar(data.student_avatar ?? "")) {
-                  updateDoc(convRef, {
-                    student_avatar: userAvatar,
-                  }).catch(() => {});
-                }
-              }
-              if (
-                userDisplayName &&
-                needsStudentNameRepair
-              ) {
-                name = userDisplayName;
-                updateDoc(convRef, {
-                  student_name: userDisplayName,
-                }).catch(() => {});
-              }
-            } catch {
-              /* keep existing */
-            }
-          }
-          if (isGenericConversationName(name, "Student")) {
-            name = "Student";
-          }
-          if (isPlaceholderAvatar(avatar)) avatar = "";
+          const repaired = await repairConversationPeerProfile({
+            userId: data.studentId,
+            existingAvatar: data.student_avatar,
+            existingName: data.student_name,
+            fallbackName: "Student",
+            avatarField: "student_avatar",
+            nameField: "student_name",
+            convRef,
+            isPlaceholderAvatar,
+          });
+          if (repaired.didRepairName) repairedNames += 1;
+          if (repaired.didRepairAvatar) repairedAvatars += 1;
           return {
             id: data.studentId,
             conversationId: d.id,
-            name,
+            name: repaired.name,
             preview: sanitizeConversationPreview(data.lastMessage),
             time: data.lastMessageAt?.toDate
               ? formatMessageTime(data.lastMessageAt.toDate())
               : "Just now",
-            avatar,
+            avatar: repaired.avatar,
             isOnline: false,
             isUnread: (data.unreadCountCounselor ?? 0) > 0,
             program: data.student_program ?? undefined,
@@ -1827,6 +1875,16 @@ export const firestoreService = {
           };
         }),
       );
+      if (
+        __DEV__ &&
+        !didLogCounselorRepairStats &&
+        (repairedNames > 0 || repairedAvatars > 0)
+      ) {
+        didLogCounselorRepairStats = true;
+        console.info(
+          `[messages/counselor] repaired ${repairedNames} names and ${repairedAvatars} avatars`,
+        );
+      }
       return results;
     } catch(error: unknown) {
       console.error("❌ Error getting conversations:", error);
@@ -1882,6 +1940,8 @@ export const firestoreService = {
         return isActiveCollegeInboxThread(classify);
       });
 
+      let repairedNames = 0;
+      let repairedAvatars = 0;
       const results = await Promise.all(
         scopedDocs.map(async (d) => {
           const data = d.data();
@@ -1892,58 +1952,27 @@ export const firestoreService = {
             collegeMap,
           );
           const messagingClosed = isPastCollegeThread(classify);
-          let avatar = data.counselor_avatar ?? "";
-          let name = String(data.counselor_name ?? "").trim();
-          const needsCounselorAvatarRepair =
-            !avatar || isPlaceholderAvatar(String(avatar));
-          const needsCounselorNameRepair = isGenericConversationName(
-            data.counselor_name,
-            "Counselor",
-          );
-          if ((needsCounselorAvatarRepair || needsCounselorNameRepair) && data.counselorId) {
-            try {
-              const userDoc = await getDoc(doc(db, "users", data.counselorId));
-              const userData = userDoc.data() as Record<string, unknown> | undefined;
-              const userAvatar = String(userData?.avatar_url ?? "");
-              const userDisplayName = resolveUserDisplayNameFromProfile(userData);
-              if (
-                needsCounselorAvatarRepair &&
-                userAvatar &&
-                !isPlaceholderAvatar(userAvatar)
-              ) {
-                avatar = userAvatar;
-                if (isPlaceholderAvatar(data.counselor_avatar ?? "")) {
-                  updateDoc(convRef, {
-                    counselor_avatar: userAvatar,
-                  }).catch(() => {});
-                }
-              }
-              if (
-                userDisplayName &&
-                needsCounselorNameRepair
-              ) {
-                name = userDisplayName;
-                updateDoc(convRef, {
-                  counselor_name: userDisplayName,
-                }).catch(() => {});
-              }
-            } catch {
-              /* keep existing */
-            }
-          }
-          if (isGenericConversationName(name, "Counselor")) {
-            name = "Counselor";
-          }
-          if (isPlaceholderAvatar(avatar)) avatar = "";
+          const repaired = await repairConversationPeerProfile({
+            userId: data.counselorId,
+            existingAvatar: data.counselor_avatar,
+            existingName: data.counselor_name,
+            fallbackName: "Counselor",
+            avatarField: "counselor_avatar",
+            nameField: "counselor_name",
+            convRef,
+            isPlaceholderAvatar,
+          });
+          if (repaired.didRepairName) repairedNames += 1;
+          if (repaired.didRepairAvatar) repairedAvatars += 1;
           return {
             id: data.counselorId,
             conversationId: d.id,
-            name,
+            name: repaired.name,
             preview: sanitizeConversationPreview(data.lastMessage),
             time: data.lastMessageAt?.toDate
               ? formatMessageTime(data.lastMessageAt.toDate())
               : "Just now",
-            avatar,
+            avatar: repaired.avatar,
             isOnline: false,
             isUnread: (data.unreadCountStudent ?? 0) > 0,
             messagingClosed,
@@ -1951,6 +1980,16 @@ export const firestoreService = {
           };
         }),
       );
+      if (
+        __DEV__ &&
+        !didLogStudentRepairStats &&
+        (repairedNames > 0 || repairedAvatars > 0)
+      ) {
+        didLogStudentRepairStats = true;
+        console.info(
+          `[messages/student] repaired ${repairedNames} names and ${repairedAvatars} avatars`,
+        );
+      }
       return results;
     } catch(error: unknown) {
       console.error("❌ Error getting student conversations:", error);
@@ -3142,7 +3181,17 @@ export const firestoreService = {
         activeCollege,
       );
       const sessions = taggedDocs.map((row) => {
-        const data = row;
+        const data = row as Record<string, unknown>;
+        const tsToDate = (v: unknown): Date | null => {
+          if (
+            v != null &&
+            typeof v === "object" &&
+            typeof (v as { toDate?: () => Date }).toDate === "function"
+          ) {
+            return (v as { toDate: () => Date }).toDate();
+          }
+          return null;
+        };
         const rawProposed = Array.isArray(data.proposedSlots)
           ? data.proposedSlots
           : [];
@@ -3171,19 +3220,29 @@ export const firestoreService = {
             data.studentId != null && String(data.studentId).trim()
               ? String(data.studentId).trim()
               : "",
-          status: data.status ?? "requested",
+          status: String(data.status ?? "requested"),
           finalSlot,
           confirmedSlot,
           proposedSlots,
-          preferredTimeFromStudent: data.preferredTimeFromStudent,
-          studentRequestNote: data.studentRequestNote,
-          attendanceNote: data.attendanceNote,
-          cancelReason: data.cancelReason,
+          preferredTimeFromStudent:
+            typeof data.preferredTimeFromStudent === "string"
+              ? data.preferredTimeFromStudent
+              : undefined,
+          studentRequestNote:
+            typeof data.studentRequestNote === "string"
+              ? data.studentRequestNote
+              : undefined,
+          attendanceNote:
+            typeof data.attendanceNote === "string"
+              ? data.attendanceNote
+              : undefined,
+          cancelReason:
+            typeof data.cancelReason === "string" ? data.cancelReason : undefined,
           sessionHistoryBadge: data.sessionHistoryBadge as
             | SessionHistoryBadge
             | undefined,
-          updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
-          createdAt: data.createdAt?.toDate?.() ?? new Date(),
+          updatedAt: tsToDate(data.updatedAt) ?? new Date(),
+          createdAt: tsToDate(data.createdAt) ?? new Date(),
           initiatedBy:
             typeof data.initiatedBy === "string" ? data.initiatedBy : undefined,
           slotConfirmedAt,
@@ -3227,7 +3286,7 @@ export const firestoreService = {
       > = {};
       userSnaps.forEach((snap, i) => {
         const uid = uniqueStudentIds[i];
-        const u = snap.data();
+        const u = snap.data() as Record<string, unknown> | undefined;
         const pickAvatar = (raw: Record<string, unknown> | undefined) => {
           if (!raw) return undefined;
           const a =
@@ -3239,14 +3298,25 @@ export const firestoreService = {
           return a || undefined;
         };
         userMap[uid] = {
-          full_name: u?.full_name ?? u?.fullName,
-          department: u?.department,
+          full_name:
+            typeof u?.full_name === "string"
+              ? u.full_name
+              : typeof u?.fullName === "string"
+                ? u.fullName
+                : undefined,
+          department:
+            typeof u?.department === "string" ? u.department : undefined,
           college_code:
             typeof u?.college_code === "string" && u.college_code.trim()
               ? u.college_code.trim()
               : undefined,
-          program: u?.program,
-          year: u?.year ?? u?.year_level,
+          program: typeof u?.program === "string" ? u.program : undefined,
+          year:
+            typeof u?.year === "string"
+              ? u.year
+              : typeof u?.year_level === "string"
+                ? u.year_level
+                : undefined,
           avatar_url: pickAvatar(u as Record<string, unknown> | undefined),
         };
       });
@@ -3254,7 +3324,7 @@ export const firestoreService = {
       const syncSchedulingStatus = async (
         s: (typeof sessions)[0],
       ): Promise<string> => {
-        const status = s.status;
+        const status = String(s.status ?? "");
         const terminal = ["completed", "missed", "cancelled", "rescheduled"];
         if (terminal.includes(status)) return status;
 
