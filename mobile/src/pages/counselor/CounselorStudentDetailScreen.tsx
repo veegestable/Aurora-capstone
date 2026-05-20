@@ -350,7 +350,7 @@ export default function CounselorStudentDetailScreen() {
               marginBottom: 6,
             }}
           >
-            COMPLETED (WITH YOU)
+            COMPLETED SESSIONS
           </Text>
           <Text
             style={{
@@ -373,7 +373,7 @@ export default function CounselorStudentDetailScreen() {
               marginBottom: 6,
             }}
           >
-            MISSED (WITH YOU)
+            MISSED SESSIONS
           </Text>
           <Text
             style={{
@@ -581,13 +581,13 @@ export default function CounselorStudentDetailScreen() {
               style={{
                 color: AURORA.textMuted,
                 fontSize: 12,
-                marginTop: 16,
-                marginBottom: 12,
+               
+               
                 lineHeight: 18,
               }}
             >
-              Full journal only for your special population after
-              session consent flows above.
+              {/* Full journal only for your special population after
+              session consent flows above. */}
             </Text>
 
             {loadingCtx ? (
