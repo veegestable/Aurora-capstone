@@ -54,10 +54,8 @@ import {
   PROGRAM_FILTER_LABELS,
   type ProgramFilterCode,
 } from "../../src/constants/ccs-student-programs";
-import {
-  InfoGuideModal,
-  type InfoGuideContent,
-} from "../../src/components/common/InfoGuideModal";
+import { InfoGuideModal } from "../../src/components/common/InfoGuideModal";
+import { SESSION_HISTORY_GUIDE } from "../../src/constants/sessionHistoryGuideCopy";
 import { triggerHaptic } from "../../src/utils/haptics";
 import {
   getSessionHistoryBadgePresentation,
@@ -208,14 +206,13 @@ export default function SessionHistoryScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams<{ sessionId?: string | string[] }>();
   const openedFromRouteSessionRef = useRef<string | null>(null);
-  const [sessionHistoryGuide, setSessionHistoryGuide] =
-    useState<InfoGuideContent | null>(null);
+  const [sessionHistoryGuideOpen, setSessionHistoryGuideOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       return () => {
         openedFromRouteSessionRef.current = null;
-        setSessionHistoryGuide(null);
+        setSessionHistoryGuideOpen(false);
       };
     }, []),
   );
@@ -529,10 +526,7 @@ export default function SessionHistoryScreen() {
             <TouchableOpacity
               onPress={() => {
                 triggerHaptic("light");
-                setSessionHistoryGuide({
-                  title: "Session History",
-                  body: "This list shows counseling sessions tied to agreed or proposed times. Each row has a badge that describes where things stand:\n\n• UPCOMING — confirmed time on a later date.\n• TODAY — scheduled for today.\n• COMPLETED / DID NOT ATTEND / CANCELLED — how the appointment ended.\n• RESCHEDULE NEEDED — time passed recently; arrange a new time or mark attendance.\n• EXPIRED — far past scheduled time — follow-up was overdue.\n\nTap a row for details or to mark attendance after the scheduled time has passed.",
-                });
+                setSessionHistoryGuideOpen(true);
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={{ padding: 4 }}
@@ -826,8 +820,8 @@ export default function SessionHistoryScreen() {
       )}
 
       <InfoGuideModal
-        guide={sessionHistoryGuide}
-        onClose={() => setSessionHistoryGuide(null)}
+        guide={sessionHistoryGuideOpen ? SESSION_HISTORY_GUIDE : null}
+        onClose={() => setSessionHistoryGuideOpen(false)}
       />
     </View>
   );
