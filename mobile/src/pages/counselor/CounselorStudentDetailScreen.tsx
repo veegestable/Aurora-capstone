@@ -43,6 +43,7 @@ type StudentDoc = {
   student_number?: string;
   email?: string;
   contact_number?: string;
+  college_code?: string;
   department?: string;
   program?: string;
   year_level?: string;
@@ -170,6 +171,7 @@ export default function CounselorStudentDetailScreen() {
 
   const programLine =
     formatCounselorStudentSubtitle({
+      college_code: student?.college_code,
       department: student?.department,
       program: student?.program,
       year_level: student?.year_level,
