@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
   clientIpFromRequest,
   identityToolkitSendOobCode,
+  identityToolkitSignIn,
   isPlausibleEmail,
   normalizeEmail,
 } from './authHelpers';
@@ -163,13 +164,18 @@ export function createSignUpTrusted(
 
       await db.collection('users').doc(uid).set(profile);
 
-      const sent = await identityToolkitSendOobCode('VERIFY_EMAIL', {
-        email: input.email,
-      });
+      const idToken = await identityToolkitSignIn(input.email, input.password);
+      if (!idToken) {
+        throw new HttpsError(
+          'unavailable',
+          'Could not send verification email right now. Please try again later.',
+        );
+      }
+      const sent = await identityToolkitSendOobCode('VERIFY_EMAIL', { idToken });
       if (!sent) {
         throw new HttpsError(
           'unavailable',
-          'Use a valid email address to sign up.',
+          'Could not send verification email right now. Please try again later.',
         );
       }
 

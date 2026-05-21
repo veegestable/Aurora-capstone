@@ -142,11 +142,13 @@ function createSignUpTrusted(enforceRateLimit) {
                 profile.contact_number = input.contact_number;
             }
             await db.collection('users').doc(uid).set(profile);
-            const sent = await (0, authHelpers_1.identityToolkitSendOobCode)('VERIFY_EMAIL', {
-                email: input.email,
-            });
+            const idToken = await (0, authHelpers_1.identityToolkitSignIn)(input.email, input.password);
+            if (!idToken) {
+                throw new https_1.HttpsError('unavailable', 'Could not send verification email right now. Please try again later.');
+            }
+            const sent = await (0, authHelpers_1.identityToolkitSendOobCode)('VERIFY_EMAIL', { idToken });
             if (!sent) {
-                throw new https_1.HttpsError('unavailable', 'Use a valid email address to sign up.');
+                throw new https_1.HttpsError('unavailable', 'Could not send verification email right now. Please try again later.');
             }
             return { ok: true, uid };
         }
