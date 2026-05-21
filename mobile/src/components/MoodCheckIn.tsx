@@ -73,12 +73,11 @@ import {
   setPendingBreathingReminder,
 } from "../utils/pendingBreathingReminder";
 import {
-  InfoGuideModal,
   InfoGuideOverlay,
   type InfoGuideContent,
 } from "./common/InfoGuideModal";
 import {
-  AuroraActionSheetModal,
+  AuroraActionSheetOverlay,
   type AuroraActionSheetContent,
 } from "./common/AuroraActionSheetModal";
 import { buildFeedback } from "../utils/aurora-feedback";
@@ -982,51 +981,76 @@ export function MoodCheckIn({
   };
 
   const pickJournalImageFromLibrary = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permission.status !== "granted") {
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== "granted") {
+        setValidationGuide(
+          buildFeedback(
+            "Permission needed",
+            "Please allow photo library access to attach a journal selfie.",
+            "warning",
+          ),
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.75,
+      });
+      if (!result.canceled && result.assets[0]?.uri) {
+        setJournalImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.warn("Journal library picker failed:", error);
       setValidationGuide(
         buildFeedback(
-          "Permission needed",
-          "Please allow photo library access to attach a journal selfie.",
-          "warning",
+          "Photo unavailable",
+          "Could not open your photo library. Please try again.",
+          "error",
         ),
       );
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 0.75,
-    });
-    if (!result.canceled && result.assets[0]?.uri) {
-      setJournalImageUri(result.assets[0].uri);
     }
   };
 
   const captureJournalImage = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (permission.status !== "granted") {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (permission.status !== "granted") {
+        setValidationGuide(
+          buildFeedback(
+            "Permission needed",
+            "Please allow camera access to take a journal selfie.",
+            "warning",
+          ),
+        );
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.75,
+        cameraType: ImagePicker.CameraType.front,
+      });
+      if (!result.canceled && result.assets[0]?.uri) {
+        setJournalImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.warn("Journal camera failed:", error);
       setValidationGuide(
         buildFeedback(
-          "Permission needed",
-          "Please allow camera access to take a journal selfie.",
-          "warning",
+          "Camera unavailable",
+          "Could not open the camera. Try choosing from your library instead.",
+          "error",
         ),
       );
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 0.75,
-      cameraType: ImagePicker.CameraType.front,
-    });
-    if (!result.canceled && result.assets[0]?.uri) {
-      setJournalImageUri(result.assets[0].uri);
     }
   };
 
   const pickJournalImage = () => {
+    // Overlay (not AuroraActionSheetModal) — MoodCheckIn often sits inside another
+    // Modal; a second RN Modal breaks touches and image picker launch.
     setJournalSelfieSheet({
       title: "Journal selfie",
       body: "Add your photo using camera or gallery.",
@@ -3721,11 +3745,11 @@ export function MoodCheckIn({
         guide={activeGuide}
         onClose={dismissActiveGuide}
       />
-      <InfoGuideModal
+      <InfoGuideOverlay
         guide={validationGuide}
         onClose={() => setValidationGuide(null)}
       />
-      <AuroraActionSheetModal
+      <AuroraActionSheetOverlay
         sheet={journalSelfieSheet}
         onClose={() => setJournalSelfieSheet(null)}
       />

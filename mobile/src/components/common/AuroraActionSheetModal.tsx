@@ -28,16 +28,34 @@ type AuroraActionSheetModalProps = {
   onClose: () => void;
 };
 
+type AuroraActionSheetOverlayProps = AuroraActionSheetModalProps & {
+  /** When true, wait for a wrapping RN Modal to finish closing before running actions. */
+  deferActions?: boolean;
+};
+
 export function AuroraActionSheetOverlay({
   sheet,
   onClose,
-}: AuroraActionSheetModalProps) {
+  deferActions = false,
+}: AuroraActionSheetOverlayProps) {
   if (!sheet) return null;
 
   const runAction = (action: AuroraActionSheetItem) => {
     triggerHaptic("light");
     onClose();
-    action.onPress();
+    const invoke = () => {
+      try {
+        action.onPress();
+      } catch (error) {
+        console.warn("[AuroraActionSheet] action failed:", error);
+      }
+    };
+    if (deferActions) {
+      const delayMs = Platform.OS === "ios" ? 400 : 120;
+      setTimeout(invoke, delayMs);
+    } else {
+      invoke();
+    }
   };
 
   return (
@@ -51,7 +69,10 @@ export function AuroraActionSheetOverlay({
         accessibilityRole="button"
         accessibilityLabel="Dismiss"
       >
-        <Pressable onPress={(e) => e.stopPropagation()} style={styles.card}>
+        <Pressable
+          onPress={(event) => event.stopPropagation()}
+          style={styles.card}
+        >
           <Text style={styles.title}>{sheet.title}</Text>
           {sheet.body ? <Text style={styles.body}>{sheet.body}</Text> : null}
           <View style={styles.actions}>
@@ -106,7 +127,11 @@ export function AuroraActionSheetModal({
       presentationStyle={Platform.OS === "ios" ? "overFullScreen" : undefined}
       statusBarTranslucent
     >
-      <AuroraActionSheetOverlay sheet={sheet} onClose={onClose} />
+      <AuroraActionSheetOverlay
+        sheet={sheet}
+        onClose={onClose}
+        deferActions
+      />
     </Modal>
   );
 }
