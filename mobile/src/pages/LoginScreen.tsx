@@ -70,11 +70,10 @@ export default function LoginScreen() {
                 className="text-center text-gray-400 max-w-xs"
                 style={styles.taglineWeb}
               >
-                AI-powered mental health platform tailored for your wellness
-                journey
+                Small check-ins. Bigger conversations.\nClarity for students. Context for counselors.
               </Text>
             ) : (
-              <Text
+              <Text 
                 className="text-center max-w-xs"
                 style={styles.taglineNative}
                 numberOfLines={4}

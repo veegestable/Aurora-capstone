@@ -58,14 +58,15 @@ function mergeEpisodes(episodes: MoodEpisode[]): MoodEpisode[] {
 /**
  * Same 7 calendar-day window as mobile last7DayKeySet (today .. today-6, anchor at noon).
  */
-export function filterLogsToLast7CalendarDays(
+function filterLogsToLastNCalendarDays(
   logs: MoodLogEntryRow[],
+  dayCount: number,
   now: Date = new Date(),
 ): MoodLogEntryRow[] {
   const anchor = new Date(now)
   anchor.setHours(12, 0, 0, 0)
   const allowed = new Set<string>()
-  for (let i = 6; i >= 0; i--) {
+  for (let i = dayCount - 1; i >= 0; i--) {
     const d = new Date(anchor)
     d.setDate(d.getDate() - i)
     allowed.add(toLocalDateKey(d))
@@ -76,15 +77,44 @@ export function filterLogsToLast7CalendarDays(
   })
 }
 
+export function filterLogsToLast7CalendarDays(
+  logs: MoodLogEntryRow[],
+  now: Date = new Date(),
+): MoodLogEntryRow[] {
+  return filterLogsToLastNCalendarDays(logs, 7, now)
+}
+
+export function filterLogsToLast30CalendarDays(
+  logs: MoodLogEntryRow[],
+  now: Date = new Date(),
+): MoodLogEntryRow[] {
+  return filterLogsToLastNCalendarDays(logs, 30, now)
+}
+
 /** Mobile weekMoodCharts range: start = local midnight 6 days ago, end = now */
 export function rollingSevenDayRangeMs(now: Date = new Date()): {
+  startMs: number
+  endMs: number
+} {
+  return rollingPeriodDayRangeMs(6, now)
+}
+
+/** Mobile last30 range: start = local midnight 29 days ago, end = now */
+export function rollingThirtyDayRangeMs(now: Date = new Date()): {
+  startMs: number
+  endMs: number
+} {
+  return rollingPeriodDayRangeMs(29, now)
+}
+
+function rollingPeriodDayRangeMs(daysBack: number, now: Date = new Date()): {
   startMs: number
   endMs: number
 } {
   const end = new Date(now)
   const start = new Date(end)
   start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() - 6)
+  start.setDate(start.getDate() - daysBack)
   return { startMs: start.getTime(), endMs: end.getTime() }
 }
 
@@ -157,4 +187,25 @@ export function buildMoodChartAggregates(
     .sort((a, b) => b.count - a.count || b.totalMinutes - a.totalMinutes)
 
   return { byMood, totalCheckIns: inputLogs.length }
+}
+
+export type DominantMoodRow = {
+  mood: string
+  label: string
+  count: number
+  totalMinutes: number
+  color?: string
+}
+
+/** Highest check-in count; ties break on total duration (mobile parity). */
+export function pickDominantMoodFromAggregates(
+  byMood: DominantMoodRow[],
+): DominantMoodRow | null {
+  const withCheckIns = byMood.filter((x) => x.count > 0)
+  if (withCheckIns.length === 0) return null
+  const maxCount = Math.max(...withCheckIns.map((x) => x.count))
+  const tied = withCheckIns.filter((x) => x.count === maxCount)
+  return tied.sort(
+    (a, b) => b.totalMinutes - a.totalMinutes || a.mood.localeCompare(b.mood),
+  )[0]
 }

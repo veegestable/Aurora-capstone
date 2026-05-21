@@ -11,7 +11,11 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../config/firebase'
 import { authService, UserProfile } from '../services/firebase-auth'
 import { User } from '../types/user.types'
-import { type CollegeCode, isCollegeCode } from '../constants/colleges'
+import {
+  type CollegeCode,
+  isCollegeCode,
+  resolveCollegeCodeFromUserData,
+} from '../constants/colleges'
 import { isProgramInCollege } from '../constants/college-programs-iit'
 import { presenceService } from '../services/presence'
 import { getSignupEmailRejectionMessage } from '../utils/signupEmailPolicy'
@@ -56,10 +60,13 @@ const convertUserProfile = (userProfile: UserProfile): User => ({
   role: userProfile.role,
   approval_status: userProfile.approval_status,
   preferred_name: userProfile.preferred_name,
-  college_code:
-    userProfile.college_code != null && String(userProfile.college_code).trim()
-      ? String(userProfile.college_code).trim()
-      : undefined,
+  college_code: (() => {
+    const resolved = resolveCollegeCodeFromUserData({
+      college_code: userProfile.college_code,
+      department: userProfile.department,
+    })
+    return resolved || undefined
+  })(),
   department: userProfile.department,
   college_shift_pending: userProfile.college_shift_pending,
   program: userProfile.program,

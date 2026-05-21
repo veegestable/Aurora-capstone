@@ -10,6 +10,21 @@ export function conversationCollegeTagFromData(
   return typeof raw === 'string' ? raw.trim() : ''
 }
 
+export function conversationInboxClassifyFromData(
+  data: Record<string, unknown>,
+  viewerCollege: string,
+  collegeByUserId: Record<string, string>,
+): ConversationInboxClassifyInput {
+  const counselorId = String(data.counselorId ?? '')
+  const studentId = String(data.studentId ?? '')
+  return {
+    conversationCollegeCode: conversationCollegeTagFromData(data),
+    viewerCollegeCode: viewerCollege,
+    counselorCollegeCode: collegeByUserId[counselorId] ?? '',
+    studentCollegeCode: collegeByUserId[studentId] ?? '',
+  }
+}
+
 export type ConversationInboxClassifyInput = {
   conversationCollegeCode: string
   viewerCollegeCode: string
@@ -48,6 +63,13 @@ export function isPastCollegeThread(
     return false
   }
   return !isActiveCollegeInboxThread(input)
+}
+
+export function getPastCollegeThreadBannerText(role: 'counselor' | 'student'): string {
+  if (role === 'counselor') {
+    return 'This student has moved to another college, or this chat is from a previous college assignment. Messaging is closed. You can read history here only.'
+  }
+  return 'This conversation is from a previous college or your counselor is in another college. Messaging is closed. You can read history here only.'
 }
 
 export const MESSAGING_CLOSED_ERROR =

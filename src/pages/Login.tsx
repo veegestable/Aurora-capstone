@@ -296,15 +296,15 @@ export default function Login() {
           <div className="flex items-center justify-center gap-6 text-aurora-text-muted">
             <div className="flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-aurora-green" />
-              <span className="text-xs font-medium">Secure</span>
+              <span className="text-xs font-medium">Students</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-aurora-green" />
-              <span className="text-xs font-medium">Private</span>
+              <span className="text-xs font-medium">Support</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Award className="w-3.5 h-3.5 text-aurora-green" />
-              <span className="text-xs font-medium">HIPAA Compliant</span>
+              <span className="text-xs font-medium">Care</span>
             </div>
           </div>
         </div>

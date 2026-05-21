@@ -3,8 +3,9 @@ import { useJournalAnalytics } from '../../hooks/useJournalAnalytics'
 import {
   GUIDE_MOOD_DURATION,
   GUIDE_MOOD_FREQUENCY_TODAY,
-  GUIDE_MOOD_FREQUENCY_WEEK,
+  guideMoodFrequencyPeriod,
   GUIDE_MOOD_INTENSITY,
+  guideMostFrequentMood,
 } from '../../constants/mood/journalAnalyticsGuideCopy'
 import { AnalyticsInfoModal } from './AnalyticsInfoModal'
 import { JournalAnalyticsTodayView } from './analytics/JournalAnalyticsTodayView'
@@ -37,10 +38,18 @@ export function AnalyticsTab() {
   const openFrequencyGuideToday = () =>
     setGuide({ title: 'Mood frequency', body: GUIDE_MOOD_FREQUENCY_TODAY })
   const openFrequencyGuideWeek = () =>
-    setGuide({ title: 'Mood frequency', body: GUIDE_MOOD_FREQUENCY_WEEK })
+    setGuide({
+      title: 'Mood frequency',
+      body: guideMoodFrequencyPeriod(a.periodDays),
+    })
   const openDurationGuide = () => setGuide({ title: 'Mood duration', body: GUIDE_MOOD_DURATION })
   const openIntensityGuide = () =>
     setGuide({ title: 'Average intensity', body: GUIDE_MOOD_INTENSITY })
+  const openMostFrequentMoodGuide = () =>
+    setGuide({
+      title: 'Most frequent mood',
+      body: guideMostFrequentMood(a.timeView === 'today' ? 1 : a.periodDays),
+    })
 
   if (a.loading) {
     return (
@@ -75,6 +84,17 @@ export function AnalyticsTab() {
         >
           7 days
         </button>
+        <button
+          type="button"
+          onClick={() => a.setTimeView('30days')}
+          className={`cursor-pointer rounded-full px-6 py-2 text-sm font-bold transition-all ${
+            a.timeView === '30days'
+              ? 'bg-aurora-purple text-white shadow-md'
+              : 'text-aurora-text-sec hover:text-white'
+          }`}
+        >
+          30 days
+        </button>
       </div>
 
       <p className="text-xs text-aurora-text-muted">
@@ -88,25 +108,27 @@ export function AnalyticsTab() {
           chartMood={todayChartMood}
           onSelectChartMood={setTodayChartMood}
           donutCenterLabel={todayDonutCenter}
+          onMostFrequentMoodGuide={openMostFrequentMoodGuide}
           chartGuides={{
             frequency: openFrequencyGuideToday,
             duration: openDurationGuide,
             intensity: openIntensityGuide,
           }}
         />
-      ) : (
+      ) : a.timeView === '7days' || a.timeView === '30days' ? (
         <JournalAnalyticsWeekView
           a={a}
           chartMood={weekChartMood}
           onSelectChartMood={setWeekChartMood}
           donutCenterLabel={weekDonutCenter}
+          onMostFrequentMoodGuide={openMostFrequentMoodGuide}
           chartGuides={{
             frequency: openFrequencyGuideWeek,
             duration: openDurationGuide,
             intensity: openIntensityGuide,
           }}
         />
-      )}
+      ) : null}
 
       <AnalyticsInfoModal
         open={guide !== null}

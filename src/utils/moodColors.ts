@@ -1,25 +1,58 @@
 import { EMOTION_COLORS } from './emotions'
 
-// Removed export keyword since it's only used internally
 const EMOTION_LABELS = {
+  joy: 'Happy',
+  surprise: 'Surprise',
+  anger: 'Angry',
+  sadness: 'Sad',
+  neutral: 'Neutral',
   happy: 'Happy',
   sad: 'Sad',
   angry: 'Angry',
-  surprise: 'Surprise',
-  neutral: 'Neutral',
-  // Legacy aliases
-  joy: 'Happy',
-  sadness: 'Sad',
-  anger: 'Angry',
 } as const
 
+const EMOTION_ALIASES: Record<string, keyof typeof EMOTION_LABELS> = {
+  joy: 'joy',
+  happiness: 'joy',
+  happy: 'joy',
+  surprise: 'surprise',
+  surprised: 'surprise',
+  anger: 'anger',
+  angry: 'anger',
+  sadness: 'sadness',
+  sad: 'sadness',
+  neutral: 'neutral',
+}
+
+/** Single bucket per Aurora mood family (mobile parity). */
+export function canonicalMoodKey(raw: string): string {
+  const key =
+    String(raw || '')
+      .toLowerCase()
+      .replace(/_/g, ' ')
+      .trim() || 'neutral'
+  const mapped = EMOTION_ALIASES[key]
+  if (mapped) return mapped
+  if (key in EMOTION_LABELS) return key
+  return key
+}
 
 export function getEmotionColor(emotion: string): string {
-  return EMOTION_COLORS[emotion as keyof typeof EMOTION_COLORS] || EMOTION_COLORS.neutral
+  const key = canonicalMoodKey(emotion)
+  const mapped = EMOTION_ALIASES[key]
+  if (mapped) return EMOTION_COLORS[mapped] ?? EMOTION_COLORS.neutral
+  if (key in EMOTION_COLORS) return EMOTION_COLORS[key]
+  return EMOTION_COLORS.neutral
 }
 
 export function getEmotionLabel(emotion: string): string {
-  return EMOTION_LABELS[emotion as keyof typeof EMOTION_LABELS] || emotion
+  const raw = (emotion || '').trim()
+  if (!raw || raw === '—' || raw === '-') return raw
+  const key = canonicalMoodKey(raw)
+  const mapped = EMOTION_ALIASES[key]
+  if (mapped) return EMOTION_LABELS[mapped]
+  if (key in EMOTION_LABELS) return EMOTION_LABELS[key as keyof typeof EMOTION_LABELS]
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
 }
 
 // Internal helper for blending colors (no longer exported)

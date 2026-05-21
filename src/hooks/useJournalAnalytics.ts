@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { moodService } from '../services/mood'
 import type { MoodLogEntryRow } from '../services/mood/types'
@@ -6,10 +6,27 @@ import type { DayBar, WeekSummary } from '../types/journalAnalytics.types'
 import {
   buildMoodChartAggregates,
   filterLogsToLast7CalendarDays,
+  filterLogsToLast30CalendarDays,
   rollingSevenDayRangeMs,
+  rollingThirtyDayRangeMs,
 } from '../utils/analytics/buildMoodChartAggregates'
 import { computeStreak } from '../utils/analytics/computeStreak'
 import { computeStability, filterLogsForStabilityWindow, type StabilityMetrics } from '../utils/analytics/computeStability'
+import { buildLast7DaysPayload } from '../utils/analytics/weeklySeries'
+import {
+  fetchWeeklyAiAnalyticsWithPayload,
+  type WeeklyAiResult,
+} from '../services/weeklyAnalyticsAi.service'
+import {
+  generateWeeklySummary,
+  buildWeekSummaryInputFromLogs,
+  buildMonthSummaryInputFromLogs,
+} from '../services/weeklySummaryGenerate.service'
+import { calculateHighestCheckInStreakInWindow } from '../utils/analytics/dateKeys'
+import {
+  resolveDominantMoodDisplay,
+  type DominantMoodDisplay,
+} from '../utils/analytics/dominantMoodDisplay'
 
 // HELPERS
 
@@ -192,9 +209,13 @@ export function useJournalAnalytics() {
   const { user } = useAuth()
   const [allLogs, setAllLogs] = useState<MoodLogEntryRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [timeView, setTimeView] = useState<'today' | '7days'>('today')
+  const [timeView, setTimeView] = useState<'today' | '7days' | '30days'>('today')
   const [stabilityRange, setStabilityRange] = useState<'7days' | '30days'>('7days')
   const [stabilityMetric, setStabilityMetric] = useState<'stress' | 'energy'>('stress')
+  const [weeklyAi, setWeeklyAi] = useState<WeeklyAiResult | null>(null)
+  const [weeklyAiLoading, setWeeklyAiLoading] = useState(false)
+  const [periodWrittenSummary, setPeriodWrittenSummary] = useState<string | null>(null)
+  const [periodSummaryGenerating, setPeriodSummaryGenerating] = useState(false)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (user?.id) loadData() }, [user?.id])
@@ -224,6 +245,9 @@ export function useJournalAnalytics() {
   }), [allLogs, todayStr])
 
   const weekLogs = useMemo(() => filterLogsToLast7CalendarDays(allLogs), [allLogs])
+  const monthLogs = useMemo(() => filterLogsToLast30CalendarDays(allLogs), [allLogs])
+  const periodLogs = timeView === '30days' ? monthLogs : weekLogs
+  const periodDays = timeView === '30days' ? 30 : 7
   const logs7dStability = useMemo(() => filterLogsForStabilityWindow(allLogs, 7), [allLogs])
   const logs30dStability = useMemo(() => filterLogsForStabilityWindow(allLogs, 30), [allLogs])
 
@@ -277,25 +301,40 @@ export function useJournalAnalytics() {
   )
 
   // 7 Days
-  const daysLogged = useMemo(() => new Set(weekLogs.map(l => { const t = l.timestamp instanceof Date ? l.timestamp : new Date(l.timestamp); return toLocalDateStr(t) })).size, [weekLogs])
+  const daysLogged = useMemo(
+    () =>
+      new Set(
+        periodLogs.map((l) => {
+          const t = l.timestamp instanceof Date ? l.timestamp : new Date(l.timestamp)
+          return toLocalDateStr(t)
+        }),
+      ).size,
+    [periodLogs],
+  )
   const streak = useMemo(() => computeStreak(allLogs), [allLogs])
-  const weekAvgMood = useMemo(() => mostCommon(weekLogs.map(l => l.mood)) || null, [weekLogs])
-  const weekTrendLabel = useMemo(() => computeTrendLabel(weekLogs), [weekLogs])
+  const weekAvgMood = useMemo(() => mostCommon(periodLogs.map((l) => l.mood)) || null, [periodLogs])
+  const weekTrendLabel = useMemo(() => computeTrendLabel(periodLogs), [periodLogs])
   const weekStability = useMemo(() => computeStability(logs7dStability), [logs7dStability])
   const monthStability = useMemo(() => computeStability(logs30dStability), [logs30dStability])
   const dailyStress7 = useMemo(() => computeDailyMetric(allLogs, 'stress', 7, stressBarColor), [allLogs])
   const dailyEnergy7 = useMemo(() => computeDailyMetric(allLogs, 'energy', 7, energyBarColor), [allLogs])
   const dailyStress30 = useMemo(() => computeDailyMetric(allLogs, 'stress', 30, stressBarColor), [allLogs])
   const dailyEnergy30 = useMemo(() => computeDailyMetric(allLogs, 'energy', 30, energyBarColor), [allLogs])
+  const periodStability = useMemo(
+    () => computeStability(timeView === '30days' ? logs30dStability : logs7dStability),
+    [timeView, logs7dStability, logs30dStability],
+  )
+
   const weekSummary = useMemo(
-    () => computeWeekSummary(weekLogs, weekStability),
-    [weekLogs, weekStability],
+    () => computeWeekSummary(periodLogs, periodStability),
+    [periodLogs, periodStability],
   )
 
   const weekMoodCharts = useMemo(() => {
-    const { startMs, endMs } = rollingSevenDayRangeMs()
-    return buildMoodChartAggregates(weekLogs, startMs, endMs)
-  }, [weekLogs])
+    const { startMs, endMs } =
+      timeView === '30days' ? rollingThirtyDayRangeMs() : rollingSevenDayRangeMs()
+    return buildMoodChartAggregates(periodLogs, startMs, endMs)
+  }, [periodLogs, timeView])
 
   const weekFrequencySegments = useMemo(
     () =>
@@ -348,15 +387,92 @@ export function useJournalAnalytics() {
     return withData.reduce((s, b) => s + b.avg, 0) / withData.length
   }, [dailyEnergy30])
 
+  const logsWithDates = useMemo(
+    () =>
+      allLogs.map((l) => ({
+        log_date: l.timestamp instanceof Date ? l.timestamp : new Date(l.timestamp),
+      })),
+    [allLogs],
+  )
+
+  const periodHighestStreak = useMemo(
+    () => calculateHighestCheckInStreakInWindow(logsWithDates, periodDays),
+    [logsWithDates, periodDays],
+  )
+
+  const todayDominantMood = useMemo(
+    (): DominantMoodDisplay => resolveDominantMoodDisplay(todayLogs, todayMoodCharts),
+    [todayLogs, todayMoodCharts],
+  )
+
+  const periodDominantMood = useMemo(
+    (): DominantMoodDisplay => resolveDominantMoodDisplay(periodLogs, weekMoodCharts),
+    [periodLogs, weekMoodCharts],
+  )
+
+  const loadPeriodInsights = useCallback(async () => {
+    if (!user?.id || timeView === 'today') return
+    if (timeView === '7days') {
+      setWeeklyAiLoading(true)
+      try {
+        const payload = buildLast7DaysPayload(allLogs)
+        const ai = await fetchWeeklyAiAnalyticsWithPayload(payload)
+        setWeeklyAi(ai)
+      } catch {
+        setWeeklyAi(null)
+      } finally {
+        setWeeklyAiLoading(false)
+      }
+    } else {
+      setWeeklyAi(null)
+    }
+
+    setPeriodSummaryGenerating(true)
+    try {
+      const input =
+        timeView === '30days'
+          ? buildMonthSummaryInputFromLogs(allLogs)
+          : buildWeekSummaryInputFromLogs(
+              allLogs,
+              'the last 7 days',
+            )
+      const result = await generateWeeklySummary(input)
+      setPeriodWrittenSummary(result.summary)
+    } catch {
+      setPeriodWrittenSummary(null)
+    } finally {
+      setPeriodSummaryGenerating(false)
+    }
+  }, [user?.id, timeView, allLogs])
+
+  useEffect(() => {
+    if (loading || timeView === 'today') {
+      setWeeklyAi(null)
+      setPeriodWrittenSummary(null)
+      return
+    }
+    void loadPeriodInsights()
+  }, [loading, timeView, loadPeriodInsights])
+
+  useEffect(() => {
+    if (timeView === '30days') setStabilityRange('30days')
+    else if (timeView === '7days') setStabilityRange('7days')
+  }, [timeView])
+
   return {
-    loading, timeView, setTimeView, stabilityRange, setStabilityRange, stabilityMetric, setStabilityMetric,
+    loading, timeView, setTimeView, periodDays,
+    stabilityRange, setStabilityRange, stabilityMetric, setStabilityMetric,
+    weeklyAi, weeklyAiLoading, periodWrittenSummary, periodSummaryGenerating,
+    refresh: loadData,
     todayLogs, todayMood, todayAvgIntensity, todayCheckIns: todayLogs.length,
     todayStability, todayInsight, todaySignals, todayTopStressors, todayEventFocus, todayCategoryBreakdown,
     todayMoodCharts,
     todayFrequencySegments,
     todayDurationBars,
     todayIntensityBars,
-    weekLogs, daysLogged, weekCheckIns: weekLogs.length, streak, weekAvgMood, weekTrendLabel,
+    weekLogs, monthLogs, periodLogs, daysLogged, weekCheckIns: periodLogs.length, streak,
+    periodHighestStreak, todayDominantMood, periodDominantMood,
+    weekAvgMood, weekTrendLabel,
     weekStability, monthStability,
     dailyStress: stabilityRange === '7days' ? dailyStress7 : dailyStress30,
     dailyEnergy: stabilityRange === '7days' ? dailyEnergy7 : dailyEnergy30,
