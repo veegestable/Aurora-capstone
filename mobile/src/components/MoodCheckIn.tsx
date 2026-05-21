@@ -357,6 +357,31 @@ const isMealAvailableNow = (time: string): boolean => {
   return nowMinutes >= mealMinutes;
 };
 
+function getMissingWellnessScheduleLabels(
+  usualWakeTime: string,
+  usualBathTime: string,
+  mealSchedule: MealScheduleRow[],
+): string[] {
+  const missing: string[] = [];
+  if (!(usualWakeTime || "").trim()) missing.push("Usual wake-up time");
+  if (!(usualBathTime || "").trim()) missing.push("Bath schedule");
+  if (!mealSchedule.length) missing.push("Meal schedule");
+  return missing;
+}
+
+function buildWellnessScheduleReminderSheet(
+  missing: string[],
+  onGoToProfile: () => void,
+): AuroraActionSheetContent {
+  const list = missing.map((item) => `• ${item}`).join("\n");
+  return {
+    title: "Set your daily schedule?",
+    body: `You can check in without these, but wake-up, bath, and meal times in Profile improve sleep, meal, and routine analytics for you and your counselor.\n\nNot set yet:\n${list}\n\nOpen Profile → schedule section to add them.`,
+    dismissLabel: "Continue check-in",
+    actions: [{ label: "Go to Profile", onPress: onGoToProfile }],
+  };
+}
+
 export function MoodCheckIn({
   onComplete,
   initialMood = null,
@@ -368,6 +393,7 @@ export function MoodCheckIn({
     mealSchedule,
     usualWakeTime,
     usualBathTime,
+    loading: daySettingsLoading,
   } = useUserDaySettings();
 
   const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>(
@@ -401,6 +427,9 @@ export function MoodCheckIn({
   );
   const [journalSelfieSheet, setJournalSelfieSheet] =
     useState<AuroraActionSheetContent | null>(null);
+  const [scheduleReminderSheet, setScheduleReminderSheet] =
+    useState<AuroraActionSheetContent | null>(null);
+  const scheduleReminderShownRef = useRef(false);
   // Re-render whenever the next meal/wake/bath unlock boundary passes, instead
   // of polling on a fixed interval. Fires a single timer per boundary plus a
   // recompute on every foreground transition (covers the case where the app
@@ -455,6 +484,30 @@ export function MoodCheckIn({
     // We intentionally re-run this effect when the schedule changes so the
     // next-boundary calculation stays in sync.
   }, [mealSchedule, usualWakeTime, usualBathTime]);
+
+  useEffect(() => {
+    if (daySettingsLoading || scheduleReminderShownRef.current) return;
+    const missing = getMissingWellnessScheduleLabels(
+      usualWakeTime,
+      usualBathTime,
+      mealSchedule,
+    );
+    if (missing.length === 0) return;
+    scheduleReminderShownRef.current = true;
+    setScheduleReminderSheet(
+      buildWellnessScheduleReminderSheet(missing, () => {
+        onComplete?.();
+        setTimeout(() => router.push("/(student)/profile"), 0);
+      }),
+    );
+  }, [
+    daySettingsLoading,
+    mealSchedule,
+    onComplete,
+    usualBathTime,
+    usualWakeTime,
+  ]);
+
   const [mealStatusById, setMealStatusById] = useState<Record<string, boolean>>(
     {},
   );
@@ -3752,6 +3805,10 @@ export function MoodCheckIn({
       <AuroraActionSheetOverlay
         sheet={journalSelfieSheet}
         onClose={() => setJournalSelfieSheet(null)}
+      />
+      <AuroraActionSheetOverlay
+        sheet={scheduleReminderSheet}
+        onClose={() => setScheduleReminderSheet(null)}
       />
     </KeyboardAvoidingView>
   );

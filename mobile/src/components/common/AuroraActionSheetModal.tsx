@@ -21,6 +21,8 @@ export type AuroraActionSheetContent = {
   title: string;
   body?: string;
   actions: AuroraActionSheetItem[];
+  /** Bottom dismiss button; defaults to "Cancel". */
+  dismissLabel?: string;
 };
 
 type AuroraActionSheetModalProps = {
@@ -39,6 +41,8 @@ export function AuroraActionSheetOverlay({
   deferActions = false,
 }: AuroraActionSheetOverlayProps) {
   if (!sheet) return null;
+
+  const dismissLabel = sheet.dismissLabel?.trim() || "Cancel";
 
   const runAction = (action: AuroraActionSheetItem) => {
     triggerHaptic("light");
@@ -104,9 +108,9 @@ export function AuroraActionSheetOverlay({
             activeOpacity={0.85}
             style={[styles.actionBtn, styles.cancelBtn]}
             accessibilityRole="button"
-            accessibilityLabel="Cancel"
+            accessibilityLabel={dismissLabel}
           >
-            <Text style={styles.actionText}>Cancel</Text>
+            <Text style={styles.actionText}>{dismissLabel}</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>
