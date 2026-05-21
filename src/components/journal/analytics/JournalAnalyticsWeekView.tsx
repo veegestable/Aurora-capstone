@@ -1,4 +1,4 @@
-import { HelpCircle, Sparkles, TrendingUp } from 'lucide-react'
+import { HelpCircle, Sparkles } from 'lucide-react'
 import { JournalMoodChartsSection } from '../JournalMoodChartsSection'
 import { ProgressBarList } from '../ProgressBarList'
 import type { JournalAnalyticsSceneProps } from './journalAnalyticsTypes'
@@ -6,6 +6,13 @@ import {
   energyCategoryLabelFromFive,
   stressCategoryLabelFromFive,
 } from '../../../utils/analytics/metricCategories'
+import { JournalWeeklyAiInsights } from './JournalWeeklyAiInsights'
+import { JournalMostFrequentMoodCard } from './JournalMostFrequentMoodCard'
+import { JournalPeriodMetricPills } from './JournalPeriodMetricPills'
+
+type PeriodViewProps = JournalAnalyticsSceneProps & {
+  onMostFrequentMoodGuide?: () => void
+}
 
 export function JournalAnalyticsWeekView({
   a,
@@ -13,56 +20,46 @@ export function JournalAnalyticsWeekView({
   onSelectChartMood,
   donutCenterLabel,
   chartGuides,
-}: JournalAnalyticsSceneProps) {
+  onMostFrequentMoodGuide,
+}: PeriodViewProps) {
   const stability = a.stabilityRange === '7days' ? a.weekStability : a.monthStability
   const bars = a.stabilityMetric === 'stress' ? a.dailyStress : a.dailyEnergy
+  const periodDays = a.periodDays
+  const periodTitle = periodDays === 30 ? 'Your last 30 days' : 'Your last 7 days'
+  const periodSubtitle =
+    periodDays === 30
+      ? 'Quick mood highlights from your last 30 days.'
+      : 'Quick mood highlights from your last 7 days.'
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="font-heading text-2xl font-bold text-white">Your last 7 days</h3>
-        <p className="mt-1 text-sm text-aurora-text-sec">Quick mood highlights from your last 7 days.</p>
+        <h3 className="font-heading text-2xl font-bold text-white">{periodTitle}</h3>
+        <p className="mt-1 text-sm text-aurora-text-sec">{periodSubtitle}</p>
         <p className="mt-0.5 text-xs text-aurora-text-muted">
           Nothing here diagnoses you or guesses what comes next.
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="card-aurora p-4">
-          <p className="mb-1 text-[10px] font-bold tracking-widest text-aurora-text-sec uppercase">Days Logged</p>
-          <p className="text-3xl font-extrabold text-white">
-            {a.daysLogged}
-            <span className="text-base font-bold text-aurora-text-sec">/7</span>
+      <JournalPeriodMetricPills
+        daysLogged={a.daysLogged}
+        periodDays={periodDays}
+        checkIns={a.weekCheckIns}
+        bestStreak={a.periodHighestStreak}
+      />
+
+      {a.weekCheckIns > 0 ? (
+        <JournalMostFrequentMoodCard
+          display={a.periodDominantMood}
+          onGuide={onMostFrequentMoodGuide}
+        />
+      ) : (
+        <div className="card-aurora p-6">
+          <p className="text-sm text-aurora-text-sec">
+            No check-ins in this window yet. Log your mood to see your most frequent mood here.
           </p>
         </div>
-        <div className="card-aurora p-4">
-          <p className="mb-1 text-[10px] font-bold tracking-widest text-aurora-text-sec uppercase">Check-ins</p>
-          <p className="text-3xl font-extrabold text-white">{a.weekCheckIns}</p>
-        </div>
-        <div className="card-aurora p-4">
-          <p className="mb-1 text-[10px] font-bold tracking-widest text-aurora-text-sec uppercase">Streak</p>
-          <p className="text-3xl font-extrabold text-white">{a.streak}</p>
-        </div>
-      </div>
-
-      <p className="text-xs text-aurora-text-muted">Based on your last 7 days of check-ins.</p>
-
-      <div className="rounded-2xl border border-aurora-blue/35 bg-linear-to-br from-[#1a1a2e] to-[#0f0f1a] p-6 shadow-[0_0_24px_rgba(45,107,255,0.12)]">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-aurora-text-sec" aria-hidden />
-            <p className="text-[10px] font-bold tracking-widest text-white uppercase">Average mood</p>
-          </div>
-          {a.weekAvgMood ? (
-            <span className="rounded-full border border-aurora-blue/40 bg-[rgba(45,107,255,0.15)] px-3 py-1 text-xs font-bold capitalize text-white">
-              {a.weekAvgMood}
-            </span>
-          ) : null}
-        </div>
-        <h4 className="text-2xl leading-tight font-extrabold text-white sm:text-3xl">
-          Mood trend: {a.weekTrendLabel}
-        </h4>
-      </div>
+      )}
 
       <div className="card-aurora space-y-5 p-6">
         <div className="flex items-center justify-between gap-3">
@@ -207,20 +204,31 @@ export function JournalAnalyticsWeekView({
         chartMood={chartMood}
         onSelectChartMood={onSelectChartMood}
         durationBars={a.weekDurationBars}
-        durationEmptyMessage="No duration entries yet for the last 7 days."
+        durationEmptyMessage={`No duration entries yet for the last ${periodDays} days.`}
         intensityBars={a.weekIntensityBars}
-        intensityEmptyMessage="No intensity entries yet for the last 7 days."
+        intensityEmptyMessage={`No intensity entries yet for the last ${periodDays} days.`}
         chartGuides={chartGuides}
       />
+
+      <JournalWeeklyAiInsights a={a} />
 
       <div className="rounded-2xl border border-aurora-blue/30 bg-linear-to-br from-[rgba(45,107,255,0.08)] to-[rgba(124,58,237,0.05)] p-6 shadow-[0_0_20px_rgba(45,107,255,0.08)]">
         <div className="mb-3 flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-aurora-blue" aria-hidden />
-          <h4 className="text-lg font-bold text-white">Written summary for the last 7 days</h4>
+          <h4 className="text-lg font-bold text-white">
+            Written summary for the last {periodDays} days
+          </h4>
         </div>
         <p className="mb-5 text-xs text-aurora-text-sec">
           Nothing here diagnoses you or guesses what comes next.
         </p>
+
+        {a.periodSummaryGenerating ? (
+          <p className="mb-4 text-sm italic text-aurora-text-muted">Generating your summary…</p>
+        ) : null}
+        {a.periodWrittenSummary ? (
+          <p className="mb-5 text-sm leading-relaxed text-aurora-text-sec">{a.periodWrittenSummary}</p>
+        ) : null}
 
         <div className="mb-5 space-y-2">
           <p className="text-sm text-white">

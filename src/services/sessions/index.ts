@@ -1,4 +1,5 @@
 import { createSessionRequest } from "./post/createSessionRequest"
+import { sendSessionRequestFromConversation } from "./post/sendSessionRequestFromConversation"
 import { createCounselorSessionInvite } from "./post/createCounselorSessionInvite"
 import { studentConfirmFinalSlot } from "./post/studentConfirmFinalSlot"
 import { createSessionNote } from "./post/createSessionNote"
@@ -15,6 +16,7 @@ export type { SessionNote } from "./types"
 
 export const sessionsService = {
   createSessionRequest,
+  sendSessionRequestFromConversation,
   createCounselorSessionInvite,
   studentConfirmFinalSlot,
   createSessionNote,

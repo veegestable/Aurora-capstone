@@ -9,6 +9,20 @@
 
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { createResendRegistrationVerificationTrusted } from './resendVerification';
+import { createSignUpTrusted } from './signUpTrusted';
+import {
+  ensureConversationDocument,
+  resolveConversationCollegeCode,
+} from './ensureConversationAdmin';
+import { createGetStudentCounselingOutcomeCountsTrusted } from './studentCounselingOutcomeCounts';
+import { assertConversationMessagingOpen } from './conversationMessagingPolicy';
+import {
+  isSessionStartInFutureManila,
+  parseSessionSlotToMillisManila,
+  parsePreferredTimeStringManila,
+  SESSION_SCHEDULING_TIMEZONE,
+} from './sessionSlotAuthority';
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -139,6 +153,11 @@ export const generateWeeklySummaryAi = onCall({ region: 'asia-southeast2' }, asy
 });
 
 export { deliverSessionExpoPush } from './deliverSessionExpoPush';
+export { enqueueSessionReminders } from './sessionReminderScheduler';
+export const getStudentCounselingOutcomeCountsTrusted =
+  createGetStudentCounselingOutcomeCountsTrusted(db);
+export { generateWeeklyAnalyticsAi } from './weeklyAnalyticsAi';
+export { cleanupUnverifiedAuthUsers } from './cleanupUnverifiedAuthUsers';
 
 type TrustedAuditInput = {
   action: string;
@@ -244,6 +263,11 @@ async function enforceRateLimit(
   });
 }
 
+export const resendRegistrationVerificationTrusted =
+  createResendRegistrationVerificationTrusted(enforceRateLimit);
+
+export const signUpTrusted = createSignUpTrusted(enforceRateLimit);
+
 type SendTextMessageTrustedInput = {
   conversationId: string;
   text: string;
@@ -277,6 +301,8 @@ export const sendTextMessageTrusted = onCall({ region: 'asia-southeast2' }, asyn
     throw new HttpsError('permission-denied', 'Not a conversation participant.');
   }
 
+  await assertConversationMessagingOpen(db, conversationId, uid);
+
   await enforceRateLimit('msg', `${uid}:${conversationId}`, 10_000, 5);
 
   const msgRef = await convRef.collection('messages').add({
@@ -303,9 +329,14 @@ export const sendTextMessageTrusted = onCall({ region: 'asia-southeast2' }, asyn
 });
 
 type SendSessionRequestTrustedInput = {
-  conversationId: string;
+  conversationId?: string;
+  counselorId?: string;
   preferredTime: string;
   note?: string;
+  studentName?: string;
+  studentAvatar?: string;
+  counselorName?: string;
+  counselorAvatar?: string;
 };
 
 export const sendSessionRequestTrusted = onCall({ region: 'asia-southeast2' }, async (request) => {
@@ -313,27 +344,70 @@ export const sendSessionRequestTrusted = onCall({ region: 'asia-southeast2' }, a
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
 
   const data = (request.data ?? {}) as Partial<SendSessionRequestTrustedInput>;
-  const conversationId =
-    typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
   const preferredTime =
     typeof data.preferredTime === 'string' ? data.preferredTime.trim() : '';
   const note = typeof data.note === 'string' ? data.note.trim() : '';
-  if (!conversationId || !preferredTime) {
+  const counselorIdParam =
+    typeof data.counselorId === 'string' ? data.counselorId.trim() : '';
+  let conversationId =
+    typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
+
+  if (!preferredTime) {
+    throw new HttpsError('invalid-argument', 'preferredTime is required.');
+  }
+
+  let counselorId = counselorIdParam;
+  if (!conversationId && counselorId) {
+    conversationId = `${counselorId}_${uid}`;
+  }
+  if (!conversationId) {
     throw new HttpsError(
       'invalid-argument',
-      'conversationId and preferredTime are required.',
+      'conversationId or counselorId is required.',
     );
   }
 
+  if (!counselorId) {
+    const underscore = conversationId.indexOf('_');
+    if (underscore <= 0) {
+      throw new HttpsError('invalid-argument', 'Invalid conversation id.');
+    }
+    counselorId = conversationId.slice(0, underscore);
+    const parsedStudentId = conversationId.slice(underscore + 1);
+    if (parsedStudentId !== uid) {
+      throw new HttpsError(
+        'permission-denied',
+        'Only the student can send a session request in this thread.',
+      );
+    }
+  }
+
+  if (conversationId !== `${counselorId}_${uid}`) {
+    throw new HttpsError(
+      'permission-denied',
+      'Only the student can send a session request in this thread.',
+    );
+  }
+
+  await ensureConversationDocument({
+    counselorId,
+    studentId: uid,
+    studentName: typeof data.studentName === 'string' ? data.studentName : undefined,
+    studentAvatar:
+      typeof data.studentAvatar === 'string' ? data.studentAvatar : undefined,
+    counselorName:
+      typeof data.counselorName === 'string' ? data.counselorName : undefined,
+    counselorAvatar:
+      typeof data.counselorAvatar === 'string' ? data.counselorAvatar : undefined,
+  });
+
   const convRef = db.collection('conversations').doc(conversationId);
   const convSnap = await convRef.get();
-  if (!convSnap.exists) throw new HttpsError('not-found', 'Conversation not found.');
-  const conv = convSnap.data() ?? {};
-  const counselorId = typeof conv.counselorId === 'string' ? conv.counselorId : '';
-  const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
-  if (!counselorId || !studentId) {
-    throw new HttpsError('failed-precondition', 'Conversation participants invalid.');
+  if (!convSnap.exists) {
+    throw new HttpsError('failed-precondition', 'Conversation could not be created.');
   }
+  const conv = convSnap.data() ?? {};
+  const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
   if (studentId !== uid) {
     throw new HttpsError(
       'permission-denied',
@@ -341,11 +415,35 @@ export const sendSessionRequestTrusted = onCall({ region: 'asia-southeast2' }, a
     );
   }
 
+  await assertConversationMessagingOpen(db, conversationId, uid);
+
   await enforceRateLimit('session_request', `${studentId}:${counselorId}`, 30_000, 1);
+
+  const preferredMillis = parsePreferredTimeStringManila(preferredTime);
+  if (preferredMillis == null) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Could not read the requested date and time. Please choose a valid schedule in the picker.',
+    );
+  }
+  const serverNow = Date.now();
+  if (!isSessionStartInFutureManila(preferredMillis, serverNow)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Session requests must be for a future date and time (Philippine Time).',
+    );
+  }
+
+  const convCollege =
+    typeof conv.college_code === 'string' ? conv.college_code.trim() : '';
+  const collegeCode =
+    convCollege ||
+    (await resolveConversationCollegeCode(db, counselorId, studentId));
 
   const sessionRef = await db.collection('sessions').add({
     counselorId,
     studentId,
+    ...(collegeCode ? { college_code: collegeCode } : {}),
     riskFlagId: null,
     initiatedBy: 'student',
     studentRequestNote: note,
@@ -358,6 +456,7 @@ export const sendSessionRequestTrusted = onCall({ region: 'asia-southeast2' }, a
     reminderSent: false,
     sessionHistoryBadge: 'pending',
     preferredTimeFromStudent: preferredTime,
+    schedulingTimezone: SESSION_SCHEDULING_TIMEZONE,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
@@ -400,6 +499,266 @@ export const sendSessionRequestTrusted = onCall({ region: 'asia-southeast2' }, a
 
   return { ok: true, messageId: msgRef.id, sessionId: sessionRef.id };
 });
+
+type CreateCounselorSessionInviteTrustedInput = {
+  studentId?: string;
+  proposedSlots?: Array<{ date?: string; time?: string }>;
+  note?: string;
+};
+
+export const createCounselorSessionInviteTrusted = onCall(
+  { region: 'asia-southeast2' },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+    const role = await getRoleForUid(uid);
+    if (role !== 'counselor') {
+      throw new HttpsError(
+        'permission-denied',
+        'Only counselors can create session invites.',
+      );
+    }
+
+    const data =
+      (request.data ?? {}) as Partial<CreateCounselorSessionInviteTrustedInput>;
+    const studentId =
+      typeof data.studentId === 'string' ? data.studentId.trim() : '';
+    const rawSlots = Array.isArray(data.proposedSlots) ? data.proposedSlots : [];
+    const proposedSlots = rawSlots
+      .map((x) => ({
+        date: typeof x?.date === 'string' ? x.date.trim() : '',
+        time: typeof x?.time === 'string' ? x.time.trim() : '',
+      }))
+      .filter((x) => !!x.date && !!x.time);
+    const note = typeof data.note === 'string' ? data.note.trim() : '';
+
+    if (!studentId) {
+      throw new HttpsError('invalid-argument', 'studentId is required.');
+    }
+    if (proposedSlots.length === 0) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Provide at least one valid proposed slot.',
+      );
+    }
+
+    const nowMs = Date.now();
+    for (const slot of proposedSlots) {
+      const slotMs = parseSessionSlotToMillisManila(slot);
+      if (slotMs == null) {
+        throw new HttpsError(
+          'invalid-argument',
+          'One or more proposed slots are invalid. Please pick date/time from the picker.',
+        );
+      }
+      if (!isSessionStartInFutureManila(slotMs, nowMs)) {
+        throw new HttpsError(
+          'failed-precondition',
+          'All proposed slots must be in the future (Philippine Time).',
+        );
+      }
+    }
+
+    await enforceRateLimit('session_invite', `${uid}:${studentId}`, 30_000, 3);
+    await assertConversationMessagingOpen(db, `${uid}_${studentId}`, uid);
+
+    const convRef = db.collection('conversations').doc(`${uid}_${studentId}`);
+    const convSnap = await convRef.get();
+    if (!convSnap.exists) {
+      throw new HttpsError('not-found', 'Conversation not found.');
+    }
+    const conv = convSnap.data() ?? {};
+    if (conv.counselorId !== uid || conv.studentId !== studentId) {
+      throw new HttpsError(
+        'permission-denied',
+        'Conversation participants do not match this invite.',
+      );
+    }
+
+    const convCollege =
+      typeof conv.college_code === 'string' ? conv.college_code.trim() : '';
+    const collegeCode =
+      convCollege || (await resolveConversationCollegeCode(db, uid, studentId));
+
+    const sessionRef = await db.collection('sessions').add({
+      counselorId: uid,
+      studentId,
+      ...(collegeCode ? { college_code: collegeCode } : {}),
+      riskFlagId: null,
+      initiatedBy: 'counselor',
+      studentRequestNote: note,
+      proposedSlots,
+      confirmedSlot: null,
+      finalSlot: null,
+      status: 'pending',
+      attendanceNote: null,
+      cancelReason: null,
+      reminderSent: false,
+      sessionHistoryBadge: 'pending',
+      schedulingTimezone: SESSION_SCHEDULING_TIMEZONE,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await db.collection('notifications').add({
+      user_id: studentId,
+      type: 'counselor_message',
+      message:
+        'Your counselor sent a session invitation. Open Messages to review and confirm your preferred slot.',
+      status: 'pending',
+      delivery_mode: 'local_bridge',
+      notification_key: `session:${sessionRef.id}:counselor_invite_created`,
+      target_route: '/(student)/messages',
+      scheduled_for: admin.firestore.FieldValue.serverTimestamp(),
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { ok: true, sessionId: sessionRef.id };
+  },
+);
+
+type UpdateSessionRequestTrustedInput = {
+  conversationId?: string;
+  messageId?: string;
+  sessionId?: string;
+  preferredTime?: string;
+  note?: string;
+};
+
+export const updateSessionRequestTrusted = onCall(
+  { region: 'asia-southeast2' },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+    const data = (request.data ?? {}) as Partial<UpdateSessionRequestTrustedInput>;
+    const conversationId =
+      typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
+    const messageId =
+      typeof data.messageId === 'string' ? data.messageId.trim() : '';
+    const sessionId =
+      typeof data.sessionId === 'string' ? data.sessionId.trim() : '';
+    const preferredTime =
+      typeof data.preferredTime === 'string' ? data.preferredTime.trim() : '';
+    const note = typeof data.note === 'string' ? data.note.trim() : '';
+
+    if (!conversationId || !messageId || !sessionId || !preferredTime) {
+      throw new HttpsError(
+        'invalid-argument',
+        'conversationId, messageId, sessionId, and preferredTime are required.',
+      );
+    }
+
+    const convRef = db.collection('conversations').doc(conversationId);
+    const convSnap = await convRef.get();
+    if (!convSnap.exists) {
+      throw new HttpsError('not-found', 'Conversation not found.');
+    }
+    const conv = convSnap.data() ?? {};
+    const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
+    if (studentId !== uid) {
+      throw new HttpsError(
+        'permission-denied',
+        'Only the student can update this session request.',
+      );
+    }
+
+    await assertConversationMessagingOpen(db, conversationId, uid);
+
+    const preferredMillis = parsePreferredTimeStringManila(preferredTime);
+    if (preferredMillis == null) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Could not read the requested date and time. Please choose a valid schedule in the picker.',
+      );
+    }
+    if (!isSessionStartInFutureManila(preferredMillis, Date.now())) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Session requests must be for a future date and time (Philippine Time).',
+      );
+    }
+
+    await enforceRateLimit(
+      'session_request_update',
+      `${uid}:${conversationId}:${sessionId}`,
+      15_000,
+      4,
+    );
+
+    const sessRef = db.collection('sessions').doc(sessionId);
+    const sessSnap = await sessRef.get();
+    if (!sessSnap.exists) {
+      throw new HttpsError('not-found', 'Session not found.');
+    }
+    const sess = sessSnap.data() ?? {};
+    const sessionStudent =
+      typeof sess.studentId === 'string' ? sess.studentId.trim() : '';
+    if (sessionStudent && sessionStudent !== uid) {
+      throw new HttpsError('permission-denied', 'Not your session request.');
+    }
+    const st = typeof sess.status === 'string' ? sess.status : '';
+    if (st !== 'requested') {
+      throw new HttpsError(
+        'failed-precondition',
+        'Only an open session request can be edited.',
+      );
+    }
+
+    const msgRef = convRef.collection('messages').doc(messageId);
+    const msgSnap = await msgRef.get();
+    if (!msgSnap.exists) {
+      throw new HttpsError('not-found', 'Message not found.');
+    }
+    const msg = msgSnap.data() ?? {};
+    if (msg.type !== 'session_request') {
+      throw new HttpsError('invalid-argument', 'Not a session request message.');
+    }
+    const sd = (msg.sessionData ?? {}) as Record<string, unknown>;
+    const linkedSid =
+      typeof msg.sessionId === 'string'
+        ? msg.sessionId.trim()
+        : typeof sd.sessionId === 'string'
+          ? sd.sessionId.trim()
+          : '';
+    if (linkedSid !== sessionId) {
+      throw new HttpsError(
+        'permission-denied',
+        'This message does not match the session being updated.',
+      );
+    }
+
+    const content = `Session request: ${preferredTime}`;
+    const existingSessionData = sd;
+
+    const batch = db.batch();
+    batch.update(sessRef, {
+      preferredTimeFromStudent: preferredTime,
+      studentRequestNote: note,
+      status: 'requested',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    batch.update(msgRef, {
+      content,
+      sessionData: {
+        ...existingSessionData,
+        sessionId,
+        note,
+        status: 'requested',
+        preferredTime,
+      },
+    });
+    batch.update(convRef, {
+      lastMessage: content,
+      lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastSenderId: uid,
+    });
+    await batch.commit();
+
+    return { ok: true };
+  },
+);
 
 export const createSessionNotificationTrusted = onCall({ region: 'asia-southeast2' }, async (request) => {
   const uid = request.auth?.uid;

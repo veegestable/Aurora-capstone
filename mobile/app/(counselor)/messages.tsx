@@ -9,15 +9,16 @@ import { AppTextInput as TextInput } from "../../src/components/common/AppTextIn
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { type AlertButton, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Pressable, Modal, StyleSheet } from "react-native";
+import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable, Modal, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
-  Plus,
   Send,
   PenSquare,
   ChevronRight,
+  CalendarPlus,
+  Check,
 } from "lucide-react-native";
 import { useAuth } from "../../src/stores/AuthContext";
 import {
@@ -46,6 +47,17 @@ import * as Clipboard from "expo-clipboard";
 import { subscribeToUsersPresence } from "../../src/services/firebase-presence.service";
 import { usePeerPresence } from "../../src/hooks/usePeerPresence";
 import { auth } from "../../src/services/firebase";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../src/components/common/InfoGuideModal";
+import { AuroraConfirmModal } from "../../src/components/common/AuroraConfirmModal";
+import {
+  AuroraActionSheetModal,
+  type AuroraActionSheetContent,
+} from "../../src/components/common/AuroraActionSheetModal";
+import { buildFeedback } from "../../src/utils/aurora-feedback";
+import ConversationReadOnlyBanner from "../../src/components/messages/ConversationReadOnlyBanner";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type FilterTab = "All Messages" | "Unread";
@@ -109,6 +121,7 @@ function ConversationRow({
   const previewIsSessionMeta = item.preview
     ?.toLowerCase()
     .startsWith("session:");
+  const isArchived = item.isArchived === true;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -118,17 +131,26 @@ function ConversationRow({
       style={{
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: item.isUnread ? "rgba(45,107,255,0.12)" : AURORA.card,
+        backgroundColor: item.isUnread
+          ? "rgba(45,107,255,0.12)"
+          : isArchived
+            ? "rgba(148,163,184,0.08)"
+            : AURORA.card,
         borderRadius: 16,
         marginBottom: 10,
         overflow: "hidden",
         borderWidth: 1,
-        borderColor: item.isUnread ? "rgba(45,107,255,0.45)" : AURORA.border,
+        borderColor: item.isUnread
+          ? "rgba(45,107,255,0.45)"
+          : isArchived
+            ? "rgba(148,163,184,0.35)"
+            : AURORA.border,
+        opacity: isArchived ? 0.88 : 1,
       }}
     >
       {/* Left color border */}
       <View
-        style={{ width: 3, backgroundColor: AURORA.blue, alignSelf: "stretch" }}
+        style={{ width: 0, backgroundColor: AURORA.blue, alignSelf: "stretch" }}
       />
 
       {/* Avatar */}
@@ -154,18 +176,29 @@ function ConversationRow({
       </View>
 
       {/* Content */}
-      <View style={{ flex: 1, paddingRight: 4 }}>
+      <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
             marginBottom: 4,
+            gap: 8,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <View
+            style={{
+              flex: 1,
+              minWidth: 0,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
             <Text
+              numberOfLines={1}
               style={{
+                flexShrink: 1,
                 color: "#FFFFFF",
                 fontSize: 15,
                 fontWeight: item.isUnread ? "700" : "600",
@@ -173,16 +206,58 @@ function ConversationRow({
             >
               {item.name}
             </Text>
+            {isArchived ? (
+              <View
+                style={{
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 6,
+                  backgroundColor: "rgba(148,163,184,0.2)",
+                  borderWidth: 1,
+                  borderColor: "rgba(148,163,184,0.35)",
+                }}
+              >
+                <Text
+                  style={{
+                    color: AURORA.textMuted,
+                    fontSize: 9,
+                    fontWeight: "700",
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  ARCHIVED
+                </Text>
+              </View>
+            ) : null}
           </View>
-          <Text
+          <View
             style={{
-              fontSize: 12,
-              color: item.isUnread ? AURORA.blue : AURORA.textSec,
-              fontWeight: item.isUnread ? "700" : "400",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              flexShrink: 0,
             }}
           >
-            {item.time}
-          </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: item.isUnread ? AURORA.blue : AURORA.textSec,
+                fontWeight: item.isUnread ? "700" : "400",
+              }}
+            >
+              {item.time}
+            </Text>
+            {item.isUnread ? (
+              <View
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: AURORA.blue,
+                }}
+              />
+            ) : null}
+          </View>
         </View>
         <Text
           numberOfLines={1}
@@ -195,20 +270,6 @@ function ConversationRow({
           {item.preview}
         </Text>
       </View>
-
-      {/* Unread dot */}
-      <View style={{ width: 24, alignItems: "center", marginRight: 12 }}>
-        {item.isUnread && (
-          <View
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: 5,
-              backgroundColor: AURORA.blue,
-            }}
-          />
-        )}
-      </View>
     </TouchableOpacity>
   );
 }
@@ -217,12 +278,17 @@ function ConversationRow({
 function ChatView({
   contact,
   onBack,
+  onThreadRepaired,
 }: {
   contact: Conversation;
   onBack: () => void;
+  onThreadRepaired?: () => void;
 }) {
   const { user } = useAuth();
   const peerOnline = usePeerPresence(contact.id);
+  const [readOnly, setReadOnly] = useState(
+    contact.messagingClosed === true || contact.isPastCollege === true,
+  );
   const conversationId =
     contact.conversationId || (user?.id ? `${user.id}_${contact.id}` : "");
   const [message, setMessage] = useState("");
@@ -252,6 +318,13 @@ function ChatView({
     useState<SessionCardData | null>(null);
   const [expandedSessionRequestNotes, setExpandedSessionRequestNotes] =
     useState<Record<string, boolean>>({});
+  const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    messageId: string;
+    messageType: string;
+  } | null>(null);
+  const [messageOptionsSheet, setMessageOptionsSheet] =
+    useState<AuroraActionSheetContent | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   /** One-shot scroll after switching threads; cleared after first successful scroll. */
   const pendingScrollToEndRef = useRef(false);
@@ -277,6 +350,40 @@ function ChatView({
   }, [conversationId]);
 
   useEffect(() => {
+    setReadOnly(
+      contact.messagingClosed === true || contact.isPastCollege === true,
+    );
+  }, [contact.messagingClosed, contact.isPastCollege, conversationId]);
+
+  useEffect(() => {
+    if (!conversationId || !user?.id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const repaired =
+          await firestoreService.repairConversationCollegeTagIfAligned(
+            conversationId,
+            user.id,
+          );
+        const state = await firestoreService.getConversationMessagingState(
+          conversationId,
+          user.id,
+        );
+        if (cancelled) return;
+        setReadOnly(state.messagingClosed);
+        if (repaired || !state.messagingClosed) {
+          onThreadRepaired?.();
+        }
+      } catch {
+        // Keep list-derived read-only default.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, user?.id, onThreadRepaired]);
+
+  useEffect(() => {
     if (!conversationId || !user?.id) {
       setLoadingMessages(false);
       return;
@@ -298,13 +405,13 @@ function ChatView({
     return unsub;
   }, [conversationId, user?.id]);
 
-  // Mark conversation as read as soon as counselor opens it.
+  // Mark conversation as read as soon as counselor opens it (active inbox only).
   useEffect(() => {
-    if (!conversationId || !user?.id) return;
+    if (!conversationId || !user?.id || readOnly) return;
     firestoreService
       .markConversationAsRead(conversationId, user.id)
       .catch(() => {});
-  }, [conversationId, user?.id]);
+  }, [conversationId, user?.id, readOnly]);
 
   // Scroll once messages are loaded (Android: fixed delay is often too early vs layout).
   useEffect(() => {
@@ -325,6 +432,7 @@ function ChatView({
   }, [loadingMessages, messages.length]);
 
   const sendMessage = async () => {
+    if (readOnly) return;
     const text = messageDraftRef.current.trim();
     if (!text || !user?.id || !conversationId || sending) return;
     setSending(true);
@@ -403,7 +511,10 @@ function ChatView({
     }
   };
 
-  const handlePlusPress = () => setShowInviteModal(true);
+  const handlePlusPress = () => {
+    if (readOnly) return;
+    setShowInviteModal(true);
+  };
 
   const parsePreferredTimeToSlot = (
     preferredTime: string,
@@ -430,28 +541,40 @@ function ChatView({
         requestedAtMs: meta?.requestedAtMs,
       })
     ) {
-      Alert.alert(
-        "Expired request",
-        "This session request can no longer be accepted because 24 hours have passed without a response, or the preferred time has already passed.",
+      setFeedback(
+        buildFeedback(
+          "Expired request",
+          "This session request can no longer be accepted because 24 hours have passed without a response, or the preferred time has already passed.",
+          "warning",
+        ),
       );
       return;
     }
     setSending(true);
     try {
       const slot = parsePreferredTimeToSlot(preferredTime);
-      await firestoreService.confirmSlot(sessionId, slot);
-      await firestoreService.updateSessionRequestMessageStatus(
+      await firestoreService.acceptStudentSessionRequest(
         conversationId,
         sessionId,
-        "confirmed",
+        slot,
+        user.id,
       );
       await firestoreService.sendTextMessage(
         conversationId,
         user.id,
-        `${AUTO_ACCEPTED_PREFIX}Just accepted your request`,
+        `${AUTO_ACCEPTED_PREFIX}Your session is scheduled for ${slot.date} at ${slot.time}.`,
       );
     } catch (e) {
       console.error("Failed to accept session request:", e);
+      setFeedback(
+        buildFeedback(
+          "Could not accept request",
+          e instanceof Error
+            ? e.message
+            : "Something went wrong. Please try again.",
+          "error",
+        ),
+      );
     } finally {
       setSending(false);
     }
@@ -526,6 +649,7 @@ function ChatView({
         proposalKind: isRescheduleFlow || !!fromAttendance
           ? "attendance_reschedule"
           : "counselor_new_times",
+        actorId: user.id,
       });
       const sessionData: SessionCardData & {
         note?: string;
@@ -611,6 +735,8 @@ function ChatView({
         await firestoreService.markSessionAttendance(
           sessionId,
           mapAttendanceToStatus(status),
+          undefined,
+          user?.id,
         );
       } catch (e) {
         console.error("Failed to mark attendance:", e);
@@ -629,32 +755,8 @@ function ChatView({
   };
 
   const confirmDeleteMessage = (messageId: string, messageType: string) => {
-    if (!user?.id) return;
-    Alert.alert(
-      "Delete message",
-      "Are you sure you want to delete this message?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            await firestoreService.deleteConversationMessage(
-              conversationId,
-              messageId,
-            );
-            await auditLogsService.write({
-              performedBy: user.id,
-              performedByRole: user.role,
-              action: "delete_chat_message",
-              targetType: "chat",
-              targetId: user.id,
-              metadata: { messageType },
-            });
-          },
-        },
-      ],
-    );
+    if (!user?.id || readOnly) return;
+    setPendingDelete({ messageId, messageType });
   };
 
   const isLikelyDateLabel = (value: string) =>
@@ -732,7 +834,7 @@ function ChatView({
           </View>
 
           {/* Privacy Banner */}
-          <View
+          {/* <View
             style={{
               backgroundColor: "rgba(124,58,237,0.12)",
               borderWidth: 1,
@@ -755,7 +857,9 @@ function ChatView({
             >
               COUNSELOR — STUDENT PRIVATE CONVERSATION
             </Text>
-          </View>
+          </View> */}
+
+          {readOnly ? <ConversationReadOnlyBanner role="counselor" /> : null}
 
           {/* Messages */}
           <View style={{ flex: 1 }}>
@@ -829,37 +933,38 @@ function ChatView({
                       <Pressable
                         onLongPress={() => {
                           if (!user?.id) return;
-                          const buttons: {
-                            text: string;
-                            style?: "destructive" | "cancel";
-                            onPress?: () => void;
-                          }[] = [];
+                          const actions: AuroraActionSheetContent["actions"] =
+                            [];
                           if (canCopyText) {
-                            buttons.push({
-                              text: "Copy",
-                              onPress: async () => {
-                                await handleCopyText(displayText);
-                                Alert.alert(
-                                  "Copied",
-                                  "Message copied to clipboard.",
-                                );
+                            actions.push({
+                              label: "Copy",
+                              onPress: () => {
+                                void (async () => {
+                                  await handleCopyText(displayText);
+                                  setFeedback(
+                                    buildFeedback(
+                                      "Copied",
+                                      "Message copied to clipboard.",
+                                      "success",
+                                    ),
+                                  );
+                                })();
                               },
                             });
                           }
                           if (canDeleteText) {
-                            buttons.push({
-                              text: "Delete",
-                              style: "destructive",
+                            actions.push({
+                              label: "Delete",
+                              destructive: true,
                               onPress: () =>
                                 confirmDeleteMessage(msg.id, "text"),
                             });
                           }
-                          buttons.push({ text: "Cancel", style: "cancel" });
-                          Alert.alert(
-                            "Message options",
-                            undefined,
-                            buttons as AlertButton[],
-                          );
+                          if (actions.length === 0) return;
+                          setMessageOptionsSheet({
+                            title: "Message options",
+                            actions,
+                          });
                         }}
                       >
                         <View
@@ -891,13 +996,11 @@ function ChatView({
                           {isAutoAccepted ? (
                             <>
                               <Text
-                                numberOfLines={1}
-                                ellipsizeMode="tail"
                                 style={{
                                   color: AURORA.green,
                                   fontSize: 14,
                                   lineHeight: 20,
-                                  maxWidth: "100%",
+                                  flexShrink: 1,
                                   ...(Platform.OS === "android"
                                     ? ({ includeFontPadding: false } as const)
                                     : null),
@@ -979,6 +1082,7 @@ function ChatView({
                                   isExpired: requestExpired,
                                 }}
                                 onAccept={
+                                  !readOnly &&
                                   msg.sessionRequest.sessionId &&
                                   msg.sessionRequest.preferredTime &&
                                   !requestExpired
@@ -995,6 +1099,7 @@ function ChatView({
                                     : undefined
                                 }
                                 onProposeNewTime={
+                                  !readOnly &&
                                   msg.sessionRequest.sessionId &&
                                   !requestExpired
                                     ? () =>
@@ -1055,11 +1160,16 @@ function ChatView({
                           <SessionCard
                             data={msg.session}
                             isFromMe={isMe}
-                            onMarkAttendance={() => {
-                              setSelectedSessionForAttendance(msg.session);
-                              setShowAttendanceModal(true);
-                            }}
+                            onMarkAttendance={
+                              readOnly
+                                ? undefined
+                                : () => {
+                                    setSelectedSessionForAttendance(msg.session);
+                                    setShowAttendanceModal(true);
+                                  }
+                            }
                             onReschedule={(() => {
+                              if (readOnly) return undefined;
                               const sid = resolveSessionsDocIdForSessionCard(
                                 msg.session,
                               );
@@ -1204,13 +1314,13 @@ function ChatView({
                           {messageContent}
                         </View>
 
-                        {isMeForLayout && (
+                        {/* {isMeForLayout && (
                           <LetterAvatar
                             name={user?.full_name ?? "You"}
                             size={34}
                             avatarUrl={user?.avatar_url}
                           />
-                        )}
+                        )} */}
                       </View>
                     </View>
                   );
@@ -1232,82 +1342,106 @@ function ChatView({
             />
           </View>
 
-          {/* Input Bar */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-              borderTopWidth: 1,
-              borderTopColor: AURORA.border,
-              gap: 10,
-            }}
-          >
-            <TouchableOpacity
-              onPress={handlePlusPress}
+          {readOnly ? (
+            <View
               style={{
-                width: 40,
-                height: 40,
-                marginBottom: 40,
-                borderRadius: 20,
-                backgroundColor: AURORA.card,
-                alignItems: "center",
-                justifyContent: "center",
-                borderWidth: 1,
-                borderColor: AURORA.border,
-              }}
-            >
-              <Plus size={18} color={AURORA.textSec} />
-            </TouchableOpacity>
-            <TextInput
-              style={{
-                flex: 1,
-                backgroundColor: AURORA.card,
-                borderRadius: 24,
                 paddingHorizontal: 16,
-                paddingVertical: 10,
-                marginBottom: 40,
-                color: "#FFFFFF",
-                fontSize: 14,
-                borderWidth: 1,
-                borderColor: AURORA.border,
-              }}
-              placeholder="Type a message..."
-              placeholderTextColor={AURORA.textMuted}
-              value={message}
-              onChangeText={(t) => {
-                messageDraftRef.current = t;
-                setMessage(t);
-              }}
-            />
-            <TouchableOpacity
-              onPress={sendMessage}
-              disabled={sending}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: AURORA.blue,
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: 40,
+                paddingVertical: 14,
+                borderTopWidth: 1,
+                borderTopColor: AURORA.border,
+                marginBottom: 24,
               }}
             >
-              <Send size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-          <Text
-            style={{
-              color: AURORA.textMuted,
-              fontSize: 11,
-              textAlign: "center",
-              marginBottom: 8,
-              paddingHorizontal: 16,
-            }}
-          >
-            Messages are encrypted and shared only with this student.
-          </Text>
+              <Text
+                style={{
+                  color: AURORA.textMuted,
+                  fontSize: 13,
+                  textAlign: "center",
+                  lineHeight: 18,
+                }}
+              >
+                Messaging is closed for this conversation.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  borderTopWidth: 1,
+                  borderTopColor: AURORA.border,
+                  gap: 10,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={handlePlusPress}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    marginBottom: 40,
+                    borderRadius: 20,
+                    backgroundColor: AURORA.card,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 1,
+                    borderColor: AURORA.border,
+                  }}
+                >
+                  <CalendarPlus size={18} color={AURORA.textSec} />
+                </TouchableOpacity>
+                <TextInput
+                  style={{
+                    flex: 1,
+                    backgroundColor: AURORA.card,
+                    borderRadius: 24,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    marginBottom: 40,
+                    color: "#FFFFFF",
+                    fontSize: 14,
+                    borderWidth: 1,
+                    borderColor: AURORA.border,
+                  }}
+                  placeholder="Type a message..."
+                  placeholderTextColor={AURORA.textMuted}
+                  value={message}
+                  onChangeText={(t) => {
+                    messageDraftRef.current = t;
+                    setMessage(t);
+                  }}
+                />
+                <TouchableOpacity
+                  onPress={sendMessage}
+                  disabled={sending}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    backgroundColor: AURORA.blue,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 40,
+                  }}
+                >
+                  <Send size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              <Text
+                style={{
+                  color: AURORA.textMuted,
+                  fontSize: 11,
+                  textAlign: "center",
+                  marginBottom: 8,
+                  paddingHorizontal: 16,
+                }}
+              >
+                {/* Messages are encrypted and shared only with this student. */}
+              </Text>
+            </>
+          )}
         </SafeAreaView>
       </KeyboardAvoidingView>
 
@@ -1374,6 +1508,43 @@ function ChatView({
           onMarkStatus={handleMarkAttendance}
         />
       )}
+
+      <InfoGuideModal
+        guide={feedback}
+        onClose={() => setFeedback(null)}
+      />
+      <AuroraConfirmModal
+        visible={!!pendingDelete}
+        title="Delete message"
+        body="Are you sure you want to delete this message?"
+        cancelLabel="Cancel"
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete || !user?.id) return;
+          void (async () => {
+            const { messageId, messageType } = pendingDelete;
+            setPendingDelete(null);
+            await firestoreService.deleteConversationMessage(
+              conversationId,
+              messageId,
+              user.id,
+            );
+            await auditLogsService.write({
+              performedBy: user.id,
+              performedByRole: user.role,
+              action: "delete_chat_message",
+              targetType: "chat",
+              targetId: user.id,
+              metadata: { messageType },
+            });
+          })();
+        }}
+      />
+      <AuroraActionSheetModal
+        sheet={messageOptionsSheet}
+        onClose={() => setMessageOptionsSheet(null)}
+      />
     </>
   );
 }
@@ -1400,20 +1571,26 @@ export default function CounselorMessagesScreen() {
   const [onlineByStudentId, setOnlineByStudentId] = useState<
     Record<string, boolean>
   >({});
+  const [listFeedback, setListFeedback] = useState<InfoGuideContent | null>(
+    null,
+  );
   const [archiveModalContact, setArchiveModalContact] =
     useState<Conversation | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
+  const [showArchivedConversations, setShowArchivedConversations] =
+    useState(false);
+  const [showPastCollegeConversations, setShowPastCollegeConversations] =
+    useState(false);
+  const [pastContacts, setPastContacts] = useState<Conversation[]>([]);
 
   useEffect(() => {
-    if (contacts.length === 0) {
+    const ids = [...contacts, ...pastContacts].map((c) => c.id);
+    if (ids.length === 0) {
       setOnlineByStudentId({});
       return;
     }
-    return subscribeToUsersPresence(
-      contacts.map((c) => c.id),
-      setOnlineByStudentId,
-    );
-  }, [contacts]);
+    return subscribeToUsersPresence(ids, setOnlineByStudentId);
+  }, [contacts, pastContacts]);
 
   const contactsWithPresence = useMemo(
     () =>
@@ -1423,6 +1600,19 @@ export default function CounselorMessagesScreen() {
       })),
     [contacts, onlineByStudentId],
   );
+
+  const pastContactsWithPresence = useMemo(
+    () =>
+      pastContacts.map((c) => ({
+        ...c,
+        isOnline: onlineByStudentId[c.id] ?? false,
+      })),
+    [pastContacts, onlineByStudentId],
+  );
+
+  const listContacts = showPastCollegeConversations
+    ? pastContactsWithPresence
+    : contactsWithPresence;
 
   useEffect(() => {
     // Reset when navigating to a different student thread.
@@ -1438,15 +1628,29 @@ export default function CounselorMessagesScreen() {
     // Deep link / invite-from-profile: inbox must refetch so archived→visible and
     // newly-created threads appear (zustand can be stale if this screen stayed mounted).
     if (studentId) setLoading(true);
-    firestoreService
-      .getConversations(currentUserId, {
+    Promise.all([
+      firestoreService.getConversations(currentUserId, {
         activeCollegeCode: user?.college_code,
-      })
-      .then((convos) => {
-        if (!cancelled) setContacts(convos);
+        includeArchived: showArchivedConversations,
+        inboxScope: "active",
+      }),
+      firestoreService.getConversations(currentUserId, {
+        activeCollegeCode: user?.college_code,
+        includeArchived: showArchivedConversations,
+        inboxScope: "past",
+      }),
+    ])
+      .then(([active, past]) => {
+        if (!cancelled) {
+          setContacts(active);
+          setPastContacts(past);
+        }
       })
       .catch(() => {
-        if (!cancelled) setContacts([]);
+        if (!cancelled) {
+          setContacts([]);
+          setPastContacts([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -1454,16 +1658,26 @@ export default function CounselorMessagesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [currentUserId, setContacts, studentId, user?.college_code]);
+  }, [
+    currentUserId,
+    setContacts,
+    studentId,
+    user?.college_code,
+    showArchivedConversations,
+  ]);
 
   useEffect(() => {
     if (loading) return;
     if (!studentId) return;
     if (autoOpenLocked) return;
     if (selectedContact) return;
-    const found = contactsWithPresence.find(
-      (c) => c.id === studentId || c.studentId === studentId,
-    );
+    const found =
+      contactsWithPresence.find(
+        (c) => c.id === studentId || c.studentId === studentId,
+      ) ??
+      pastContactsWithPresence.find(
+        (c) => c.id === studentId || c.studentId === studentId,
+      );
     if (found) {
       setSelectedContact(found);
       setAutoOpenLocked(true); // prevent immediate re-opening after user presses back
@@ -1472,28 +1686,60 @@ export default function CounselorMessagesScreen() {
     loading,
     studentId,
     contactsWithPresence,
+    pastContactsWithPresence,
     selectedContact,
     autoOpenLocked,
   ]);
 
   const refreshConversations = useCallback(() => {
     if (!currentUserId) return;
-    firestoreService
-      .getConversations(currentUserId, {
+    Promise.all([
+      firestoreService.getConversations(currentUserId, {
         activeCollegeCode: user?.college_code,
+        includeArchived: showArchivedConversations,
+        inboxScope: "active",
+      }),
+      firestoreService.getConversations(currentUserId, {
+        activeCollegeCode: user?.college_code,
+        includeArchived: showArchivedConversations,
+        inboxScope: "past",
+      }),
+    ])
+      .then(([active, past]) => {
+        setContacts(active);
+        setPastContacts(past);
       })
-      .then(setContacts)
-      .catch(() => setContacts([]));
-  }, [currentUserId, setContacts, user?.college_code]);
+      .catch(() => {
+        setContacts([]);
+        setPastContacts([]);
+      });
+  }, [
+    currentUserId,
+    setContacts,
+    user?.college_code,
+    showArchivedConversations,
+  ]);
 
   const handleConversationCreated = async (studentId: string) => {
     if (!currentUserId) return;
     try {
-      const convos = await firestoreService.getConversations(currentUserId, {
-        activeCollegeCode: user?.college_code,
-      });
-      setContacts(convos);
-      const added = convos.find((c) => c.id === studentId);
+      const [active, past] = await Promise.all([
+        firestoreService.getConversations(currentUserId, {
+          activeCollegeCode: user?.college_code,
+          includeArchived: showArchivedConversations,
+          inboxScope: "active",
+        }),
+        firestoreService.getConversations(currentUserId, {
+          activeCollegeCode: user?.college_code,
+          includeArchived: showArchivedConversations,
+          inboxScope: "past",
+        }),
+      ]);
+      setContacts(active);
+      setPastContacts(past);
+      const added =
+        active.find((c) => c.id === studentId) ??
+        past.find((c) => c.id === studentId);
       if (added) setSelectedContact(added);
     } catch {
       refreshConversations();
@@ -1511,9 +1757,12 @@ export default function CounselorMessagesScreen() {
     if (!currentUserId || !archiveModalContact) return;
     const convId = conversationIdFor(archiveModalContact);
     if (!convId) {
-      Alert.alert(
-        "Could not archive",
-        "Missing conversation id. Try again after the list refreshes.",
+      setListFeedback(
+        buildFeedback(
+          "Could not archive",
+          "Missing conversation id. Try again after the list refreshes.",
+          "error",
+        ),
       );
       return;
     }
@@ -1527,9 +1776,12 @@ export default function CounselorMessagesScreen() {
       refreshConversations();
     } catch (e) {
       console.error("Archive conversation failed:", e);
-      Alert.alert(
-        "Could not archive",
-        "Please check your connection and try again.",
+      setListFeedback(
+        buildFeedback(
+          "Could not archive",
+          "Please check your connection and try again.",
+          "error",
+        ),
       );
     } finally {
       setArchiveBusy(false);
@@ -1540,11 +1792,14 @@ export default function CounselorMessagesScreen() {
     return (
       <ChatView
         contact={selectedContact}
+        onThreadRepaired={refreshConversations}
         onBack={() => {
           setSelectedContact(null);
           refreshConversations();
           setAutoOpenLocked(true);
-          router.replace("/(counselor)/messages");
+          if (studentId) {
+            router.setParams({ studentId: undefined });
+          }
         }}
       />
     );
@@ -1554,8 +1809,8 @@ export default function CounselorMessagesScreen() {
 
   const filtered =
     activeTab === "All Messages"
-      ? contactsWithPresence
-      : contactsWithPresence.filter((c) => c.isUnread);
+      ? listContacts
+      : listContacts.filter((c) => c.isUnread);
 
   const unreadCount = contactsWithPresence.filter((c) => c.isUnread).length;
 
@@ -1688,6 +1943,118 @@ export default function CounselorMessagesScreen() {
                   </Text>
                 </TouchableOpacity>
               ))}
+              <Pressable
+                onPress={() =>
+                  setShowPastCollegeConversations((prev) => !prev)
+                }
+                accessibilityRole="checkbox"
+                accessibilityState={{
+                  checked: showPastCollegeConversations,
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 5,
+                  borderRadius: 30,
+                  borderWidth: 1.5,
+                  borderColor: showPastCollegeConversations
+                    ? AURORA.blue
+                    : AURORA.borderLight,
+                  backgroundColor: showPastCollegeConversations
+                    ? "rgba(45,107,255,0.14)"
+                    : "transparent",
+                  alignSelf: "flex-start",
+                }}
+              >
+                <View
+                  style={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: 4,
+                    borderWidth: 1.5,
+                    borderColor: showPastCollegeConversations
+                      ? AURORA.blue
+                      : AURORA.borderLight,
+                    backgroundColor: showPastCollegeConversations
+                      ? AURORA.blue
+                      : "transparent",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {showPastCollegeConversations ? (
+                    <Check size={11} color="#FFFFFF" strokeWidth={3} />
+                  ) : null}
+                </View>
+                <Text
+                  style={{
+                    color: showPastCollegeConversations ? "#FFFFFF" : "#A8B8DC",
+                    fontSize: 12,
+                    fontWeight: showPastCollegeConversations ? "700" : "500",
+                  }}
+                >
+                  Past college
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() =>
+                  setShowArchivedConversations((prev) => !prev)
+                }
+                accessibilityRole="checkbox"
+                accessibilityState={{
+                  checked: showArchivedConversations,
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 5,
+                  borderRadius: 30,
+                  borderWidth: 1.5,
+                  borderColor: showArchivedConversations
+                    ? AURORA.blue
+                    : AURORA.borderLight,
+                  backgroundColor: showArchivedConversations
+                    ? "rgba(45,107,255,0.14)"
+                    : "transparent",
+                  alignSelf: "flex-start",
+                }}
+              >
+                <View
+                  style={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: 4,
+                    borderWidth: 1.5,
+                    borderColor: showArchivedConversations
+                      ? AURORA.blue
+                      : AURORA.borderLight,
+                    backgroundColor: showArchivedConversations
+                      ? AURORA.blue
+                      : "transparent",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {showArchivedConversations ? (
+                    <Check size={11} color="#FFFFFF" strokeWidth={3} />
+                  ) : null}
+                </View>
+                <Text
+                  style={{
+                    color: showArchivedConversations ? "#FFFFFF" : "#A8B8DC",
+                    fontSize: 12,
+                    fontWeight: showArchivedConversations ? "700" : "500",
+                  }}
+                >
+                  Show archived
+                </Text>
+              </Pressable>
             </ScrollView>
           </View>
         </View>
@@ -1720,9 +2087,19 @@ export default function CounselorMessagesScreen() {
                   textAlign: "center",
                 }}
               >
-                {contacts.length === 0
-                  ? "No conversations yet. Tap + to add a student, or invite from the Student Directory."
-                  : "No conversations match this filter."}
+                {showPastCollegeConversations
+                  ? pastContacts.length === 0
+                    ? "No past-college conversations. Transferred students and older college threads appear here (read-only)."
+                    : activeTab === "Unread"
+                      ? "No unread past-college conversations."
+                      : "No conversations match this filter."
+                  : contacts.length === 0
+                    ? "No conversations yet. Tap + to add a student, or invite from the Student Directory."
+                    : activeTab === "Unread"
+                      ? "No unread conversations. Try All Messages, Past college, or Show archived."
+                      : !showArchivedConversations
+                        ? "No conversations match this filter. Turn on Show archived to see hidden threads."
+                        : "No conversations match this filter."}
               </Text>
             </View>
           ) : (
@@ -1737,6 +2114,7 @@ export default function CounselorMessagesScreen() {
           )}
         </ScrollView>
 
+        {!showPastCollegeConversations ? (
         <TouchableOpacity
           onPress={() => setShowAddStudentModal(true)}
           style={{
@@ -1760,6 +2138,7 @@ export default function CounselorMessagesScreen() {
         >
           <PenSquare size={22} color="#FFFFFF" />
         </TouchableOpacity>
+        ) : null}
 
         {user?.id ? (
           <SelectStudentModal
@@ -1880,6 +2259,11 @@ export default function CounselorMessagesScreen() {
             </View>
           </View>
         </Modal>
+
+        <InfoGuideModal
+          guide={listFeedback}
+          onClose={() => setListFeedback(null)}
+        />
       </SafeAreaView>
     </View>
   );

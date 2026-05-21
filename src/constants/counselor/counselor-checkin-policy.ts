@@ -3,12 +3,17 @@
  * Counselors see self-reported data only — not a clinical assessment.
  */
 
-/** How many calendar days of mood_logs counselors may review when a student opts in. */
-const COUNSELOR_CHECKIN_WINDOW_DAYS = 3
+/** Baseline / roster mood signal window. */
+export const COUNSELOR_CHECKIN_WINDOW_DAYS = 7
 
-export function counselorCheckInWindowStart(): Date {
+/** Special population: journal + analytics (7/30-day charts). */
+export const COUNSELOR_JOURNAL_ANALYTICS_WINDOW_DAYS = 30
+
+export function counselorCheckInWindowStart(
+  windowDays: number = COUNSELOR_CHECKIN_WINDOW_DAYS,
+): Date {
   const d = new Date()
-  d.setDate(d.getDate() - COUNSELOR_CHECKIN_WINDOW_DAYS)
+  d.setDate(d.getDate() - windowDays)
   d.setHours(0, 0, 0, 0)
   return d
 }

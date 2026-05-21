@@ -45,6 +45,13 @@
           "microphonePermission": "Allow Aurora to access your microphone."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Aurora to access your photos for journal entries and profile pictures.",
+          "cameraPermission": "Allow Aurora to use your camera for journal photos and mood check-ins."
+        }
+      ],
       "expo-font",
       [
         "expo-notifications",

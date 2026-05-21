@@ -60,7 +60,7 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
     [settings?.mealSchedule],
   )
   const [mealResponses, setMealResponses] = useState<Record<string, boolean>>({})
-  /** Meals already logged as Taken today — locked for the day (like bath). "Missed" can be updated later. */
+  /** Meals already logged as Taken today — locked for the day (like bath). "Not yet" can be updated later. */
   const [mealsTakenLockedToday, setMealsTakenLockedToday] = useState<Set<string>>(new Set())
 
   const [bathTaken, setBathTaken] = useState<boolean | null>(null)
@@ -295,6 +295,7 @@ export function useMoodCheckIn({ onMoodLogged, onBackgroundChange }: UseMoodChec
 
     notes,
     setNotes,
+    journalEdited,
     setJournalEdited,
     journalImage,
     setJournalImage,

@@ -5,7 +5,7 @@ import { AppText as Text } from "../../components/common/AppText";
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl, Modal } from "react-native";
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Users, Check, X } from 'lucide-react-native';
@@ -23,6 +23,13 @@ import {
     resolveCollegeCodeFromUserData,
     isCollegeCode,
 } from '../../constants/colleges';
+import { AuroraConfirmModal } from '../../components/common/AuroraConfirmModal';
+import {
+    InfoGuideModal,
+    InfoGuideOverlay,
+    type InfoGuideContent,
+} from '../../components/common/InfoGuideModal';
+import { buildFeedback } from '../../utils/aurora-feedback';
 
 interface CounselorUser {
     id: string;
@@ -55,6 +62,8 @@ export default function AdminCounselorsScreen() {
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [approveTarget, setApproveTarget] = useState<CounselorUser | null>(null);
     const [approveCollege, setApproveCollege] = useState<CollegeCode | ''>('');
+    const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
+    const [rejectTarget, setRejectTarget] = useState<CounselorUser | null>(null);
 
     const loadCounselors = async () => {
         try {
@@ -83,7 +92,13 @@ export default function AdminCounselorsScreen() {
     const submitApproveWithCollege = async () => {
         if (!approveTarget) return;
         if (!approveCollege || !isCollegeCode(approveCollege)) {
-            Alert.alert('College required', 'Select the college this counselor serves before approving.');
+            setFeedback(
+                buildFeedback(
+                    'College required',
+                    'Select the college this counselor serves before approving.',
+                    'error',
+                ),
+            );
             return;
         }
         setUpdatingId(approveTarget.id);
@@ -95,31 +110,14 @@ export default function AdminCounselorsScreen() {
             setApproveCollege('');
             await loadCounselors();
         } catch {
-            Alert.alert('Error', 'Could not approve. Please try again.');
+            setFeedback(buildFeedback('Error', 'Could not approve. Please try again.', 'error'));
         } finally {
             setUpdatingId(null);
         }
     };
 
-    const handleReject = async (c: CounselorUser) => {
-        Alert.alert('Reject Counselor', `Reject ${c.full_name}'s counselor request?`, [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Reject',
-                style: 'destructive',
-                onPress: async () => {
-                    setUpdatingId(c.id);
-                    try {
-                        await authService.updateCounselorApproval(c.id, 'rejected');
-                        await loadCounselors();
-                    } catch {
-                        Alert.alert('Error', 'Could not reject. Please try again.');
-                    } finally {
-                        setUpdatingId(null);
-                    }
-                },
-            },
-        ]);
+    const handleReject = (c: CounselorUser) => {
+        setRejectTarget(c);
     };
 
     const pendingCount = counselors.filter((c) =>
@@ -308,9 +306,58 @@ export default function AdminCounselorsScreen() {
                                     )}
                                 </TouchableOpacity>
                             </ScrollView>
+                            <InfoGuideOverlay
+                                guide={feedback}
+                                onClose={() => setFeedback(null)}
+                            />
                         </SafeAreaView>
                     </View>
                 </Modal>
+
+                <AuroraConfirmModal
+                    visible={!!rejectTarget}
+                    title="Reject Counselor"
+                    body={
+                        rejectTarget
+                            ? `Reject ${rejectTarget.full_name}'s counselor request?`
+                            : ''
+                    }
+                    cancelLabel="Cancel"
+                    confirmLabel="Reject"
+                    busy={!!updatingId}
+                    onCancel={() => {
+                        if (!updatingId) setRejectTarget(null);
+                    }}
+                    onConfirm={() => {
+                        if (!rejectTarget) return;
+                        void (async () => {
+                            setUpdatingId(rejectTarget.id);
+                            try {
+                                await authService.updateCounselorApproval(
+                                    rejectTarget.id,
+                                    'rejected',
+                                );
+                                setRejectTarget(null);
+                                await loadCounselors();
+                            } catch {
+                                setFeedback(
+                                    buildFeedback(
+                                        'Error',
+                                        'Could not reject. Please try again.',
+                                        'error',
+                                    ),
+                                );
+                            } finally {
+                                setUpdatingId(null);
+                            }
+                        })();
+                    }}
+                />
+
+                <InfoGuideModal
+                    guide={approveTarget ? null : feedback}
+                    onClose={() => setFeedback(null)}
+                />
             </SafeAreaView>
         </View>
     );

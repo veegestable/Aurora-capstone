@@ -1,5 +1,6 @@
 import { collection, addDoc, doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
+import { assertConversationMessagingOpen } from '../helpers/assertMessagingOpen'
 
 export async function sendTextMessage(
   conversationId: string,
@@ -7,6 +8,7 @@ export async function sendTextMessage(
   text: string
 ): Promise<string> {
   try {
+    await assertConversationMessagingOpen(conversationId, senderId)
     const messagesRef = collection(db, 'conversations', conversationId, 'messages')
     const docRef = await addDoc(messagesRef, {
       senderId,

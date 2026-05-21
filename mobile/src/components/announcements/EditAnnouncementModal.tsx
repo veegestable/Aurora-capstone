@@ -3,7 +3,6 @@ import {
   View,
   Modal,
   TouchableOpacity,
-  Alert,
   Platform,
   StyleSheet,
   ScrollView,
@@ -28,6 +27,8 @@ import {
   type CollegeCode,
   isCollegeCode,
 } from "../../constants/colleges";
+import { InfoGuideOverlay, type InfoGuideContent } from "../common/InfoGuideModal";
+import { buildFeedback } from "../../utils/aurora-feedback";
 
 type AdminAudience = "students_all" | "counselors_all" | "colleges_cross";
 
@@ -63,6 +64,7 @@ export function EditAnnouncementModal({
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [removedImage, setRemovedImage] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
 
   const [adminAudience, setAdminAudience] =
     useState<AdminAudience>("students_all");
@@ -101,9 +103,12 @@ export function EditAnnouncementModal({
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "Please allow access to your photo library to add an image.",
+      setFeedback(
+        buildFeedback(
+          "Permission needed",
+          "Please allow access to your photo library to add an image.",
+          "warning",
+        ),
       );
       return;
     }
@@ -134,20 +139,25 @@ export function EditAnnouncementModal({
     const t = title.trim();
     const c = content.trim();
     if (!t) {
-      Alert.alert("Missing title", "Please enter a title.");
+      setFeedback(buildFeedback("Missing title", "Please enter a title.", "error"));
       return;
     }
     if (!c) {
-      Alert.alert("Missing content", "Please enter the announcement content.");
+      setFeedback(
+        buildFeedback("Missing content", "Please enter the announcement content.", "error"),
+      );
       return;
     }
     if (!user || !announcement) return;
 
     if (isAdmin && adminAudience === "colleges_cross") {
       if (selectedCollegeCodes.length === 0) {
-        Alert.alert(
-          "Select colleges",
-          "Pick at least one college for this announcement.",
+        setFeedback(
+          buildFeedback(
+            "Select colleges",
+            "Pick at least one college for this announcement.",
+            "error",
+          ),
         );
         return;
       }
@@ -194,7 +204,9 @@ export function EditAnnouncementModal({
       onSuccess?.();
       onClose();
     } catch {
-      Alert.alert("Error", "Failed to update announcement. Please try again.");
+      setFeedback(
+        buildFeedback("Error", "Failed to update announcement. Please try again.", "error"),
+      );
     } finally {
       setSaving(false);
     }
@@ -410,6 +422,7 @@ export function EditAnnouncementModal({
           </ScrollView>
         </View>
       </View>
+      <InfoGuideOverlay guide={feedback} onClose={() => setFeedback(null)} />
     </Modal>
   );
 }

@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
-import { db } from '../../../config/firebase'
+import { auth, db } from '../../../config/firebase'
+import { counselorClearInboxArchive } from '../delete/counselorClearInboxArchive'
 import { resolveConversationCollegeCode } from '../helpers/resolveConversationCollegeCode'
 
 interface StudentData {
@@ -53,6 +54,11 @@ export async function createConversation(
       border_color: student.borderColor || null,
       ...(collegeCode ? { college_code: collegeCode } : {}),
     }, { merge: true })
+  }
+
+  const uid = auth.currentUser?.uid ?? ''
+  if (uid === counselorId) {
+    await counselorClearInboxArchive(counselorId, conversationId)
   }
 
   return conversationId

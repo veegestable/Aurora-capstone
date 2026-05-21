@@ -81,3 +81,16 @@ export function calculateHighestCheckInStreakInWindow(
   }
   return best;
 }
+
+/** Local calendar day keys for a rolling window ending today (inclusive). */
+export function buildRollingDayKeySet(dayCount: number): Set<string> {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const keySet = new Set<string>();
+  for (let i = dayCount - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    keySet.add(calendarDayKeyLocal(d));
+  }
+  return keySet;
+}

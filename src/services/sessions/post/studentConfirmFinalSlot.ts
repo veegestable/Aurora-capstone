@@ -1,6 +1,9 @@
 import { doc, getDoc, updateDoc, Timestamp, collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
 import { grantJournalAccessToCounselor } from '../../user-settings/put/grantJournalAccessToCounselor'
+import { assertMessagingOpenForParticipants } from '../../messages/helpers/assertMessagingOpen'
+import { SESSION_SCHEDULING_TIMEZONE } from '../../../constants/session-scheduling'
+import { parseSessionSlotToMillisManila } from '../../../utils/sessionSlotAuthority'
 
 export async function studentConfirmFinalSlot(
   sessionId: string,
@@ -36,11 +39,29 @@ export async function studentConfirmFinalSlot(
 
   if (!authorized) throw new Error('Not authorized')
 
+  const counselorIdForCheck = String(data.counselorId ?? '')
+  const studentIdForCheck = String(data.studentId ?? uid)
+  if (counselorIdForCheck && studentIdForCheck) {
+    await assertMessagingOpenForParticipants(
+      counselorIdForCheck,
+      studentIdForCheck,
+      uid,
+    )
+  }
+
+  const startMs = parseSessionSlotToMillisManila(slot)
+  if (startMs == null) {
+    throw new Error('Invalid session time.')
+  }
+
   const patch: { [field: string]: unknown } = {
     finalSlot: slot,
     confirmedSlot: slot,
     status: 'confirmed',
-    updatedAt: Timestamp.now()
+    updatedAt: Timestamp.now(),
+    slotConfirmedAt: Timestamp.now(),
+    scheduledStartAt: Timestamp.fromMillis(startMs),
+    schedulingTimezone: SESSION_SCHEDULING_TIMEZONE,
   }
 
   if (data.studentId == null) patch.studentId = uid

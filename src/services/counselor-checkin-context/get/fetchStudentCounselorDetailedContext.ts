@@ -3,7 +3,11 @@ import { db } from '../../../config/firebase'
 import { moodService } from '../../mood'
 import type { MoodLogEntryRow } from '../../mood/types'
 import type { UserSettingsDoc } from '../../../types/user-settings.types'
-import { counselorCheckInWindowStart } from '../../../constants/counselor/counselor-checkin-policy'
+import {
+  counselorCheckInWindowStart,
+  COUNSELOR_CHECKIN_WINDOW_DAYS,
+  COUNSELOR_JOURNAL_ANALYTICS_WINDOW_DAYS,
+} from '../../../constants/counselor/counselor-checkin-policy'
 
 /**
  * Mood-only row for counselors without journal consent from this student.
@@ -44,7 +48,10 @@ export async function fetchStudentCounselorDetailedContext(
   const journalAccessGranted =
     settings?.counselorJournalAccess?.[counselorId] === true
 
-  const start = counselorCheckInWindowStart()
+  const windowDays = journalAccessGranted
+    ? COUNSELOR_JOURNAL_ANALYTICS_WINDOW_DAYS
+    : COUNSELOR_CHECKIN_WINDOW_DAYS
+  const start = counselorCheckInWindowStart(windowDays)
   const end = new Date()
   let raw: MoodLogEntryRow[] = []
   try {

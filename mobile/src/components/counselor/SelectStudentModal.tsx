@@ -4,12 +4,14 @@ import { AppTextInput as TextInput } from "../common/AppTextInput";
  * Counselor picks a student to create a conversation (Firestore conversations doc).
  */
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, View, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { Modal, View, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import { X } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
 import { firestoreService } from '../../services/firebase-firestore.service';
 import { formatCounselorStudentSubtitle } from '../../constants/ccs-student-programs';
+import { InfoGuideOverlay, type InfoGuideContent } from '../common/InfoGuideModal';
+import { buildFeedback } from '../../utils/aurora-feedback';
 
 export interface StudentRow {
     id: string;
@@ -44,6 +46,7 @@ export default function SelectStudentModal({
     const [students, setStudents] = useState<StudentRow[]>([]);
     const [loading, setLoading] = useState(false);
     const [addingId, setAddingId] = useState<string | null>(null);
+    const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
     const [query, setQuery] = useState('');
 
     const existing = useMemo(() => new Set(existingStudentIds), [existingStudentIds]);
@@ -107,7 +110,7 @@ export default function SelectStudentModal({
             onClose();
         } catch (e) {
             console.error('addConversation', e);
-            Alert.alert('Could not start chat', 'Please try again.');
+            setFeedback(buildFeedback('Could not start chat', 'Please try again.', 'error'));
         } finally {
             setAddingId(null);
         }
@@ -194,6 +197,7 @@ export default function SelectStudentModal({
                     )}
                 </View>
             </View>
+            <InfoGuideOverlay guide={feedback} onClose={() => setFeedback(null)} />
         </Modal>
     );
 }

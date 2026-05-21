@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { View, ScrollView, TouchableOpacity, Switch, Alert, Modal, Platform, ActivityIndicator, KeyboardAvoidingView } from "react-native";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { View, ScrollView, TouchableOpacity, Switch, Modal, Platform, ActivityIndicator, KeyboardAvoidingView } from "react-native";
 import { AppText as Text } from "../../components/common/AppText";
 import { AppTextInput as TextInput } from "../../components/common/AppTextInput";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { AndroidWheelTimePicker } from "../../components/common/AndroidWheelTimePicker";
 import * as ImagePicker from "expo-image-picker";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   X,
@@ -28,6 +28,7 @@ import { AURORA } from "../../constants/aurora-colors";
 import { LetterAvatar } from "../../components/common/LetterAvatar";
 import {
   InfoGuideModal,
+  InfoGuideOverlay,
   type InfoGuideContent,
 } from "../../components/common/InfoGuideModal";
 import { SignOutConfirmModal } from "../../components/common/SignOutConfirmModal";
@@ -304,9 +305,11 @@ function EditProfileModal({
   user,
   onSave,
   onPickAvatar,
+  onShowFeedback,
 }: {
   visible: boolean;
   onClose: () => void;
+  onShowFeedback: (title: string, body: string) => void;
   user: {
     preferred_name?: string;
     full_name?: string;
@@ -351,7 +354,7 @@ function EditProfileModal({
   const handlePickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
+      onShowFeedback(
         "Permission needed",
         "Please allow access to your photo library to add a profile picture.",
       );
@@ -368,7 +371,7 @@ function EditProfileModal({
       try {
         await onPickAvatar(result.assets[0].uri);
       } catch {
-        Alert.alert(
+        onShowFeedback(
           "Upload failed",
           "Could not upload profile picture. Please try again.",
         );
@@ -383,22 +386,22 @@ function EditProfileModal({
     const studentNumTrim = studentNumber.trim();
     const contactTrim = contactNumber.trim();
     if (!yearTrim) {
-      Alert.alert(
+      onShowFeedback(
         "Required field",
         "Please enter your year level (e.g. 1st Year, 2nd Year).",
       );
       return;
     }
     if (!studentNumTrim) {
-      Alert.alert("Required field", "Please enter your student number.");
+      onShowFeedback("Required field", "Please enter your student number.");
       return;
     }
     if (!contactTrim) {
-      Alert.alert("Required field", "Please enter your contact number.");
+      onShowFeedback("Required field", "Please enter your contact number.");
       return;
     }
     if (contactTrim.length < 7) {
-      Alert.alert(
+      onShowFeedback(
         "Invalid number",
         "Contact number should be at least 7 digits.",
       );
@@ -496,12 +499,7 @@ function EditProfileModal({
                     <Camera size={14} color="#FFFFFF" />
                   )}
                 </TouchableOpacity>
-              </View>
-              <Text
-                style={{ color: AURORA.textSec, fontSize: 13, marginTop: 8 }}
-              >
-                MSU-IIT · College and program are changed via “Request college / program change”
-              </Text>
+              </View>          
             </View>
 
             <Text
@@ -772,6 +770,17 @@ function dateToHHmm(d: Date): string {
 }
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
+  const collegeShiftScrollRef = useRef<ScrollView>(null);
+  const shiftReasonYRef = useRef(0);
+  const scrollShiftReasonIntoView = useCallback(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const y = Math.max(0, shiftReasonYRef.current - 32);
+        collegeShiftScrollRef.current?.scrollTo({ y, animated: true });
+      }, 100);
+    });
+  }, []);
   const { user, signOut, updateUser, uploadAvatar, refreshUserProfile } =
     useAuth();
   const {
@@ -796,8 +805,13 @@ export default function ProfileScreen() {
   const [shiftTargetProgram, setShiftTargetProgram] = useState("");
   const [shiftReason, setShiftReason] = useState("");
   const [shiftSubmitting, setShiftSubmitting] = useState(false);
-  const [collegeShiftSubmittedGuide, setCollegeShiftSubmittedGuide] =
+  const [collegeShiftErrorGuide, setCollegeShiftErrorGuide] =
     useState<InfoGuideContent | null>(null);
+  const [profileFeedbackGuide, setProfileFeedbackGuide] =
+    useState<InfoGuideContent | null>(null);
+  const showProfileFeedback = useCallback((title: string, body: string) => {
+    setProfileFeedbackGuide({ title, body });
+  }, []);
   const [signOutModalVisible, setSignOutModalVisible] = useState(false);
   const [signOutLeaving, setSignOutLeaving] = useState(false);
   const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
@@ -960,7 +974,7 @@ export default function ProfileScreen() {
     if (!mealDraft.length) return false;
     const hasMissingTime = mealDraft.some((meal) => !meal.time?.trim());
     if (hasMissingTime) {
-      Alert.alert(
+      showProfileFeedback(
         "Set all meal times",
         "Please set a time for each meal before saving.",
       );
@@ -968,10 +982,10 @@ export default function ProfileScreen() {
     }
     try {
       await setMealSchedule(mealDraft);
-      Alert.alert("Saved", "Meal schedule updated for your check-ins.");
+      showProfileFeedback("Saved", "Meal schedule updated for your check-ins.");
       return true;
     } catch {
-      Alert.alert("Could not save", "Please try again.");
+      showProfileFeedback("Could not save", "Please try again.");
       return false;
     }
   };
@@ -1030,14 +1044,14 @@ export default function ProfileScreen() {
       }
       const ok = await scheduleDailyCheckInReminder(reminderHour, reminderMinute);
       if (!ok) {
-        Alert.alert(
+        showProfileFeedback(
           "Notifications disabled",
           "Please allow notification permission so Aurora can remind you on your phone.",
         );
       }
     };
     void run();
-  }, [remindersEnabled, reminderHour, reminderMinute, settingsLoading]);
+  }, [remindersEnabled, reminderHour, reminderMinute, settingsLoading, showProfileFeedback]);
 
   useEffect(() => {
     if (!user) return;
@@ -1069,7 +1083,7 @@ export default function ProfileScreen() {
       if (value && user?.id) void syncExpoPushTokenToUserDoc(user.id);
     } catch {
       setSessionPushEnabled(previous);
-      Alert.alert("Could not update setting", "Please try again.");
+      showProfileFeedback("Could not update setting", "Please try again.");
     } finally {
       setSavingSessionPushPreference(false);
     }
@@ -1173,6 +1187,7 @@ export default function ProfileScreen() {
                   setShiftTargetCollege("");
                   setShiftTargetProgram("");
                   setShiftReason("");
+                  setCollegeShiftErrorGuide(null);
                   setCollegeShiftOpen(true);
                 }}
               />
@@ -1485,13 +1500,13 @@ export default function ProfileScreen() {
                             onPress={async () => {
                                 const ok = await sendTestDailyCheckInNotification();
                                 if (!ok) {
-                                    Alert.alert(
+                                    showProfileFeedback(
                                         'Notifications disabled',
                                         'Please allow notification permission to receive the test reminder.'
                                     );
                                     return;
                                 }
-                                Alert.alert('Test sent', 'A test reminder was sent to your phone.');
+                                showProfileFeedback('Test sent', 'A test reminder was sent to your phone.');
                             }}
                             style={{
                                 marginTop: 10,
@@ -2025,10 +2040,10 @@ export default function ProfileScreen() {
                         void (async () => {
                           try {
                             await setUsualWakeTime("");
-                            Alert.alert("Cleared", "Wake-up time removed.");
                             setWakeup(false);
+                            showProfileFeedback("Cleared", "Wake-up time removed.");
                           } catch {
-                            Alert.alert("Could not save", "Please try again.");
+                            showProfileFeedback("Could not save", "Please try again.");
                           }
                         })();
                       }}
@@ -2057,10 +2072,10 @@ export default function ProfileScreen() {
                         void (async () => {
                           try {
                             await setUsualWakeTime(dateToHHmm(wakePickDate));
-                            Alert.alert("Saved", "Wake-up time saved.");
                             setWakeup(false);
+                            showProfileFeedback("Saved", "Wake-up time saved.");
                           } catch {
-                            Alert.alert("Could not save", "Please try again.");
+                            showProfileFeedback("Could not save", "Please try again.");
                           }
                         })();
                       }}
@@ -2202,10 +2217,10 @@ export default function ProfileScreen() {
                         void (async () => {
                           try {
                             await setUsualBathTime("");
-                            Alert.alert("Cleared", "Bath time removed.");
                             setBath(false);
+                            showProfileFeedback("Cleared", "Bath time removed.");
                           } catch {
-                            Alert.alert("Could not save", "Please try again.");
+                            showProfileFeedback("Could not save", "Please try again.");
                           }
                         })();
                       }}
@@ -2234,10 +2249,10 @@ export default function ProfileScreen() {
                         void (async () => {
                           try {
                             await setUsualBathTime(dateToHHmm(bathPickDate));
-                            Alert.alert("Saved", "Bath time saved.");
                             setBath(false);
+                            showProfileFeedback("Saved", "Bath time saved.");
                           } catch {
-                            Alert.alert("Could not save", "Please try again.");
+                            showProfileFeedback("Could not save", "Please try again.");
                           }
                         })();
                       }}
@@ -2319,9 +2334,18 @@ export default function ProfileScreen() {
           visible={collegeShiftOpen}
           animationType="slide"
           presentationStyle="pageSheet"
-          onRequestClose={() => !shiftSubmitting && setCollegeShiftOpen(false)}
+          onRequestClose={() => {
+            if (!shiftSubmitting) {
+              setCollegeShiftErrorGuide(null);
+              setCollegeShiftOpen(false);
+            }
+          }}
         >
-          <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
+          <KeyboardAvoidingView
+            style={{ flex: 1, backgroundColor: AURORA.bgDeep }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+          >
             <SafeAreaView style={{ flex: 1 }}>
               <View
                 style={{
@@ -2335,7 +2359,12 @@ export default function ProfileScreen() {
                 }}
               >
                 <TouchableOpacity
-                  onPress={() => !shiftSubmitting && setCollegeShiftOpen(false)}
+                  onPress={() => {
+                    if (!shiftSubmitting) {
+                      setCollegeShiftErrorGuide(null);
+                      setCollegeShiftOpen(false);
+                    }
+                  }}
                 >
                   <Text style={{ color: AURORA.textSec, fontSize: 15 }}>
                     Cancel
@@ -2348,15 +2377,13 @@ export default function ProfileScreen() {
                 </Text>
                 <View style={{ width: 56 }} />
               </View>
-              <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                keyboardVerticalOffset={0}
-              >
               <ScrollView
+                ref={collegeShiftScrollRef}
+                automaticallyAdjustKeyboardInsets
+                style={{ flex: 1 }}
                 contentContainerStyle={{
                   padding: 20,
-                  paddingBottom: 120,
+                  paddingBottom: 320,
                 }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
@@ -2451,51 +2478,61 @@ export default function ProfileScreen() {
                     ))}
                   </>
                 ) : null}
-                <Text
-                  style={{
-                    color: "#FFFFFF",
-                    fontSize: 14,
-                    fontWeight: "600",
-                    marginTop: 16,
-                    marginBottom: 8,
+                <View
+                  onLayout={(event) => {
+                    shiftReasonYRef.current = event.nativeEvent.layout.y;
                   }}
+                  style={{ marginTop: 16 }}
                 >
-                  Reason for change
-                </Text>
-                <TextInput
-                  style={{
-                    backgroundColor: AURORA.card,
-                    borderRadius: 14,
-                    padding: 14,
-                    color: "#FFFFFF",
-                    minHeight: 100,
-                    textAlignVertical: "top",
-                    borderWidth: 1,
-                    borderColor: AURORA.border,
-                  }}
-                  placeholder="Explain your request (required, min. 8 characters)."
-                  placeholderTextColor={AURORA.textMuted}
-                  value={shiftReason}
-                  onChangeText={setShiftReason}
-                  multiline
-                />
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 14,
+                      fontWeight: "600",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Reason for change
+                  </Text>
+                  <TextInput
+                    style={{
+                      backgroundColor: AURORA.card,
+                      borderRadius: 14,
+                      padding: 14,
+                      color: "#FFFFFF",
+                      minHeight: 100,
+                      textAlignVertical: "top",
+                      borderWidth: 1,
+                      borderColor: AURORA.border,
+                    }}
+                    placeholder="Explain your request (required, min. 8 characters)."
+                    placeholderTextColor={AURORA.textMuted}
+                    value={shiftReason}
+                    onChangeText={setShiftReason}
+                    onFocus={scrollShiftReasonIntoView}
+                    multiline
+                  />
+                </View>
                 <TouchableOpacity
                   disabled={shiftSubmitting}
                   onPress={() => {
                     void (async () => {
                       if (!user?.id) return;
                       if (!shiftTargetCollege || !isCollegeCode(shiftTargetCollege)) {
-                        Alert.alert("College", "Select a college.");
+                        setCollegeShiftErrorGuide({
+                          title: "College",
+                          body: "Select a college.",
+                        });
                         return;
                       }
                       if (
                         !shiftTargetProgram.trim() ||
                         !isProgramInCollege(shiftTargetCollege, shiftTargetProgram)
                       ) {
-                        Alert.alert(
-                          "Program",
-                          "Select a degree program from the list for that college.",
-                        );
+                        setCollegeShiftErrorGuide({
+                          title: "Program",
+                          body: "Select a degree program from the list for that college.",
+                        });
                         return;
                       }
                       const profileCollege = resolveCollegeCodeFromUserData(
@@ -2511,10 +2548,18 @@ export default function ProfileScreen() {
                         currentProg &&
                         shiftTargetProgram.trim() === currentProg
                       ) {
-                        Alert.alert(
-                          "Program",
-                          "Choose a different degree program than your current one.",
-                        );
+                        setCollegeShiftErrorGuide({
+                          title: "Program",
+                          body: "Choose a different degree program than your current one.",
+                        });
+                        return;
+                      }
+                      const trimmedReason = shiftReason.trim();
+                      if (trimmedReason.length < 8) {
+                        setCollegeShiftErrorGuide({
+                          title: "Could not submit",
+                          body: "Please explain your college change (at least 8 characters).",
+                        });
                         return;
                       }
                       try {
@@ -2527,15 +2572,17 @@ export default function ProfileScreen() {
                         );
                         await refreshUserProfile();
                         setCollegeShiftOpen(false);
-                        setCollegeShiftSubmittedGuide({
-                          title: "Submitted",
-                          body: "Your request is pending admin review.",
-                        });
-                      } catch (e) {
-                        Alert.alert(
-                          "Could not submit",
-                          e instanceof Error ? e.message : "Please try again.",
+                        setCollegeShiftErrorGuide(null);
+                        showProfileFeedback(
+                          "Submitted",
+                          "Your request is pending admin review.",
                         );
+                      } catch (e) {
+                        setCollegeShiftErrorGuide({
+                          title: "Could not submit",
+                          body:
+                            e instanceof Error ? e.message : "Please try again.",
+                        });
                       } finally {
                         setShiftSubmitting(false);
                       }
@@ -2557,14 +2604,18 @@ export default function ProfileScreen() {
                   </Text>
                 </TouchableOpacity>
               </ScrollView>
-              </KeyboardAvoidingView>
+              <InfoGuideOverlay
+                guide={collegeShiftErrorGuide}
+                onClose={() => setCollegeShiftErrorGuide(null)}
+              />
             </SafeAreaView>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         <EditProfileModal
           visible={showEditProfile}
           onClose={() => setShowEditProfile(false)}
+          onShowFeedback={showProfileFeedback}
           user={user}
           onSave={async (data) => {
             try {
@@ -2596,8 +2647,8 @@ export default function ProfileScreen() {
         ) : null}
 
         <InfoGuideModal
-          guide={collegeShiftSubmittedGuide}
-          onClose={() => setCollegeShiftSubmittedGuide(null)}
+          guide={profileFeedbackGuide}
+          onClose={() => setProfileFeedbackGuide(null)}
         />
 
         <SignOutConfirmModal

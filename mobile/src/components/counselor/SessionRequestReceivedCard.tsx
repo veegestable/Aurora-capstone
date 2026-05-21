@@ -8,6 +8,11 @@ import { View, TouchableOpacity, StyleSheet, Modal, ScrollView } from 'react-nat
 import { AppText as Text } from '../common/AppText';
 import { Calendar, FileText, Check, Clock, ChevronRight } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
+import {
+    formatCounselorSessionPillLabel,
+    getSessionPresentation,
+    sessionPresentationColors,
+} from '../../utils/sessionPresentation';
 
 export interface SessionRequestReceivedData {
     sessionId: string;
@@ -41,16 +46,17 @@ export default function SessionRequestReceivedCard({
         !['cancelled'].includes(status) &&
         ['pending', 'requested', 'needs_rescheduling'].includes(status);
 
-    const statusPillConfig: { label: string; bg: string; text: string } = (() => {
-        if (isExpired)
-            return { label: 'Expired request', bg: 'rgba(255,255,255,0.08)', text: AURORA.textMuted };
-        if (status === 'cancelled') return { label: 'CANCELLED', bg: 'rgba(239,68,68,0.2)', text: AURORA.red };
-        if (status === 'needs_rescheduling') return { label: 'NEEDS RESCHEDULING', bg: 'rgba(245,158,11,0.2)', text: AURORA.orange };
-        if (isAccepted) return { label: 'ACCEPTED', bg: 'rgba(34,197,94,0.2)', text: AURORA.green };
-        if (status === 'pending') return { label: 'PENDING REVIEW', bg: 'rgba(254,189,3,0.2)', text: AURORA.amber };
-        // Firestore uses `requested` for student-initiated session requests.
-        return { label: 'NEW SESSION REQUEST', bg: 'rgba(45,107,255,0.18)', text: AURORA.blue };
-    })();
+    const presentation = getSessionPresentation({
+        status,
+        role: 'counselor',
+        isExpired,
+    });
+    const pillColors = sessionPresentationColors(presentation.variant);
+    const statusPillConfig = {
+        label: formatCounselorSessionPillLabel(presentation.pillLabel),
+        bg: pillColors.bg,
+        text: pillColors.text,
+    };
 
     const showAccept = !!data.preferredTime && !!onAccept && !isNeedsRescheduling && canAct;
     const showPropose = !!onProposeNewTime && canAct;
@@ -75,6 +81,11 @@ export default function SessionRequestReceivedCard({
                                     {statusPillConfig.label}
                                 </Text>
                             </View>
+                            {presentation.subtitle ? (
+                                <Text style={styles.statusSubtitle} numberOfLines={2}>
+                                    {presentation.subtitle}
+                                </Text>
+                            ) : null}
                         </View>
                     </View>
 
@@ -298,6 +309,12 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '700',
         letterSpacing: 0.2,
+    },
+    statusSubtitle: {
+        color: AURORA.textSec,
+        fontSize: 12,
+        lineHeight: 17,
+        marginTop: 4,
     },
     textMuted: {
         color: AURORA.textMuted,

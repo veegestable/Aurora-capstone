@@ -6,6 +6,7 @@ import { sessionsService } from '../services/sessions'
 import { LetterAvatar } from '../components/LetterAvatar'
 import { AnnouncementBanner } from '../components/announcements/AnnouncementBanner'
 import { AnnouncementFormModal } from '../components/announcements/AnnouncementFormModal'
+import { AnnouncementGuideModal } from '../components/announcements/AnnouncementGuideModal'
 import { CounselorSessionsPane } from '../components/counselor/CounselorSessionsPane'
 import { Users, CalendarClock, ChevronRight, Plus } from 'lucide-react'
 import type { StudentInfo } from '../services/counselor'
@@ -69,7 +70,7 @@ export default function CounselorDashboard() {
       setIsLoading(true)
       try {
         const [studentList, sessions] = await Promise.all([
-          counselorService.getStudents(),
+          counselorService.getStudents(user?.college_code ?? ''),
           sessionsService.getSessionsForCounselor(user.id),
         ])
         if (cancelled) return
@@ -84,7 +85,7 @@ export default function CounselorDashboard() {
 
     run()
     return () => { cancelled = true }
-  }, [user?.id])
+  }, [user?.id, user?.college_code])
 
   return (
     <div className="space-y-6">
@@ -173,9 +174,12 @@ export default function CounselorDashboard() {
       {/* Announcements */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-extrabold text-aurora-primary-dark font-heading">
-            Announcements
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-extrabold text-aurora-primary-dark font-heading">
+              Announcements
+            </h3>
+            <AnnouncementGuideModal audience="counselor" />
+          </div>
           <button
             type="button"
             onClick={() => setShowAddAnnouncement(true)}

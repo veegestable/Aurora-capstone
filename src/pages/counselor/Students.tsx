@@ -12,6 +12,7 @@ import {
 import { formatTimeAgo } from '../../utils/formatters'
 import { type CheckInStats } from '../../types/counselor.types'
 import { LetterAvatar } from '../../components/LetterAvatar'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface StudentEntry {
   id: string
@@ -80,6 +81,7 @@ function StudentRow({ student, onClick }: { student: StudentEntry, onClick: () =
 }
 
 export default function Students() {
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [students, setStudents] = useState<StudentEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -91,7 +93,7 @@ export default function Students() {
 
     async function fetchStudents() {
       try {
-        const raw = await counselorService.getStudents()
+        const raw = await counselorService.getStudents(user?.college_code ?? '')
         if (cancelled) return
 
         const mapped: StudentEntry[] = await Promise.all(
@@ -167,7 +169,7 @@ export default function Students() {
 
     fetchStudents()
     return () => { cancelled = true }
-  }, [])
+  }, [user?.college_code])
 
   const filtered = useMemo(() => {
     let list = students

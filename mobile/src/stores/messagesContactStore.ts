@@ -12,6 +12,11 @@ export interface MessageContact {
   studentId?: string;
   /** Firestore conversation doc ID (counselorId_studentId) */
   conversationId?: string;
+  /** Hidden from counselor inbox via archive (only set when includeArchived fetch). */
+  isArchived?: boolean;
+  /** Past college / cross-college — messaging closed, history read-only. */
+  messagingClosed?: boolean;
+  isPastCollege?: boolean;
 }
 
 interface MessagesContactStore {

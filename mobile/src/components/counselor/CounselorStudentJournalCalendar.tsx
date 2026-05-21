@@ -793,7 +793,7 @@ export function CounselorStudentJournalCalendar({
                 fontSize: 13,
               }}
             >
-              Last 7 days
+              Analytics
             </Text>
           </TouchableOpacity>
         </View>
@@ -952,6 +952,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: AURORA.border,
+    marginBottom: 40,
   },
   detailCard: {
     backgroundColor: "#0f1f3d",

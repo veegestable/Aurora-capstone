@@ -3,6 +3,7 @@ import { Search, X, Loader2 } from 'lucide-react'
 import { LetterAvatar } from '../LetterAvatar'
 import { counselorService } from '../../services/counselor'
 import type { StudentInfo } from '../../services/counselor'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface SelectStudentForChatModalProps {
   open: boolean
@@ -15,21 +16,24 @@ export function SelectStudentForChatModal({
   onClose,
   onSelect,
 }: SelectStudentForChatModalProps) {
+  const { user } = useAuth()
   const [students, setStudents] = useState<StudentInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    if (!open) return
+    if (!open || !user?.id) return
     let cancelled = false
     setLoading(true)
     counselorService
-      .getStudents()
+      .getStudentsForCounselor(user.id, {
+        activeCollegeCode: user.college_code,
+      })
       .then((s) => { if (!cancelled) setStudents(s) })
       .catch(() => { if (!cancelled) setStudents([]) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [open])
+  }, [open, user?.id, user?.college_code])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()

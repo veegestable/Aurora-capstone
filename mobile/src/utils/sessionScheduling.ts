@@ -7,8 +7,21 @@ import {
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
+function coerceFirestoreTimeToDate(v: unknown): Date | null {
+  if (v == null) return null;
+  if (
+    typeof v === "object" &&
+    typeof (v as { toDate?: () => Date }).toDate === "function"
+  ) {
+    const d = (v as { toDate: () => Date }).toDate();
+    return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
+  }
+  return null;
+}
+
 /**
- * Counselor session history pill — stored on `sessions.sessionHistoryBadge` and recomputed on load.
+ * Counselor session history badge key — stored on `sessions.sessionHistoryBadge` and recomputed on load.
+ * Display labels/copy: use `getSessionHistoryBadgePresentation()` in `sessionPresentation.ts`.
  * - pending: upcoming, on a future calendar day
  * - today: upcoming, scheduled later today
  * - reschedule: overdue ≤24h (still time to act)
@@ -65,11 +78,14 @@ export function getAgreedSessionSlot(session: {
 }
 
 export function getSessionScheduledDate(session: {
+  scheduledStartAt?: unknown;
   finalSlot?: { date: string; time: string } | null;
   confirmedSlot?: { date: string; time: string } | null;
   proposedSlots?: Array<{ date: string; time: string }>;
   preferredTimeFromStudent?: string;
 }): Date | null {
+  const authoritative = coerceFirestoreTimeToDate(session.scheduledStartAt);
+  if (authoritative) return authoritative;
   const slot =
     session.finalSlot ?? session.confirmedSlot ?? session.proposedSlots?.[0];
   if (slot?.date) {
@@ -123,6 +139,7 @@ export function getOverdueSchedulingState(
 export function computeSessionHistoryBadge(
   session: {
     status: string;
+    scheduledStartAt?: unknown;
     finalSlot?: { date: string; time: string } | null;
     confirmedSlot?: { date: string; time: string } | null;
     proposedSlots?: Array<{ date: string; time: string }>;

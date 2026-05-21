@@ -11,11 +11,21 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { X, Send, Calendar } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { AndroidWheelDateTimePicker } from '../common/AndroidWheelDateTimePicker';
+import { AuroraConfirmOverlay } from '../common/AuroraConfirmModal';
 
 export interface SessionRequestFormData {
     preferredDate: Date;
     note: string;
 }
+
+export type SessionRequestJournalConsent = {
+    title: string;
+    body: string;
+    cancelLabel?: string;
+    confirmLabel?: string;
+    onCancel: () => void;
+    onConfirm: () => void;
+};
 
 interface StudentSessionRequestModalProps {
     visible: boolean;
@@ -23,6 +33,8 @@ interface StudentSessionRequestModalProps {
     onSend: (data: SessionRequestFormData) => void;
     initialPreferredDate?: Date | null;
     initialNote?: string;
+    /** Shown above the sheet inside this Modal (stacked Modals are unreliable). */
+    journalConsent?: SessionRequestJournalConsent | null;
 }
 
 function formatDateTime(date: Date): string {
@@ -42,6 +54,7 @@ export default function StudentSessionRequestModal({
     onSend,
     initialPreferredDate,
     initialNote,
+    journalConsent = null,
 }: StudentSessionRequestModalProps) {
     const getDefaultPreferredDate = () => {
         const d = new Date();
@@ -160,6 +173,17 @@ export default function StudentSessionRequestModal({
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
+            {journalConsent ? (
+                <AuroraConfirmOverlay
+                    visible
+                    title={journalConsent.title}
+                    body={journalConsent.body}
+                    cancelLabel={journalConsent.cancelLabel}
+                    confirmLabel={journalConsent.confirmLabel}
+                    onCancel={journalConsent.onCancel}
+                    onConfirm={journalConsent.onConfirm}
+                />
+            ) : null}
         </Modal>
         {Platform.OS === 'android' && (
             <AndroidWheelDateTimePicker

@@ -1,72 +1,86 @@
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
-import { doc, setDoc } from 'firebase/firestore'
-import { auth, db } from '../../../config/firebase'
 import { SignUpData, UserProfile } from '../types'
 import { type CollegeCode, isCollegeCode } from '../../../constants/colleges'
 import { isProgramInCollege } from '../../../constants/college-programs-iit'
+import { getSignupEmailRejectionMessage } from '../../../utils/signupEmailPolicy'
+import { signUpTrusted } from '../../trusted-backend.service'
+import { signUpWithClientSdkSafe } from './signUpClient'
+import {
+  shouldFallbackToClientSignUp,
+  toUserFacingSignUpTrustedError,
+} from './signUpTrustedErrors'
+
+function buildUserProfileFromSignUp(uid: string, data: SignUpData): UserProfile {
+  const studentProgramTrimmed =
+    data.role === 'student' ? data.program?.trim() : undefined
+
+  return {
+    uid,
+    email: data.email.toLowerCase(),
+    full_name: data.fullName,
+    role: data.role,
+    email_verified: false,
+    ...(data.role === 'counselor' ? { approval_status: 'pending' as const } : {}),
+    ...(data.role === 'student' || data.role === 'counselor'
+      ? { college_code: data.college_code as CollegeCode }
+      : {}),
+    ...(data.role === 'student' && studentProgramTrimmed
+      ? { program: studentProgramTrimmed }
+      : {}),
+    created_at: new Date(),
+    updated_at: new Date(),
+  }
+}
+
+function validateSignUpData(data: SignUpData): void {
+  const policyError = getSignupEmailRejectionMessage(data.email)
+  if (policyError) throw new Error(policyError)
+
+  if (data.role === 'counselor' || data.role === 'student') {
+    if (!data.college_code || !isCollegeCode(data.college_code)) {
+      throw new Error('Select a valid college before singing up.')
+    }
+  }
+
+  if (data.role === 'student') {
+    const prog = data.program?.trim() ?? ''
+    if (!prog || !data.college_code || !isProgramInCollege(data.college_code, prog)) {
+      throw new Error(
+        'Select a degree program that matches your college before singing up.',
+      )
+    }
+  }
+}
 
 export const signUp = async (data: SignUpData): Promise<UserProfile> => {
   try {
     console.log('🔥 Creating Firebase user:', data.email)
+    validateSignUpData(data)
 
-    // Validate college_code for student & counselor
-    if (data.role === 'counselor' || data.role === 'student') {
-      if (!data.college_code || !isCollegeCode(data.college_code)) throw new Error('Select a valid college before singing up.')
-    }
-    
-    // Validate program for students
-    let studentProgramTrimmed: string | undefined
-    if (data.role === 'student') {
-      const prog = data.program?.trim() ?? ''
-      if (!prog || !data.college_code || !isProgramInCollege(data.college_code, prog)) {
-        throw new Error('Select a degree program that matches your college before singing up.')
+    try {
+      const { uid } = await signUpTrusted({
+        email: data.email.trim(),
+        password: data.password,
+        fullName: data.fullName,
+        role: data.role,
+        college_code: data.college_code as CollegeCode,
+        ...(data.role === 'student' && data.program?.trim()
+          ? { program: data.program.trim() }
+          : {}),
+      })
+      console.log('✅ User created via signUpTrusted:', uid)
+      return buildUserProfileFromSignUp(uid, data)
+    } catch (trustedErr: unknown) {
+      if (shouldFallbackToClientSignUp(trustedErr)) {
+        console.warn(
+          '[signUp] signUpTrusted unavailable, using client SDK fallback',
+          trustedErr,
+        )
+        return await signUpWithClientSdkSafe(data)
       }
-      studentProgramTrimmed = prog
+      throw toUserFacingSignUpTrustedError(trustedErr)
     }
-
-    // Create user with Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(
-      auth, 
-      data.email, 
-      data.password
-    )
-    
-    const user = userCredential.user
-    
-    // Update display name
-    await updateProfile(user, {
-      displayName: data.fullName
-    })
-    
-    // Create user profile in Firestore
-    const userProfile: UserProfile = {
-      uid: user.uid,
-      email: data.email.toLowerCase(),
-      full_name: data.fullName,
-      role: data.role,
-      ...(data.role === 'counselor'
-        ? { approval_status: 'pending' as const }
-        : {}),
-      ...(data.role === 'student' || data.role === 'counselor'
-        ? { college_code: data.college_code as CollegeCode }
-        : {}),
-      ...(data.role === 'student' && studentProgramTrimmed
-        ? { program: studentProgramTrimmed }
-        : {}),
-      created_at: new Date(),
-      updated_at: new Date()
-    }
-    
-    await setDoc(doc(db, 'users', user.uid), userProfile)
-    
-    // Sign out user immediately to require manual login
-    await auth.signOut()
-    
-    console.log('✅ User created successfully - please log in')
-    return userProfile;
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('❌ Signup error:', msg)
-    throw new Error(msg)
+    console.error('❌ Signup error:', error)
+    throw error instanceof Error ? error : toUserFacingSignUpTrustedError(error)
   }
 }

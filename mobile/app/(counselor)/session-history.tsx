@@ -1,9 +1,7 @@
 import { AppText as Text } from "../../src/components/common/AppText";
 import { AppTextInput as TextInput } from "../../src/components/common/AppTextInput";
 /**
- * Session History - Counselor view of past/upcoming sessions
- * Shows accepted sessions with status badges (Completed, Missed, Cancelled, Pending).
- * Counselor can mark attendance when scheduled date/time is reached.
+ * Session History — Counselor list of sessions with timeline badges (upcoming, today, outcomes, reschedule).
  */
 
 import React, {
@@ -56,11 +54,13 @@ import {
   PROGRAM_FILTER_LABELS,
   type ProgramFilterCode,
 } from "../../src/constants/ccs-student-programs";
-import {
-  InfoGuideModal,
-  type InfoGuideContent,
-} from "../../src/components/common/InfoGuideModal";
+import { InfoGuideModal } from "../../src/components/common/InfoGuideModal";
+import { SESSION_HISTORY_GUIDE } from "../../src/constants/sessionHistoryGuideCopy";
 import { triggerHaptic } from "../../src/utils/haptics";
+import {
+  getSessionHistoryBadgePresentation,
+  sessionPresentationColors,
+} from "../../src/utils/sessionPresentation";
 
 function formatSlotForDisplay(
   slot: { date: string; time: string } | null | undefined,
@@ -109,6 +109,8 @@ interface SessionHistoryItem {
   initiatedBy?: string;
   /** When the current agreed time was locked (Firestore); null on older docs. */
   slotConfirmedAt?: Date | null;
+  /** Canonical instant when locked — Manila wall time stored as UTC Timestamp. */
+  scheduledStartAt?: Date | null;
 }
 
 function normalizeRouteSessionId(
@@ -179,19 +181,10 @@ function getEffectiveStatus(session: SessionHistoryItem): string {
   return session.status;
 }
 
-/** Pill labels come only from `computeSessionHistoryBadge` — never raw Firestore `status` (no "CONFIRMED"). */
+/** Badge row — labels from {@link getSessionHistoryBadgePresentation} (timeline, not raw Firestore status). */
 function SessionHistoryBadgePill({ badge }: { badge: SessionHistoryBadge }) {
-  const config: Record<SessionHistoryBadge, { label: string; color: string }> =
-    {
-      pending: { label: "PENDING", color: AURORA.blue },
-      today: { label: "TODAY", color: AURORA.green },
-      completed: { label: "COMPLETED", color: AURORA.green },
-      missed: { label: "MISSED", color: AURORA.red },
-      cancelled: { label: "CANCELLED", color: AURORA.textMuted },
-      expired: { label: "EXPIRED", color: AURORA.textMuted },
-      reschedule: { label: "RESCHEDULE", color: AURORA.orange },
-    };
-  const c = config[badge] ?? config.pending;
+  const p = getSessionHistoryBadgePresentation(badge);
+  const colors = sessionPresentationColors(p.variant);
   return (
     <View
       style={{
@@ -199,11 +192,11 @@ function SessionHistoryBadgePill({ badge }: { badge: SessionHistoryBadge }) {
         paddingVertical: 4,
         borderRadius: 8,
         borderWidth: 1.5,
-        borderColor: c.color,
+        borderColor: colors.text,
       }}
     >
-      <Text style={{ color: c.color, fontSize: 10, fontWeight: "700" }}>
-        {c.label}
+      <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+        {p.counselorPillUpper}
       </Text>
     </View>
   );
@@ -213,14 +206,13 @@ export default function SessionHistoryScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams<{ sessionId?: string | string[] }>();
   const openedFromRouteSessionRef = useRef<string | null>(null);
-  const [sessionHistoryGuide, setSessionHistoryGuide] =
-    useState<InfoGuideContent | null>(null);
+  const [sessionHistoryGuideOpen, setSessionHistoryGuideOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       return () => {
         openedFromRouteSessionRef.current = null;
-        setSessionHistoryGuide(null);
+        setSessionHistoryGuideOpen(false);
       };
     }, []),
   );
@@ -245,9 +237,7 @@ export default function SessionHistoryScreen() {
     }
     let cancelled = false;
     firestoreService
-      .getSessionHistoryForCounselor(user.id, {
-        activeCollegeCode: user.college_code,
-      })
+      .getSessionHistoryForCounselor(user.id)
       .then((data) => {
         if (!cancelled) setSessions(data as SessionHistoryItem[]);
       })
@@ -260,7 +250,7 @@ export default function SessionHistoryScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.college_code]);
+  }, [user?.id]);
 
   useEffect(() => {
     const routeSessionId = normalizeRouteSessionId(params.sessionId);
@@ -406,6 +396,8 @@ export default function SessionHistoryScreen() {
       await firestoreService.markSessionAttendance(
         selectedSession.id,
         mapAttendanceToStatus(status),
+        undefined,
+        user?.id,
       );
       setSessions((prev) =>
         prev.map((s) => {
@@ -458,6 +450,7 @@ export default function SessionHistoryScreen() {
       const conversationId = `${user.id}_${selectedSession.studentId}`;
       await firestoreService.proposeSlots(selectedSession.id, timeSlots, {
         proposalKind: "attendance_reschedule",
+        actorId: user.id,
       });
       const headline = timeSlots[0];
 
@@ -533,10 +526,7 @@ export default function SessionHistoryScreen() {
             <TouchableOpacity
               onPress={() => {
                 triggerHaptic("light");
-                setSessionHistoryGuide({
-                  title: "Session History",
-                  body: "This is your record of counseling sessions with students: agreed times, statuses (today, pending, completed, missed, reschedule, and more), and notes you have saved.\n\nTap a row to open details or mark attendance after the scheduled time has passed. Use search and the program chips to filter. For invites and live scheduling threads, use Messages or the Sessions sheet on Home.",
-                });
+                setSessionHistoryGuideOpen(true);
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={{ padding: 4 }}
@@ -830,8 +820,8 @@ export default function SessionHistoryScreen() {
       )}
 
       <InfoGuideModal
-        guide={sessionHistoryGuide}
-        onClose={() => setSessionHistoryGuide(null)}
+        guide={sessionHistoryGuideOpen ? SESSION_HISTORY_GUIDE : null}
+        onClose={() => setSessionHistoryGuideOpen(false)}
       />
     </View>
   );
@@ -1025,11 +1015,11 @@ function SessionHistoryCard({
                   marginBottom: 8,
                 }}
               >
-                <AlertTriangle size={16} color={AURORA.red} />
+                <AlertTriangle size={16} color={AURORA.orange} />
                 <Text
-                  style={{ color: AURORA.red, fontSize: 13, fontWeight: "600" }}
+                  style={{ color: AURORA.orange, fontSize: 13, fontWeight: "600" }}
                 >
-                  Student did not show up
+                  Student did not attend
                 </Text>
               </View>
               <View

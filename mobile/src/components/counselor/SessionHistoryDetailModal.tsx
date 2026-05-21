@@ -10,6 +10,10 @@ import { Calendar, Clock, FileText, AlertTriangle, X, Hash } from 'lucide-react-
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
 import type { SessionHistoryBadge } from '../../utils/sessionScheduling';
+import {
+    getSessionHistoryBadgePresentation,
+    sessionPresentationColors,
+} from '../../utils/sessionPresentation';
 import { formatCounselorStudentSubtitle } from '../../constants/ccs-student-programs';
 
 function formatSessionTimelineLine(d: Date): string {
@@ -24,16 +28,6 @@ function formatSessionTimelineLine(d: Date): string {
         hour12: true,
     })}`;
 }
-
-const BADGE_CONFIG: Record<SessionHistoryBadge, { label: string; bg: string; text: string }> = {
-    pending: { label: 'PENDING', bg: 'rgba(45,107,255,0.2)', text: AURORA.blue },
-    today: { label: 'TODAY', bg: 'rgba(34,197,94,0.22)', text: '#86efac' },
-    completed: { label: 'COMPLETED', bg: 'rgba(34,197,94,0.2)', text: AURORA.green },
-    missed: { label: 'MISSED', bg: 'rgba(239,68,68,0.2)', text: AURORA.red },
-    cancelled: { label: 'CANCELLED', bg: 'rgba(75,86,147,0.3)', text: AURORA.textMuted },
-    expired: { label: 'EXPIRED', bg: 'rgba(75,86,147,0.35)', text: AURORA.textMuted },
-    reschedule: { label: 'RESCHEDULE', bg: 'rgba(249,115,22,0.2)', text: AURORA.orange },
-};
 
 export interface SessionHistoryDetailData {
     id: string;
@@ -80,7 +74,13 @@ export default function SessionHistoryDetailModal({
 }: SessionHistoryDetailModalProps) {
     if (!visible) return null;
 
-    const badgeConfig = data ? BADGE_CONFIG[data.sessionHistoryBadge] : null;
+    const historyPresentation = data
+        ? getSessionHistoryBadgePresentation(data.sessionHistoryBadge)
+        : null;
+    const badgeColors =
+        historyPresentation != null
+            ? sessionPresentationColors(historyPresentation.variant)
+            : null;
     const dateStr = data?.dateDisplay ?? data?.finalSlot?.date ?? data?.confirmedSlot?.date ?? data?.proposedSlots?.[0]?.date ?? '-';
     const timeStr = data?.timeDisplay ?? data?.finalSlot?.time ?? data?.confirmedSlot?.time ?? data?.proposedSlots?.[0]?.time ?? data?.preferredTimeFromStudent ?? '-';
 
@@ -117,11 +117,14 @@ export default function SessionHistoryDetailModal({
                                 </View>
                             </View>
 
-                            <View style={[styles.statusPill, badgeConfig && { backgroundColor: badgeConfig.bg }]}>
-                                <Text style={[styles.statusText, badgeConfig && { color: badgeConfig.text }]}>
-                                    {badgeConfig?.label ?? data.sessionHistoryBadge}
+                            <View style={[styles.statusPill, badgeColors && { backgroundColor: badgeColors.bg }]}>
+                                <Text style={[styles.statusText, badgeColors && { color: badgeColors.text }]}>
+                                    {historyPresentation?.counselorPillUpper ?? data.sessionHistoryBadge}
                                 </Text>
                             </View>
+                            {historyPresentation?.hint ? (
+                                <Text style={styles.statusHint}>{historyPresentation.hint}</Text>
+                            ) : null}
 
                             <View style={styles.section}>
                                 <View style={styles.sectionHeader}>
@@ -325,12 +328,18 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 8,
-        marginBottom: 20,
+        marginBottom: 8,
     },
     statusText: {
         fontSize: 12,
         fontWeight: '700',
         letterSpacing: 0.5,
+    },
+    statusHint: {
+        color: AURORA.textSec,
+        fontSize: 12,
+        lineHeight: 17,
+        marginBottom: 16,
     },
     section: {
         marginBottom: 16,

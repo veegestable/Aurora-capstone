@@ -2,7 +2,7 @@ import { CircleHelp, X } from 'lucide-react'
 
 export type HintKey =
   | 'manual' | 'intensity' | 'duration' | 'energy' | 'stress'
-  | 'sleep' | 'bath' | 'meal' | 'pressure' | 'photo' | null
+  | 'sleep' | 'bath' | 'meal' | 'schoolPressure' | 'journal' | 'photo' | null
 
 const HINTS: Record<Exclude<HintKey, null>, { title: string; body: string }> = {
   manual: {
@@ -14,8 +14,8 @@ const HINTS: Record<Exclude<HintKey, null>, { title: string; body: string }> = {
     body: 'How strongly you feel the selected emotion right now.\n\n• 1–3: Mild\n• 4–6: Noticeable\n• 7–8: Strong\n• 9–10: Very intense\n\nUse the number that matches how strong it feels — not whether it is good or bad.',
   },
   duration: {
-    title: 'Duration',
-    body: 'Roughly how long this feeling has been with you. Type a number of minutes (1–1440). The label below adapts as you type.',
+    title: 'Duration categories guide',
+    body: 'These labels help classify your entered minutes:\n\n- Less than 15 mins: Just a moment\n- 15 to 60 mins: About an hour\n- 61 to 180 mins: A few hours\n- 181 to 480 mins: Most of the day\n- 481+ mins: All day / Ongoing',
   },
   energy: {
     title: 'Energy scale (1–5)',
@@ -34,12 +34,16 @@ const HINTS: Record<Exclude<HintKey, null>, { title: string; body: string }> = {
     body: 'Tracks whether you have bathed today. The chip locks once a "Yes" is logged for the day so you only confirm it once.',
   },
   meal: {
-    title: 'Meal check-in',
-    body: 'For each meal in your schedule, tell us whether you had it. If you tap Taken and save, that meal stays Taken for the rest of today (like bath). If you tap Missed, you can change it on a later check-in today if you need to.',
+    title: 'Meal check-in guide',
+    body: 'Track if each scheduled meal is already taken.\n\nThis schedule comes from your Profile settings.\nTo set or edit meal times, go to:\nProfile → Meal Schedule\n\n- Taken: you already had this meal. Once saved for today, it stays Taken (like bath) until tomorrow.\n- Not yet: you have not had it yet — you can change this on a later check-in today if you need to.\n\nFuture meal slots are locked until their scheduled time.',
   },
-  pressure: {
-    title: 'Pressure today',
-    body: 'A quick read of how heavy your day looks based on the context tags you selected.\n\nLight - 0 tags\nSteady - 1–3 tags\nHeavy - 4–6 tags\nIntense - 7+ tags',
+  schoolPressure: {
+    title: 'School pressure today',
+    body: 'This is an estimate based on the school-related tags you selected in this check-in. It helps summarize how much school may have influenced your mood today.',
+  },
+  journal: {
+    title: 'Automatic journal draft',
+    body: 'Aurora can generate a short draft for your journal note to help you start quickly.\n\nIf you selected context tags, the draft is generated from those tags. When you see it as “Auto-draft”, you can edit the text freely before saving. If you make changes, it becomes “Edited”.\n\nYour final saved note is always what you leave in the journal editor.',
   },
   photo: {
     title: 'Photo attachment',

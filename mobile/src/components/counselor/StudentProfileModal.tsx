@@ -4,7 +4,7 @@ import { AppText as Text } from "../common/AppText";
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, View, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, ScrollView, useWindowDimensions } from "react-native";
+import { Modal, View, TouchableOpacity, ActivityIndicator, StyleSheet, ScrollView, useWindowDimensions } from "react-native";
 import { X, ChevronDown, Heart, Zap, Smile, Activity, Hash } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { AURORA } from '../../constants/aurora-colors';
@@ -22,6 +22,8 @@ import {
     energyCategoryLabelFromFive,
     stressCategoryLabelFromFive,
 } from '../../utils/analytics/metricCategories';
+import { InfoGuideOverlay, type InfoGuideContent } from '../common/InfoGuideModal';
+import { buildFeedback } from '../../utils/aurora-feedback';
 
 function stabilityCaption(score: number): string {
     if (score >= 80) return 'Very steady between check-ins';
@@ -375,6 +377,7 @@ export default function StudentProfileModal({
     const [loading, setLoading] = useState(false);
     const [journalAccessGranted, setJournalAccessGranted] = useState(false);
     const [inviteBusy, setInviteBusy] = useState(false);
+    const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
     const { height: windowHeight } = useWindowDimensions();
 
     /** Matches ~footnote + 2×2 stat grid + full-width tile so the sheet height does not jump when fetch completes. */
@@ -429,7 +432,7 @@ export default function StudentProfileModal({
 
     const handleInviteToSession = async () => {
         if (!counselorId) {
-            Alert.alert('Sign in required', 'Please sign in again as a counselor to send an invite.');
+            setFeedback(buildFeedback('Sign in required', 'Please sign in again as a counselor to send an invite.', 'warning'));
             return;
         }
         setInviteBusy(true);
@@ -451,7 +454,7 @@ export default function StudentProfileModal({
             });
         } catch (e) {
             console.error('Invite to session failed:', e);
-            Alert.alert('Could not start chat', 'Please try again in a moment.');
+            setFeedback(buildFeedback('Could not start chat', 'Please try again in a moment.', 'error'));
         } finally {
             setInviteBusy(false);
         }
@@ -549,6 +552,7 @@ export default function StudentProfileModal({
                     <Text style={styles.inviteSubtext}>Opens chat to coordinate schedule.</Text>
                 </View>
             </View>
+            <InfoGuideOverlay guide={feedback} onClose={() => setFeedback(null)} />
         </Modal>
     );
 }

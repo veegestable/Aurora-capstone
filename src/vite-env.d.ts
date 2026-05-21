@@ -7,7 +7,9 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_STORAGE_BUCKET: string
   readonly VITE_FIREBASE_MESSAGING_SENDER_ID: string
   readonly VITE_FIREBASE_APP_ID: string
-  // add more env variables here as needed
+  readonly VITE_SIGNUP_EMAIL_ALLOWLIST?: string
+  readonly VITE_REQUIRE_MSUIIT_SIGNUP_EMAIL?: string
+  readonly VITE_ALLOW_UNVERIFIED_SIGNIN?: string
 }
 
 interface ImportMeta {

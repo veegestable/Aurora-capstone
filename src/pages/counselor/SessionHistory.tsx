@@ -59,7 +59,7 @@ export default function SessionHistory() {
       try {
         const [fetchedSessions, fetchedStudents] = await Promise.all([
           sessionsService.getSessionsForCounselor(user.id),
-          counselorService.getStudents(),
+          counselorService.getStudents(user?.college_code ?? ''),
         ])
         if (cancelled) return
         setSessions(fetchedSessions)

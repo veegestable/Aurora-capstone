@@ -304,8 +304,23 @@ service cloud.firestore {
         );
     }
 
+    /** Participant may re-tag when both are back in the viewer's college (e.g. after transfer return). */
+    function conversationCollegeTagRepairAllowed() {
+      let viewer = docCollegeCode(userDoc(request.auth.uid).data);
+      let conv = resource.data;
+      let nextTag = request.resource.data.college_code;
+      return viewer.size() > 0 &&
+        nextTag is string &&
+        validCollegeCode(nextTag) &&
+        nextTag == viewer &&
+        docCollegeCode(userDocData(conv.counselorId)) == viewer &&
+        docCollegeCode(userDocData(conv.studentId)) == viewer;
+    }
+
     function conversationCollegeCodeUnchanged() {
-      return !resource.data.keys().hasAny(['college_code']) ||
+      return isAdmin() ||
+        conversationCollegeTagRepairAllowed() ||
+        !resource.data.keys().hasAny(['college_code']) ||
         !request.resource.data.keys().hasAny(['college_code']) ||
         request.resource.data.college_code == resource.data.college_code;
     }
@@ -329,17 +344,71 @@ service cloud.firestore {
         sameCollegeForUsers(userDocData(cid), userDocData(sid));
     }
 
+    function conversationCollegeTagFromConvData(data) {
+      return data.keys().hasAny(['college_code']) &&
+        data.college_code is string &&
+        data.college_code.size() > 0
+        ? data.college_code
+        : '';
+    }
+
+    function isActiveCollegeConversation(convId) {
+      let conv = get(/databases/$(database)/documents/conversations/$(convId)).data;
+      let tag = conversationCollegeTagFromConvData(conv);
+      let viewer = docCollegeCode(userDoc(request.auth.uid).data);
+      let cCollege = docCollegeCode(userDocData(conv.counselorId));
+      let sCollege = docCollegeCode(userDocData(conv.studentId));
+      return viewer.size() > 0 &&
+        tag.size() > 0 &&
+        tag == viewer &&
+        cCollege.size() > 0 &&
+        cCollege == viewer &&
+        sCollege.size() > 0 &&
+        sCollege == viewer;
+    }
+
+    function isPastCollegeConversation(convId) {
+      let viewer = docCollegeCode(userDoc(request.auth.uid).data);
+      return viewer.size() > 0 && !isActiveCollegeConversation(convId);
+    }
+
+    function isActiveCollegeSession(sessionId) {
+      let s = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      let tag = conversationCollegeTagFromConvData(s);
+      let viewer = docCollegeCode(userDoc(request.auth.uid).data);
+      let cCollege = s.counselorId is string && s.counselorId.size() > 0
+        ? docCollegeCode(userDocData(s.counselorId))
+        : '';
+      let sCollege = s.studentId is string && s.studentId.size() > 0
+        ? docCollegeCode(userDocData(s.studentId))
+        : '';
+      return viewer.size() > 0 &&
+        tag.size() > 0 &&
+        tag == viewer &&
+        cCollege.size() > 0 &&
+        cCollege == viewer &&
+        sCollege.size() > 0 &&
+        sCollege == viewer;
+    }
+
+    function isPastCollegeSession(sessionId) {
+      let viewer = docCollegeCode(userDoc(request.auth.uid).data);
+      return viewer.size() > 0 && !isActiveCollegeSession(sessionId);
+    }
+
     function messageCreateValid(convId) {
       return request.resource.data.senderId == request.auth.uid &&
         request.resource.data.createdAt is timestamp &&
         request.resource.data.isRead == false &&
-        isConversationParticipant(convId);
+        isConversationParticipant(convId) &&
+        !isPastCollegeConversation(convId);
     }
 
-    function messageUpdateValid() {
+    function messageUpdateValid(convId) {
       // Sender cannot be rewritten by another participant.
       return request.resource.data.senderId == resource.data.senderId &&
-        request.resource.data.createdAt == resource.data.createdAt;
+        request.resource.data.createdAt == resource.data.createdAt &&
+        !isPastCollegeConversation(convId);
     }
 
     function validSessionStatus(status) {
@@ -600,8 +669,8 @@ service cloud.firestore {
       match /messages/{msgId} {
         allow read: if isAuthed() && isConversationParticipant(id);
         allow create: if isAuthed() && messageCreateValid(id);
-        allow update: if isAuthed() && isConversationParticipant(id) && messageUpdateValid();
-        allow delete: if isAuthed() && (
+        allow update: if isAuthed() && isConversationParticipant(id) && messageUpdateValid(id);
+        allow delete: if isAuthed() && !isPastCollegeConversation(id) && (
           isConversationParticipant(id) ||
           resource.data.senderId == request.auth.uid
         );
@@ -646,6 +715,7 @@ service cloud.firestore {
           !request.resource.data.keys().hasAny(['college_code']) ||
           request.resource.data.college_code == resource.data.college_code
         ) &&
+        !isPastCollegeSession(id) &&
         (
           resource.data.counselorId == request.auth.uid ||
           resource.data.studentId == request.auth.uid ||

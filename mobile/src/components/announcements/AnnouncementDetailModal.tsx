@@ -1,11 +1,12 @@
-import React from "react";
-import { View, Modal, TouchableOpacity, ScrollView, Image, Platform, StyleSheet, Dimensions, Alert } from "react-native";
+import React, { useState } from "react";
+import { View, Modal, TouchableOpacity, ScrollView, Image, Platform, StyleSheet, Dimensions } from "react-native";
 import { X, Pencil, Trash2 } from "lucide-react-native";
 import type { Announcement } from "../../services/announcements.service";
 import { AURORA } from "../../constants/aurora-colors";
 import { Megaphone } from "lucide-react-native";
 import { triggerHaptic } from "../../utils/haptics";
 import { AppText as Text } from "../common/AppText";
+import { AuroraConfirmOverlay } from "../common/AuroraConfirmModal";
 
 interface AnnouncementDetailModalProps {
   visible: boolean;
@@ -40,22 +41,10 @@ export function AnnouncementDetailModal({
   onEdit,
   onDelete,
 }: AnnouncementDetailModalProps) {
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+
   const handleDeletePress = () => {
-    Alert.alert(
-      "Delete Announcement",
-      "Are you sure you want to delete this announcement? This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            triggerHaptic("light");
-            onDelete?.();
-          },
-        },
-      ],
-    );
+    setDeleteConfirmVisible(true);
   };
 
   if (!announcement) return null;
@@ -138,6 +127,19 @@ export function AnnouncementDetailModal({
           </ScrollView>
         </View>
       </View>
+      <AuroraConfirmOverlay
+        visible={deleteConfirmVisible}
+        title="Delete Announcement"
+        body="Are you sure you want to delete this announcement? This cannot be undone."
+        cancelLabel="Cancel"
+        confirmLabel="Delete"
+        onCancel={() => setDeleteConfirmVisible(false)}
+        onConfirm={() => {
+          triggerHaptic("light");
+          setDeleteConfirmVisible(false);
+          onDelete?.();
+        }}
+      />
     </Modal>
   );
 }

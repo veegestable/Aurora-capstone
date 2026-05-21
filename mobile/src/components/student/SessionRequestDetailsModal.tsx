@@ -9,12 +9,10 @@ import { Modal, View, TouchableOpacity, StyleSheet, ScrollView } from "react-nat
 import { X, Clock, FileText } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import type { SessionRequestData } from './SessionRequestCard';
-
-const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
-    pending: { label: 'Pending review', bg: 'rgba(254,189,3,0.2)', text: AURORA.amber },
-    approved: { label: 'Approved', bg: 'rgba(34,197,94,0.2)', text: AURORA.green },
-    declined: { label: 'Declined', bg: 'rgba(239,68,68,0.2)', text: AURORA.red },
-};
+import {
+    getSessionPresentation,
+    sessionPresentationColors,
+} from '../../utils/sessionPresentation';
 
 interface SessionRequestDetailsModalProps {
     visible: boolean;
@@ -29,7 +27,16 @@ export default function SessionRequestDetailsModal({
 }: SessionRequestDetailsModalProps) {
     if (!visible) return null;
 
-    const statusConfig = data ? (STATUS_CONFIG[data.status] ?? STATUS_CONFIG.pending) : null;
+    const presentation = data
+        ? getSessionPresentation({
+              status: data.status,
+              role: 'student',
+              counselorOfferedSlots: data.counselorOfferedSlots,
+          })
+        : null;
+    const statusColors = presentation
+        ? sessionPresentationColors(presentation.variant)
+        : null;
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -50,16 +57,23 @@ export default function SessionRequestDetailsModal({
                             contentContainerStyle={styles.scrollContent}
                             showsVerticalScrollIndicator={false}
                         >
-                            <View style={[styles.statusPill, { backgroundColor: statusConfig!.bg }]}>
-                                <Text style={[styles.statusText, { color: statusConfig!.text }]}>
-                                    {statusConfig!.label}
+                            <View style={[styles.statusPill, { backgroundColor: statusColors!.bg }]}>
+                                <Text style={[styles.statusText, { color: statusColors!.text }]}>
+                                    {presentation!.pillLabel}
                                 </Text>
                             </View>
+                            {presentation!.subtitle ? (
+                                <Text style={styles.statusSubtitle}>{presentation!.subtitle}</Text>
+                            ) : null}
 
                             <View style={styles.section}>
                                 <View style={styles.sectionHeader}>
                                     <Clock size={18} color={AURORA.blue} />
-                                    <Text style={styles.sectionLabel}>Preferred time</Text>
+                                    <Text style={styles.sectionLabel}>
+                                        {data.status === 'confirmed'
+                                            ? 'Scheduled time'
+                                            : 'Preferred time'}
+                                    </Text>
                                 </View>
                                 <Text style={styles.sectionValue}>{data.preferredTime}</Text>
                             </View>
@@ -133,6 +147,12 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingBottom: 20,
+    },
+    statusSubtitle: {
+        color: AURORA.textSec,
+        fontSize: 13,
+        lineHeight: 19,
+        marginBottom: 16,
     },
     statusPill: {
         alignSelf: 'flex-start',

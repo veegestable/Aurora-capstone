@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native';
+import { View, TouchableOpacity, ActivityIndicator, Switch } from 'react-native';
 import { AppText as Text } from '../../components/common/AppText';
 import { AppTextInput as TextInput } from '../../components/common/AppTextInput';
 import { useAuth } from '../../stores/AuthContext';
@@ -7,6 +7,9 @@ import { User, LogOut } from 'lucide-react-native';
 import { Card } from '../../components/common/Card';
 import { useUserDaySettings } from '../../stores/UserDaySettingsContext';
 import type { ContextCategoryKey } from '../../services/mood-firestore-v2.service';
+import { InfoGuideModal, type InfoGuideContent } from '../../components/common/InfoGuideModal';
+import { AuroraConfirmModal } from '../../components/common/AuroraConfirmModal';
+import { buildFeedback } from '../../utils/aurora-feedback';
 
 export default function SettingsScreen() {
     const { user, updateUser, signOut } = useAuth();
@@ -19,6 +22,9 @@ export default function SettingsScreen() {
     const [fullName, setFullName] = useState(user?.full_name || '');
     const [isUpdating, setIsUpdating] = useState(false);
     const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+    const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
+    const [signOutVisible, setSignOutVisible] = useState(false);
+    const [signOutBusy, setSignOutBusy] = useState(false);
 
     const categoryLabels: Record<ContextCategoryKey, string> = {
         school: 'School',
@@ -30,40 +36,29 @@ export default function SettingsScreen() {
 
     const handleUpdateProfile = async () => {
         if (!fullName.trim()) {
-            Alert.alert('Error', 'Full name cannot be empty');
+            setFeedback(buildFeedback('Error', 'Full name cannot be empty', 'error'));
             return;
         }
 
         try {
             setIsUpdating(true);
             await updateUser({ full_name: fullName });
-            Alert.alert('Success', 'Profile updated successfully!');
+            setFeedback(buildFeedback('Success', 'Profile updated successfully!', 'success'));
         } catch (error: unknown) {
-            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update user');
+            setFeedback(
+                buildFeedback(
+                    'Error',
+                    error instanceof Error ? error.message : 'Failed to update user',
+                    'error',
+                ),
+            );
         } finally {
             setIsUpdating(false);
         }
     };
 
     const handleSignOut = () => {
-        Alert.alert(
-            'Sign Out',
-            'Are you sure you want to sign out?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Sign Out',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await signOut();
-                        } catch (error) {
-                            console.error('Sign out error:', error);
-                        }
-                    }
-                }
-            ]
-        );
+        setSignOutVisible(true);
     };
 
     const handleAcademicToggle = async (enabled: boolean) => {
@@ -71,7 +66,13 @@ export default function SettingsScreen() {
             setIsSavingPreferences(true);
             await setAcademicContextEnabled(enabled);
         } catch (error: unknown) {
-            Alert.alert('Error', error instanceof Error ? error.message : 'Could not update preference');
+            setFeedback(
+                buildFeedback(
+                    'Error',
+                    error instanceof Error ? error.message : 'Could not update preference',
+                    'error',
+                ),
+            );
         } finally {
             setIsSavingPreferences(false);
         }
@@ -82,7 +83,13 @@ export default function SettingsScreen() {
             setIsSavingPreferences(true);
             await setCategoryEnabled(category, enabled);
         } catch (error: unknown) {
-            Alert.alert('Error', error instanceof Error ? error.message : 'Could not update category');
+            setFeedback(
+                buildFeedback(
+                    'Error',
+                    error instanceof Error ? error.message : 'Could not update category',
+                    'error',
+                ),
+            );
         } finally {
             setIsSavingPreferences(false);
         }
@@ -195,6 +202,33 @@ export default function SettingsScreen() {
                     <Text className="text-gray-400 text-xs">Aurora App v1.0.0</Text>
                 </View>
             </View>
+
+            <InfoGuideModal guide={feedback} onClose={() => setFeedback(null)} />
+
+            <AuroraConfirmModal
+                visible={signOutVisible}
+                title="Sign Out"
+                body="Are you sure you want to sign out?"
+                cancelLabel="Cancel"
+                confirmLabel="Sign Out"
+                busy={signOutBusy}
+                onCancel={() => {
+                    if (!signOutBusy) setSignOutVisible(false);
+                }}
+                onConfirm={() => {
+                    void (async () => {
+                        setSignOutBusy(true);
+                        try {
+                            await signOut();
+                            setSignOutVisible(false);
+                        } catch (error) {
+                            console.error('Sign out error:', error);
+                        } finally {
+                            setSignOutBusy(false);
+                        }
+                    })();
+                }}
+            />
         </View>
     );
 }

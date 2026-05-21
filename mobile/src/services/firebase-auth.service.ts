@@ -7,6 +7,15 @@ import {
   updateProfile,
   User,
 } from "firebase/auth";
+import { FirebaseError } from "firebase/app";
+import {
+  resendRegistrationVerificationTrusted,
+  signUpTrusted,
+} from "./trusted-backend.service";
+import {
+  shouldFallbackToClientSignUp,
+  toUserFacingSignUpTrustedError,
+} from "../utils/signUpTrustedErrors";
 import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "./firebase";
@@ -276,12 +285,77 @@ export interface UserProfile {
 }
 
 export const authService = {
-  // Sign up new user
+  async signUpWithClientSdk(data: SignUpData): Promise<UserProfile> {
+    const contactTrim = data.contactNumber?.trim() ?? "";
+
+    if (data.role === "counselor" || data.role === "student") {
+      if (!data.college_code || !isCollegeCode(data.college_code)) {
+        throw new Error("Select a valid college before signing up.");
+      }
+    }
+
+    let studentProgramTrimmed: string | undefined;
+    if (data.role === "student") {
+      const prog = data.program?.trim() ?? "";
+      if (
+        !prog ||
+        !data.college_code ||
+        !isProgramInCollege(data.college_code, prog)
+      ) {
+        throw new Error(
+          "Select a degree program that matches your college before signing up.",
+        );
+      }
+      studentProgramTrimmed = prog;
+    }
+
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      data.email,
+      data.password,
+    );
+
+    const user = userCredential.user;
+
+    await updateProfile(user, {
+      displayName: data.fullName,
+    });
+
+    const userProfile: UserProfile = {
+      uid: user.uid,
+      email: data.email,
+      full_name: data.fullName,
+      role: data.role,
+      email_verified: user.emailVerified,
+      ...(data.role === "counselor"
+        ? { approval_status: "pending" as const }
+        : {}),
+      ...(contactTrim ? { contact_number: contactTrim } : {}),
+      ...(data.role === "student" || data.role === "counselor"
+        ? { college_code: data.college_code as CollegeCode }
+        : {}),
+      ...(data.role === "student" && studentProgramTrimmed
+        ? { program: studentProgramTrimmed }
+        : {}),
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    await setDoc(doc(db, "users", user.uid), userProfile);
+    await sendEmailVerification(user);
+    await signOut(auth);
+
+    return userProfile;
+  },
+
+  // Sign up new user (rate-limited Cloud Function when deployed; client SDK fallback)
   async signUp(data: SignUpData): Promise<UserProfile> {
     try {
-      console.log("🔥 Creating Firebase user:", data.email);
+      console.log("🔥 Creating Firebase user");
 
-      const contactTrim = data.contactNumber?.trim() ?? "";
+      if (data.role !== "student" && data.role !== "counselor") {
+        return await this.signUpWithClientSdk(data);
+      }
 
       if (data.role === "counselor" || data.role === "student") {
         if (!data.college_code || !isCollegeCode(data.college_code)) {
@@ -304,50 +378,54 @@ export const authService = {
         studentProgramTrimmed = prog;
       }
 
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        data.email,
-        data.password,
-      );
+      const contactTrim = data.contactNumber?.trim() ?? "";
 
-      const user = userCredential.user;
+      try {
+        const { uid } = await signUpTrusted({
+          email: data.email.trim(),
+          password: data.password,
+          fullName: data.fullName,
+          role: data.role,
+          college_code: data.college_code as CollegeCode,
+          ...(data.role === "student" && studentProgramTrimmed
+            ? { program: studentProgramTrimmed }
+            : {}),
+          ...(contactTrim ? { contact_number: contactTrim } : {}),
+        });
 
-      await updateProfile(user, {
-        displayName: data.fullName,
-      });
-
-      const userProfile: UserProfile = {
-        uid: user.uid,
-        email: data.email,
-        full_name: data.fullName,
-        role: data.role,
-        email_verified: user.emailVerified,
-        ...(data.role === "counselor"
-          ? { approval_status: "pending" as const }
-          : {}),
-        ...(contactTrim ? { contact_number: contactTrim } : {}),
-        ...(data.role === "student" || data.role === "counselor"
-          ? { college_code: data.college_code as CollegeCode }
-          : {}),
-        ...(data.role === "student" && studentProgramTrimmed
-          ? { program: studentProgramTrimmed }
-          : {}),
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      await setDoc(doc(db, "users", user.uid), userProfile);
-
-      await sendEmailVerification(user);
-
-      // Sign out user immediately to require manual login
-      await auth.signOut();
-
-      console.log("✅ User created successfully - please log in");
-      return userProfile;
+        console.log("✅ User created via signUpTrusted:", uid);
+        return {
+          uid,
+          email: data.email,
+          full_name: data.fullName,
+          role: data.role,
+          email_verified: false,
+          ...(data.role === "counselor"
+            ? { approval_status: "pending" as const }
+            : {}),
+          ...(contactTrim ? { contact_number: contactTrim } : {}),
+          college_code: data.college_code as CollegeCode,
+          ...(data.role === "student" && studentProgramTrimmed
+            ? { program: studentProgramTrimmed }
+            : {}),
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+      } catch (trustedErr: unknown) {
+        if (shouldFallbackToClientSignUp(trustedErr)) {
+          console.warn(
+            "[signUp] signUpTrusted unavailable, using client SDK fallback",
+            trustedErr,
+          );
+          return await this.signUpWithClientSdk(data);
+        }
+        throw toUserFacingSignUpTrustedError(trustedErr);
+      }
     } catch (error: unknown) {
       console.error("❌ Signup error:", error);
-      throw toUserFacingEmailAuthError(error);
+      throw error instanceof Error
+        ? error
+        : toUserFacingSignUpTrustedError(error);
     }
   },
 
@@ -356,14 +434,54 @@ export const authService = {
    */
   async resendRegistrationVerificationEmail(data: SignInData): Promise<void> {
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        data.email,
-        data.password,
-      );
-      await sendEmailVerification(userCredential.user);
-      await signOut(auth);
+      await resendRegistrationVerificationTrusted({
+        email: data.email.trim(),
+        password: data.password,
+      });
     } catch (error: unknown) {
+      const fallback =
+        error instanceof FirebaseError &&
+        (error.code === "functions/not-found" ||
+          error.code === "functions/unimplemented" ||
+          error.code === "functions/internal");
+      if (fallback) {
+        try {
+          const userCredential = await signInWithEmailAndPassword(
+            auth,
+            data.email,
+            data.password,
+          );
+          await sendEmailVerification(userCredential.user);
+          await signOut(auth);
+          return;
+        } catch (fallbackErr: unknown) {
+          console.error("❌ Resend verification fallback error:", fallbackErr);
+          throw toUserFacingEmailAuthError(fallbackErr);
+        }
+      }
+      if (error instanceof FirebaseError) {
+        if (error.code === "functions/resource-exhausted") {
+          throw new Error(
+            error.message ||
+              "Too many verification emails sent. Please wait and try again.",
+          );
+        }
+        if (error.code === "functions/permission-denied") {
+          throw new Error(
+            "The email or password you entered is incorrect. Please try again.",
+          );
+        }
+        if (error.code === "functions/invalid-argument") {
+          throw new Error(
+            "Enter the same email and password you used when signing up.",
+          );
+        }
+        if (error.code === "functions/unavailable") {
+          throw new Error(
+            "Could not send verification email right now. Please try again later.",
+          );
+        }
+      }
       console.error("❌ Resend verification error:", error);
       throw toUserFacingEmailAuthError(error);
     }
@@ -372,7 +490,7 @@ export const authService = {
   // Sign in existing user
   async signIn(data: SignInData): Promise<UserProfile> {
     try {
-      console.log("🔥 Signing in user:", data.email);
+      console.log("🔥 Signing in user");
 
       const userCredential = await signInWithEmailAndPassword(
         auth,

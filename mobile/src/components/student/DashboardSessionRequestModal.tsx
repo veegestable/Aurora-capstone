@@ -7,6 +7,7 @@ import { AppText as Text } from "../common/AppText";
 
 import React, { useState, useEffect } from "react";
 import { Modal, View, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from "react-native";
+import { AuroraConfirmOverlay } from "../common/AuroraConfirmModal";
 import { X, ArrowRight, CircleHelp } from "lucide-react-native";
 import { AURORA } from "../../constants/aurora-colors";
 import {
@@ -47,6 +48,9 @@ export default function DashboardSessionRequestModal({
     null,
   );
   const [infoGuide, setInfoGuide] = useState<InfoGuideContent | null>(null);
+  const [journalConsentLabel, setJournalConsentLabel] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (visible) {
@@ -87,17 +91,7 @@ export default function DashboardSessionRequestModal({
         const label =
           counselors.find((c) => c.id === selectedCounselorId)?.full_name ??
           "this counselor";
-        Alert.alert(
-          "Continue to session request",
-          `You'll choose your preferred time and a note next (same form as Messages → Request session). If you continue, ${label} may review your mood check-ins and journals in Aurora after you send the request. Only continue if you genuinely want help.`,
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Continue",
-              onPress: () => navigateToMessagesSessionRequest(),
-            },
-          ],
-        );
+        setJournalConsentLabel(label);
         return;
       }
       navigateToMessagesSessionRequest();
@@ -237,6 +231,18 @@ export default function DashboardSessionRequestModal({
         <InfoGuideOverlay
           guide={infoGuide}
           onClose={() => setInfoGuide(null)}
+        />
+        <AuroraConfirmOverlay
+          visible={journalConsentLabel !== null}
+          title="Continue to session request"
+          body={`You'll choose your preferred time and a note next (same form as Messages → Request session). If you continue, ${journalConsentLabel ?? "this counselor"} may review your mood check-ins and journals in Aurora after you send the request. Only continue if you genuinely want help.`}
+          cancelLabel="Cancel"
+          confirmLabel="Continue"
+          onCancel={() => setJournalConsentLabel(null)}
+          onConfirm={() => {
+            setJournalConsentLabel(null);
+            navigateToMessagesSessionRequest();
+          }}
         />
       </KeyboardAvoidingView>
     </Modal>

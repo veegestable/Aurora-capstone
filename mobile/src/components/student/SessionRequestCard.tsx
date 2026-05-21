@@ -8,6 +8,10 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppText as Text } from '../common/AppText';
 import { Calendar, Clock, FileText, ChevronRight, Pencil } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
+import {
+    getSessionPresentation,
+    sessionPresentationColors,
+} from '../../utils/sessionPresentation';
 
 export interface SessionRequestData {
     id: string;
@@ -31,24 +35,6 @@ interface SessionRequestCardProps {
     onEdit?: () => void;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
-    pending: { label: 'Pending review', bg: 'rgba(254,189,3,0.2)', text: AURORA.amber },
-    approved: { label: 'Approved', bg: 'rgba(34,197,94,0.2)', text: AURORA.green },
-    declined: { label: 'Declined', bg: 'rgba(239,68,68,0.2)', text: AURORA.red },
-};
-
-const COUNSELOR_SLOTS_STATUS = {
-    label: 'Choose a time',
-    bg: 'rgba(59,130,246,0.2)',
-    text: AURORA.blueLight,
-} as const;
-
-const EXPIRED_STATUS = {
-    label: 'Expired request',
-    bg: 'rgba(255,255,255,0.08)',
-    text: AURORA.textMuted,
-} as const;
-
 export default function SessionRequestCard({
     data,
     isFromMe = true,
@@ -57,11 +43,28 @@ export default function SessionRequestCard({
     onEdit,
 }: SessionRequestCardProps) {
     const offered = !!data.counselorOfferedSlots;
-    const statusConfig = isExpired
-        ? EXPIRED_STATUS
-        : offered
-          ? COUNSELOR_SLOTS_STATUS
-          : STATUS_CONFIG[data.status] ?? STATUS_CONFIG.pending;
+    const presentation = getSessionPresentation({
+        status: data.status,
+        role: 'student',
+        counselorOfferedSlots: offered,
+        isExpired,
+    });
+    const colors = sessionPresentationColors(presentation.variant);
+
+    const cardTitle = offered
+        ? 'Your counselor sent new times'
+        : isExpired
+          ? 'Session request'
+          : data.status === 'confirmed'
+            ? 'Session scheduled'
+            : 'Session request sent';
+
+    const canEdit =
+        !isExpired &&
+        !offered &&
+        !['confirmed', 'completed', 'missed', 'cancelled', 'expired'].includes(
+            (data.status ?? '').toLowerCase(),
+        );
 
     return (
         <View style={styles.wrapper}>
@@ -72,20 +75,30 @@ export default function SessionRequestCard({
                     </View>
                     <View style={styles.headerText}>
                         <Text style={[styles.title, isExpired && styles.textMutedStrong]}>
-                            {offered ? 'Your counselor sent new times' : 'Session request sent'}
+                            {cardTitle}
                         </Text>
-                        <View style={[styles.statusPill, { backgroundColor: statusConfig.bg }]}>
-                            <Text style={[styles.statusText, { color: statusConfig.text }]}>
-                                {statusConfig.label}
+                        <View style={[styles.statusPill, { backgroundColor: colors.bg }]}>
+                            <Text style={[styles.statusText, { color: colors.text }]}>
+                                {presentation.pillLabel}
                             </Text>
                         </View>
+                        {presentation.subtitle ? (
+                            <Text
+                                style={[styles.subtitle, isExpired && styles.textMutedStrong]}
+                                numberOfLines={3}
+                            >
+                                {presentation.subtitle}
+                            </Text>
+                        ) : null}
                     </View>
                 </View>
 
                 <View style={styles.row}>
                     <Clock size={14} color={AURORA.textSec} style={styles.rowIcon} />
                     <View style={styles.rowContent}>
-                        <Text style={styles.rowLabel}>Preferred time</Text>
+                        <Text style={styles.rowLabel}>
+                            {data.status === 'confirmed' ? 'Scheduled time' : 'Preferred time'}
+                        </Text>
                         <Text
                             style={[styles.rowValue, isExpired && styles.textMutedStrong]}
                             numberOfLines={2}
@@ -119,7 +132,7 @@ export default function SessionRequestCard({
                         </Text>
                         <ChevronRight size={18} color="#FFFFFF" />
                     </TouchableOpacity>
-                    {!isExpired && (
+                    {canEdit && (
                         <TouchableOpacity
                             style={styles.secondaryBtn}
                             onPress={onEdit}
@@ -131,7 +144,6 @@ export default function SessionRequestCard({
                     )}
                 </View>
             </View>
-            {/* Bubble tail */}
             <View
                 style={[
                     styles.tail,
@@ -191,7 +203,7 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         marginBottom: 12,
     },
     iconWrap: {
@@ -220,11 +232,17 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 6,
+        marginBottom: 6,
     },
     statusText: {
         fontSize: 11,
         fontWeight: '700',
         letterSpacing: 0.2,
+    },
+    subtitle: {
+        color: AURORA.textSec,
+        fontSize: 12,
+        lineHeight: 17,
     },
     row: {
         flexDirection: 'row',

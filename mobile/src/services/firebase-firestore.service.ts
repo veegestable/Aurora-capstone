@@ -15,17 +15,19 @@ import {
   deleteDoc,
   deleteField,
   onSnapshot,
+  limit,
   type QuerySnapshot,
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import {
+  createCounselorSessionInviteTrusted as createCounselorSessionInviteTrustedCallable,
   createSessionNotificationTrusted,
   sendTextMessageTrusted as sendTextMessageTrustedCallable,
   sendSessionRequestTrusted as sendSessionRequestTrustedCallable,
+  updateSessionRequestTrusted as updateSessionRequestTrustedCallable,
 } from "./trusted-backend.service";
 import {
   type SessionHistoryBadge,
-  EXPIRED_SESSION_RETENTION_MS,
   computeSessionHistoryBadge,
   getConfirmedFinalSlot,
   getOverdueSchedulingState,
@@ -38,13 +40,71 @@ import {
   resolveSessionsDocIdForSessionCard,
 } from "../utils/sessionInviteIds";
 import {
+  type LinkedSessionSnapshot,
+  linkedSessionFromFirestoreData,
+  collectLinkedSessionIdsFromSnapshot,
+  buildSessionMapsFromLinkedCache,
+  applyLinkedSessionMapsToChatMessage,
+} from "../utils/chatSessionHydration";
+import {
   resolveCollegeCodeFromUserData,
   isCollegeCode,
   type CollegeCode,
 } from "../constants/colleges";
+import { SESSION_SCHEDULING_TIMEZONE } from "../constants/session-scheduling";
+import { firestoreTimestampFromSlotManila } from "../utils/sessionSlotAuthority";
 import { isProgramInCollege } from "../constants/college-programs-iit";
+import {
+  conversationCollegeTagFromData,
+  isActiveCollegeInboxThread,
+  isPastCollegeThread,
+  MESSAGING_CLOSED_ERROR,
+  resolveCollegeFromUserRecord,
+} from "../utils/conversationCollegeMessaging";
 
 const AUTO_ACCEPTED_PREFIX = "__AUTO_ACCEPTED__";
+
+export type ConversationInboxScope = "active" | "past";
+
+async function fetchUserCollegeMap(
+  userIds: string[],
+): Promise<Record<string, string>> {
+  const unique = [...new Set(userIds.filter((id) => id.trim()))];
+  const map: Record<string, string> = {};
+  await Promise.all(
+    unique.map(async (id) => {
+      try {
+        const snap = await getDoc(doc(db, "users", id));
+        map[id] = resolveCollegeFromUserRecord(
+          (snap.data() ?? {}) as Record<string, unknown>,
+        );
+      } catch {
+        map[id] = "";
+      }
+    }),
+  );
+  return map;
+}
+
+function conversationInboxClassifyInput(
+  data: Record<string, unknown>,
+  viewerCollege: string,
+  collegeByUserId: Record<string, string>,
+): {
+  conversationCollegeCode: string;
+  viewerCollegeCode: string;
+  counselorCollegeCode: string;
+  studentCollegeCode: string;
+} {
+  const counselorId = String(data.counselorId ?? "");
+  const studentId = String(data.studentId ?? "");
+  return {
+    conversationCollegeCode: conversationCollegeTagFromData(data),
+    viewerCollegeCode: viewerCollege,
+    counselorCollegeCode: collegeByUserId[counselorId] ?? "",
+    studentCollegeCode: collegeByUserId[studentId] ?? "",
+  };
+}
 
 function sameResolvedCollege(
   a: Record<string, unknown> | undefined,
@@ -78,6 +138,82 @@ function conversationMatchesActiveCollege(
   const tag = conversationCollegeTag(data);
   if (!tag) return false;
   return tag === active;
+}
+
+/** Legacy student requests omitted `college_code`; stamp from participants so list queries match inbox. */
+async function ensureSessionCollegeTagOnDoc(
+  data: Record<string, unknown>,
+  sessionId: string,
+): Promise<Record<string, unknown>> {
+  if (conversationCollegeTag(data)) return data;
+  const counselorId = String(data.counselorId ?? "");
+  const studentId = String(data.studentId ?? "");
+  if (!counselorId || !studentId) return data;
+  const collegeCode = await resolveConversationCollegeCode(
+    counselorId,
+    studentId,
+  );
+  if (!collegeCode) return data;
+  try {
+    await updateDoc(doc(db, "sessions", sessionId), {
+      college_code: collegeCode,
+      updatedAt: Timestamp.now(),
+    });
+  } catch {
+    // Still use resolved tag for this read path if rules block client stamp.
+  }
+  return { ...data, college_code: collegeCode };
+}
+
+async function mapSessionsDocsForActiveCollege(
+  docs: Array<{ id: string; data: () => Record<string, unknown> }>,
+  activeCollege: string,
+): Promise<Array<Record<string, unknown> & { id: string }>> {
+  const rows: Array<Record<string, unknown> & { id: string }> = [];
+  for (const d of docs) {
+    let data = d.data() as Record<string, unknown>;
+    if (!conversationCollegeTag(data)) {
+      data = await ensureSessionCollegeTagOnDoc(data, d.id);
+    }
+    if (conversationMatchesActiveCollege(data, activeCollege)) {
+      rows.push({ id: d.id, ...data });
+    }
+  }
+  return rows;
+}
+
+/** All sessions for a counselor (cross-college history after a college change). */
+function mapSessionsDocsForCounselorHistory(
+  docs: Array<{ id: string; data: () => Record<string, unknown> }>,
+): Array<Record<string, unknown> & { id: string }> {
+  return docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as Record<string, unknown>),
+  }));
+}
+
+async function getUserProfileByIdSafe(
+  userId: string,
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    const snap = await getDoc(doc(db, "users", userId));
+    return snap.exists()
+      ? (snap.data() as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Writes `scheduledStartAt` using Manila wall-clock interpretation + labels the doc. */
+function sessionSchedulingAuthoritativePatch(slot: {
+  date: string;
+  time: string;
+}): Record<string, unknown> {
+  return {
+    scheduledStartAt: firestoreTimestampFromSlotManila(slot),
+    schedulingTimezone: SESSION_SCHEDULING_TIMEZONE,
+  };
 }
 
 async function resolveConversationCollegeCode(
@@ -146,6 +282,145 @@ async function stampParticipantConversationsWithCollege(
   );
 }
 
+/**
+ * After a college change: re-tag threads where both participants are now in the
+ * same college so they return to the active inbox (repairs mistaken overwrites).
+ */
+export type ConversationCollegeRepairResult = {
+  collegeCode: CollegeCode;
+  scanned: number;
+  repaired: number;
+  alreadyCorrect: number;
+  skippedNotAligned: number;
+  failed: number;
+};
+
+async function reactivateConversationsForUserCollege(
+  uid: string,
+  collegeCode: CollegeCode,
+): Promise<ConversationCollegeRepairResult> {
+  const result: ConversationCollegeRepairResult = {
+    collegeCode,
+    scanned: 0,
+    repaired: 0,
+    alreadyCorrect: 0,
+    skippedNotAligned: 0,
+    failed: 0,
+  };
+
+  const seen = new Set<string>();
+  const convRefs: ReturnType<typeof doc>[] = [];
+
+  const collect = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
+    snapshot.docs.forEach((d) => {
+      if (seen.has(d.id)) return;
+      seen.add(d.id);
+      convRefs.push(doc(db, "conversations", d.id));
+    });
+  };
+
+  try {
+    const [asCounselor, asStudent] = await Promise.all([
+      getDocs(
+        query(collection(db, "conversations"), where("counselorId", "==", uid)),
+      ),
+      getDocs(
+        query(collection(db, "conversations"), where("studentId", "==", uid)),
+      ),
+    ]);
+    collect(asCounselor);
+    collect(asStudent);
+  } catch (e) {
+    console.warn("[conversations] reactivate college query failed:", e);
+    return result;
+  }
+
+  result.scanned = convRefs.length;
+
+  for (const ref of convRefs) {
+    try {
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        result.failed += 1;
+        continue;
+      }
+      const data = snap.data() as Record<string, unknown>;
+      const counselorId = String(data.counselorId ?? "");
+      const studentId = String(data.studentId ?? "");
+      if (!counselorId || !studentId) {
+        result.failed += 1;
+        continue;
+      }
+      const collegeMap = await fetchUserCollegeMap([counselorId, studentId]);
+      const counselorCollege = collegeMap[counselorId] ?? "";
+      const studentCollege = collegeMap[studentId] ?? "";
+      if (
+        counselorCollege !== collegeCode ||
+        studentCollege !== collegeCode
+      ) {
+        result.skippedNotAligned += 1;
+        continue;
+      }
+      const tag = conversationCollegeTag(data);
+      if (tag === collegeCode) {
+        result.alreadyCorrect += 1;
+        continue;
+      }
+      await updateDoc(ref, {
+        college_code: collegeCode,
+        updated_at: new Date(),
+      });
+      result.repaired += 1;
+    } catch {
+      result.failed += 1;
+    }
+  }
+
+  return result;
+}
+
+/** Re-tag one thread when both participants match the viewer's current college. */
+async function repairSingleConversationCollegeTagIfAligned(
+  conversationId: string,
+  viewerId: string,
+): Promise<boolean> {
+  try {
+    const convRef = doc(db, "conversations", conversationId);
+    const snap = await getDoc(convRef);
+    if (!snap.exists()) return false;
+    const data = snap.data() as Record<string, unknown>;
+    const counselorId = String(data.counselorId ?? "");
+    const studentId = String(data.studentId ?? "");
+    if (!counselorId || !studentId) return false;
+    if (viewerId !== counselorId && viewerId !== studentId) return false;
+
+    const collegeMap = await fetchUserCollegeMap([
+      viewerId,
+      counselorId,
+      studentId,
+    ]);
+    const viewerCollege = collegeMap[viewerId] ?? "";
+    if (!viewerCollege || !isCollegeCode(viewerCollege)) return false;
+    if (
+      collegeMap[counselorId] !== viewerCollege ||
+      collegeMap[studentId] !== viewerCollege
+    ) {
+      return false;
+    }
+    const tag = conversationCollegeTag(data);
+    if (tag === viewerCollege) return false;
+
+    await updateDoc(convRef, {
+      college_code: viewerCollege,
+      updated_at: new Date(),
+    });
+    return true;
+  } catch (e) {
+    console.warn("[conversations] tag repair skipped:", e);
+    return false;
+  }
+}
+
 /** Before college shift: stamp legacy sessions so they stay tied to the previous college. */
 async function stampParticipantSessionsWithCollege(
   uid: string,
@@ -211,6 +486,97 @@ async function resolveUserActiveCollegeCode(
 function normalizeDetectionMethod(raw: unknown): "manual" | "selfie_ai" {
   if (raw === "selfie_ai" || raw === "ai") return "selfie_ai";
   return "manual";
+}
+
+function isGenericConversationName(value: unknown, fallback: string): boolean {
+  if (value == null) return true;
+  const s = String(value).trim();
+  if (!s) return true;
+  return s.toLowerCase() === fallback.toLowerCase();
+}
+
+function resolveUserDisplayNameFromProfile(
+  raw: Record<string, unknown> | undefined,
+): string {
+  if (!raw) return "";
+  const preferred = String(raw.preferred_name ?? "").trim();
+  if (preferred) return preferred;
+  const full = String(raw.full_name ?? raw.fullName ?? "").trim();
+  if (full) return full;
+  return "";
+}
+
+let didLogCounselorRepairStats = false;
+let didLogStudentRepairStats = false;
+
+async function repairConversationPeerProfile(params: {
+  userId: unknown;
+  existingAvatar: unknown;
+  existingName: unknown;
+  fallbackName: string;
+  avatarField: "student_avatar" | "counselor_avatar";
+  nameField: "student_name" | "counselor_name";
+  convRef: ReturnType<typeof doc>;
+  isPlaceholderAvatar: (url: string) => boolean;
+}): Promise<{
+  avatar: string;
+  name: string;
+  didRepairAvatar: boolean;
+  didRepairName: boolean;
+}> {
+  let avatar = String(params.existingAvatar ?? "");
+  let name = String(params.existingName ?? "").trim();
+  const userId = String(params.userId ?? "").trim();
+
+  const needsAvatarRepair =
+    !avatar || params.isPlaceholderAvatar(String(avatar));
+  const needsNameRepair = isGenericConversationName(
+    params.existingName,
+    params.fallbackName,
+  );
+
+  let didRepairAvatar = false;
+  let didRepairName = false;
+
+  if ((needsAvatarRepair || needsNameRepair) && userId) {
+    try {
+      const userDoc = await getDoc(doc(db, "users", userId));
+      const userData = userDoc.data() as Record<string, unknown> | undefined;
+      const userAvatar = String(userData?.avatar_url ?? "");
+      const userDisplayName = resolveUserDisplayNameFromProfile(userData);
+
+      if (
+        needsAvatarRepair &&
+        userAvatar &&
+        !params.isPlaceholderAvatar(userAvatar)
+      ) {
+        avatar = userAvatar;
+        didRepairAvatar = true;
+        if (params.isPlaceholderAvatar(String(params.existingAvatar ?? ""))) {
+          updateDoc(params.convRef, {
+            [params.avatarField]: userAvatar,
+          }).catch(() => {});
+        }
+      }
+
+      if (needsNameRepair && userDisplayName) {
+        name = userDisplayName;
+        didRepairName = true;
+        updateDoc(params.convRef, {
+          [params.nameField]: userDisplayName,
+        }).catch(() => {});
+      }
+    } catch {
+      // Keep current values.
+    }
+  }
+
+  if (isGenericConversationName(name, params.fallbackName)) {
+    name = params.fallbackName;
+  }
+  if (params.isPlaceholderAvatar(avatar)) avatar = "";
+
+  return { avatar, name, didRepairAvatar, didRepairName };
 }
 
 export interface MoodData {
@@ -1094,6 +1460,7 @@ export const firestoreService = {
         college_shift_pending: false,
         updated_at: new Date(),
       });
+      await reactivateConversationsForUserCollege(uid, nextCode);
       return;
     }
     await updateDoc(doc(db, "users", uid), {
@@ -1102,6 +1469,7 @@ export const firestoreService = {
       college_shift_pending: false,
       updated_at: new Date(),
     });
+    await reactivateConversationsForUserCollege(uid, nextCode);
   },
 
   async adminRejectCollegeShift(uid: string): Promise<void> {
@@ -1110,6 +1478,55 @@ export const firestoreService = {
       college_shift_pending: false,
       updated_at: new Date(),
     });
+  },
+
+  /** Lookup a student or counselor by email (admin tooling). */
+  async findUserByEmailForAdmin(
+    email: string,
+  ): Promise<(Record<string, unknown> & { id: string }) | null> {
+    const trimmed = email.trim();
+    if (!trimmed) return null;
+    const candidates = [trimmed.toLowerCase(), trimmed];
+    const seen = new Set<string>();
+    for (const candidate of candidates) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      try {
+        const snap = await getDocs(
+          query(
+            collection(db, "users"),
+            where("email", "==", candidate),
+            limit(1),
+          ),
+        );
+        if (snap.empty) continue;
+        const docSnap = snap.docs[0];
+        return { id: docSnap.id, ...(docSnap.data() as Record<string, unknown>) };
+      } catch {
+        // try next casing
+      }
+    }
+    return null;
+  },
+
+  /**
+   * Admin-only: re-tag conversations where both participants are in the user's
+   * current college so active inbox / past-college classification is correct.
+   */
+  async adminRepairConversationCollegeTags(
+    uid: string,
+  ): Promise<ConversationCollegeRepairResult> {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (!snap.exists()) throw new Error("User not found.");
+    const college = resolveCollegeCodeFromUserData(
+      (snap.data() ?? {}) as Record<string, unknown>,
+    );
+    if (!college || !isCollegeCode(college)) {
+      throw new Error(
+        "User has no college on their profile. Set or approve a college first.",
+      );
+    }
+    return reactivateConversationsForUserCollege(uid, college);
   },
 
   async markNotificationAsRead(notificationId: string) {
@@ -1210,14 +1627,28 @@ export const firestoreService = {
         counselorId,
         studentData.id,
       );
+      let existingTag = "";
+      try {
+        const existing = await getDoc(convRef);
+        if (existing.exists()) {
+          existingTag = conversationCollegeTag(
+            (existing.data() ?? {}) as Record<string, unknown>,
+          );
+        }
+      } catch {
+        // Proceed with create/update; rules may block read on missing docs.
+      }
       const profileFields: Record<string, unknown> = {
         counselorId,
         studentId: studentData.id,
         student_name: studentData.name,
         student_avatar: studentData.avatar,
         student_program: studentData.program ?? "",
-        ...(collegeCode ? { college_code: collegeCode } : {}),
       };
+      // Never overwrite an existing college tag — it pins the thread to that era.
+      if (collegeCode && !existingTag) {
+        profileFields.college_code = collegeCode;
+      }
       if (counselorData) {
         profileFields.counselor_name = counselorData.name;
         profileFields.counselor_avatar = counselorData.avatar ?? "";
@@ -1232,8 +1663,10 @@ export const firestoreService = {
           e && typeof e === "object" && "code" in e
             ? String((e as { code: unknown }).code)
             : "";
+        // Missing docs often surface as permission-denied (no resource.data), not not-found.
         const isMissingDoc =
           code === "not-found" ||
+          code === "permission-denied" ||
           code === "5" ||
           /no document to update/i.test(
             e && typeof e === "object" && "message" in e
@@ -1262,9 +1695,130 @@ export const firestoreService = {
     }
   },
 
+  async _assertMessagingClosedCheck(
+    senderId: string,
+    conversationData: Record<string, unknown>,
+    counselorId: string,
+    studentId: string,
+  ): Promise<void> {
+    if (senderId !== counselorId && senderId !== studentId) {
+      throw new Error("Not a conversation participant.");
+    }
+    const collegeMap = await fetchUserCollegeMap([
+      counselorId,
+      studentId,
+      senderId,
+    ]);
+    const viewerCollege = collegeMap[senderId] ?? "";
+    const classify = conversationInboxClassifyInput(
+      conversationData,
+      viewerCollege,
+      collegeMap,
+    );
+    if (isPastCollegeThread(classify)) {
+      throw new Error(MESSAGING_CLOSED_ERROR);
+    }
+  },
+
+  async getConversationMessagingState(
+    conversationId: string,
+    viewerId: string,
+  ): Promise<{ isPastCollege: boolean; messagingClosed: boolean }> {
+    const convSnap = await getDoc(doc(db, "conversations", conversationId));
+    if (!convSnap.exists()) {
+      return { isPastCollege: true, messagingClosed: true };
+    }
+    const data = (convSnap.data() ?? {}) as Record<string, unknown>;
+    const counselorId = String(data.counselorId ?? "");
+    const studentId = String(data.studentId ?? "");
+    const collegeMap = await fetchUserCollegeMap([
+      viewerId,
+      counselorId,
+      studentId,
+    ]);
+    const classify = conversationInboxClassifyInput(
+      data,
+      collegeMap[viewerId] ?? "",
+      collegeMap,
+    );
+    const past = isPastCollegeThread(classify);
+    return { isPastCollege: past, messagingClosed: past };
+  },
+
+  /**
+   * When profiles align on a college but the conversation tag is stale (common after
+   * transfer return), participants can fix the tag without admin.
+   */
+  async repairConversationCollegeTagIfAligned(
+    conversationId: string,
+    viewerId: string,
+  ): Promise<boolean> {
+    return repairSingleConversationCollegeTagIfAligned(conversationId, viewerId);
+  },
+
+  async assertConversationMessagingOpen(
+    conversationId: string,
+    senderId: string,
+  ): Promise<void> {
+    const convSnap = await getDoc(doc(db, "conversations", conversationId));
+    if (!convSnap.exists()) {
+      throw new Error("Conversation not found.");
+    }
+    const data = (convSnap.data() ?? {}) as Record<string, unknown>;
+    await this._assertMessagingClosedCheck(
+      senderId,
+      data,
+      String(data.counselorId ?? ""),
+      String(data.studentId ?? ""),
+    );
+  },
+
+  async assertMessagingOpenForParticipants(
+    counselorId: string,
+    studentId: string,
+    senderId: string,
+  ): Promise<void> {
+    const conversationId = `${counselorId}_${studentId}`;
+    const convSnap = await getDoc(doc(db, "conversations", conversationId));
+    const data = (
+      convSnap.exists()
+        ? (convSnap.data() ?? {})
+        : { counselorId, studentId }
+    ) as Record<string, unknown>;
+    await this._assertMessagingClosedCheck(
+      senderId,
+      data,
+      counselorId,
+      studentId,
+    );
+  },
+
+  async assertSessionMessagingOpen(
+    sessionId: string,
+    senderId: string,
+  ): Promise<void> {
+    const snap = await getDoc(doc(db, "sessions", sessionId));
+    if (!snap.exists()) throw new Error("Session not found.");
+    const data = snap.data() as Record<string, unknown>;
+    const counselorId = String(data.counselorId ?? "");
+    const studentId = String(data.studentId ?? "");
+    if (!counselorId || !studentId) {
+      throw new Error("Session is missing counselor or student.");
+    }
+    await this.assertMessagingOpenForParticipants(
+      counselorId,
+      studentId,
+      senderId,
+    );
+  },
+
   async getConversations(
     counselorId: string,
-    options?: { activeCollegeCode?: string | null },
+    options?: {
+      activeCollegeCode?: string | null;
+      includeArchived?: boolean;
+      inboxScope?: ConversationInboxScope;
+    },
   ) {
     const isPlaceholderAvatar = (url: string) =>
       !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url);
@@ -1282,6 +1836,8 @@ export const firestoreService = {
       }
     }
 
+    const inboxScope = options?.inboxScope ?? "active";
+
     try {
       const q = query(
         collection(db, "conversations"),
@@ -1292,51 +1848,80 @@ export const firestoreService = {
       const archivedIds = await this.getCounselorArchivedConversationIds(
         counselorId,
       );
+      const includeArchived = options?.includeArchived === true;
+      const eligibleDocs = snapshot.docs.filter(
+        (d) => includeArchived || !archivedIds.has(d.id),
+      );
+      const collegeMap = await fetchUserCollegeMap([
+        counselorId,
+        ...eligibleDocs.map((d) => String(d.data().studentId ?? "")),
+      ]);
+      const scopedDocs = eligibleDocs.filter((d) => {
+        const data = d.data() as Record<string, unknown>;
+        const classify = conversationInboxClassifyInput(
+          data,
+          activeCollege,
+          collegeMap,
+        );
+        const past = isPastCollegeThread(classify);
+        if (inboxScope === "past") return past;
+        return isActiveCollegeInboxThread(classify);
+      });
+
+      let repairedNames = 0;
+      let repairedAvatars = 0;
       const results = await Promise.all(
-        snapshot.docs
-          .filter((d) => !archivedIds.has(d.id))
-          .filter((d) =>
-            conversationMatchesActiveCollege(
-              d.data() as Record<string, unknown>,
-              activeCollege,
-            ),
-          )
-          .map(async (d) => {
+        scopedDocs.map(async (d) => {
           const data = d.data();
-          let avatar = data.student_avatar ?? "";
-          if ((!avatar || isPlaceholderAvatar(avatar)) && data.studentId) {
-            try {
-              const userDoc = await getDoc(doc(db, "users", data.studentId));
-              const userAvatar = userDoc.data()?.avatar_url ?? "";
-              if (userAvatar && !isPlaceholderAvatar(userAvatar)) {
-                avatar = userAvatar;
-                if (isPlaceholderAvatar(data.student_avatar ?? "")) {
-                  updateDoc(doc(db, "conversations", d.id), {
-                    student_avatar: userAvatar,
-                  }).catch(() => {});
-                }
-              }
-            } catch {
-              /* keep existing */
-            }
-          }
-          if (isPlaceholderAvatar(avatar)) avatar = "";
+          const convRef = doc(db, "conversations", d.id);
+          const isArchived = archivedIds.has(d.id);
+          const classify = conversationInboxClassifyInput(
+            data as Record<string, unknown>,
+            activeCollege,
+            collegeMap,
+          );
+          const messagingClosed = isPastCollegeThread(classify);
+          const repaired = await repairConversationPeerProfile({
+            userId: data.studentId,
+            existingAvatar: data.student_avatar,
+            existingName: data.student_name,
+            fallbackName: "Student",
+            avatarField: "student_avatar",
+            nameField: "student_name",
+            convRef,
+            isPlaceholderAvatar,
+          });
+          if (repaired.didRepairName) repairedNames += 1;
+          if (repaired.didRepairAvatar) repairedAvatars += 1;
           return {
             id: data.studentId,
             conversationId: d.id,
-            name: data.student_name,
+            name: repaired.name,
             preview: sanitizeConversationPreview(data.lastMessage),
             time: data.lastMessageAt?.toDate
               ? formatMessageTime(data.lastMessageAt.toDate())
               : "Just now",
-            avatar,
+            avatar: repaired.avatar,
             isOnline: false,
             isUnread: (data.unreadCountCounselor ?? 0) > 0,
             program: data.student_program ?? undefined,
             studentId: data.studentId,
+            messagingClosed,
+            isPastCollege: messagingClosed,
+            ...(isArchived ? { isArchived: true } : {}),
           };
         }),
       );
+      if (
+        __DEV__ &&
+        !didLogCounselorRepairStats &&
+        (repairedNames > 0 || repairedAvatars > 0)
+      ) {
+        didLogCounselorRepairStats = true;
+        console.info(
+          `[messages/counselor] repaired ${repairedNames} names and ${repairedAvatars} avatars`,
+        );
+      }
       return results;
     } catch(error: unknown) {
       console.error("❌ Error getting conversations:", error);
@@ -1346,7 +1931,10 @@ export const firestoreService = {
 
   async getConversationsForStudent(
     studentId: string,
-    options?: { activeCollegeCode?: string | null },
+    options?: {
+      activeCollegeCode?: string | null;
+      inboxScope?: ConversationInboxScope;
+    },
   ) {
     const isPlaceholderAvatar = (url: string) =>
       !url || /pravatar|ui-avatars|placeholder\.com|dummyimage/i.test(url);
@@ -1364,6 +1952,8 @@ export const firestoreService = {
       }
     }
 
+    const inboxScope = options?.inboxScope ?? "active";
+
     try {
       const q = query(
         collection(db, "conversations"),
@@ -1371,48 +1961,72 @@ export const firestoreService = {
         orderBy("lastMessageAt", "desc"),
       );
       const snapshot = await getDocs(q);
+      const collegeMap = await fetchUserCollegeMap([
+        studentId,
+        ...snapshot.docs.map((d) => String(d.data().counselorId ?? "")),
+      ]);
+      const scopedDocs = snapshot.docs.filter((d) => {
+        const data = d.data() as Record<string, unknown>;
+        const classify = conversationInboxClassifyInput(
+          data,
+          activeCollege,
+          collegeMap,
+        );
+        const past = isPastCollegeThread(classify);
+        if (inboxScope === "past") return past;
+        return isActiveCollegeInboxThread(classify);
+      });
+
+      let repairedNames = 0;
+      let repairedAvatars = 0;
       const results = await Promise.all(
-        snapshot.docs
-          .filter((d) =>
-            conversationMatchesActiveCollege(
-              d.data() as Record<string, unknown>,
-              activeCollege,
-            ),
-          )
-          .map(async (d) => {
+        scopedDocs.map(async (d) => {
           const data = d.data();
-          let avatar = data.counselor_avatar ?? "";
-          if ((!avatar || isPlaceholderAvatar(avatar)) && data.counselorId) {
-            try {
-              const userDoc = await getDoc(doc(db, "users", data.counselorId));
-              const userAvatar = userDoc.data()?.avatar_url ?? "";
-              if (userAvatar && !isPlaceholderAvatar(userAvatar)) {
-                avatar = userAvatar;
-                if (isPlaceholderAvatar(data.counselor_avatar ?? "")) {
-                  updateDoc(doc(db, "conversations", d.id), {
-                    counselor_avatar: userAvatar,
-                  }).catch(() => {});
-                }
-              }
-            } catch {
-              /* keep existing */
-            }
-          }
-          if (isPlaceholderAvatar(avatar)) avatar = "";
+          const convRef = doc(db, "conversations", d.id);
+          const classify = conversationInboxClassifyInput(
+            data as Record<string, unknown>,
+            activeCollege,
+            collegeMap,
+          );
+          const messagingClosed = isPastCollegeThread(classify);
+          const repaired = await repairConversationPeerProfile({
+            userId: data.counselorId,
+            existingAvatar: data.counselor_avatar,
+            existingName: data.counselor_name,
+            fallbackName: "Counselor",
+            avatarField: "counselor_avatar",
+            nameField: "counselor_name",
+            convRef,
+            isPlaceholderAvatar,
+          });
+          if (repaired.didRepairName) repairedNames += 1;
+          if (repaired.didRepairAvatar) repairedAvatars += 1;
           return {
             id: data.counselorId,
             conversationId: d.id,
-            name: data.counselor_name ?? "Counselor",
+            name: repaired.name,
             preview: sanitizeConversationPreview(data.lastMessage),
             time: data.lastMessageAt?.toDate
               ? formatMessageTime(data.lastMessageAt.toDate())
               : "Just now",
-            avatar,
+            avatar: repaired.avatar,
             isOnline: false,
             isUnread: (data.unreadCountStudent ?? 0) > 0,
+            messagingClosed,
+            isPastCollege: messagingClosed,
           };
         }),
       );
+      if (
+        __DEV__ &&
+        !didLogStudentRepairStats &&
+        (repairedNames > 0 || repairedAvatars > 0)
+      ) {
+        didLogStudentRepairStats = true;
+        console.info(
+          `[messages/student] repaired ${repairedNames} names and ${repairedAvatars} avatars`,
+        );
+      }
       return results;
     } catch(error: unknown) {
       console.error("❌ Error getting student conversations:", error);
@@ -1459,6 +2073,23 @@ export const firestoreService = {
       const conv = convSnap.data();
       if (!conv) return;
 
+      const convData = conv as Record<string, unknown>;
+      const counselorId = String(convData.counselorId ?? "");
+      const studentId = String(convData.studentId ?? "");
+      const collegeMap = await fetchUserCollegeMap([
+        viewerId,
+        counselorId,
+        studentId,
+      ]);
+      const classify = conversationInboxClassifyInput(
+        convData,
+        collegeMap[viewerId] ?? "",
+        collegeMap,
+      );
+      if (isPastCollegeThread(classify)) {
+        return;
+      }
+
       const isCounselorViewer = conv.counselorId === viewerId;
       const unreadField = isCounselorViewer
         ? "unreadCountCounselor"
@@ -1493,14 +2124,14 @@ export const firestoreService = {
       });
 
       await Promise.all(updates);
-    } catch(error: unknown) {
+    } catch (error: unknown) {
       console.error("❌ Error marking conversation as read:", error);
-      throw error;
     }
   },
 
   /**
    * Real-time thread messages (student + counselor UIs).
+   * Also subscribes to linked `sessions/{id}` docs so status stays in sync without a new chat message.
    */
   subscribeConversationMessages(
     conversationId: string,
@@ -1514,23 +2145,80 @@ export const firestoreService = {
       conversationId,
       "messages",
     );
+    let messagesSnapshot: QuerySnapshot | null = null;
+    const sessionCache: Record<string, LinkedSessionSnapshot> = {};
+    const sessionUnsubs = new Map<string, () => void>();
     let generation = 0;
-    return onSnapshot(
+
+    const rebuild = () => {
+      if (!messagesSnapshot) return;
+      const g = ++generation;
+      buildChatMessagesFromQuerySnapshot(
+        messagesSnapshot,
+        userId,
+        sessionCache,
+      )
+        .then((msgs) => {
+          if (g === generation) onNext(msgs);
+        })
+        .catch((e) => {
+          if (g === generation) {
+            onError?.(e instanceof Error ? e : new Error(String(e)));
+          }
+        });
+    };
+
+    const syncSessionListeners = (sessionIds: string[]) => {
+      const idSet = new Set(sessionIds.filter(Boolean));
+      for (const [id, unsub] of sessionUnsubs) {
+        if (!idSet.has(id)) {
+          unsub();
+          sessionUnsubs.delete(id);
+          delete sessionCache[id];
+        }
+      }
+      for (const id of idSet) {
+        if (sessionUnsubs.has(id)) continue;
+        const unsub = onSnapshot(
+          doc(db, "sessions", id),
+          (snap) => {
+            if (snap.exists()) {
+              sessionCache[id] = linkedSessionFromFirestoreData(
+                snap.data() as Record<string, unknown>,
+              );
+            } else {
+              delete sessionCache[id];
+            }
+            rebuild();
+          },
+          (err) => {
+            const code =
+              err && typeof err === "object" && "code" in err
+                ? String((err as { code: unknown }).code)
+                : "";
+            if (code === "permission-denied") return;
+            onError?.(err instanceof Error ? err : new Error(String(err)));
+          },
+        );
+        sessionUnsubs.set(id, unsub);
+      }
+    };
+
+    const messagesUnsub = onSnapshot(
       messagesRef,
       (snapshot) => {
-        const g = ++generation;
-        buildChatMessagesFromQuerySnapshot(snapshot, userId)
-          .then((msgs) => {
-            if (g === generation) onNext(msgs);
-          })
-          .catch((e) => {
-            if (g === generation) {
-              onError?.(e instanceof Error ? e : new Error(String(e)));
-            }
-          });
+        messagesSnapshot = snapshot;
+        syncSessionListeners(collectLinkedSessionIdsFromSnapshot(snapshot));
+        rebuild();
       },
       (err) => onError?.(err instanceof Error ? err : new Error(String(err))),
     );
+
+    return () => {
+      messagesUnsub();
+      for (const unsub of sessionUnsubs.values()) unsub();
+      sessionUnsubs.clear();
+    };
   },
 
   async sendTextMessage(
@@ -1542,6 +2230,7 @@ export const firestoreService = {
       if ((auth.currentUser?.uid ?? "") !== senderId) {
         throw new Error("You can only send messages as the signed-in user.");
       }
+      await this.assertConversationMessagingOpen(conversationId, senderId);
       const out = await sendTextMessageTrustedCallable({
         conversationId,
         text,
@@ -1623,6 +2312,7 @@ export const firestoreService = {
     session: Record<string, unknown>,
   ) {
     try {
+      await this.assertConversationMessagingOpen(conversationId, senderId);
       const messagesRef = collection(
         db,
         "conversations",
@@ -1684,8 +2374,15 @@ export const firestoreService = {
    * Deletes a single conversation message card (chat-only).
    * This should NOT delete/modify the canonical `sessions` docs.
    */
-  async deleteConversationMessage(conversationId: string, messageId: string) {
+  async deleteConversationMessage(
+    conversationId: string,
+    messageId: string,
+    senderId?: string,
+  ) {
     try {
+      if (senderId) {
+        await this.assertConversationMessagingOpen(conversationId, senderId);
+      }
       await deleteDoc(
         doc(db, "conversations", conversationId, "messages", messageId),
       );
@@ -1706,6 +2403,7 @@ export const firestoreService = {
     session: Record<string, unknown>,
   ) {
     try {
+      await this.assertConversationMessagingOpen(conversationId, senderId);
       const linkedSessionId =
         session?.id != null
           ? String(session.id).trim()
@@ -1761,6 +2459,8 @@ export const firestoreService = {
     session: Record<string, unknown>,
   ) {
     try {
+      await this.assertConversationMessagingOpen(conversationId, senderId);
+      await this.assertSessionMessagingOpen(sessionId, senderId);
       const messagesRef = collection(
         db,
         "conversations",
@@ -1845,6 +2545,7 @@ export const firestoreService = {
           "You can only request sessions as the signed-in student.",
         );
       }
+      await this.assertConversationMessagingOpen(conversationId, studentId);
       const out = await sendSessionRequestTrustedCallable({
         conversationId,
         preferredTime: preferredTimeStr,
@@ -1874,57 +2575,46 @@ export const firestoreService = {
           "Session request sent too recently. Please wait a moment.",
         );
       }
+      const codeStr = String(err?.code ?? "");
+      if (
+        codeStr.includes("failed-precondition") ||
+        codeStr.includes("invalid-argument")
+      ) {
+        const rawMessage =
+          error instanceof Error && error.message
+            ? error.message.toLowerCase()
+            : "";
+        if (
+          codeStr.includes("failed-precondition") &&
+          (rawMessage.includes("future") || rawMessage.includes("past"))
+        ) {
+          throw new Error(
+            "Please choose a future schedule. Past time slots are not allowed.",
+          );
+        }
+        if (codeStr.includes("invalid-argument")) {
+          throw new Error(
+            "Please provide a valid date and time for your session request.",
+          );
+        }
+        const msg =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Could not submit this session request.";
+        throw new Error(msg);
+      }
       throw error;
     }
   },
 
   // ─── Sessions (counseling appointments) ─────────────────────────────────────
   // sessions/{sessionId}: counselorId, studentId, riskFlagId, initiatedBy, studentRequestNote,
-  //   finalSlot (agreed date+time — single source for history badges & overdue; set when either party confirms),
+  //   finalSlot (human-readable slot; aligns with schedulingTimezone),
+  //   schedulingTimezone ('Asia/Manila'), scheduledStartAt (Firestore Timestamp UTC instant when agreed),
   //   proposedSlots, confirmedSlot (kept in sync with finalSlot when agreed), status, attendanceNote, cancelReason,
   //   slotConfirmedAt (Timestamp when final/agreed time was last locked as confirmed),
   //   reminderSent, createdAt, updatedAt, expiredAt, schedulingOverdueAt, sessionHistoryBadge
   // status: requested | pending | confirmed | needs_rescheduling | expired | completed | missed | rescheduled | cancelled
-
-  async createSessionRequest(
-    studentId: string,
-    counselorId: string,
-    studentRequestNote: string,
-    opts?: { preferredTime?: string },
-  ) {
-    try {
-      const collegeCode = await resolveConversationCollegeCode(
-        counselorId,
-        studentId,
-      );
-      const docData: Record<string, unknown> = {
-        counselorId,
-        studentId,
-        ...(collegeCode ? { college_code: collegeCode } : {}),
-        riskFlagId: null,
-        initiatedBy: "student",
-        studentRequestNote: studentRequestNote.trim(),
-        proposedSlots: [],
-        confirmedSlot: null,
-        finalSlot: null,
-        status: "requested",
-        attendanceNote: null,
-        cancelReason: null,
-        reminderSent: false,
-        sessionHistoryBadge: "pending",
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      };
-      if (opts?.preferredTime) {
-        docData.preferredTimeFromStudent = opts.preferredTime;
-      }
-      const docRef = await addDoc(collection(db, "sessions"), docData);
-      return docRef.id;
-    } catch(error: unknown) {
-      console.error("❌ Error creating session request:", error);
-      throw error;
-    }
-  },
 
   /**
    * Counselor-initiated invite: creates `sessions/{id}` with proposed slots so the student can
@@ -1937,114 +2627,37 @@ export const firestoreService = {
     opts?: { note?: string },
   ) {
     try {
-      const collegeCode = await resolveConversationCollegeCode(
+      await this.assertMessagingOpenForParticipants(
         counselorId,
         studentId,
-      );
-      const docData: Record<string, unknown> = {
         counselorId,
-        studentId,
-        ...(collegeCode ? { college_code: collegeCode } : {}),
-        riskFlagId: null,
-        initiatedBy: "counselor",
-        studentRequestNote: (opts?.note ?? "").trim(),
-        proposedSlots,
-        confirmedSlot: null,
-        finalSlot: null,
-        status: "pending",
-        attendanceNote: null,
-        cancelReason: null,
-        reminderSent: false,
-        sessionHistoryBadge: "pending",
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      };
-      const docRef = await addDoc(collection(db, "sessions"), docData);
-      await createSessionNotification(
-        studentId,
-        "Your counselor sent a session invitation. Open Messages to review and confirm your preferred slot.",
-        "/(student)/messages",
-        `session:${docRef.id}:counselor_invite_created`,
       );
-      return docRef.id;
-    } catch(error: unknown) {
-      console.error("❌ Error creating counselor session invite:", error);
-      throw error;
-    }
-  },
-
-  async addSessionRequestToConversation(
-    counselorId: string,
-    studentId: string,
-    sessionId: string,
-    note: string,
-    opts?: {
-      preferredTime?: string;
-      studentData?: { name: string; avatar: string };
-      counselorData?: { name: string; avatar?: string };
-    },
-  ) {
-    try {
-      const conversationId = `${counselorId}_${studentId}`;
-      if (opts?.studentData) {
-        await this.addConversation(
-          counselorId,
-          {
-            id: studentId,
-            name: opts.studentData.name,
-            avatar: opts.studentData.avatar,
-          },
-          opts.counselorData,
+      if ((auth.currentUser?.uid ?? "") !== counselorId) {
+        throw new Error(
+          "You can only create session invites as the signed-in counselor.",
         );
       }
-      const preferredTimeStr = opts?.preferredTime ?? "";
-      const sessionData: Record<string, unknown> = {
-        sessionId,
-        note: note.trim(),
-        status: "requested",
-      };
-      if (preferredTimeStr) sessionData.preferredTime = preferredTimeStr;
-      const messagesRef = collection(
-        db,
-        "conversations",
-        conversationId,
-        "messages",
-      );
-      const docRef = await addDoc(messagesRef, {
-        senderId: studentId,
-        content: preferredTimeStr
-          ? `Session request: ${preferredTimeStr}`
-          : "Session request",
-        type: "session_request",
-        sessionId,
-        sessionData,
-        isRead: false,
-        readAt: null,
-        isUrgent: false,
-        createdAt: Timestamp.now(),
+      const out = await createCounselorSessionInviteTrustedCallable({
+        studentId,
+        proposedSlots,
+        note: opts?.note,
       });
-      const convRef = doc(db, "conversations", conversationId);
-      const convSnap = await getDoc(convRef);
-      const conv = convSnap.data();
-      await updateDoc(convRef, {
-        lastMessage: preferredTimeStr
-          ? `Session request: ${preferredTimeStr}`
-          : "Session request",
-        lastMessageAt: Timestamp.now(),
-        lastSenderId: studentId,
-        unreadCountCounselor: (conv?.unreadCountCounselor ?? 0) + 1,
-      });
-      await createSessionNotification(
-        counselorId,
-        preferredTimeStr
-          ? `A student requested a counseling session for ${preferredTimeStr}.`
-          : "A student requested a counseling session.",
-        "/(counselor)/messages",
-        `session:${sessionId}:student_request_created`,
-      );
-      return docRef.id;
+      return out.sessionId;
     } catch(error: unknown) {
-      console.error("❌ Error adding session request to conversation:", error);
+      console.error("❌ Error creating counselor session invite:", error);
+      const err = error as { code?: string };
+      const codeStr = String(err?.code ?? "");
+      if (
+        codeStr.includes("failed-precondition") ||
+        codeStr.includes("invalid-argument") ||
+        codeStr.includes("permission-denied")
+      ) {
+        const msg =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Could not create this session invite.";
+        throw new Error(msg);
+      }
       throw error;
     }
   },
@@ -2064,14 +2677,7 @@ export const firestoreService = {
         orderBy("updatedAt", "desc"),
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs
-        .filter((d) =>
-          conversationMatchesActiveCollege(
-            d.data() as Record<string, unknown>,
-            activeCollege,
-          ),
-        )
-        .map((d) => ({ id: d.id, ...d.data() }));
+      return mapSessionsDocsForActiveCollege(snapshot.docs, activeCollege);
     } catch(error: unknown) {
       console.error("❌ Error getting student sessions:", error);
       throw error;
@@ -2093,14 +2699,7 @@ export const firestoreService = {
         orderBy("updatedAt", "desc"),
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs
-        .filter((d) =>
-          conversationMatchesActiveCollege(
-            d.data() as Record<string, unknown>,
-            activeCollege,
-          ),
-        )
-        .map((d) => ({ id: d.id, ...d.data() }));
+      return mapSessionsDocsForActiveCollege(snapshot.docs, activeCollege);
     } catch(error: unknown) {
       console.error("❌ Error getting counselor sessions:", error);
       throw error;
@@ -2115,13 +2714,9 @@ export const firestoreService = {
   async getSessionOutcomeCountsForCounselorStudent(
     counselorId: string,
     studentId: string,
-    options?: { activeCollegeCode?: string | null },
+    _options?: { activeCollegeCode?: string | null },
   ): Promise<{ completed: number; missed: number }> {
     try {
-      const activeCollege = await resolveUserActiveCollegeCode(
-        counselorId,
-        options?.activeCollegeCode,
-      );
       const q = query(
         collection(db, "sessions"),
         where("counselorId", "==", String(counselorId)),
@@ -2132,7 +2727,6 @@ export const firestoreService = {
       let missed = 0;
       for (const d of snapshot.docs) {
         const data = d.data() as Record<string, unknown>;
-        if (!conversationMatchesActiveCollege(data, activeCollege)) continue;
         const st = String(data.status ?? "");
         if (st === "completed") completed += 1;
         else if (st === "missed") missed += 1;
@@ -2153,9 +2747,14 @@ export const firestoreService = {
     opts?: {
       /** Counselor moved a session (e.g. from attendance "needs rescheduling"). */
       proposalKind?: "attendance_reschedule" | "counselor_new_times";
+      actorId?: string;
     },
   ) {
     try {
+      const actorId = opts?.actorId ?? auth.currentUser?.uid ?? "";
+      if (actorId) {
+        await this.assertSessionMessagingOpen(sessionId, actorId);
+      }
       const sessionRef = doc(db, "sessions", sessionId);
       const snap = await getDoc(sessionRef);
       const session = snap.data() as Record<string, unknown> | undefined;
@@ -2164,6 +2763,7 @@ export const firestoreService = {
         finalSlot: null,
         confirmedSlot: null,
         slotConfirmedAt: deleteField(),
+        scheduledStartAt: deleteField(),
         status: "pending",
         updatedAt: Timestamp.now(),
         ...(opts?.proposalKind === "attendance_reschedule"
@@ -2193,17 +2793,124 @@ export const firestoreService = {
     }
   },
 
-  async confirmSlot(sessionId: string, slot: { date: string; time: string }) {
+  /**
+   * Counselor accepts a student session request — atomic session doc + chat card update.
+   */
+  async acceptStudentSessionRequest(
+    conversationId: string,
+    sessionId: string,
+    slot: { date: string; time: string },
+    counselorId: string,
+  ): Promise<void> {
+    await this.assertConversationMessagingOpen(conversationId, counselorId);
+    await this.assertSessionMessagingOpen(sessionId, counselorId);
+
+    const sessionRef = doc(db, "sessions", sessionId);
+    const sessionSnap = await getDoc(sessionRef);
+    if (!sessionSnap.exists()) {
+      throw new Error("Session not found.");
+    }
+    const session = sessionSnap.data() as Record<string, unknown>;
+
+    let collegePatch: Record<string, unknown> = {};
+    if (!conversationCollegeTag(session)) {
+      const studentId = String(session.studentId ?? "");
+      if (studentId) {
+        const collegeCode = await resolveConversationCollegeCode(
+          counselorId,
+          studentId,
+        );
+        if (collegeCode) {
+          collegePatch = { college_code: collegeCode };
+        }
+      }
+    }
+
+    const messagesRef = collection(
+      db,
+      "conversations",
+      conversationId,
+      "messages",
+    );
+    const messagesSnap = await getDocs(
+      query(messagesRef, orderBy("createdAt", "asc")),
+    );
+
+    const batch = writeBatch(db);
+    batch.update(sessionRef, {
+      finalSlot: slot,
+      confirmedSlot: slot,
+      status: "confirmed",
+      slotConfirmedAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      ...sessionSchedulingAuthoritativePatch(slot),
+      ...collegePatch,
+    });
+
+    messagesSnap.docs.forEach((d) => {
+      const data = d.data();
+      if (
+        data.type === "session_request" &&
+        (data.sessionId === sessionId ||
+          data.sessionData?.sessionId === sessionId)
+      ) {
+        const existingSessionData = data.sessionData ?? {};
+        batch.update(
+          doc(db, "conversations", conversationId, "messages", d.id),
+          {
+            sessionData: { ...existingSessionData, status: "confirmed" },
+          },
+        );
+      }
+    });
+
+    await batch.commit();
+
+    if (session.studentId) {
+      await createSessionNotification(
+        String(session.studentId),
+        `Your session has been scheduled for ${slot.date} at ${slot.time}.`,
+        "/(student)/messages",
+        `session:${sessionId}:confirmed_for_student`,
+      );
+    }
+  },
+
+  async confirmSlot(
+    sessionId: string,
+    slot: { date: string; time: string },
+    actorId?: string,
+  ) {
     try {
+      const uid = actorId ?? auth.currentUser?.uid ?? "";
+      if (uid) {
+        await this.assertSessionMessagingOpen(sessionId, uid);
+      }
       const sessionRef = doc(db, "sessions", sessionId);
       const snap = await getDoc(sessionRef);
       const session = snap.data() as Record<string, unknown> | undefined;
+      let collegePatch: Record<string, unknown> = {};
+      if (session && !conversationCollegeTag(session)) {
+        const counselorId = String(session.counselorId ?? "");
+        const studentId = String(session.studentId ?? "");
+        if (counselorId && studentId) {
+          const collegeCode = await resolveConversationCollegeCode(
+            counselorId,
+            studentId,
+          );
+          if (collegeCode) {
+            collegePatch = { college_code: collegeCode };
+          }
+        }
+      }
       await updateDoc(sessionRef, {
         finalSlot: slot,
         confirmedSlot: slot,
         status: "confirmed",
         slotConfirmedAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
+        ...sessionSchedulingAuthoritativePatch(slot),
+        ...collegePatch,
       });
       if (session?.studentId) {
         await createSessionNotification(
@@ -2259,12 +2966,23 @@ export const firestoreService = {
 
       if (!authorized) throw new Error("Not authorized");
 
+      const counselorIdForCheck = String(data.counselorId ?? "");
+      const studentIdForCheck = String(data.studentId ?? uid);
+      if (counselorIdForCheck && studentIdForCheck) {
+        await this.assertMessagingOpenForParticipants(
+          counselorIdForCheck,
+          studentIdForCheck,
+          uid,
+        );
+      }
+
       const patch: Record<string, unknown> = {
         finalSlot: slot,
         confirmedSlot: slot,
         status: "confirmed",
         slotConfirmedAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
+        ...sessionSchedulingAuthoritativePatch(slot),
       };
       if (data.studentId == null) {
         patch.studentId = uid;
@@ -2292,8 +3010,10 @@ export const firestoreService = {
     conversationId: string,
     sessionId: string,
     status: "confirmed" | "cancelled",
+    senderId: string,
   ) {
     try {
+      await this.assertConversationMessagingOpen(conversationId, senderId);
       const messagesRef = collection(
         db,
         "conversations",
@@ -2342,89 +3062,50 @@ export const firestoreService = {
     note: string,
   ) {
     try {
-      const trimmedNote = (note ?? "").trim();
-      const content = preferredTime
-        ? `Session request: ${preferredTime}`
-        : "Session request";
-
-      // Update the canonical session doc.
-      await updateDoc(doc(db, "sessions", sessionId), {
-        preferredTimeFromStudent: preferredTime,
-        studentRequestNote: trimmedNote,
-        status: "requested",
-        updatedAt: Timestamp.now(),
-      });
-
-      // Update the existing chat message card.
-      const msgRef = doc(
-        db,
-        "conversations",
+      await this.assertConversationMessagingOpen(conversationId, senderId);
+      if ((auth.currentUser?.uid ?? "") !== senderId) {
+        throw new Error("You can only edit your own session request.");
+      }
+      await updateSessionRequestTrustedCallable({
         conversationId,
-        "messages",
         messageId,
-      );
-      const msgSnap = await getDoc(msgRef);
-      const existing = msgSnap.data();
-      const existingSessionData = (existing?.sessionData ?? {}) as Record<string, unknown>;
-
-      await updateDoc(msgRef, {
-        content,
-        sessionData: {
-          ...existingSessionData,
-          sessionId,
-          note: trimmedNote,
-          status: "requested",
-          ...(preferredTime ? { preferredTime } : {}),
-        },
-      });
-
-      // Update conversation preview/last message without changing unread counters.
-      const convRef = doc(db, "conversations", conversationId);
-      await updateDoc(convRef, {
-        lastMessage: content,
-        lastMessageAt: Timestamp.now(),
-        lastSenderId: senderId,
+        sessionId,
+        preferredTime,
+        note,
       });
     } catch(error: unknown) {
       console.error("❌ Error updating session request schedule:", error);
+      const err = error as { code?: string };
+      const codeStr = String(err?.code ?? "");
+      if (
+        codeStr.includes("failed-precondition") ||
+        codeStr.includes("invalid-argument") ||
+        codeStr.includes("permission-denied")
+      ) {
+        const rawMessage =
+          error instanceof Error && error.message
+            ? error.message.toLowerCase()
+            : "";
+        if (
+          codeStr.includes("failed-precondition") &&
+          (rawMessage.includes("future") || rawMessage.includes("past"))
+        ) {
+          throw new Error(
+            "Please choose a future schedule. Past time slots are not allowed.",
+          );
+        }
+        if (codeStr.includes("invalid-argument")) {
+          throw new Error(
+            "Please provide a valid date and time for your session request.",
+          );
+        }
+        const msg =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Could not update this session request.";
+        throw new Error(msg);
+      }
       throw error;
-    }
-  },
-
-  /**
-   * Deletes `sessions` docs that have been `expired` for more than 7 days (counselor scope).
-   */
-  async purgeExpiredSessionsPastRetention(
-    counselorId: string,
-    activeCollegeCode?: string | null,
-  ): Promise<void> {
-    try {
-      const activeCollege = await resolveUserActiveCollegeCode(
-        counselorId,
-        activeCollegeCode,
-      );
-      const q = query(
-        collection(db, "sessions"),
-        where("counselorId", "==", counselorId),
-        where("status", "==", "expired"),
-      );
-      const snapshot = await getDocs(q);
-      const cutoff = Date.now() - EXPIRED_SESSION_RETENTION_MS;
-      const deletes = snapshot.docs
-        .filter((d) =>
-          conversationMatchesActiveCollege(
-            d.data() as Record<string, unknown>,
-            activeCollege,
-          ),
-        )
-        .filter((d) => {
-          const ea = d.data().expiredAt?.toMillis?.();
-          return typeof ea === "number" && ea < cutoff;
-        })
-        .map((d) => deleteDoc(doc(db, "sessions", d.id)));
-      await Promise.all(deletes);
-    } catch (e) {
-      console.error("❌ Error purging expired sessions:", e);
     }
   },
 
@@ -2432,8 +3113,13 @@ export const firestoreService = {
     sessionId: string,
     outcome: "completed" | "missed" | "rescheduled",
     attendanceNote?: string,
+    actorId?: string,
   ) {
     try {
+      const uid = actorId ?? auth.currentUser?.uid ?? "";
+      if (uid) {
+        await this.assertSessionMessagingOpen(sessionId, uid);
+      }
       const sessionRef = doc(db, "sessions", sessionId);
       const badge: SessionHistoryBadge =
         outcome === "completed"
@@ -2452,6 +3138,7 @@ export const firestoreService = {
           ? {
               finalSlot: null,
               confirmedSlot: null,
+              scheduledStartAt: deleteField(),
               slotConfirmedAt: deleteField(),
             }
           : {}),
@@ -2470,7 +3157,7 @@ export const firestoreService = {
    */
   async getSessionHistoryForCounselor(
     counselorId: string,
-    options?: { activeCollegeCode?: string | null },
+    _options?: { activeCollegeCode?: string | null },
   ): Promise<
     Array<{
       id: string;
@@ -2493,30 +3180,29 @@ export const firestoreService = {
       initiatedBy?: string;
       /** When the agreed slot was last confirmed (student or counselor path). */
       slotConfirmedAt: Date | null;
+      scheduledStartAt?: Date | null;
     }>
   > {
     try {
-      const activeCollege = await resolveUserActiveCollegeCode(
-        counselorId,
-        options?.activeCollegeCode,
-      );
-      await this.purgeExpiredSessionsPastRetention(counselorId, activeCollege);
-
       const q = query(
         collection(db, "sessions"),
         where("counselorId", "==", counselorId),
         orderBy("updatedAt", "desc"),
       );
       const snapshot = await getDocs(q);
-      const sessions = snapshot.docs
-        .filter((d) =>
-          conversationMatchesActiveCollege(
-            d.data() as Record<string, unknown>,
-            activeCollege,
-          ),
-        )
-        .map((d) => {
-        const data = d.data();
+      const taggedDocs = mapSessionsDocsForCounselorHistory(snapshot.docs);
+      const sessions = taggedDocs.map((row) => {
+        const data = row as Record<string, unknown>;
+        const tsToDate = (v: unknown): Date | null => {
+          if (
+            v != null &&
+            typeof v === "object" &&
+            typeof (v as { toDate?: () => Date }).toDate === "function"
+          ) {
+            return (v as { toDate: () => Date }).toDate();
+          }
+          return null;
+        };
         const rawProposed = Array.isArray(data.proposedSlots)
           ? data.proposedSlots
           : [];
@@ -2540,27 +3226,38 @@ export const firestoreService = {
             ? (slotConfirmedRaw as { toDate: () => Date }).toDate()
             : null;
         return {
-          id: d.id,
+          id: String(data.id ?? ""),
           studentId:
             data.studentId != null && String(data.studentId).trim()
               ? String(data.studentId).trim()
               : "",
-          status: data.status ?? "requested",
+          status: String(data.status ?? "requested"),
           finalSlot,
           confirmedSlot,
           proposedSlots,
-          preferredTimeFromStudent: data.preferredTimeFromStudent,
-          studentRequestNote: data.studentRequestNote,
-          attendanceNote: data.attendanceNote,
-          cancelReason: data.cancelReason,
+          preferredTimeFromStudent:
+            typeof data.preferredTimeFromStudent === "string"
+              ? data.preferredTimeFromStudent
+              : undefined,
+          studentRequestNote:
+            typeof data.studentRequestNote === "string"
+              ? data.studentRequestNote
+              : undefined,
+          attendanceNote:
+            typeof data.attendanceNote === "string"
+              ? data.attendanceNote
+              : undefined,
+          cancelReason:
+            typeof data.cancelReason === "string" ? data.cancelReason : undefined,
           sessionHistoryBadge: data.sessionHistoryBadge as
             | SessionHistoryBadge
             | undefined,
-          updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
-          createdAt: data.createdAt?.toDate?.() ?? new Date(),
+          updatedAt: tsToDate(data.updatedAt) ?? new Date(),
+          createdAt: tsToDate(data.createdAt) ?? new Date(),
           initiatedBy:
             typeof data.initiatedBy === "string" ? data.initiatedBy : undefined,
           slotConfirmedAt,
+          scheduledStartAt: tsToDate(data.scheduledStartAt),
         };
       });
 
@@ -2584,10 +3281,9 @@ export const firestoreService = {
             .filter((id): id is string => typeof id === "string" && id.trim().length > 0),
         ),
       ];
-      const userPromises = uniqueStudentIds.map((id) =>
-        getDoc(doc(db, "users", id)),
+      const userProfiles = await Promise.all(
+        uniqueStudentIds.map((id) => getUserProfileByIdSafe(id)),
       );
-      const userSnaps = await Promise.all(userPromises);
       const userMap: Record<
         string,
         {
@@ -2599,9 +3295,8 @@ export const firestoreService = {
           avatar_url?: string;
         }
       > = {};
-      userSnaps.forEach((snap, i) => {
+      userProfiles.forEach((u, i) => {
         const uid = uniqueStudentIds[i];
-        const u = snap.data();
         const pickAvatar = (raw: Record<string, unknown> | undefined) => {
           if (!raw) return undefined;
           const a =
@@ -2613,14 +3308,25 @@ export const firestoreService = {
           return a || undefined;
         };
         userMap[uid] = {
-          full_name: u?.full_name ?? u?.fullName,
-          department: u?.department,
+          full_name:
+            typeof u?.full_name === "string"
+              ? u.full_name
+              : typeof u?.fullName === "string"
+                ? u.fullName
+                : undefined,
+          department:
+            typeof u?.department === "string" ? u.department : undefined,
           college_code:
             typeof u?.college_code === "string" && u.college_code.trim()
               ? u.college_code.trim()
               : undefined,
-          program: u?.program,
-          year: u?.year ?? u?.year_level,
+          program: typeof u?.program === "string" ? u.program : undefined,
+          year:
+            typeof u?.year === "string"
+              ? u.year
+              : typeof u?.year_level === "string"
+                ? u.year_level
+                : undefined,
           avatar_url: pickAvatar(u as Record<string, unknown> | undefined),
         };
       });
@@ -2628,11 +3334,12 @@ export const firestoreService = {
       const syncSchedulingStatus = async (
         s: (typeof sessions)[0],
       ): Promise<string> => {
-        const status = s.status;
+        const status = String(s.status ?? "");
         const terminal = ["completed", "missed", "cancelled", "rescheduled"];
         if (terminal.includes(status)) return status;
 
         const scheduled = getSessionScheduledDate({
+          scheduledStartAt: s.scheduledStartAt,
           finalSlot: s.finalSlot,
           confirmedSlot: s.confirmedSlot,
           proposedSlots: s.proposedSlots,
@@ -2685,6 +3392,9 @@ export const firestoreService = {
               /* ignore */
             }
           }
+          const sessionCollege = conversationCollegeTag(
+            merged as Record<string, unknown>,
+          );
           return {
             ...merged,
             sessionHistoryBadge: badge,
@@ -2692,7 +3402,9 @@ export const firestoreService = {
             studentAvatar: userMap[s.studentId]?.avatar_url,
             studentDepartment:
               userMap[s.studentId]?.college_code ||
-              userMap[s.studentId]?.department,
+              userMap[s.studentId]?.department ||
+              sessionCollege ||
+              undefined,
             studentProgram: userMap[s.studentId]?.program,
             studentYear: userMap[s.studentId]?.year,
           };
@@ -2710,6 +3422,7 @@ export const firestoreService = {
 async function buildChatMessagesFromQuerySnapshot(
   snapshot: QuerySnapshot,
   userId: string,
+  sessionCache?: Record<string, LinkedSessionSnapshot>,
 ) {
   const docsSorted = [...snapshot.docs].sort((a, b) => {
     const aMs = resolveMessageCreatedAtMillis(a.data() as Record<string, unknown>);
@@ -2799,125 +3512,47 @@ async function buildChatMessagesFromQuerySnapshot(
     ...new Set([...requestSessionIds, ...inviteSessionIds]),
   ];
 
-  const sessionStatusMap: Record<string, string> = {};
-  const sessionFinalSlotMap: Record<
-    string,
-    { date: string; time: string } | null
-  > = {};
-  const sessionHasProposedSlotsMap: Record<string, boolean> = {};
-  /** Present when `sessions/{id}` exists — used for student 24h open-invite expiry. */
-  const sessionDocTimestampsMap: Record<
-    string,
-    { createdAt?: unknown; updatedAt?: unknown }
-  > = {};
-  if (allSessionIds.length > 0) {
-    const sessionPromises = allSessionIds.map(async (id) => {
+  const mergedCache: Record<string, LinkedSessionSnapshot> = {
+    ...(sessionCache ?? {}),
+  };
+  const missingIds = allSessionIds.filter((id) => !mergedCache[id]);
+  if (missingIds.length > 0) {
+    const sessionPromises = missingIds.map(async (id) => {
       try {
         return await getDoc(doc(db, "sessions", id));
       } catch {
-        // Keep chat rendering even when one linked session is inaccessible.
         return null;
       }
     });
     const sessionSnaps = await Promise.all(sessionPromises);
     sessionSnaps.forEach((snap, i) => {
-      if (!snap) return;
-      const sid = allSessionIds[i];
+      if (!snap?.exists()) return;
       const s = snap.data();
       if (!s) return;
-      if (s?.status) sessionStatusMap[sid] = s.status;
-      sessionDocTimestampsMap[sid] = {
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-      };
-      const slots = s?.proposedSlots;
-      sessionHasProposedSlotsMap[sid] =
-        Array.isArray(slots) &&
-        slots.some(
-          (x: unknown) =>
-            x &&
-            typeof x === "object" &&
-            "date" in (x as object) &&
-            String((x as { date: unknown }).date).trim() !== "",
-        );
-      const fs = s?.finalSlot ?? s?.confirmedSlot;
-      if (fs && typeof fs === "object" && "date" in fs && "time" in fs) {
-        sessionFinalSlotMap[sid] = {
-          date: String(fs.date),
-          time: String(fs.time),
-        };
-      } else {
-        sessionFinalSlotMap[sid] = null;
-      }
+      mergedCache[missingIds[i]] = linkedSessionFromFirestoreData(
+        s as Record<string, unknown>,
+      );
     });
   }
 
-  return msgs.map((m) => {
-    if (m.type === "session_request" && m.sessionRequest.sessionId) {
-      const sessionStatus = sessionStatusMap[m.sessionRequest.sessionId];
-      const sid = m.sessionRequest.sessionId;
-      const hasProposed = sessionHasProposedSlotsMap[sid];
-      if (
-        sessionStatus &&
-        [
-          "requested",
-          "pending",
-          "confirmed",
-          "completed",
-          "missed",
-          "rescheduled",
-          "cancelled",
-          "needs_rescheduling",
-          "expired",
-        ].includes(sessionStatus)
-      ) {
-        return {
-          ...m,
-          sessionRequest: {
-            ...m.sessionRequest,
-            status: sessionStatus,
-            counselorOfferedSlots:
-              sessionStatus === "pending" && !!hasProposed,
-          },
-        };
-      }
-    }
-    if (m.type === "session") {
-      const sid = resolveSessionsDocIdForSessionCard(
-        m.session as Record<string, unknown>,
-      );
-      if (sid && (sessionStatusMap[sid] || sessionDocTimestampsMap[sid])) {
-        const fs = sessionFinalSlotMap[sid];
-        const ts = sessionDocTimestampsMap[sid];
-        const stFromDoc = sessionStatusMap[sid];
-        const stFromMsg = (m.session as Record<string, unknown>)?.sessionStatus;
-        const sessionStatus =
-          typeof stFromDoc === "string" && stFromDoc.trim()
-            ? stFromDoc.trim()
-            : typeof stFromMsg === "string" && stFromMsg.trim()
-              ? stFromMsg.trim()
-              : "pending";
-        return {
-          ...m,
-          session: {
-            ...m.session,
-            id: sid,
-            linkedSessionId: sid,
-            sessionId: sid,
-            sessionStatus,
-            ...(ts?.createdAt != null
-              ? { sessionDocCreatedAt: ts.createdAt }
-              : {}),
-            ...(ts?.updatedAt != null
-              ? { sessionDocUpdatedAt: ts.updatedAt }
-              : {}),
-            ...(fs ? { agreedSlot: fs } : {}),
-          },
-        };
-      }
-    }
-    return m;
-  });
+  const {
+    sessionStatusMap,
+    sessionFinalSlotMap,
+    sessionHasProposedSlotsMap,
+    sessionScheduledStartMsMap,
+    sessionDocTimestampsMap,
+  } = buildSessionMapsFromLinkedCache(mergedCache);
+
+  return msgs.map((m) =>
+    applyLinkedSessionMapsToChatMessage(
+      m,
+      sessionStatusMap,
+      sessionFinalSlotMap,
+      sessionHasProposedSlotsMap,
+      sessionScheduledStartMsMap,
+      sessionDocTimestampsMap,
+    ),
+  );
 }
 
 function resolveMessageCreatedAtDate(data: Record<string, unknown>): Date {

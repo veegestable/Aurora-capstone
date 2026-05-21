@@ -9,18 +9,19 @@ import { AppTextInput as TextInput } from "../../../src/components/common/AppTex
  */
 
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import { View, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
+import {
+  View,
+  ScrollView,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Search, ChevronDown } from "lucide-react-native";
+import { Search } from "lucide-react-native";
 import { AURORA } from "../../../src/constants/aurora-colors";
 import { LetterAvatar } from "../../../src/components/common/LetterAvatar";
 import { firestoreService } from "../../../src/services/firebase-firestore.service";
-import {
-  formatCounselorStudentSubtitle,
-  normalizeStudentToProgramFilter,
-  PROGRAM_FILTER_LABELS,
-  type ProgramFilterCode,
-} from "../../../src/constants/ccs-student-programs";
+import { formatCounselorStudentSubtitle } from "../../../src/constants/ccs-student-programs";
 import { fetchStudentCheckInSignalContextForCounselor } from "../../../src/services/counselor-checkin-context.service";
 import { getUserSettings } from "../../../src/services/mood-firestore-v2.service";
 import {
@@ -32,7 +33,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../../src/stores/AuthContext";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type ProgramFilter = "All Students" | ProgramFilterCode;
+type DirectoryFilter = "all" | "special_population";
+
+const DIRECTORY_FILTERS: Array<{ key: DirectoryFilter; label: string }> = [
+  { key: "all", label: "All Students" },
+  { key: "special_population", label: "In Session" },
+];
 
 interface StudentEntry {
   id: string;
@@ -45,6 +51,10 @@ interface StudentEntry {
   rosterPill: CounselorStudentRosterPill;
   /** Activity line (neutral wording; avoids whole-roster mood triage). */
   activitySummary: string;
+}
+
+function isSpecialPopulationStudent(student: StudentEntry): boolean {
+  return student.rosterPill === "session_started";
 }
 
 function formatTimeAgo(date: Date): string {
@@ -212,16 +222,14 @@ function StudentCard({
   );
 }
 
-// ─── Filter Chip ───────────────────────────────────────────────────────────────
+// ─── Filter chip ───────────────────────────────────────────────────────────────
 function FilterChip({
   label,
   active,
-  hasDropdown,
   onPress,
 }: {
   label: string;
   active: boolean;
-  hasDropdown?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -229,19 +237,13 @@ function FilterChip({
       onPress={onPress}
       activeOpacity={0.75}
       style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 4,
         backgroundColor: active ? AURORA.blue : "transparent",
         borderWidth: 1.5,
         borderColor: active ? AURORA.blue : AURORA.borderLight,
         borderRadius: 30,
         paddingHorizontal: 16,
-        paddingVertical: 5,
+        paddingVertical: 8,
         marginRight: 8,
-        minWidth: 88,
-        alignSelf: "flex-start",
       }}
     >
       <Text
@@ -253,9 +255,6 @@ function FilterChip({
       >
         {label}
       </Text>
-      {hasDropdown && (
-        <ChevronDown size={12} color={active ? "#FFFFFF" : AURORA.textSec} />
-      )}
     </TouchableOpacity>
   );
 }
@@ -270,8 +269,12 @@ export default function CounselorStudentsScreen() {
   const [students, setStudents] = useState<StudentEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] =
-    useState<ProgramFilter>("All Students");
+  const [activeFilter, setActiveFilter] = useState<DirectoryFilter>("all");
+
+  const specialPopulationCount = useMemo(
+    () => students.filter(isSpecialPopulationStudent).length,
+    [students],
+  );
 
   useEffect(() => {
     if (openStudentId == null || openStudentId === "") {
@@ -356,24 +359,10 @@ export default function CounselorStudentsScreen() {
     void fetchStudents();
   }, [user?.id]);
 
-  const FILTERS: ProgramFilter[] = [
-    "All Students",
-    "BSCS",
-    "BSIT",
-    "BSIS",
-    "BSCA",
-  ];
-
   const filtered = useMemo(() => {
     let list = students;
-    if (activeFilter !== "All Students") {
-      list = list.filter(
-        (s) =>
-          normalizeStudentToProgramFilter(
-            s.college_code || s.department,
-            s.program,
-          ) === activeFilter,
-      );
+    if (activeFilter === "special_population") {
+      list = list.filter(isSpecialPopulationStudent);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -471,26 +460,27 @@ export default function CounselorStudentsScreen() {
             </View>
           </View>
 
-          <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+          <View style={{ paddingHorizontal: 20, paddingBottom: 10 }}>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ flexDirection: "row" }}
               style={{ flexGrow: 0 }}
             >
-              {FILTERS.map((f) => (
-                <FilterChip
-                  key={f}
-                  label={
-                    f === "All Students"
-                      ? f
-                      : PROGRAM_FILTER_LABELS[f as ProgramFilterCode]
-                  }
-                  active={activeFilter === f}
-                  hasDropdown={f !== "All Students"}
-                  onPress={() => setActiveFilter(f)}
-                />
-              ))}
+              {DIRECTORY_FILTERS.map((f) => {
+                const countLabel =
+                  f.key === "special_population"
+                    ? ` (${specialPopulationCount})`
+                    : "";
+                return (
+                  <FilterChip
+                    key={f.key}
+                    label={`${f.label}${countLabel}`}
+                    active={activeFilter === f.key}
+                    onPress={() => setActiveFilter(f.key)}
+                  />
+                );
+              })}
             </ScrollView>
           </View>
         </View>
@@ -522,7 +512,9 @@ export default function CounselorStudentsScreen() {
             ListEmptyComponent={
               <View style={{ alignItems: "center", paddingTop: 60 }}>
                 <Text style={{ color: AURORA.textMuted, fontSize: 14 }}>
-                  No students found.
+                  {activeFilter === "special_population"
+                    ? "No students in your special population yet."
+                    : "No students found."}
                 </Text>
               </View>
             }

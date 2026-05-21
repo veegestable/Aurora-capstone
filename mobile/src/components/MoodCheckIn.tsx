@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AppState, Image, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
+import { AppState, Image, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
@@ -73,10 +73,14 @@ import {
   setPendingBreathingReminder,
 } from "../utils/pendingBreathingReminder";
 import {
-  InfoGuideModal,
   InfoGuideOverlay,
   type InfoGuideContent,
 } from "./common/InfoGuideModal";
+import {
+  AuroraActionSheetOverlay,
+  type AuroraActionSheetContent,
+} from "./common/AuroraActionSheetModal";
+import { buildFeedback } from "../utils/aurora-feedback";
 
 interface MoodCheckInProps {
   onComplete?: () => void;
@@ -353,6 +357,31 @@ const isMealAvailableNow = (time: string): boolean => {
   return nowMinutes >= mealMinutes;
 };
 
+function getMissingWellnessScheduleLabels(
+  usualWakeTime: string,
+  usualBathTime: string,
+  mealSchedule: MealScheduleRow[],
+): string[] {
+  const missing: string[] = [];
+  if (!(usualWakeTime || "").trim()) missing.push("Usual wake-up time");
+  if (!(usualBathTime || "").trim()) missing.push("Bath schedule");
+  if (!mealSchedule.length) missing.push("Meal schedule");
+  return missing;
+}
+
+function buildWellnessScheduleReminderSheet(
+  missing: string[],
+  onGoToProfile: () => void,
+): AuroraActionSheetContent {
+  const list = missing.map((item) => `• ${item}`).join("\n");
+  return {
+    title: "Set your daily schedule?",
+    body: `You can check in without these, but wake-up, bath, and meal times in Profile improve sleep, meal, and routine analytics for you and your counselor.\n\nNot set yet:\n${list}\n\nOpen Profile → schedule section to add them.`,
+    dismissLabel: "Continue check-in",
+    actions: [{ label: "Go to Profile", onPress: onGoToProfile }],
+  };
+}
+
 export function MoodCheckIn({
   onComplete,
   initialMood = null,
@@ -364,6 +393,7 @@ export function MoodCheckIn({
     mealSchedule,
     usualWakeTime,
     usualBathTime,
+    loading: daySettingsLoading,
   } = useUserDaySettings();
 
   const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>(
@@ -395,6 +425,11 @@ export function MoodCheckIn({
   const [validationGuide, setValidationGuide] = useState<InfoGuideContent | null>(
     null,
   );
+  const [journalSelfieSheet, setJournalSelfieSheet] =
+    useState<AuroraActionSheetContent | null>(null);
+  const [scheduleReminderSheet, setScheduleReminderSheet] =
+    useState<AuroraActionSheetContent | null>(null);
+  const scheduleReminderShownRef = useRef(false);
   // Re-render whenever the next meal/wake/bath unlock boundary passes, instead
   // of polling on a fixed interval. Fires a single timer per boundary plus a
   // recompute on every foreground transition (covers the case where the app
@@ -449,6 +484,30 @@ export function MoodCheckIn({
     // We intentionally re-run this effect when the schedule changes so the
     // next-boundary calculation stays in sync.
   }, [mealSchedule, usualWakeTime, usualBathTime]);
+
+  useEffect(() => {
+    if (daySettingsLoading || scheduleReminderShownRef.current) return;
+    const missing = getMissingWellnessScheduleLabels(
+      usualWakeTime,
+      usualBathTime,
+      mealSchedule,
+    );
+    if (missing.length === 0) return;
+    scheduleReminderShownRef.current = true;
+    setScheduleReminderSheet(
+      buildWellnessScheduleReminderSheet(missing, () => {
+        onComplete?.();
+        setTimeout(() => router.push("/(student)/profile"), 0);
+      }),
+    );
+  }, [
+    daySettingsLoading,
+    mealSchedule,
+    onComplete,
+    usualBathTime,
+    usualWakeTime,
+  ]);
+
   const [mealStatusById, setMealStatusById] = useState<Record<string, boolean>>(
     {},
   );
@@ -975,53 +1034,87 @@ export function MoodCheckIn({
   };
 
   const pickJournalImageFromLibrary = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permission.status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "Please allow photo library access to attach a journal selfie.",
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== "granted") {
+        setValidationGuide(
+          buildFeedback(
+            "Permission needed",
+            "Please allow photo library access to attach a journal selfie.",
+            "warning",
+          ),
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.75,
+      });
+      if (!result.canceled && result.assets[0]?.uri) {
+        setJournalImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.warn("Journal library picker failed:", error);
+      setValidationGuide(
+        buildFeedback(
+          "Photo unavailable",
+          "Could not open your photo library. Please try again.",
+          "error",
+        ),
       );
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 0.75,
-    });
-    if (!result.canceled && result.assets[0]?.uri) {
-      setJournalImageUri(result.assets[0].uri);
     }
   };
 
   const captureJournalImage = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (permission.status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "Please allow camera access to take a journal selfie.",
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (permission.status !== "granted") {
+        setValidationGuide(
+          buildFeedback(
+            "Permission needed",
+            "Please allow camera access to take a journal selfie.",
+            "warning",
+          ),
+        );
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.75,
+        cameraType: ImagePicker.CameraType.front,
+      });
+      if (!result.canceled && result.assets[0]?.uri) {
+        setJournalImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.warn("Journal camera failed:", error);
+      setValidationGuide(
+        buildFeedback(
+          "Camera unavailable",
+          "Could not open the camera. Try choosing from your library instead.",
+          "error",
+        ),
       );
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 0.75,
-      cameraType: ImagePicker.CameraType.front,
-    });
-    if (!result.canceled && result.assets[0]?.uri) {
-      setJournalImageUri(result.assets[0].uri);
     }
   };
 
   const pickJournalImage = () => {
-    Alert.alert("Journal selfie", "Add your photo using camera or gallery.", [
-      { text: "Take photo", onPress: () => void captureJournalImage() },
-      {
-        text: "Choose from library",
-        onPress: () => void pickJournalImageFromLibrary(),
-      },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    // Overlay (not AuroraActionSheetModal) — MoodCheckIn often sits inside another
+    // Modal; a second RN Modal breaks touches and image picker launch.
+    setJournalSelfieSheet({
+      title: "Journal selfie",
+      body: "Add your photo using camera or gallery.",
+      actions: [
+        { label: "Take photo", onPress: () => void captureJournalImage() },
+        {
+          label: "Choose from library",
+          onPress: () => void pickJournalImageFromLibrary(),
+        },
+      ],
+    });
   };
 
   const applyAnalyzedMood = (emotion: DetectedEmotion) => {
@@ -1034,7 +1127,9 @@ export function MoodCheckIn({
 
   const handleSubmit = async () => {
     if (!user) {
-      Alert.alert("Error", "Please log in to save mood");
+      setValidationGuide(
+        buildFeedback("Error", "Please log in to save mood", "error"),
+      );
       return;
     }
     const now = new Date();
@@ -1053,9 +1148,12 @@ export function MoodCheckIn({
       selectedEmotions.length === 0 ||
       (!sleepCapturedToday && !sleepQuality && !sleepLocked)
     ) {
-      Alert.alert(
-        "Missing data",
-        "Mood is required. Sleep quality is needed only once per day.",
+      setValidationGuide(
+        buildFeedback(
+          "Missing data",
+          "Mood is required. Sleep quality is needed only once per day.",
+          "warning",
+        ),
       );
       return;
     }
@@ -1205,7 +1303,13 @@ export function MoodCheckIn({
     } catch (error: unknown) {
       setIsSubmitting(false);
       setUploadingJournalImage(false);
-      Alert.alert("Error", error instanceof Error ? error.message : "Failed to check in");
+      setValidationGuide(
+        buildFeedback(
+          "Error",
+          error instanceof Error ? error.message : "Failed to check in",
+          "error",
+        ),
+      );
     }
   };
 
@@ -1409,7 +1513,13 @@ export function MoodCheckIn({
                   // no-op
                 }
               }
-              Alert.alert("Well done", "You completed your quick reset.");
+              setValidationGuide(
+                buildFeedback(
+                  "Well done",
+                  "You completed your quick reset.",
+                  "success",
+                ),
+              );
             }}
           />
         </Modal>
@@ -3688,9 +3798,17 @@ export function MoodCheckIn({
         guide={activeGuide}
         onClose={dismissActiveGuide}
       />
-      <InfoGuideModal
+      <InfoGuideOverlay
         guide={validationGuide}
         onClose={() => setValidationGuide(null)}
+      />
+      <AuroraActionSheetOverlay
+        sheet={journalSelfieSheet}
+        onClose={() => setJournalSelfieSheet(null)}
+      />
+      <AuroraActionSheetOverlay
+        sheet={scheduleReminderSheet}
+        onClose={() => setScheduleReminderSheet(null)}
       />
     </KeyboardAvoidingView>
   );

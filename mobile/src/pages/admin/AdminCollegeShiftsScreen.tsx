@@ -8,7 +8,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,8 +20,22 @@ import {
   resolveCollegeCodeFromUserData,
 } from "../../constants/colleges";
 import { ADMIN_TAB_BAR_BOTTOM_CLEARANCE } from "../../../constants/admin-tab-bar";
+import { AuroraConfirmModal } from "../../components/common/AuroraConfirmModal";
+import {
+  InfoGuideModal,
+  type InfoGuideContent,
+} from "../../components/common/InfoGuideModal";
+import { buildFeedback } from "../../utils/aurora-feedback";
 
 type Row = Record<string, unknown> & { id: string };
+
+type PendingConfirm = {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  rowId: string;
+  run: () => Promise<void>;
+};
 
 export default function AdminCollegeShiftsScreen() {
   const router = useRouter();
@@ -30,6 +43,10 @@ export default function AdminCollegeShiftsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
+    null,
+  );
+  const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -53,62 +70,29 @@ export default function AdminCollegeShiftsScreen() {
   };
 
   const approve = (r: Row) => {
-    Alert.alert(
-      "Approve college change",
-      `Approve shift to ${getCollegeName(String((r.college_shift_request as { requested_college_code?: string })?.requested_college_code ?? ""))} for ${String(r.full_name ?? "user")}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Approve",
-          onPress: () => {
-            void (async () => {
-              setBusyId(r.id);
-              try {
-                await firestoreService.adminApproveCollegeShift(r.id);
-                await load();
-              } catch (e) {
-                Alert.alert(
-                  "Error",
-                  e instanceof Error ? e.message : "Could not approve.",
-                );
-              } finally {
-                setBusyId(null);
-              }
-            })();
-          },
-        },
-      ],
-    );
+    setPendingConfirm({
+      title: "Approve college change",
+      body: `Approve shift to ${getCollegeName(String((r.college_shift_request as { requested_college_code?: string })?.requested_college_code ?? ""))} for ${String(r.full_name ?? "user")}?`,
+      confirmLabel: "Approve",
+      rowId: r.id,
+      run: async () => {
+        await firestoreService.adminApproveCollegeShift(r.id);
+        await load();
+      },
+    });
   };
 
   const reject = (r: Row) => {
-    Alert.alert(
-      "Reject request",
-      `Reject the college change request for ${String(r.full_name ?? "user")}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              setBusyId(r.id);
-              try {
-                await firestoreService.adminRejectCollegeShift(r.id);
-                await load();
-              } catch (e) {
-                Alert.alert(
-                  "Error",
-                  e instanceof Error ? e.message : "Could not reject.",
-                );
-              } finally {
-                setBusyId(null);
-              }
-            })();
-          },
-        },
-      ],
-    );
+    setPendingConfirm({
+      title: "Reject request",
+      body: `Reject the college change request for ${String(r.full_name ?? "user")}?`,
+      confirmLabel: "Reject",
+      rowId: r.id,
+      run: async () => {
+        await firestoreService.adminRejectCollegeShift(r.id);
+        await load();
+      },
+    });
   };
 
   return (
@@ -157,7 +141,36 @@ export default function AdminCollegeShiftsScreen() {
               <Text style={{ color: AURORA.textMuted, fontSize: 14 }}>
                 No pending college change requests.
               </Text>
-            ) : (
+            ) : null}
+            <TouchableOpacity
+              onPress={() => router.push("/(admin)/messaging-repair")}
+              style={{
+                marginTop: rows.length === 0 ? 0 : 20,
+                marginBottom: rows.length === 0 ? 0 : 8,
+                paddingVertical: 14,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "rgba(59,130,246,0.4)",
+                backgroundColor: "rgba(59,130,246,0.12)",
+              }}
+            >
+              <Text style={{ color: "#93C5FD", fontWeight: "700", fontSize: 14 }}>
+                Repair message college tags
+              </Text>
+              <Text
+                style={{
+                  color: AURORA.textSec,
+                  fontSize: 12,
+                  lineHeight: 18,
+                  marginTop: 6,
+                }}
+              >
+                If someone already transferred back but chats stay read-only in
+                Past college, run a one-time tag repair by email.
+              </Text>
+            </TouchableOpacity>
+            {rows.length > 0 ? (
               rows.map((r) => {
                 const req = r.college_shift_request as
                   | {
@@ -272,10 +285,47 @@ export default function AdminCollegeShiftsScreen() {
                   </View>
                 );
               })
-            )}
+            ) : null}
           </ScrollView>
         )}
       </SafeAreaView>
+
+      <AuroraConfirmModal
+        visible={!!pendingConfirm}
+        title={pendingConfirm?.title ?? ""}
+        body={pendingConfirm?.body ?? ""}
+        cancelLabel="Cancel"
+        confirmLabel={pendingConfirm?.confirmLabel ?? "Continue"}
+        busy={!!busyId}
+        onCancel={() => {
+          if (!busyId) setPendingConfirm(null);
+        }}
+        onConfirm={() => {
+          if (!pendingConfirm) return;
+          void (async () => {
+            setBusyId(pendingConfirm.rowId);
+            try {
+              await pendingConfirm.run();
+              setPendingConfirm(null);
+            } catch (e) {
+              setFeedback(
+                buildFeedback(
+                  "Error",
+                  e instanceof Error ? e.message : "Could not complete action.",
+                  "error",
+                ),
+              );
+            } finally {
+              setBusyId(null);
+            }
+          })();
+        }}
+      />
+
+      <InfoGuideModal
+        guide={feedback}
+        onClose={() => setFeedback(null)}
+      />
     </View>
   );
 }

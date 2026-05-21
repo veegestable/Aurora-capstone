@@ -1,11 +1,32 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  ReactNode,
+  useCallback,
+} from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../config/firebase'
 import { authService, UserProfile } from '../services/firebase-auth'
 import { User } from '../types/user.types'
-import { type CollegeCode, isCollegeCode } from '../constants/colleges'
+import {
+  type CollegeCode,
+  isCollegeCode,
+  resolveCollegeCodeFromUserData,
+} from '../constants/colleges'
 import { isProgramInCollege } from '../constants/college-programs-iit'
 import { presenceService } from '../services/presence'
+import { getSignupEmailRejectionMessage } from '../utils/signupEmailPolicy'
+import {
+  readAuthEmailVerifiedEffective,
+  isEmailVerificationRequiredForSignIn,
+} from '../services/firebase-auth/emailVerificationSync'
+import {
+  readRegistrationVerificationPendingEmail,
+  writeRegistrationVerificationPendingEmail,
+} from '../utils/registrationVerificationPending'
 
 interface AuthContextType {
   user: User | null
@@ -20,6 +41,10 @@ interface AuthContextType {
     program?: string                // Ignored for Counselor
   ) => Promise<{ success: boolean; message: string }>
   signOut: () => void
+  resendRegistrationVerificationEmail: (email: string, password: string) => Promise<void>
+  /** Set after sign-up until the user finishes the verify-email step or signs in. */
+  registrationVerificationEmail: string | null
+  clearRegistrationVerification: () => void
   updateUser: (data: Partial<Omit<User, 'id' | 'email' | 'role'>>) => Promise<void>
   uploadAvatar: (file: File) => Promise<string>
   refreshUserProfile: () => Promise<void>
@@ -35,10 +60,13 @@ const convertUserProfile = (userProfile: UserProfile): User => ({
   role: userProfile.role,
   approval_status: userProfile.approval_status,
   preferred_name: userProfile.preferred_name,
-  college_code:
-    userProfile.college_code != null && String(userProfile.college_code).trim()
-      ? String(userProfile.college_code).trim()
-      : undefined,
+  college_code: (() => {
+    const resolved = resolveCollegeCodeFromUserData({
+      college_code: userProfile.college_code,
+      department: userProfile.department,
+    })
+    return resolved || undefined
+  })(),
   department: userProfile.department,
   college_shift_pending: userProfile.college_shift_pending,
   program: userProfile.program,
@@ -53,6 +81,20 @@ const convertUserProfile = (userProfile: UserProfile): User => ({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [registrationVerificationEmail, setRegistrationVerificationEmail] =
+    useState<string | null>(readRegistrationVerificationPendingEmail)
+  const signUpInProgressRef = useRef(false)
+
+  const clearRegistrationVerification = useCallback(() => {
+    setRegistrationVerificationEmail(null)
+    writeRegistrationVerificationPendingEmail(null)
+  }, [])
+
+  const markRegistrationVerificationPending = useCallback((email: string) => {
+    const trimmed = email.trim().toLowerCase()
+    setRegistrationVerificationEmail(trimmed)
+    writeRegistrationVerificationPendingEmail(trimmed)
+  }, [])
 
   useEffect(() => {
     console.log('🔥 Setting up Firebase auth listener...')
@@ -68,10 +110,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Presence must use the Firebase Auth uid (RTDB rules: auth.uid === $uid).
       // Start as soon as Auth is ready — do not wait for Firestore profile, 
       // or RTDB never gets writes.
-      if (firebaseUser?.uid) stopPresence = presenceService.startMyPresence(firebaseUser.uid)
-      
+      if (firebaseUser?.uid && !signUpInProgressRef.current) {
+        stopPresence = presenceService.startMyPresence(firebaseUser.uid)
+      }
+
+      if (signUpInProgressRef.current) {
+        setLoading(false)
+        return
+      }
+
       if (firebaseUser) {
-        // User is signed in
+        const emailForPolicy = (firebaseUser.email ?? '').trim()
+        if (isEmailVerificationRequiredForSignIn(emailForPolicy)) {
+          const verified = await readAuthEmailVerifiedEffective(firebaseUser)
+          if (!verified) {
+            try {
+              await authService.signOut()
+            } catch {
+              /* ignore */
+            }
+            stopPresence?.()
+            stopPresence = undefined
+            setUser(null)
+            setLoading(false)
+            return
+          }
+        }
+
         try {
           const userProfile = await authService.getCurrentUser()
           if (userProfile) {
@@ -102,7 +167,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔥 Signing in user:', email)
       const userProfile = await authService.signIn({ email, password })
-      
+
+      clearRegistrationVerification()
       setUser(convertUserProfile(userProfile))
       console.log('✅ Sign in successful:', userProfile.email)
     } catch (error) {
@@ -136,22 +202,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           message: 'Choose a degree program that matches your college.',
         }
       }
-      
-      await authService.signUp({
-        email,
-        password,
-        fullName,
-        role,
-        college_code: cc,
-        ...(role === 'student' && prog ? { program: prog } : {}),
-      })
 
-      // Don't set user - they need to log in manually
+      const policyError = getSignupEmailRejectionMessage(email)
+      if (policyError) {
+        return { success: false, message: policyError }
+      }
+
+      signUpInProgressRef.current = true
+      try {
+        await authService.signUp({
+          email,
+          password,
+          fullName,
+          role,
+          college_code: cc,
+          ...(role === 'student' && prog ? { program: prog } : {}),
+        })
+      } finally {
+        signUpInProgressRef.current = false
+      }
+
+      markRegistrationVerificationPending(email)
+      setUser(null)
+
       console.log('✅ Sign up successful - account created for:', email)
 
       return {
         success: true,
-        message: 'Account created successfully! Please log in with your credentials.',
+        message:
+          'Account created! Check your email for a verification link, then sign in.',
       }
     } catch (error) {
       console.error('❌ Sign up error:', error)
@@ -202,6 +281,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const resendRegistrationVerificationEmail = async (
+    email: string,
+    password: string,
+  ) => {
+    await authService.resendRegistrationVerificationEmail({ email, password })
+  }
+
   const refreshUserProfile = useCallback(async () => {
     if (!auth.currentUser) return
     try {
@@ -218,6 +304,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signUp,
     signOut,
+    resendRegistrationVerificationEmail,
+    registrationVerificationEmail,
+    clearRegistrationVerification,
     updateUser,
     uploadAvatar,
     refreshUserProfile,

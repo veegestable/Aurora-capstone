@@ -1,15 +1,17 @@
 /**
- * Mirrors student “Your week” mood charts: frequency (donut), duration bars, intensity bars
- * for the last 7 local calendar days — counselor read-only view.
+ * Mirrors student mood analytics: 7- or 30-day window with highlights plus
+ * frequency (donut), duration bars, and intensity bars — counselor read-only view.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, TouchableOpacity } from "react-native";
+import { RollingDaysPeriodToggle } from "../analytics/RollingDaysPeriodToggle";
 import { AppText as Text } from "../common/AppText";
 import { CircleHelp, PieChart, Clock3, BarChart3 } from "lucide-react-native";
 import type { MoodData } from "../../services/firebase-firestore.service";
 import type { MergedMoodLog } from "../../services/mood.service";
 import { calendarDayKeyLocal } from "../../utils/dayKey";
+import { buildRollingDayKeySet } from "../../utils/analytics/dateKeys";
 import { buildMoodChartAggregatesFromLogs } from "../../utils/analytics/moodChartAggregates";
 import { MoodDistributionDonut } from "../analytics/DescriptiveCharts";
 import { AURORA } from "../../constants/aurora-colors";
@@ -17,31 +19,31 @@ import {
   InfoGuideModal,
   type InfoGuideContent,
 } from "../common/InfoGuideModal";
-import { CounselorStressEnergyTrendChart } from "./CounselorStressEnergyTrendChart";
-
-function last7DayKeySet(): Set<string> {
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
-  const keys = new Set<string>();
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    keys.add(calendarDayKeyLocal(d));
-  }
-  return keys;
-}
+import {
+  CounselorStudentLast7Highlights,
+  type CounselorStudentAnalyticsPeriodDays,
+} from "./CounselorStudentLast7Highlights";
 
 interface Props {
   logs: MergedMoodLog[];
 }
 
 export function CounselorStudentLast7Charts({ logs }: Props) {
+  const [periodDays, setPeriodDays] =
+    useState<CounselorStudentAnalyticsPeriodDays>(7);
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [guide, setGuide] = useState<InfoGuideContent | null>(null);
 
-  const keySet = useMemo(() => last7DayKeySet(), []);
+  useEffect(() => {
+    setSelectedMood(null);
+  }, [periodDays]);
 
-  const last7Normalized = useMemo(() => {
+  const keySet = useMemo(
+    () => buildRollingDayKeySet(periodDays),
+    [periodDays],
+  );
+
+  const normalizedLogs = useMemo(() => {
     return logs.map((l) => ({
       ...l,
       log_date:
@@ -49,15 +51,15 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
     })) as Array<MoodData & { log_date: Date }>;
   }, [logs]);
 
-  const last7Logs = useMemo(() => {
-    return last7Normalized.filter((l) =>
+  const periodLogs = useMemo(() => {
+    return normalizedLogs.filter((l) =>
       keySet.has(calendarDayKeyLocal(new Date(l.log_date))),
     );
-  }, [last7Normalized, keySet]);
+  }, [normalizedLogs, keySet]);
 
   const charts = useMemo(
-    () => buildMoodChartAggregatesFromLogs(last7Logs),
-    [last7Logs],
+    () => buildMoodChartAggregatesFromLogs(periodLogs),
+    [periodLogs],
   );
 
   const frequencySegments = useMemo(
@@ -151,21 +153,23 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
 
   return (
     <View>
-      <Text
+      <View
         style={{
-          color: "#E2E8F0",
-          fontSize: 13,
-          fontWeight: "800",
-          letterSpacing: 0.4,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "flex-end",
           marginBottom: 12,
         }}
       >
-        Last 7 days — same charts as student analytics
-      </Text>
+        <RollingDaysPeriodToggle
+          value={periodDays}
+          onChange={setPeriodDays}
+        />
+      </View>
 
-      <CounselorStressEnergyTrendChart logs={logs} />
+      <CounselorStudentLast7Highlights logs={logs} periodDays={periodDays} />
 
-      {last7Logs.length === 0 ? (
+      {periodLogs.length === 0 ? (
         <View
           style={{
             backgroundColor: AURORA.cardAlt,
@@ -177,9 +181,8 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
           }}
         >
           <Text style={{ color: AURORA.textSec, fontSize: 14, lineHeight: 20 }}>
-            No mood check-ins in the last 7 days — mood charts below will appear
-            when this student logs. Stress and energy bars above show grey
-            placeholders on days without data.
+            No mood check-ins in the last {periodDays} days — mood charts below
+            will appear when this student logs.
           </Text>
         </View>
       ) : (
@@ -191,7 +194,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
           onInfo={() =>
             setGuide({
               title: "Mood frequency",
-              body: "Share of check-ins by mood over the last 7 local calendar days.\n\nBigger slice = more check-ins for that mood.\n\nBased on count, not duration.",
+              body: `Share of check-ins by mood over the last ${periodDays} local calendar days.\n\nBigger slice = more check-ins for that mood.\n\nBased on count, not duration.`,
             })
           }
         />
@@ -336,7 +339,7 @@ export function CounselorStudentLast7Charts({ logs }: Props) {
           onInfo={() =>
             setGuide({
               title: "Mood intensity",
-              body: "Average self-reported intensity (1–10) per mood for the last 7 days.\n\nn = number of entries used for that mood.",
+              body: `Average self-reported intensity (1–10) per mood for the last ${periodDays} days.\n\nn = number of entries used for that mood.`,
             })
           }
         />

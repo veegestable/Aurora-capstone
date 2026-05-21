@@ -1,11 +1,44 @@
-import { collection, addDoc, doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore'
+import { assertMessagingOpenForParticipants } from '../../messages/helpers/assertMessagingOpen'
+import { createCounselorSessionInviteTrusted } from '../../trusted-backend.service'
+import { collection, doc, getDoc, Timestamp, writeBatch } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
-import { resolveConversationCollegeCode } from '../../messages/helpers/resolveConversationCollegeCode'
-import { enqueueSessionInviteStudentPush } from '../../notifications/enqueueSessionInviteStudentPush'
 
 interface ProposedSlot {
   date: string
   time: string
+}
+
+function parseInviteCallableError(error: unknown): string {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const code = String((error as { code: unknown }).code)
+    const rawMessage =
+      'message' in error && typeof (error as { message: unknown }).message === 'string'
+        ? (error as { message: string }).message
+        : ''
+
+    if (code.includes('failed-precondition')) {
+      if (rawMessage.toLowerCase().includes('future')) {
+        return 'Please choose a future schedule. Past time slots are not allowed.'
+      }
+      return 'One or more selected time slots are not allowed. Please choose a future schedule.'
+    }
+
+    if (code.includes('invalid-argument')) {
+      if (rawMessage.toLowerCase().includes('invalid')) {
+        return 'Please pick a valid date and time from the schedule fields.'
+      }
+      return 'Please review the selected schedule and try again.'
+    }
+
+    if (code.includes('resource-exhausted')) {
+      return 'You sent invites too quickly. Please wait a moment and try again.'
+    }
+
+    if (rawMessage) return rawMessage
+  }
+
+  if (error instanceof Error && error.message.trim()) return error.message
+  return 'Failed to send invite. Please try again.'
 }
 
 export async function createCounselorSessionInvite(
@@ -14,67 +47,60 @@ export async function createCounselorSessionInvite(
   proposedSlots: ProposedSlot[],
   opts?: { note?: string }
 ) {
-  // 1. Create the session document
-  const collegeCode = await resolveConversationCollegeCode(counselorId, studentId)
-
-  const docData = {
-    counselorId,
-    studentId,
-    riskFlagId: null,
-    ...(collegeCode ? { college_code: collegeCode } : {}),
-    initiatedBy: 'counselor',
-    studentRequestNote: (opts?.note ?? '').trim(),
-    proposedSlots,
-    confirmedSlot: null,
-    finalSlot: null,
-    status: 'pending',
-    attendanceNote: null,
-    cancelReason: null,
-    reminderSent: false,
-    sessionHistoryBadge: 'pending',
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
-  }
-  const sessionRef = await addDoc(collection(db, 'sessions'), docData)
-  const sessionId = sessionRef.id
-
-  // 2. Add the session invite message to the conversation
+  await assertMessagingOpenForParticipants(counselorId, studentId, counselorId)
   const conversationId = `${counselorId}_${studentId}`
+  let out: { sessionId: string }
+  try {
+    out = await createCounselorSessionInviteTrusted({
+      studentId,
+      proposedSlots,
+      note: opts?.note,
+    })
+  } catch (error: unknown) {
+    throw new Error(parseInviteCallableError(error))
+  }
+
+  const convRef = doc(db, 'conversations', conversationId)
+  const convSnap = await getDoc(convRef)
+  if (!convSnap.exists()) {
+    throw new Error('Conversation not found after creating session invite.')
+  }
+  const conv = convSnap.data()
+
+  const messageSessionData = {
+    id: out.sessionId,
+    sessionId: out.sessionId,
+    title: 'Counseling Session',
+    timeSlots: proposedSlots,
+    note: opts?.note?.trim() ?? '',
+    sessionStatus: 'pending',
+  }
+
   const messagesRef = collection(db, 'conversations', conversationId, 'messages')
-  
-  await addDoc(messagesRef, {
+  const msgRef = doc(messagesRef)
+  const now = Timestamp.now()
+  const batch = writeBatch(db)
+
+  batch.set(msgRef, {
     senderId: counselorId,
-    content: 'Session Invite',
+    content: `Session: ${messageSessionData.title}`,
     type: 'session_invite',
-    sessionId,
-    sessionData: {
-      sessionId,
-      title: 'Counseling Session',
-      note: opts?.note?.trim() || undefined,
-      timeSlots: proposedSlots,
-      status: 'pending'
-    },
+    sessionId: out.sessionId,
+    linkedSessionId: out.sessionId,
+    sessionData: messageSessionData,
     isRead: false,
     readAt: null,
     isUrgent: false,
-    createdAt: Timestamp.now(),
+    createdAt: now,
   })
 
-  // 3. Update the conversation preview
-  const convRef = doc(db, 'conversations', conversationId)
-  const convSnap = await getDoc(convRef)
-  const conv = convSnap.data()
-  
-  if (conv) {
-    await updateDoc(convRef, {
-      lastMessage: 'Session Invite',
-      lastMessageAt: Timestamp.now(),
-      lastSenderId: counselorId,
-      unreadCountStudent: (conv.unreadCountStudent ?? 0) + 1,
-    })
-  }
+  batch.update(convRef, {
+    lastMessage: `Session: ${messageSessionData.title}`,
+    lastMessageAt: now,
+    lastSenderId: counselorId,
+    unreadCountStudent: (conv?.unreadCountStudent ?? 0) + 1,
+  })
 
-  await enqueueSessionInviteStudentPush(studentId, sessionId)
-
-  return sessionId
+  await batch.commit()
+  return out.sessionId
 }

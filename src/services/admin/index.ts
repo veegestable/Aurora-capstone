@@ -2,6 +2,7 @@ import { getCounselors } from './get/getCounselors'
 import { getStudents } from './get/getStudents'
 import { getSchoolAnalytics } from './get/getSchoolAnalytics'
 import { getThresholdSnapshot } from './get/getThresholdSnapshot'
+import { getCollegeRosterCounts } from './get/getCollegeRosterCounts'
 import { updateCounselorApproval } from './post/updateCounselorApproval'
 
 export * from './types'
@@ -13,5 +14,6 @@ export const adminService = {
   getStudents,
   getSchoolAnalytics,
   getThresholdSnapshot,
+  getCollegeRosterCounts,
   updateCounselorApproval
 }

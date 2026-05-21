@@ -1,9 +1,15 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
 import { Eye, EyeOff, Heart, Brain, Users, Shield, Lock, Award } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { COLLEGES, isCollegeCode } from '../constants/colleges'
 import { getProgramsForCollege } from '../constants/college-programs-iit'
+import {
+  getSignupEmailRejectionMessage,
+  isMsuiitInstitutionalEmail,
+  MSUIIT_SIGNUP_EMAIL_SUFFIX,
+} from '../utils/signupEmailPolicy'
+
+const REGISTRATION_RESEND_COOLDOWN_SEC = 60
 
 const STARS = [
   { top: '8%', left: '12%', delay: '0s', size: '2px' },
@@ -17,11 +23,25 @@ const STARS = [
 ]
 
 export default function Login() {
-  const { signIn, signUp } = useAuth()
-  const [isSignUp, setIsSignUp] = useState(false)
+  const {
+    signIn,
+    signUp,
+    resendRegistrationVerificationEmail,
+    registrationVerificationEmail,
+    clearRegistrationVerification,
+  } = useAuth()
+  const [isSignUp, setIsSignUp] = useState(() =>
+    Boolean(registrationVerificationEmail),
+  )
+  const [signUpPhase, setSignUpPhase] = useState<'form' | 'verifyEmail'>(() =>
+    registrationVerificationEmail ? 'verifyEmail' : 'form',
+  )
+  const [showSignInResendOption, setShowSignInResendOption] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0)
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
-    email: '',
+    email: registrationVerificationEmail ?? '',
     password: '',
     fullName: '',
     role: 'student' as 'student' | 'counselor',
@@ -30,7 +50,73 @@ export default function Login() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [emailFieldError, setEmailFieldError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState('')
+
+  const showRegistrationVerifyStep = isSignUp && signUpPhase === 'verifyEmail'
+
+  useEffect(() => {
+    if (!registrationVerificationEmail) return
+    setIsSignUp(true)
+    setSignUpPhase('verifyEmail')
+    setFormData((prev) =>
+      prev.email.trim()
+        ? prev
+        : { ...prev, email: registrationVerificationEmail },
+    )
+  }, [registrationVerificationEmail])
+
+  useEffect(() => {
+    if (!showRegistrationVerifyStep) {
+      setResendCooldownSeconds(0)
+      return
+    }
+    setResendCooldownSeconds(REGISTRATION_RESEND_COOLDOWN_SEC)
+  }, [showRegistrationVerifyStep])
+
+  useEffect(() => {
+    if (resendCooldownSeconds <= 0) return
+    const t = window.setTimeout(() => {
+      setResendCooldownSeconds((s) => Math.max(0, s - 1))
+    }, 1000)
+    return () => window.clearTimeout(t)
+  }, [resendCooldownSeconds])
+
+  const handleResendVerificationEmail = async () => {
+    if (!formData.email.trim() || !formData.password) {
+      setError('Enter the same email and password you used when signing up.')
+      return
+    }
+    setResendLoading(true)
+    setError('')
+    try {
+      await resendRegistrationVerificationEmail(
+        formData.email.trim(),
+        formData.password,
+      )
+      setSuccessMessage('Verification email sent. Check your inbox.')
+      setResendCooldownSeconds(REGISTRATION_RESEND_COOLDOWN_SEC)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not resend verification email.')
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
+  const handleContinueAfterRegistrationEmail = () => {
+    clearRegistrationVerification()
+    setShowSignInResendOption(isMsuiitInstitutionalEmail(formData.email))
+    setSignUpPhase('form')
+    setIsSignUp(false)
+    setFormData((prev) => ({
+      ...prev,
+      password: '',
+      fullName: '',
+      collegeCode: '',
+      program: '',
+    }))
+    setSuccessMessage('Account created. Verify your email, then sign in.')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,6 +125,19 @@ export default function Login() {
     setSuccessMessage('')
 
     try {
+      if (isSignUp && signUpPhase === 'verifyEmail') {
+        return
+      }
+
+      if (isSignUp) {
+        const policyError = getSignupEmailRejectionMessage(formData.email)
+        if (policyError) {
+          setEmailFieldError(policyError)
+          setError(policyError)
+          return
+        }
+      }
+
       if (isSignUp) {
         const result = await signUp(
           formData.email,
@@ -50,8 +149,7 @@ export default function Login() {
         )
         if (result.success) {
           setSuccessMessage(result.message)
-          setIsSignUp(false)
-          setFormData(prev => ({ ...prev, password: '', fullName: '', role: 'student', collegeCode: '', program: '' }))
+          setSignUpPhase('verifyEmail')
         } else {
           setError(result.message)
         }
@@ -59,15 +157,28 @@ export default function Login() {
         await signIn(formData.email, formData.password)
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Authentication failed')
+      const msg = err instanceof Error ? err.message : 'Authentication failed'
+      if (
+        !isSignUp &&
+        isMsuiitInstitutionalEmail(formData.email) &&
+        msg.includes('Verify your email before signing in')
+      ) {
+        setShowSignInResendOption(true)
+      }
+      setError(msg)
     } finally {
       setLoading(false)
     }
   }
 
   const handleModeSwitch = () => {
+    if (showRegistrationVerifyStep) return
+    clearRegistrationVerification()
     setIsSignUp(!isSignUp)
+    setSignUpPhase('form')
+    setShowSignInResendOption(false)
     setError('')
+    setEmailFieldError(null)
     setSuccessMessage('')
     setFormData(prev => ({
       ...prev,
@@ -79,8 +190,16 @@ export default function Login() {
     }))
   }
 
+  const handleEmailBlur = () => {
+    if (!isSignUp) return
+    setEmailFieldError(getSignupEmailRejectionMessage(formData.email))
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
+    if (name === 'email' && emailFieldError) {
+      setEmailFieldError(null)
+    }
     setFormData(prev => {
       const next = { ...prev, [name]: value }
       // Clear college + program when role changes
@@ -177,15 +296,15 @@ export default function Login() {
           <div className="flex items-center justify-center gap-6 text-aurora-text-muted">
             <div className="flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-aurora-green" />
-              <span className="text-xs font-medium">Secure</span>
+              <span className="text-xs font-medium">Students</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-aurora-green" />
-              <span className="text-xs font-medium">Private</span>
+              <span className="text-xs font-medium">Support</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Award className="w-3.5 h-3.5 text-aurora-green" />
-              <span className="text-xs font-medium">HIPAA Compliant</span>
+              <span className="text-xs font-medium">Care</span>
             </div>
           </div>
         </div>
@@ -209,10 +328,18 @@ export default function Login() {
           <div className="card-aurora p-6 sm:p-8">
             <div className="mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-white font-primary">
-                {isSignUp ? 'Create Account' : 'Welcome Back'}
+                {showRegistrationVerifyStep
+                  ? 'Verify your email'
+                  : isSignUp
+                    ? 'Create Account'
+                    : 'Welcome Back'}
               </h2>
               <p className="text-aurora-text-sec mt-2 text-sm sm:text-base">
-                {isSignUp ? 'Join Aurora to start your wellness journey' : 'Sign in to continue your wellness journey'}
+                {showRegistrationVerifyStep
+                  ? `We sent a message to ${formData.email.trim()}`
+                  : isSignUp
+                    ? 'Join Aurora to start your wellness journey'
+                    : 'Sign in to continue your wellness journey'}
               </p>
             </div>
 
@@ -228,6 +355,56 @@ export default function Login() {
               </div>
             )}
 
+            {showRegistrationVerifyStep ? (
+              <div className="space-y-5">
+                <p className="text-sm text-aurora-text-sec leading-relaxed">
+                  Check your email and open the verification link. Once verified, return here and sign in.
+                </p>
+                {!formData.password && (
+                  <div>
+                    <label
+                      htmlFor="verifyResendPassword"
+                      className="block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide"
+                    >
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      id="verifyResendPassword"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      autoComplete="current-password"
+                      className="w-full px-4 py-3 border border-white/8 rounded-[12px] focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue text-white bg-white/5 placeholder:text-aurora-text-muted transition-all outline-hidden"
+                      placeholder="Enter the password you used when signing up"
+                    />
+                    <p className="mt-1.5 text-xs text-aurora-text-muted">
+                      Needed only if you want to send the verification email again.
+                    </p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleResendVerificationEmail}
+                  disabled={resendLoading || resendCooldownSeconds > 0}
+                  className="w-full py-3 rounded-[12px] border border-white/15 text-white text-sm font-semibold hover:bg-white/5 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  {resendLoading
+                    ? 'Sending...'
+                    : resendCooldownSeconds > 0
+                      ? `Resend available in ${resendCooldownSeconds}s`
+                      : 'Send verification email again'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleContinueAfterRegistrationEmail}
+                  disabled={resendLoading}
+                  className="btn-aurora w-full disabled:opacity-50 cursor-pointer"
+                >
+                  Continue to sign in
+                </button>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               {isSignUp && (
                 <div>
@@ -258,11 +435,33 @@ export default function Login() {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
+                  onBlur={handleEmailBlur}
                   autoComplete="email"
-                  className="w-full px-4 py-3 border border-white/8 rounded-[12px] focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue text-white bg-white/5 placeholder:text-aurora-text-muted transition-all outline-hidden"
-                  placeholder="Enter your email"
+                  className={`w-full px-4 py-3 border rounded-[12px] focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue text-white bg-white/5 placeholder:text-aurora-text-muted transition-all outline-hidden ${
+                    emailFieldError
+                      ? 'border-aurora-red/50'
+                      : 'border-white/8'
+                  }`}
+                  placeholder={
+                    isSignUp
+                      ? `you${MSUIIT_SIGNUP_EMAIL_SUFFIX}`
+                      : 'Enter your email'
+                  }
                   required
+                  aria-invalid={emailFieldError ? true : undefined}
+                  aria-describedby={isSignUp ? 'email-signup-hint' : undefined}
                 />
+                {isSignUp && (
+                  <p
+                    id="email-signup-hint"
+                    className={`mt-1.5 text-xs ${
+                      emailFieldError ? 'text-aurora-red' : 'text-aurora-text-muted'
+                    }`}
+                  >
+                    {emailFieldError ??
+                      `Use your MSU-IIT student email (${MSUIIT_SIGNUP_EMAIL_SUFFIX})`}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -293,15 +492,19 @@ export default function Login() {
                 </div>
               </div>
 
-              {!isSignUp && (
-                <div className="flex justify-end">
-                  <Link
-                    to="/forgot-password"
-                    className="text-xs text-aurora-blue hover:text-aurora-blue-light transition-colors"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
+              {!isSignUp && showSignInResendOption && (
+                <button
+                  type="button"
+                  onClick={handleResendVerificationEmail}
+                  disabled={resendLoading || resendCooldownSeconds > 0 || !formData.password}
+                  className="w-full py-2.5 rounded-[12px] border border-white/15 text-aurora-blue text-sm font-medium hover:bg-white/5 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  {resendLoading
+                    ? 'Sending...'
+                    : resendCooldownSeconds > 0
+                      ? `Resend verification in ${resendCooldownSeconds}s`
+                      : 'Resend verification email'}
+                </button>
               )}
 
               {isSignUp && (
@@ -384,15 +587,19 @@ export default function Login() {
                 {loading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Sign In')}
               </button>
             </form>
+            )}
 
+            {!showRegistrationVerifyStep && (
             <div className="mt-6 text-center">
               <button
+                type="button"
                 onClick={handleModeSwitch}
                 className="text-aurora-blue hover:text-aurora-blue-light text-sm font-medium transition-colors cursor-pointer"
               >
                 {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
               </button>
             </div>
+            )}
 
             {/* Mobile-only trust indicators */}
             <div className="lg:hidden mt-8 pt-6 border-t border-white/8">

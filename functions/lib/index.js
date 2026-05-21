@@ -41,9 +41,15 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrateOldMoodLogs = exports.grantCounselorJournalAccessTrusted = exports.createSessionNotificationTrusted = exports.sendSessionRequestTrusted = exports.sendTextMessageTrusted = exports.writeAuditLogTrusted = exports.deliverSessionExpoPush = exports.generateWeeklySummaryAi = void 0;
+exports.migrateOldMoodLogs = exports.grantCounselorJournalAccessTrusted = exports.createSessionNotificationTrusted = exports.updateSessionRequestTrusted = exports.createCounselorSessionInviteTrusted = exports.sendSessionRequestTrusted = exports.sendTextMessageTrusted = exports.signUpTrusted = exports.resendRegistrationVerificationTrusted = exports.writeAuditLogTrusted = exports.cleanupUnverifiedAuthUsers = exports.generateWeeklyAnalyticsAi = exports.getStudentCounselingOutcomeCountsTrusted = exports.enqueueSessionReminders = exports.deliverSessionExpoPush = exports.generateWeeklySummaryAi = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
+const resendVerification_1 = require("./resendVerification");
+const signUpTrusted_1 = require("./signUpTrusted");
+const ensureConversationAdmin_1 = require("./ensureConversationAdmin");
+const studentCounselingOutcomeCounts_1 = require("./studentCounselingOutcomeCounts");
+const conversationMessagingPolicy_1 = require("./conversationMessagingPolicy");
+const sessionSlotAuthority_1 = require("./sessionSlotAuthority");
 admin.initializeApp();
 const db = admin.firestore();
 function pad2(n) {
@@ -147,6 +153,13 @@ exports.generateWeeklySummaryAi = (0, https_1.onCall)({ region: 'asia-southeast2
 });
 var deliverSessionExpoPush_1 = require("./deliverSessionExpoPush");
 Object.defineProperty(exports, "deliverSessionExpoPush", { enumerable: true, get: function () { return deliverSessionExpoPush_1.deliverSessionExpoPush; } });
+var sessionReminderScheduler_1 = require("./sessionReminderScheduler");
+Object.defineProperty(exports, "enqueueSessionReminders", { enumerable: true, get: function () { return sessionReminderScheduler_1.enqueueSessionReminders; } });
+exports.getStudentCounselingOutcomeCountsTrusted = (0, studentCounselingOutcomeCounts_1.createGetStudentCounselingOutcomeCountsTrusted)(db);
+var weeklyAnalyticsAi_1 = require("./weeklyAnalyticsAi");
+Object.defineProperty(exports, "generateWeeklyAnalyticsAi", { enumerable: true, get: function () { return weeklyAnalyticsAi_1.generateWeeklyAnalyticsAi; } });
+var cleanupUnverifiedAuthUsers_1 = require("./cleanupUnverifiedAuthUsers");
+Object.defineProperty(exports, "cleanupUnverifiedAuthUsers", { enumerable: true, get: function () { return cleanupUnverifiedAuthUsers_1.cleanupUnverifiedAuthUsers; } });
 async function getRoleForUid(uid) {
     const snap = await db.collection('users').doc(uid).get();
     const role = snap.data()?.role;
@@ -208,6 +221,8 @@ async function enforceRateLimit(kind, key, windowMs, maxCount) {
         }, { merge: true });
     });
 }
+exports.resendRegistrationVerificationTrusted = (0, resendVerification_1.createResendRegistrationVerificationTrusted)(enforceRateLimit);
+exports.signUpTrusted = (0, signUpTrusted_1.createSignUpTrusted)(enforceRateLimit);
 exports.sendTextMessageTrusted = (0, https_1.onCall)({ region: 'asia-southeast2' }, async (request) => {
     const uid = request.auth?.uid;
     if (!uid)
@@ -231,6 +246,7 @@ exports.sendTextMessageTrusted = (0, https_1.onCall)({ region: 'asia-southeast2'
     if (!isCounselor && !isStudent) {
         throw new https_1.HttpsError('permission-denied', 'Not a conversation participant.');
     }
+    await (0, conversationMessagingPolicy_1.assertConversationMessagingOpen)(db, conversationId, uid);
     await enforceRateLimit('msg', `${uid}:${conversationId}`, 10000, 5);
     const msgRef = await convRef.collection('messages').add({
         senderId: uid,
@@ -257,29 +273,69 @@ exports.sendSessionRequestTrusted = (0, https_1.onCall)({ region: 'asia-southeas
     if (!uid)
         throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
     const data = (request.data ?? {});
-    const conversationId = typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
     const preferredTime = typeof data.preferredTime === 'string' ? data.preferredTime.trim() : '';
     const note = typeof data.note === 'string' ? data.note.trim() : '';
-    if (!conversationId || !preferredTime) {
-        throw new https_1.HttpsError('invalid-argument', 'conversationId and preferredTime are required.');
+    const counselorIdParam = typeof data.counselorId === 'string' ? data.counselorId.trim() : '';
+    let conversationId = typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
+    if (!preferredTime) {
+        throw new https_1.HttpsError('invalid-argument', 'preferredTime is required.');
     }
+    let counselorId = counselorIdParam;
+    if (!conversationId && counselorId) {
+        conversationId = `${counselorId}_${uid}`;
+    }
+    if (!conversationId) {
+        throw new https_1.HttpsError('invalid-argument', 'conversationId or counselorId is required.');
+    }
+    if (!counselorId) {
+        const underscore = conversationId.indexOf('_');
+        if (underscore <= 0) {
+            throw new https_1.HttpsError('invalid-argument', 'Invalid conversation id.');
+        }
+        counselorId = conversationId.slice(0, underscore);
+        const parsedStudentId = conversationId.slice(underscore + 1);
+        if (parsedStudentId !== uid) {
+            throw new https_1.HttpsError('permission-denied', 'Only the student can send a session request in this thread.');
+        }
+    }
+    if (conversationId !== `${counselorId}_${uid}`) {
+        throw new https_1.HttpsError('permission-denied', 'Only the student can send a session request in this thread.');
+    }
+    await (0, ensureConversationAdmin_1.ensureConversationDocument)({
+        counselorId,
+        studentId: uid,
+        studentName: typeof data.studentName === 'string' ? data.studentName : undefined,
+        studentAvatar: typeof data.studentAvatar === 'string' ? data.studentAvatar : undefined,
+        counselorName: typeof data.counselorName === 'string' ? data.counselorName : undefined,
+        counselorAvatar: typeof data.counselorAvatar === 'string' ? data.counselorAvatar : undefined,
+    });
     const convRef = db.collection('conversations').doc(conversationId);
     const convSnap = await convRef.get();
-    if (!convSnap.exists)
-        throw new https_1.HttpsError('not-found', 'Conversation not found.');
-    const conv = convSnap.data() ?? {};
-    const counselorId = typeof conv.counselorId === 'string' ? conv.counselorId : '';
-    const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
-    if (!counselorId || !studentId) {
-        throw new https_1.HttpsError('failed-precondition', 'Conversation participants invalid.');
+    if (!convSnap.exists) {
+        throw new https_1.HttpsError('failed-precondition', 'Conversation could not be created.');
     }
+    const conv = convSnap.data() ?? {};
+    const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
     if (studentId !== uid) {
         throw new https_1.HttpsError('permission-denied', 'Only the student can send a session request in this thread.');
     }
+    await (0, conversationMessagingPolicy_1.assertConversationMessagingOpen)(db, conversationId, uid);
     await enforceRateLimit('session_request', `${studentId}:${counselorId}`, 30000, 1);
+    const preferredMillis = (0, sessionSlotAuthority_1.parsePreferredTimeStringManila)(preferredTime);
+    if (preferredMillis == null) {
+        throw new https_1.HttpsError('invalid-argument', 'Could not read the requested date and time. Please choose a valid schedule in the picker.');
+    }
+    const serverNow = Date.now();
+    if (!(0, sessionSlotAuthority_1.isSessionStartInFutureManila)(preferredMillis, serverNow)) {
+        throw new https_1.HttpsError('failed-precondition', 'Session requests must be for a future date and time (Philippine Time).');
+    }
+    const convCollege = typeof conv.college_code === 'string' ? conv.college_code.trim() : '';
+    const collegeCode = convCollege ||
+        (await (0, ensureConversationAdmin_1.resolveConversationCollegeCode)(db, counselorId, studentId));
     const sessionRef = await db.collection('sessions').add({
         counselorId,
         studentId,
+        ...(collegeCode ? { college_code: collegeCode } : {}),
         riskFlagId: null,
         initiatedBy: 'student',
         studentRequestNote: note,
@@ -292,6 +348,7 @@ exports.sendSessionRequestTrusted = (0, https_1.onCall)({ region: 'asia-southeas
         reminderSent: false,
         sessionHistoryBadge: 'pending',
         preferredTimeFromStudent: preferredTime,
+        schedulingTimezone: sessionSlotAuthority_1.SESSION_SCHEDULING_TIMEZONE,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -329,6 +386,176 @@ exports.sendSessionRequestTrusted = (0, https_1.onCall)({ region: 'asia-southeas
         created_at: admin.firestore.FieldValue.serverTimestamp(),
     });
     return { ok: true, messageId: msgRef.id, sessionId: sessionRef.id };
+});
+exports.createCounselorSessionInviteTrusted = (0, https_1.onCall)({ region: 'asia-southeast2' }, async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid)
+        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+    const role = await getRoleForUid(uid);
+    if (role !== 'counselor') {
+        throw new https_1.HttpsError('permission-denied', 'Only counselors can create session invites.');
+    }
+    const data = (request.data ?? {});
+    const studentId = typeof data.studentId === 'string' ? data.studentId.trim() : '';
+    const rawSlots = Array.isArray(data.proposedSlots) ? data.proposedSlots : [];
+    const proposedSlots = rawSlots
+        .map((x) => ({
+        date: typeof x?.date === 'string' ? x.date.trim() : '',
+        time: typeof x?.time === 'string' ? x.time.trim() : '',
+    }))
+        .filter((x) => !!x.date && !!x.time);
+    const note = typeof data.note === 'string' ? data.note.trim() : '';
+    if (!studentId) {
+        throw new https_1.HttpsError('invalid-argument', 'studentId is required.');
+    }
+    if (proposedSlots.length === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'Provide at least one valid proposed slot.');
+    }
+    const nowMs = Date.now();
+    for (const slot of proposedSlots) {
+        const slotMs = (0, sessionSlotAuthority_1.parseSessionSlotToMillisManila)(slot);
+        if (slotMs == null) {
+            throw new https_1.HttpsError('invalid-argument', 'One or more proposed slots are invalid. Please pick date/time from the picker.');
+        }
+        if (!(0, sessionSlotAuthority_1.isSessionStartInFutureManila)(slotMs, nowMs)) {
+            throw new https_1.HttpsError('failed-precondition', 'All proposed slots must be in the future (Philippine Time).');
+        }
+    }
+    await enforceRateLimit('session_invite', `${uid}:${studentId}`, 30000, 3);
+    await (0, conversationMessagingPolicy_1.assertConversationMessagingOpen)(db, `${uid}_${studentId}`, uid);
+    const convRef = db.collection('conversations').doc(`${uid}_${studentId}`);
+    const convSnap = await convRef.get();
+    if (!convSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Conversation not found.');
+    }
+    const conv = convSnap.data() ?? {};
+    if (conv.counselorId !== uid || conv.studentId !== studentId) {
+        throw new https_1.HttpsError('permission-denied', 'Conversation participants do not match this invite.');
+    }
+    const convCollege = typeof conv.college_code === 'string' ? conv.college_code.trim() : '';
+    const collegeCode = convCollege || (await (0, ensureConversationAdmin_1.resolveConversationCollegeCode)(db, uid, studentId));
+    const sessionRef = await db.collection('sessions').add({
+        counselorId: uid,
+        studentId,
+        ...(collegeCode ? { college_code: collegeCode } : {}),
+        riskFlagId: null,
+        initiatedBy: 'counselor',
+        studentRequestNote: note,
+        proposedSlots,
+        confirmedSlot: null,
+        finalSlot: null,
+        status: 'pending',
+        attendanceNote: null,
+        cancelReason: null,
+        reminderSent: false,
+        sessionHistoryBadge: 'pending',
+        schedulingTimezone: sessionSlotAuthority_1.SESSION_SCHEDULING_TIMEZONE,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await db.collection('notifications').add({
+        user_id: studentId,
+        type: 'counselor_message',
+        message: 'Your counselor sent a session invitation. Open Messages to review and confirm your preferred slot.',
+        status: 'pending',
+        delivery_mode: 'local_bridge',
+        notification_key: `session:${sessionRef.id}:counselor_invite_created`,
+        target_route: '/(student)/messages',
+        scheduled_for: admin.firestore.FieldValue.serverTimestamp(),
+        created_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { ok: true, sessionId: sessionRef.id };
+});
+exports.updateSessionRequestTrusted = (0, https_1.onCall)({ region: 'asia-southeast2' }, async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid)
+        throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+    const data = (request.data ?? {});
+    const conversationId = typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
+    const messageId = typeof data.messageId === 'string' ? data.messageId.trim() : '';
+    const sessionId = typeof data.sessionId === 'string' ? data.sessionId.trim() : '';
+    const preferredTime = typeof data.preferredTime === 'string' ? data.preferredTime.trim() : '';
+    const note = typeof data.note === 'string' ? data.note.trim() : '';
+    if (!conversationId || !messageId || !sessionId || !preferredTime) {
+        throw new https_1.HttpsError('invalid-argument', 'conversationId, messageId, sessionId, and preferredTime are required.');
+    }
+    const convRef = db.collection('conversations').doc(conversationId);
+    const convSnap = await convRef.get();
+    if (!convSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Conversation not found.');
+    }
+    const conv = convSnap.data() ?? {};
+    const studentId = typeof conv.studentId === 'string' ? conv.studentId : '';
+    if (studentId !== uid) {
+        throw new https_1.HttpsError('permission-denied', 'Only the student can update this session request.');
+    }
+    await (0, conversationMessagingPolicy_1.assertConversationMessagingOpen)(db, conversationId, uid);
+    const preferredMillis = (0, sessionSlotAuthority_1.parsePreferredTimeStringManila)(preferredTime);
+    if (preferredMillis == null) {
+        throw new https_1.HttpsError('invalid-argument', 'Could not read the requested date and time. Please choose a valid schedule in the picker.');
+    }
+    if (!(0, sessionSlotAuthority_1.isSessionStartInFutureManila)(preferredMillis, Date.now())) {
+        throw new https_1.HttpsError('failed-precondition', 'Session requests must be for a future date and time (Philippine Time).');
+    }
+    await enforceRateLimit('session_request_update', `${uid}:${conversationId}:${sessionId}`, 15000, 4);
+    const sessRef = db.collection('sessions').doc(sessionId);
+    const sessSnap = await sessRef.get();
+    if (!sessSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Session not found.');
+    }
+    const sess = sessSnap.data() ?? {};
+    const sessionStudent = typeof sess.studentId === 'string' ? sess.studentId.trim() : '';
+    if (sessionStudent && sessionStudent !== uid) {
+        throw new https_1.HttpsError('permission-denied', 'Not your session request.');
+    }
+    const st = typeof sess.status === 'string' ? sess.status : '';
+    if (st !== 'requested') {
+        throw new https_1.HttpsError('failed-precondition', 'Only an open session request can be edited.');
+    }
+    const msgRef = convRef.collection('messages').doc(messageId);
+    const msgSnap = await msgRef.get();
+    if (!msgSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Message not found.');
+    }
+    const msg = msgSnap.data() ?? {};
+    if (msg.type !== 'session_request') {
+        throw new https_1.HttpsError('invalid-argument', 'Not a session request message.');
+    }
+    const sd = (msg.sessionData ?? {});
+    const linkedSid = typeof msg.sessionId === 'string'
+        ? msg.sessionId.trim()
+        : typeof sd.sessionId === 'string'
+            ? sd.sessionId.trim()
+            : '';
+    if (linkedSid !== sessionId) {
+        throw new https_1.HttpsError('permission-denied', 'This message does not match the session being updated.');
+    }
+    const content = `Session request: ${preferredTime}`;
+    const existingSessionData = sd;
+    const batch = db.batch();
+    batch.update(sessRef, {
+        preferredTimeFromStudent: preferredTime,
+        studentRequestNote: note,
+        status: 'requested',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    batch.update(msgRef, {
+        content,
+        sessionData: {
+            ...existingSessionData,
+            sessionId,
+            note,
+            status: 'requested',
+            preferredTime,
+        },
+    });
+    batch.update(convRef, {
+        lastMessage: content,
+        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastSenderId: uid,
+    });
+    await batch.commit();
+    return { ok: true };
 });
 exports.createSessionNotificationTrusted = (0, https_1.onCall)({ region: 'asia-southeast2' }, async (request) => {
     const uid = request.auth?.uid;
@@ -444,7 +671,6 @@ exports.migrateOldMoodLogs = (0, https_1.onCall)({ region: 'asia-southeast2' }, 
         const logTs = d.log_date;
         if (!logTs)
             continue;
-        const logDate = logTs.toDate();
         const emotions = Array.isArray(d.emotions) ? d.emotions : [];
         const primary = emotions[0] || { emotion: 'neutral', confidence: 0.5, color: '#888888' };
         const mood = String(primary.emotion || 'neutral');

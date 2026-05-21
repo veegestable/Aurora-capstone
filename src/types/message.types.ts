@@ -15,6 +15,9 @@ export interface CounselorContact {
   avatar: string
   isOnline: boolean
   isUnread: boolean
+  /** Past-college / closed thread — read-only (mobile parity). */
+  messagingClosed?: boolean
+  isPastCollege?: boolean
 }
 
 export interface StudentContact {

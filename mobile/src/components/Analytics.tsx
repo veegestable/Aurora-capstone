@@ -78,11 +78,16 @@ import {
   getEmotionColor,
   getEmotionLabel,
 } from "../utils/moodColors";
+import { getMoodIconSource } from "../utils/moodIconAssets";
 import {
   stressCategoryFromFive,
   energyCategoryFromFive,
   sentenceCase,
 } from "../utils/analytics/metricCategories";
+import {
+  pickDominantMoodFromAggregates,
+  type DominantMoodRow,
+} from "../utils/analytics/moodChartAggregates";
 
 const STREAK_MILESTONES = [3, 7, 14, 30];
 const ANALYTICS_VIEW_TOGGLE_PAD = 4;
@@ -212,6 +217,17 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function dominantMoodAccentColor(label: string, fallback: string): string {
+  const key = label.toLowerCase().trim();
+  if (key === "happy" || key === "happiness" || key === "joy")
+    return AURORA.moodHappy;
+  if (key === "sad" || key === "sadness") return AURORA.moodSad;
+  if (key === "angry" || key === "anger") return AURORA.moodAngry;
+  if (key === "neutral") return AURORA.moodNeutral;
+  if (key === "surprise" || key === "surprised") return AURORA.moodSurprise;
+  return fallback;
+}
+
 /** Descriptive mood band from a 1–5 average (period-agnostic copy). */
 function periodMoodTone(avgMood: number | null): {
   label: string;
@@ -240,21 +256,110 @@ function normalizeEmotionBucket(
   return "";
 }
 
-const MOOD_ICON_SOURCES: Record<
-  "happy" | "sad" | "angry" | "surprise" | "neutral",
-  ImageSourcePropType
+function moodIconForLabel(raw: string): ImageSourcePropType {
+  return getMoodIconSource(raw);
+}
+
+const EMOTION_BUCKET_TO_CANONICAL_MOOD: Record<
+  "happy" | "angry" | "surprise" | "neutral" | "sad",
+  string
 > = {
-  happy: require("../assets/moodIcon/happy.png"),
-  sad: require("../assets/moodIcon/sad.png"),
-  angry: require("../assets/moodIcon/angry.png"),
-  surprise: require("../assets/moodIcon/surprise.png"),
-  neutral: require("../assets/moodIcon/neutral.png"),
+  happy: "happy",
+  angry: "anger",
+  surprise: "surprise",
+  neutral: "neutral",
+  sad: "sadness",
 };
 
-function moodIconForLabel(raw: string): ImageSourcePropType | null {
-  const bucket = normalizeEmotionBucket(raw);
-  if (!bucket) return null;
-  return MOOD_ICON_SOURCES[bucket];
+function formatEmotionBucketLabel(bucket: string): string {
+  return bucket.charAt(0).toUpperCase() + bucket.slice(1);
+}
+
+function totalMinutesForEmotionBucket(
+  bucket: string,
+  byMood: Array<{ mood: string; totalMinutes: number }>,
+): number {
+  const canonical =
+    EMOTION_BUCKET_TO_CANONICAL_MOOD[
+      bucket as keyof typeof EMOTION_BUCKET_TO_CANONICAL_MOOD
+    ] ?? canonicalMoodKey(bucket);
+  const row = byMood.find((x) => x.mood === canonical);
+  return row?.totalMinutes ?? 0;
+}
+
+
+/** Most frequent primary emotion (`emotions[0]`); count ties use logged duration. */
+function dominantEmotionLabelFromLogs(
+  inputLogs: Array<
+    MoodData & { emotions?: Array<{ emotion?: string }> }
+  >,
+  moodCharts: { byMood: Array<{ mood: string; totalMinutes: number }> },
+): string | null {
+  const emotionCount = new Map<string, number>();
+  for (const log of inputLogs) {
+    const primaryEmotion = Array.isArray(log.emotions)
+      ? normalizeEmotionBucket(log.emotions[0]?.emotion || "")
+      : "";
+    if (primaryEmotion.length > 0) {
+      emotionCount.set(
+        primaryEmotion,
+        (emotionCount.get(primaryEmotion) ?? 0) + 1,
+      );
+    }
+  }
+  if (emotionCount.size === 0) return null;
+
+  const maxCount = Math.max(...emotionCount.values());
+  const tied = [...emotionCount.entries()].filter(([, c]) => c === maxCount);
+  const dominant = tied.sort((a, b) => {
+    const durationDiff =
+      totalMinutesForEmotionBucket(b[0], moodCharts.byMood) -
+      totalMinutesForEmotionBucket(a[0], moodCharts.byMood);
+    if (durationDiff !== 0) return durationDiff;
+    return a[0].localeCompare(b[0]);
+  })[0][0];
+
+  return formatEmotionBucketLabel(dominant);
+}
+
+function dominantMoodDisplayFromLogs(
+  inputLogs: Array<
+    MoodData & {
+      log_date: Date;
+      emotions?: Array<{ emotion?: string }>;
+      mood?: string;
+    }
+  >,
+  moodCharts: {
+    byMood: Array<{
+      mood: string;
+      label: string;
+      count: number;
+      totalMinutes: number;
+      color?: string;
+    }>;
+  },
+): { label: string; icon: ImageSourcePropType | null } {
+  if (inputLogs.length === 0) {
+    return { label: "Not enough check-ins", icon: null };
+  }
+  const top = pickDominantMoodFromAggregates(
+    moodCharts.byMood as DominantMoodRow[],
+  );
+  if (top) {
+    return {
+      label: top.label,
+      icon: moodIconForLabel(top.label || top.mood),
+    };
+  }
+  const fromEmotion = dominantEmotionLabelFromLogs(inputLogs, moodCharts);
+  if (fromEmotion) {
+    return {
+      label: fromEmotion,
+      icon: moodIconForLabel(fromEmotion),
+    };
+  }
+  return { label: "Not enough data", icon: null };
 }
 
 type MoodChartAggregate = {
@@ -1360,6 +1465,15 @@ export default function Analytics() {
     const { start, end } = localDayBounds(now);
     return buildMoodCharts(todayDayLogs, start.getTime(), end.getTime());
   }, [todayDayLogs]);
+  const todayDominantMoodDisplay = useMemo(
+    () => dominantMoodDisplayFromLogs(todayDayLogs, todayMoodCharts),
+    [todayDayLogs, todayMoodCharts],
+  );
+  const todayDominantMoodColor = useMemo(
+    () =>
+      dominantMoodAccentColor(todayDominantMoodDisplay.label, todayBlended),
+    [todayDominantMoodDisplay.label, todayBlended],
+  );
   const todayFrequencySegments = useMemo(
     () =>
       todayMoodCharts.byMood
@@ -1530,7 +1644,6 @@ export default function Analytics() {
     let sleepGood = 0;
     let sleepFair = 0;
     let sleepPoor = 0;
-    const emotionCount = new Map<string, number>();
     for (const log of periodLogs) {
       if (typeof log.stress_level === "number") {
         stressSum += toFiveScale(log.stress_level, 3);
@@ -1544,15 +1657,6 @@ export default function Analytics() {
       if (sq === "good") sleepGood += 1;
       else if (sq === "fair") sleepFair += 1;
       else if (sq === "poor") sleepPoor += 1;
-      const primaryEmotion = Array.isArray(log.emotions)
-        ? normalizeEmotionBucket(log.emotions[0]?.emotion || "")
-        : "";
-      if (primaryEmotion.length > 0) {
-        emotionCount.set(
-          primaryEmotion,
-          (emotionCount.get(primaryEmotion) ?? 0) + 1,
-        );
-      }
     }
     const stressAvg = stressN > 0 ? stressSum / stressN : null;
     const energyAvg = energyN > 0 ? energySum / energyN : null;
@@ -1572,11 +1676,9 @@ export default function Analytics() {
         sleepLabel = "mostly poor";
       else sleepLabel = "mostly fair";
     }
-    const dominantEmotion =
-      [...emotionCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "";
-    const emotionLabel = dominantEmotion
-      ? dominantEmotion.charAt(0).toUpperCase() + dominantEmotion.slice(1)
-      : "not enough emotion data";
+    const emotionLabel =
+      dominantEmotionLabelFromLogs(periodLogs, weekMoodCharts) ??
+      "not enough emotion data";
     return {
       stressLabel: stressCategoryFromFive(stressAvg),
       energyLabel: energyCategoryFromFive(energyAvg),
@@ -1584,37 +1686,19 @@ export default function Analytics() {
       sleepLabel,
       emotionLabel,
     };
-  }, [periodLogs, logs, periodDayKeySet]);
-  const weekAverageMoodColor = useMemo(() => {
-    const key = (weekWellnessStats.emotionLabel || "").toLowerCase().trim();
-    if (key === "happy" || key === "happy" || key === "happiness")
-      return AURORA.moodHappy;
-    if (key === "sad" || key === "sadness") return AURORA.moodSad;
-    if (key === "angry" || key === "anger") return AURORA.moodAngry;
-    if (key === "neutral") return AURORA.moodNeutral;
-    if (key === "surprise" || key === "surprised") return AURORA.moodSurprise;
-    return periodMoodMeta.color;
-  }, [weekWellnessStats.emotionLabel, periodMoodMeta.color]);
-  const periodDominantMoodDisplay = useMemo(() => {
-    if (periodTotalCheckIns === 0) {
-      return { label: "Not enough check-ins", icon: null as ImageSourcePropType | null };
-    }
-    const fromEmotion = weekWellnessStats.emotionLabel;
-    if (fromEmotion && !fromEmotion.toLowerCase().includes("not enough")) {
-      return {
-        label: fromEmotion,
-        icon: moodIconForLabel(fromEmotion),
-      };
-    }
-    const top = [...weekMoodCharts.byMood]
-      .filter((x) => x.count > 0)
-      .sort((a, b) => b.count - a.count)[0];
-    if (!top) return { label: "Not enough data", icon: null };
-    return {
-      label: top.label,
-      icon: moodIconForLabel(top.mood),
-    };
-  }, [periodTotalCheckIns, weekWellnessStats.emotionLabel, weekMoodCharts]);
+  }, [periodLogs, logs, periodDayKeySet, weekMoodCharts]);
+  const periodDominantMoodDisplay = useMemo(
+    () => dominantMoodDisplayFromLogs(periodLogs, weekMoodCharts),
+    [periodLogs, weekMoodCharts],
+  );
+  const weekAverageMoodColor = useMemo(
+    () =>
+      dominantMoodAccentColor(
+        periodDominantMoodDisplay.label,
+        periodMoodMeta.color,
+      ),
+    [periodDominantMoodDisplay.label, periodMoodMeta.color],
+  );
 
   const openGuide = (title: string, body: string) => {
     setActiveGuide({ title, body });
@@ -1666,8 +1750,8 @@ export default function Analytics() {
   const showPeriodAverageMoodGuide = () => {
     const days = periodDays ?? 7;
     openGuide(
-      "Average mood",
-      `This card only shows your average mood or your most frequent mood from the last ${days} days.\n\nThe icon and label match that mood for this period.\n\nIt is a simple snapshot to help you notice patterns over time — not a clinical score or comparison with others.`,
+      "Most Frequent Mood",
+      `This card shows your most frequent logged mood from the last ${days} days (or today on the daily view).\n\nIt uses the same count as the Mood frequency chart — the mood you chose on each check-in, not face detection alone.\n\nIf two moods tie on check-in count, the one with more total logged duration wins.`,
     );
   };
 
@@ -1907,11 +1991,14 @@ export default function Analytics() {
                       <View
                         style={{
                           flex: 1,
-                          backgroundColor: AURORA.cardAlt,
+                          backgroundColor: hexToRgba(
+                            todayDominantMoodColor,
+                            0.14,
+                          ),
                           borderRadius: 14,
                           padding: 12,
-                          borderWidth: 1,
-                          borderColor: AURORA.border,
+                          borderWidth: 1.5,
+                          borderColor: hexToRgba(todayDominantMoodColor, 0.75),
                         }}
                       >
                         <Text
@@ -1921,23 +2008,24 @@ export default function Analytics() {
                             fontWeight: "700",
                           }}
                         >
-                          AVERAGE MOOD
+                          MOST FREQUENT MOOD
                         </Text>
                         <View
                           style={{
                             flexDirection: "row",
                             alignItems: "center",
-                            gap: 8,
+                            gap: 10,
                             marginTop: 8,
                           }}
                         >
-                          <View
-                            style={{
-                              width: 16,
-                              height: 16,
-                              borderRadius: 2,
-                              backgroundColor: todayBlended,
-                            }}
+                          <Image
+                            source={
+                              todayDominantMoodDisplay.icon ??
+                              getMoodIconSource(todayDominantMoodDisplay.label)
+                            }
+                            style={{ width: 32, height: 32 }}
+                            resizeMode="contain"
+                            accessibilityLabel={todayDominantMoodDisplay.label}
                           />
                           <Text
                             style={{
@@ -1946,7 +2034,7 @@ export default function Analytics() {
                               fontWeight: "800",
                             }}
                           >
-                            {getEmotionLabel(todayMoodAgg.dominantMood)}
+                            {todayDominantMoodDisplay.label}
                           </Text>
                         </View>
                         {/* <Text
@@ -3179,7 +3267,7 @@ export default function Analytics() {
                         letterSpacing: 0.6,
                       }}
                     >
-                      AVERAGE MOOD
+                      MOST FREQUENT MOOD
                     </Text>
                     <TouchableOpacity
                       onPress={showPeriodAverageMoodGuide}
@@ -3200,14 +3288,15 @@ export default function Analytics() {
                       gap: 10,
                     }}
                   >
-                    {periodDominantMoodDisplay.icon ? (
-                      <Image
-                        source={periodDominantMoodDisplay.icon}
-                        style={{ width: 56, height: 56 }}
-                        resizeMode="contain"
-                        accessibilityLabel={periodDominantMoodDisplay.label}
-                      />
-                    ) : null}
+                    <Image
+                      source={
+                        periodDominantMoodDisplay.icon ??
+                        getMoodIconSource(periodDominantMoodDisplay.label)
+                      }
+                      style={{ width: 56, height: 56 }}
+                      resizeMode="contain"
+                      accessibilityLabel={periodDominantMoodDisplay.label}
+                    />
                     <Text
                       style={{
                         color: AURORA.textPrimary,

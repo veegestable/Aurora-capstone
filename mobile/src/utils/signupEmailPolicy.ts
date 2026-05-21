@@ -26,7 +26,14 @@ export function parseSignupEmailAllowlist(raw: string | undefined): string[] {
     .filter(Boolean);
 }
 
-/** QA / legacy test addresses in EXPO_PUBLIC_SIGNUP_EMAIL_ALLOWLIST. */
+/** Open signup to any email — only in Expo dev, not production builds. */
+function isDevOpenSignupEmailEnabled(): boolean {
+  return (
+    __DEV__ && process.env.EXPO_PUBLIC_REQUIRE_MSUIIT_SIGNUP_EMAIL === "false"
+  );
+}
+
+/** QA test addresses in EXPO_PUBLIC_SIGNUP_EMAIL_ALLOWLIST (preferred over open signup). */
 export function isSignupEmailAllowlisted(email: string): boolean {
   const trimmed = email.trim().toLowerCase();
   if (!trimmed) return false;
@@ -51,7 +58,7 @@ export function firestoreEmailVerifiedEffective(
  * Sign-in: require Firebase emailVerified unless exempt (QA allowlist or global dev flag).
  */
 export function isEmailVerificationRequiredForSignIn(email: string): boolean {
-  if (process.env.EXPO_PUBLIC_ALLOW_UNVERIFIED_SIGNIN === "true") {
+  if (__DEV__ && process.env.EXPO_PUBLIC_ALLOW_UNVERIFIED_SIGNIN === "true") {
     return false;
   }
   const trimmed = email.trim().toLowerCase();
@@ -61,19 +68,15 @@ export function isEmailVerificationRequiredForSignIn(email: string): boolean {
 }
 
 /**
- * New mobile sign-ups only (does not affect sign-in).
- * By default requires @g.msuiit.edu.ph unless the address is in
- * EXPO_PUBLIC_SIGNUP_EMAIL_ALLOWLIST.
- * Set EXPO_PUBLIC_REQUIRE_MSUIIT_SIGNUP_EMAIL=false to allow any email (e.g. local QA).
+ * New sign-ups only. Requires @g.msuiit.edu.ph unless allowlisted.
+ * EXPO_PUBLIC_REQUIRE_MSUIIT_SIGNUP_EMAIL=false only applies in __DEV__.
  */
 export function getSignupEmailRejectionMessage(email: string): string | null {
   const trimmed = email.trim().toLowerCase();
   if (!trimmed) return "Enter your email address.";
   if (!trimmed.includes("@")) return "Enter a valid email address.";
 
-  const requireMsuiit =
-    process.env.EXPO_PUBLIC_REQUIRE_MSUIIT_SIGNUP_EMAIL !== "false";
-  if (!requireMsuiit) return null;
+  if (isDevOpenSignupEmailEnabled()) return null;
 
   if (isSignupEmailAllowlisted(trimmed)) return null;
 

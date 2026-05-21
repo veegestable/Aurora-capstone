@@ -1,32 +1,46 @@
 import { useState, useEffect, useRef } from 'react'
+import type { SessionRequestFormData } from '../sessions/StudentSessionRequestModal'
+import { StudentSessionRequestModal } from '../sessions/StudentSessionRequestModal'
 import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import { auditLogsService } from '../../services/audit-logs'
 import { sessionsService } from '../../services/sessions'
 import { LetterAvatar } from '../LetterAvatar'
 import { ChatBubble } from './ChatBubble'
+import { ConversationReadOnlyBanner } from './ConversationReadOnlyBanner'
 import { SendSessionInviteModal } from '../counselor/SendSessionInviteModal'
 import { SessionChatDetailsModal } from '../counselor/SessionChatDetailsModal'
-import { Calendar, ArrowLeft, Send, Info } from 'lucide-react'
+import { Calendar, ArrowLeft, Send, Info, CalendarPlus } from 'lucide-react'
 import type { CounselorContact, StudentContact, ChatMessage, SessionMessage } from '../../types/message.types'
 import { usePeerPresence } from '../../hooks/usePeerPresence'
 
 interface DirectMessageViewProps {
   contact: CounselorContact | StudentContact
   onBack: () => void
+  autoOpenSessionRequestModal?: boolean
 }
 
-export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
+export function DirectMessageView({
+  contact,
+  onBack,
+  autoOpenSessionRequestModal = false,
+}: DirectMessageViewProps) {
   const { user } = useAuth()
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingMessages, setIsLoadingMessages] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [showSessionRequestModal, setShowSessionRequestModal] = useState(false)
   const [detailsTarget, setDetailsTarget] = useState<SessionMessage | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const openedSessionRequestByParamRef = useRef(false)
   const peerOnline = usePeerPresence(contact.id)
   const isOnline = peerOnline || contact.isOnline
+  const messagingClosed =
+    'messagingClosed' in contact &&
+    !!(contact.messagingClosed || contact.isPastCollege)
+  const viewerRole = user?.role === 'counselor' ? 'counselor' : 'student'
 
   const refreshMessages = () => {
     if (!contact.conversationId || !user?.id) return
@@ -63,9 +77,50 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
+  useEffect(() => {
+    openedSessionRequestByParamRef.current = false
+  }, [contact.conversationId])
+
+  useEffect(() => {
+    if (!autoOpenSessionRequestModal) return
+    if (openedSessionRequestByParamRef.current) return
+    if (user?.role === 'counselor') return
+    openedSessionRequestByParamRef.current = true
+    setShowSessionRequestModal(true)
+  }, [autoOpenSessionRequestModal, user?.role, contact.conversationId])
+
+  const handleSendSessionRequest = async (data: SessionRequestFormData) => {
+    if (!user?.id || !contact.conversationId || isSending || messagingClosed) return
+    if (user.role === 'counselor') return
+
+    setIsSending(true)
+    try {
+      await sessionsService.sendSessionRequestFromConversation({
+        conversationId: contact.conversationId,
+        studentId: user.id,
+        counselorId: contact.id,
+        preferredDate: data.preferredDate,
+        note: data.note,
+      })
+      setShowSessionRequestModal(false)
+      refreshMessages()
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({
+          top: scrollRef.current.scrollHeight,
+          behavior: 'smooth',
+        })
+      }, 300)
+    } catch (e) {
+      console.error('Failed to send session request:', e)
+      alert(e instanceof Error ? e.message : 'Failed to send request. Please try again.')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
   const handleSend = async () => {
     const text = message.trim()
-    if (!text || !user?.id || !contact.conversationId || isSending) return
+    if (!text || !user?.id || !contact.conversationId || isSending || messagingClosed) return
 
     setIsSending(true)
     try {
@@ -214,11 +269,15 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
         </button>
       </div>
 
-      <div className="mx-4 mt-3 px-4 py-2.5 rounded-xl bg-aurora-accent-purple/10 border border-aurora-accent-purple/20">
-        <p className="text-[11px] font-bold text-aurora-accent-purple text-center tracking-wider uppercase">
-          This is a private conversation with your counselor.
-        </p>
-      </div>
+      {messagingClosed ? (
+        <ConversationReadOnlyBanner role={viewerRole} />
+      ) : (
+        <div className="mx-4 mt-3 px-4 py-2.5 rounded-xl bg-aurora-accent-purple/10 border border-aurora-accent-purple/20">
+          <p className="text-[11px] font-bold text-aurora-accent-purple text-center tracking-wider uppercase">
+            This is a private conversation with your counselor.
+          </p>
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         <p className="text-xs font-semibold text-aurora-gray-400 text-center tracking-wider mb-4">
@@ -249,14 +308,30 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
       </div>
 
       <div className="shrink-0 border-t border-aurora-gray-200 px-4 py-3">
+        {messagingClosed ? (
+          <p className="text-center text-sm text-aurora-gray-500 py-2">
+            Messaging is closed for this conversation. You can read history above.
+          </p>
+        ) : (
+        <>
         <div className="flex items-center gap-3">
-          {user?.role === 'counselor' && (
+          {user?.role === 'counselor' ? (
             <button
+              type="button"
               onClick={() => setIsInviteModalOpen(true)}
               className="w-10 h-10 rounded-full bg-aurora-gray-100 flex items-center justify-center shrink-0 hover:bg-aurora-gray-200 transition-colors cursor-pointer"
               title="Send Session Invite"
             >
               <Calendar className="w-5 h-5 text-aurora-secondary-blue" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowSessionRequestModal(true)}
+              className="w-10 h-10 rounded-full bg-aurora-gray-100 flex items-center justify-center shrink-0 hover:bg-aurora-gray-200 transition-colors cursor-pointer"
+              title="Request a session"
+            >
+              <CalendarPlus className="w-5 h-5 text-aurora-secondary-blue" />
             </button>
           )}
 
@@ -281,6 +356,8 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
         <p className="text-[11px] text-aurora-gray-400 text-center mt-2">
           Messages are encrypted and shared only with your counselor.
         </p>
+        </>
+        )}
       </div>
 
       {user?.role === 'counselor' && (
@@ -310,6 +387,15 @@ export function DirectMessageView({ contact, onBack }: DirectMessageViewProps) {
         message={detailsTarget}
         onClose={() => setDetailsTarget(null)}
       />
+
+      {user?.role !== 'counselor' && (
+        <StudentSessionRequestModal
+          visible={showSessionRequestModal}
+          sending={isSending}
+          onClose={() => setShowSessionRequestModal(false)}
+          onSend={(data) => void handleSendSessionRequest(data)}
+        />
+      )}
     </div>
   )
 }
