@@ -40,7 +40,6 @@ export default function SessionRequestReceivedCard({
     const status = data.status;
     const isExpired = data.isExpired ?? false;
     const isNeedsRescheduling = status === 'needs_rescheduling';
-    const isAccepted = ['confirmed', 'completed', 'missed', 'rescheduled'].includes(status);
     const canAct =
         !isExpired &&
         !['cancelled'].includes(status) &&
