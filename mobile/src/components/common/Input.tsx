@@ -49,7 +49,7 @@ export const Input = forwardRef<RNTextInput, InputProps>(({
             <TextInput
                 ref={ref}
                 style={isGlass ? {
-                    color: AURORA.textSec,
+                    color: AURORA.textPrimary,
                     backgroundColor: 'rgba(166, 166, 166, 0.22)',
                     borderWidth: 0.5,
                     // borderColor: 'rgba(255, 255, 255, 0.4)',
@@ -68,7 +68,7 @@ export const Input = forwardRef<RNTextInput, InputProps>(({
                     error ? "border-red-500" : !isGlass && "focus:border-blue-500",
                     className
                 )}
-                placeholderTextColor={placeholderTextColor ?? (isGlass ? AURORA.textSec : "#9CA3AF")}
+                placeholderTextColor={placeholderTextColor ?? (isGlass ? AURORA.textSecPale : "#9CA3AF")}
                 {...props}
             />
             {error && (
