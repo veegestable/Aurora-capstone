@@ -432,7 +432,8 @@ service cloud.firestore {
         (old == 'requested' && (next == 'pending' || next == 'confirmed' || next == 'cancelled' || next == 'expired')) ||
         (old == 'pending' && (next == 'confirmed' || next == 'needs_rescheduling' || next == 'cancelled' || next == 'expired')) ||
         (old == 'confirmed' && (next == 'completed' || next == 'missed' || next == 'needs_rescheduling' || next == 'cancelled' || next == 'expired')) ||
-        (old == 'needs_rescheduling' && (next == 'pending' || next == 'cancelled' || next == 'expired')) ||
+        (old == 'needs_rescheduling' && (next == 'pending' || next == 'cancelled' || next == 'expired' || next == 'completed' || next == 'missed')) ||
+        (old == 'expired' && (next == 'completed' || next == 'missed' || next == 'cancelled')) ||
         (old == 'rescheduled' && (next == 'pending' || next == 'cancelled' || next == 'expired'));
     }
 
