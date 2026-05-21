@@ -57,7 +57,7 @@ export function CollegeCountBarChart({
                       p.count === 0 ? 'opacity-25' : 'opacity-90'
                     }`}
                     style={{ height: `${pct}%` }}
-                    title={`${p.code}: ${p.count}`}
+                    title={`${p.key}: ${p.count}`}
                   />
                   <span className="text-xs font-extrabold text-aurora-primary-dark mt-2">
                     {p.label}

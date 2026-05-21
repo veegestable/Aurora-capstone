@@ -28,7 +28,7 @@ async function loadSpecialPopulationIds(
 
 export async function getCollegeRosterCounts(): Promise<CollegeRosterCountsSnapshot> {
   const students = await getStudents()
-  const rows = students.map((s) => ({ id: s.id, ...s }) as Record<string, unknown>)
+  const rows = students.map((s) => ({ ...s }) as Record<string, unknown>)
   const studentIds = rows
     .map((r) => String(r.id ?? '').trim())
     .filter((id) => id.length > 0)
