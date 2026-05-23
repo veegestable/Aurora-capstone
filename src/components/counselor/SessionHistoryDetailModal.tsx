@@ -1,38 +1,26 @@
-import { useState } from 'react'
-import { Calendar, Clock, FileText, Hash, Mail, X, CheckCircle2, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
+import { Calendar, Clock, FileText, Hash, Mail, X, AlertTriangle } from 'lucide-react'
+import { ModalPortal } from '../common/ModalPortal'
 import { LetterAvatar } from '../LetterAvatar'
-import { sessionsService } from '../../services/sessions'
-import { useAuth } from '../../contexts/AuthContext'
-import type { Session, SessionStatus } from '../../types/session.types'
+import type { Session } from '../../types/session.types'
 import type { StudentInfo } from '../../services/counselor'
 import { formatCounselorStudentSubtitle } from '../../constants/student/programs'
+import {
+  canCounselorMarkSessionAttendance,
+  computeSessionHistoryBadge,
+  getAgreedSessionSlot,
+} from '../../utils/sessionScheduling'
+import {
+  getSessionHistoryBadgePresentation,
+  sessionPresentationColors,
+} from '../../utils/sessionPresentation'
+import { formatSessionTimelineLine, formatSlotForDisplay } from '../../utils/sessionHistoryDisplay'
 
 interface SessionHistoryDetailModalProps {
   open: boolean
   session: Session | null
   student?: StudentInfo | null
   onClose: () => void
-  onUpdated?: (newStatus: SessionStatus) => void
-}
-
-const STATUS_PILL: Record<string, { label: string; bg: string; text: string }> = {
-  pending:           { label: 'Pending review',   bg: 'bg-aurora-amber/20',  text: 'text-aurora-amber' },
-  requested:         { label: 'New request',      bg: 'bg-aurora-amber/20',  text: 'text-aurora-amber' },
-  confirmed:         { label: 'Accepted',         bg: 'bg-aurora-green/20',  text: 'text-aurora-green' },
-  completed:         { label: 'Completed',        bg: 'bg-aurora-blue/20',   text: 'text-aurora-blue' },
-  missed:            { label: 'Missed',           bg: 'bg-orange-500/20',    text: 'text-orange-300' },
-  cancelled:         { label: 'Cancelled',        bg: 'bg-aurora-red/20',    text: 'text-aurora-red' },
-  rescheduled:       { label: 'Rescheduled',      bg: 'bg-aurora-purple/20', text: 'text-aurora-purple' },
-  needs_rescheduling:{ label: 'Needs reschedule', bg: 'bg-orange-500/20',    text: 'text-orange-300' },
-  expired:           { label: 'Expired',          bg: 'bg-white/10',         text: 'text-aurora-text-muted' },
-}
-
-function formatDateTime(d: Date | undefined) {
-  if (!d) return '—'
-  return d.toLocaleString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit', hour12: true,
-  })
+  onMarkAttendance?: () => void
 }
 
 export function SessionHistoryDetailModal({
@@ -40,15 +28,17 @@ export function SessionHistoryDetailModal({
   session,
   student,
   onClose,
-  onUpdated,
+  onMarkAttendance,
 }: SessionHistoryDetailModalProps) {
-  const { user } = useAuth()
-  const [busy, setBusy] = useState<SessionStatus | null>(null)
-
   if (!open || !session) return null
 
-  const pill = STATUS_PILL[session.status] ?? STATUS_PILL.pending
-  const slot = session.finalSlot ?? session.confirmedSlot ?? session.proposedSlots?.[0]
+  const rawSlot = getAgreedSessionSlot(session) ?? session.proposedSlots?.[0]
+  const slotDisplay = formatSlotForDisplay(rawSlot)
+  const badge = computeSessionHistoryBadge(session)
+  const historyPresentation = getSessionHistoryBadgePresentation(badge)
+  const badgeColors = sessionPresentationColors(historyPresentation.variant)
+  const canMarkAttendance = canCounselorMarkSessionAttendance(session)
+
   const studentName = student?.full_name?.trim() || 'Unknown student'
   const subtitle =
     formatCounselorStudentSubtitle({
@@ -57,44 +47,21 @@ export function SessionHistoryDetailModal({
       year_level: student?.yearLevel,
     }) || 'CCS'
 
-  const canMarkAttendance =
-    session.status === 'confirmed' ||
-    session.status === 'pending' ||
-    session.status === 'needs_rescheduling'
-
-  const apply = async (newStatus: SessionStatus, reasonOrNote?: string) => {
-    if (!user?.id) return
-    setBusy(newStatus)
-    try {
-      await sessionsService.updateSessionStatus({
-        sessionId: session.id,
-        status: newStatus,
-        attendanceNote: newStatus === 'completed' || newStatus === 'missed' ? reasonOrNote : undefined,
-        cancelReason: newStatus === 'cancelled' ? reasonOrNote : undefined,
-        performedBy: user.id,
-        performedByRole: user.role ?? 'counselor',
-      })
-      onUpdated?.(newStatus)
-      onClose()
-    } catch (e) {
-      console.error('Failed to update session status:', e)
-      alert('Could not update session status. Please try again.')
-    } finally {
-      setBusy(null)
-    }
-  }
+  const dateStr = slotDisplay?.date ?? rawSlot?.date ?? '—'
+  const timeStr = slotDisplay?.time ?? rawSlot?.time ?? '—'
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
-    >
+    <ModalPortal open>
       <div
-        className="relative w-full max-w-xl card-aurora border border-aurora-border p-6 max-h-[88vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-20 lg:pb-4 bg-black/60 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        onClick={onClose}
       >
+        <div
+          className="relative w-full max-w-xl card-aurora border border-aurora-border p-6 max-h-[min(88vh,calc(100dvh-6rem))] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
         <div className="flex items-start justify-between mb-5 gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <LetterAvatar name={studentName} size={56} avatarUrl={student?.avatar_url ?? undefined} />
@@ -118,20 +85,29 @@ export function SessionHistoryDetailModal({
           </button>
         </div>
 
-        <span className={`inline-block text-[11px] font-extrabold tracking-wider px-3 py-1 rounded-md mb-5 ${pill.bg} ${pill.text}`}>
-          {pill.label}
+        <span
+          className="inline-block text-[11px] font-extrabold tracking-wider px-3 py-1 rounded-md mb-2"
+          style={{ backgroundColor: badgeColors.bg, color: badgeColors.text }}
+        >
+          {historyPresentation.counselorPillUpper}
         </span>
+        {historyPresentation.hint && (
+          <p className="text-xs text-aurora-text-sec mb-5">{historyPresentation.hint}</p>
+        )}
 
         <DetailRow icon={<Calendar className="w-4 h-4 text-aurora-blue" />} label="Date">
-          {slot?.date ?? '—'}
+          {dateStr}
         </DetailRow>
 
         <DetailRow icon={<Clock className="w-4 h-4 text-aurora-blue" />} label="Time">
-          {slot?.time ?? '—'}
+          {timeStr}
         </DetailRow>
 
-        <DetailRow icon={<Calendar className="w-4 h-4 text-aurora-blue" />} label="Invite sent">
-          {formatDateTime(session.createdAt)}
+        <DetailRow
+          icon={<Clock className="w-4 h-4 text-aurora-text-sec" />}
+          label={(session.initiatedBy ?? 'student') === 'counselor' ? 'Invite sent' : 'Requested'}
+        >
+          {formatSessionTimelineLine(session.createdAt)}
         </DetailRow>
 
         <DetailRow icon={<Hash className="w-4 h-4 text-aurora-blue" />} label="Session ID">
@@ -139,63 +115,60 @@ export function SessionHistoryDetailModal({
         </DetailRow>
 
         <DetailRow icon={<FileText className="w-4 h-4 text-aurora-blue" />} label="Description">
-          {session.studentRequestNote?.trim()
-            ? <span className="text-sm text-aurora-text-sec leading-relaxed">{session.studentRequestNote}</span>
-            : <span className="text-sm text-aurora-text-muted italic">No note added</span>}
+          {session.studentRequestNote?.trim() ? (
+            <span className="text-sm text-aurora-text-sec leading-relaxed font-normal">
+              {session.studentRequestNote}
+            </span>
+          ) : (
+            <span className="text-sm text-aurora-text-muted italic font-normal">No note added</span>
+          )}
         </DetailRow>
 
-        {(session.attendanceNote || session.cancelReason) && (
-          <div className="mt-3 pt-3 border-t border-aurora-border space-y-2">
-            {session.attendanceNote && (
-              <p className="text-xs text-aurora-text-sec">
-                <span className="font-bold text-white">Attendance: </span>
-                {session.attendanceNote}
-              </p>
-            )}
-            {session.cancelReason && (
-              <p className="text-xs text-aurora-text-sec">
-                <span className="font-bold text-white">Reason: </span>
-                {session.cancelReason}
-              </p>
-            )}
+        {session.preferredTimeFromStudent && (
+          <DetailRow icon={<FileText className="w-4 h-4 text-aurora-blue" />} label="Student requested">
+            {session.preferredTimeFromStudent}
+          </DetailRow>
+        )}
+
+        {session.status === 'missed' && (
+          <div className="flex items-center gap-2 mt-3 p-3 rounded-xl bg-aurora-red/10 border border-aurora-red/20">
+            <AlertTriangle className="w-4 h-4 text-aurora-red shrink-0" />
+            <p className="text-sm font-semibold text-aurora-red">Student did not show up</p>
           </div>
         )}
 
-        {canMarkAttendance && (
-          <div className="mt-6 pt-4 border-t border-aurora-border">
-            <p className="text-[11px] font-extrabold tracking-wider text-aurora-text-muted uppercase mb-3">
-              Mark attendance
+        {session.status === 'completed' && session.attendanceNote && (
+          <DetailRow icon={<FileText className="w-4 h-4 text-aurora-green" />} label="Note">
+            <span className="text-sm text-aurora-text-sec font-normal">{session.attendanceNote}</span>
+          </DetailRow>
+        )}
+
+        {(session.cancelReason && session.status === 'cancelled') && (
+          <div className="mt-3 pt-3 border-t border-aurora-border">
+            <p className="text-xs text-aurora-text-sec">
+              <span className="font-bold text-white">Reason: </span>
+              {session.cancelReason}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <AttendanceButton
-                icon={<CheckCircle2 className="w-4 h-4" />}
-                label="Completed"
-                color="bg-aurora-green/20 border-aurora-green/40 text-aurora-green hover:bg-aurora-green/30"
-                busy={busy === 'completed'}
-                disabled={!!busy}
-                onClick={() => apply('completed', 'Marked completed by counselor.')}
-              />
-              <AttendanceButton
-                icon={<AlertTriangle className="w-4 h-4" />}
-                label="Missed"
-                color="bg-orange-500/15 border-orange-500/40 text-orange-300 hover:bg-orange-500/25"
-                busy={busy === 'missed'}
-                disabled={!!busy}
-                onClick={() => apply('missed', 'Student did not show up.')}
-              />
-              <AttendanceButton
-                icon={<XCircle className="w-4 h-4" />}
-                label="Cancel"
-                color="bg-aurora-red/15 border-aurora-red/40 text-aurora-red hover:bg-aurora-red/25"
-                busy={busy === 'cancelled'}
-                disabled={!!busy}
-                onClick={() => apply('cancelled', 'Cancelled by counselor.')}
-              />
-            </div>
           </div>
         )}
+
+        {canMarkAttendance && onMarkAttendance && (
+          <div className="mt-6 pt-4 border-t border-aurora-border">
+            <button
+              type="button"
+              onClick={onMarkAttendance}
+              className="w-full py-3 rounded-xl bg-aurora-blue text-white font-bold text-sm hover:bg-aurora-blue/90 transition-colors cursor-pointer"
+            >
+              Mark attendance
+            </button>
+            <p className="text-xs text-aurora-text-muted text-center mt-2">
+              Available after the scheduled session time.
+            </p>
+          </div>
+        )}
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   )
 }
 
@@ -214,28 +187,5 @@ function DetailRow({
       </div>
       <div className="pl-6 text-[15px] font-semibold text-white">{children}</div>
     </div>
-  )
-}
-
-function AttendanceButton({
-  icon, label, color, busy, disabled, onClick,
-}: {
-  icon: React.ReactNode
-  label: string
-  color: string
-  busy: boolean
-  disabled: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold border transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${color}`}
-    >
-      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : icon}
-      {label}
-    </button>
   )
 }

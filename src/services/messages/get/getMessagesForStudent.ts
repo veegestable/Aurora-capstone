@@ -20,22 +20,43 @@ export async function getMessagesForStudent(
       const senderId = isMe ? 'me' : 'them'
 
       if (data.type === 'session_invite' || data.type === 'session') {
-        const session = data.sessionData ?? data.session ?? {}
+        const session = (data.sessionData ?? data.session ?? {}) as Record<string, unknown>
+        const timeSlots = (session.timeSlots as Array<{ date: string; time: string }> | undefined) ?? []
+        const agreedSlot = session.agreedSlot as { date: string; time: string } | undefined
+        const firstSlot = agreedSlot ?? timeSlots[0]
+        const scheduledStartAt = session.scheduledStartAt as { toMillis?: () => number } | undefined
+        const scheduledStartAtMs =
+          typeof scheduledStartAt?.toMillis === 'function'
+            ? scheduledStartAt.toMillis()
+            : null
 
         return {
           id: d.id,
           senderId,
           type: 'session' as const,
-          session: { 
-            ...session,
-            id: data.sessionId ?? session.sessionId ?? d.id
+          session: {
+            ...(session as object),
+            id: String(data.sessionId ?? session.sessionId ?? data.linkedSessionId ?? d.id),
+            title: typeof session.title === 'string' ? session.title : 'Counseling Session',
+            timeSlots,
+            note: typeof session.note === 'string' ? session.note : '',
+            sessionStatus:
+              typeof session.sessionStatus === 'string'
+                ? session.sessionStatus
+                : typeof session.status === 'string'
+                  ? session.status
+                  : 'pending',
+            agreedSlot,
+            date: firstSlot?.date ?? (typeof session.date === 'string' ? session.date : ''),
+            time: firstSlot?.time ?? (typeof session.time === 'string' ? session.time : ''),
+            scheduledStartAtMs,
           },
-          time: formatMessageTime(createdAt)
+          time: formatMessageTime(createdAt),
         }
       }
 
       if (data.type === 'session_request') {
-        const req = data.sessionData ?? {}
+        const req = (data.sessionData ?? {}) as Record<string, unknown>
 
         return {
           id: d.id,
@@ -43,12 +64,19 @@ export async function getMessagesForStudent(
           type: 'session_request' as const,
           sessionRequest: {
             id: d.id,
-            sessionId: data.sessionId ?? req.sessionId ?? null,
-            preferredTime: req.preferredTime || formatMessageTime(createdAt),
-            note: req.note ?? '',
-            status: req.status ?? 'requested'
+            sessionId:
+              (data.sessionId as string | undefined) ??
+              (req.sessionId as string | undefined) ??
+              null,
+            preferredTime:
+              typeof req.preferredTime === 'string' && req.preferredTime.trim()
+                ? req.preferredTime
+                : '',
+            note: typeof req.note === 'string' ? req.note : '',
+            status: typeof req.status === 'string' ? req.status : 'requested',
+            requestedAtMs: createdAt.getTime(),
           },
-          time: formatMessageTime(createdAt)
+          time: formatMessageTime(createdAt),
         }
       }
 

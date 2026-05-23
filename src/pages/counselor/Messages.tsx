@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Pencil } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Pencil, History } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import { ContactRow } from '../../components/messages/ContactRow'
@@ -9,13 +10,14 @@ import { SelectStudentForChatModal } from '../../components/counselor/SelectStud
 import type { StudentContact } from '../../types/message.types'
 import type { StudentInfo } from '../../services/counselor'
 
-type TabType = 'All messages' | 'Unread'
+type TabType = 'All Messages' | 'Unread'
 
-const TABS: TabType[] = ['All messages', 'Unread']
+const TABS: TabType[] = ['All Messages', 'Unread']
 
 export default function Messages() {
+  const navigate = useNavigate()
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<TabType>('All messages')
+  const [activeTab, setActiveTab] = useState<TabType>('All Messages')
   const [selectedContact, setSelectedContact] = useState<StudentContact | null>(null)
   const [contacts, setContacts] = useState<StudentContact[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -118,21 +120,28 @@ export default function Messages() {
     )
   }
 
-  const filtered = activeTab === 'All messages' ? contacts : contacts.filter((c) => c.isUnread)
+  const filtered = activeTab === 'All Messages' ? contacts : contacts.filter((c) => c.isUnread)
   const unreadCount = contacts.filter((c) => c.isUnread).length
 
   return (
     <div className="space-y-5 relative pb-24">
-      <div>
-        <p className="text-[10px] font-bold tracking-[0.15em] text-aurora-blue uppercase mb-1">
-          Student Conversations
-        </p>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-heading">Messages</h2>
-        <p className="text-sm text-[#7B8EC8] mt-1">
-          {unreadCount} Unread Conversation{unreadCount !== 1 ? 's' : ''}
-          {' · '}
-          Only your current college · verified students · hover ⋮ to hide a thread
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-heading">Messages</h2>
+          <p className="text-sm text-[#7B8EC8] mt-1">
+            {unreadCount} Unread Conversation{unreadCount !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/counselor/session-history')}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold
+                     border border-aurora-blue/35 bg-aurora-blue/10 text-aurora-blue
+                     hover:bg-aurora-blue/20 transition-colors cursor-pointer"
+        >
+          <History className="w-4 h-4" />
+          Session History
+        </button>
       </div>
 
       <div className="flex gap-2">
@@ -170,8 +179,8 @@ export default function Messages() {
           <div className="text-center py-16">
             <p className="text-[#4B5693] text-sm">
               {contacts.length === 0
-                ? 'No conversations yet. Start one with the Write Message button.'
-                : 'No unread conversations.'}
+                ? 'No conversations yet. Tap the compose button to add a student.'
+                : 'No unread conversations. Try All Messages.'}
             </p>
           </div>
         )}
@@ -182,7 +191,7 @@ export default function Messages() {
         type="button"
         onClick={() => setWriteOpen(true)}
         disabled={openingChat}
-        aria-label="Write a new message"
+        aria-label="Add student"
         className="fixed bottom-24 right-6 lg:bottom-8 lg:right-10 z-40 w-14 h-14 rounded-full bg-aurora-blue hover:bg-blue-600 text-white shadow-aurora-lg flex items-center justify-center transition-colors disabled:opacity-60 cursor-pointer"
       >
         <Pencil className="w-5 h-5" />

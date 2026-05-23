@@ -3,7 +3,15 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../../config/firebase'
 import {
-  ArrowLeft, Mail, Phone, CircleHelp, Loader2, MessageSquare, X,
+  ArrowLeft,
+  Mail,
+  Phone,
+  CircleHelp,
+  Loader2,
+  MessageSquare,
+  User,
+  VenusAndMars,
+  X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
@@ -14,11 +22,14 @@ import type { StudentCounselingOutcomeCounts } from '../../services/trusted-back
 import { LetterAvatar } from '../../components/LetterAvatar'
 import { StudentCounselingHistorySummary } from '../../components/counselor/StudentCounselingHistorySummary'
 import { JournalCalendar } from '../../components/journal/JournalCalendar'
-import { CounselorLast7MoodBars } from '../../components/counselor/CounselorLast7MoodBars'
+import { CounselorStudentAnalytics } from '../../components/counselor/CounselorStudentAnalytics'
+import type { MoodLogEntryRow } from '../../services/mood/types'
 import { formatCounselorStudentSubtitle } from '../../constants/student/programs'
 
 interface StudentDoc {
   full_name?: string
+  sex?: string
+  student_number?: string
   email?: string
   contact_number?: string
   college_code?: string
@@ -26,6 +37,30 @@ interface StudentDoc {
   program?: string
   year_level?: string
   avatar_url?: string
+}
+
+function formatStudentSexDisplay(sex?: string): string {
+  const raw = sex?.trim()
+  if (!raw) return 'No sex provided'
+  const key = raw.toLowerCase()
+  if (key === 'male') return 'Male'
+  if (key === 'female') return 'Female'
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
+
+function ProfileDetailRow({
+  icon: Icon,
+  children,
+}: {
+  icon: typeof Mail
+  children: string
+}) {
+  return (
+    <div className="flex items-center gap-1.5 mt-1">
+      <Icon className="w-[13px] h-[13px] text-[#BFD2FF] shrink-0" />
+      <span className="text-xs text-[#C9D8FF] truncate">{children}</span>
+    </div>
+  )
 }
 
 const SPECIAL_POP_INFO =
@@ -38,14 +73,16 @@ function OutcomeTile({
   label,
   value,
   caption,
-}: { label: string; value: number; caption: string }) {
+}: { label: string; value: number; caption?: string }) {
   return (
     <div>
       <p className="text-[10px] font-extrabold tracking-wider text-aurora-text-muted uppercase mb-1.5">
         {label}
       </p>
       <p className="text-2xl font-black text-white">{value}</p>
-      <p className="text-[11px] text-aurora-text-sec mt-1">{caption}</p>
+      {caption ? (
+        <p className="text-[11px] text-aurora-text-sec mt-1">{caption}</p>
+      ) : null}
     </div>
   )
 }
@@ -59,6 +96,7 @@ export default function CounselorStudentDetail() {
   const [studentLoading, setStudentLoading] = useState(true)
   const [contextLoading, setContextLoading] = useState(true)
   const [journalAccessGranted, setJournalAccessGranted] = useState(false)
+  const [contextLogs, setContextLogs] = useState<MoodLogEntryRow[]>([])
   const [counselingCounts, setCounselingCounts] =
     useState<StudentCounselingOutcomeCounts | null>(null)
   const [counselingCountsLoading, setCounselingCountsLoading] = useState(true)
@@ -104,6 +142,7 @@ export default function CounselorStudentDetail() {
           .fetchStudentCounselorDetailedContext(id, user.id)
         if (cancelled) return
         setJournalAccessGranted(ctx.journalAccessGranted)
+        setContextLogs(ctx.logs)
         if (ctx.journalAccessGranted) {
           const counts = await sessionsService
             .getSessionOutcomeCountsForCounselorStudent(user.id, id)
@@ -114,6 +153,7 @@ export default function CounselorStudentDetail() {
       } catch {
         if (!cancelled) {
           setJournalAccessGranted(false)
+          setContextLogs([])
           setWithStudentOutcomeCounts({ completed: 0, missed: 0 })
         }
       } finally {
@@ -163,6 +203,8 @@ export default function CounselorStudentDetail() {
       program: student?.program,
       year_level: student?.year_level,
     }) || 'CCS'
+  const sexLabel = formatStudentSexDisplay(student?.sex)
+  const studentId = student?.student_number?.trim()
   const email = student?.email?.trim()
   const contact = student?.contact_number?.trim()
 
@@ -192,7 +234,7 @@ export default function CounselorStudentDetail() {
         className="flex items-center gap-2 text-sm font-semibold text-aurora-text-sec hover:text-white transition-colors cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to directory
+        Student profile
       </button>
 
       {studentLoading ? (
@@ -203,48 +245,46 @@ export default function CounselorStudentDetail() {
         <p className="text-sm text-aurora-text-muted">Could not load this student.</p>
       ) : (
         <>
-          {/* Profile card */}
-          <div className="card-aurora flex items-center gap-4">
+          {/* Profile header — matches mobile CounselorStudentDetailScreen (no card wrapper) */}
+          <div className="flex items-center gap-3.5">
             <LetterAvatar
               name={fullName}
               size={64}
               avatarUrl={student.avatar_url ?? undefined}
             />
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl font-extrabold text-white font-heading truncate">
+              <h1 className="text-xl font-extrabold text-white font-heading leading-tight">
                 {fullName}
               </h1>
-              <p className="text-sm text-aurora-text-sec mt-0.5 line-clamp-2">{programLine}</p>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <Mail className="w-3.5 h-3.5 text-[#BFD2FF] shrink-0" />
-                <span className="text-xs text-[#C9D8FF] truncate">
-                  {email || 'No email provided'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 mt-1">
-                <Phone className="w-3.5 h-3.5 text-[#BFD2FF] shrink-0" />
-                <span className="text-xs text-[#C9D8FF] truncate">
-                  {contact || 'No contact number'}
-                </span>
-              </div>
+              <p className="text-[13px] text-aurora-text-sec mt-1 line-clamp-3">{programLine}</p>
+              <ProfileDetailRow icon={VenusAndMars}>{sexLabel}</ProfileDetailRow>
+              <ProfileDetailRow icon={User}>
+                {studentId || 'No student ID provided'}
+              </ProfileDetailRow>
+              <ProfileDetailRow icon={Mail}>
+                {email || 'No email provided'}
+              </ProfileDetailRow>
+              <ProfileDetailRow icon={Phone}>
+                {contact || 'No contact number'}
+              </ProfileDetailRow>
             </div>
           </div>
+
+          {/* Invite to Session — before counseling history (mobile order) */}
+          <button
+            type="button"
+            onClick={handleInvite}
+            disabled={inviteBusy}
+            className="w-full btn-aurora flex items-center justify-center gap-2 py-3.5 rounded-2xl disabled:opacity-70 cursor-pointer"
+          >
+            {inviteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
+            Invite to Session
+          </button>
 
           <StudentCounselingHistorySummary
             counts={counselingCounts}
             loading={counselingCountsLoading}
           />
-
-          {/* Invite to Session */}
-          <button
-            type="button"
-            onClick={handleInvite}
-            disabled={inviteBusy}
-            className="w-full max-w-md btn-aurora flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
-          >
-            {inviteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
-            Invite to Session
-          </button>
 
           <p className="text-xs text-aurora-text-muted leading-relaxed">
             Baseline view for every student; full journal only for your special population
@@ -271,14 +311,12 @@ export default function CounselorStudentDetail() {
               </div>
               <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-aurora-border">
                 <OutcomeTile
-                  label="Completed Sessions"
+                  label="Completed sessions"
                   value={withStudentOutcomeCounts.completed}
-                  caption="Your sessions with this student"
                 />
                 <OutcomeTile
-                  label="Missed Sessions"
+                  label="Missed sessions"
                   value={withStudentOutcomeCounts.missed}
-                  caption="No-show or marked missed"
                 />
               </div>
             </div>
@@ -298,22 +336,18 @@ export default function CounselorStudentDetail() {
             </div>
           )}
 
-          {/* Last 7 (only with full access) */}
-          {!contextLoading && journalAccessGranted && (
-            <div className="space-y-2">
-              <h2 className="text-sm font-bold text-white">Last 7 days</h2>
-              <CounselorLast7MoodBars studentId={id} />
-            </div>
-          )}
-
-          {/* Calendar (always; baseline mode if no access) */}
-          <div className="space-y-2">
-            <h2 className="text-sm font-bold text-white">Mood journal</h2>
+          {/* Mood journal + analytics (mobile: CounselorStudentJournalCalendar) */}
+          {!contextLoading && (
             <JournalCalendar
               forUserId={id}
               privacyMode={journalAccessGranted ? 'full' : 'baseline'}
+              analyticsSlot={
+                journalAccessGranted ? (
+                  <CounselorStudentAnalytics logs={contextLogs} />
+                ) : undefined
+              }
             />
-          </div>
+          )}
         </>
       )}
 

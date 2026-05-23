@@ -1,21 +1,16 @@
 import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import {
-  Home, Users, MessageSquare,
-  Calendar, User, LogOut,
-  Settings as SettingsIcon
-} from 'lucide-react'
+import { Home, Users, MessageSquare, User, LogOut } from 'lucide-react'
 import { LetterAvatar } from '../components/LetterAvatar'
 import { SignOutConfirmModal } from '../components/common/SignOutConfirmModal'
 
+/** Matches mobile counselor tab bar: Home, Students, Messages, Profile only. */
 const PRIMARY_NAV = [
   { path: '/', label: 'Home', icon: Home },
   { path: '/counselor/students', label: 'Students', icon: Users },
   { path: '/counselor/messages', label: 'Messages', icon: MessageSquare },
-  { path: '/counselor/session-history', label: 'History', icon: Calendar },
   { path: '/counselor/profile', label: 'Profile', icon: User },
-  { path: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
 export default function CounselorLayout() {
@@ -65,7 +60,7 @@ export default function CounselorLayout() {
                 </span>
               </div>
               <button
-                onClick={handleSignOut}
+                onClick={() => setShowSignOutModal(true)}
                 className="flex items-center space-x-1 sm:space-x-2 text-aurora-text-muted cursor-pointer hover:text-white transition-colors px-2 sm:px-3 py-2 rounded-md hover:bg-white/5"
                 aria-label="Sign out"
               >
@@ -83,7 +78,7 @@ export default function CounselorLayout() {
           <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
             <div className="space-y-1">
               <p className="px-4 text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-2">
-                Counselor
+                COUNSELOR
               </p>
               {PRIMARY_NAV.map(({ path, label, icon: Icon }) => (
                 <NavLink
@@ -117,7 +112,7 @@ export default function CounselorLayout() {
       </div>
 
       {/* Mobile Bottom Nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-aurora-bg/95 backdrop-blur-xl border-t border-aurora-border z-50">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-aurora-bg/95 backdrop-blur-xl border-t border-aurora-border z-40">
         <div className="flex justify-around items-center py-2">
           {PRIMARY_NAV.map(({ path, label, icon: Icon }) => (
             <NavLink

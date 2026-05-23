@@ -15,7 +15,9 @@ export async function getSessionsForCounselor(counselorId: string): Promise<Sess
       id: d.id,
       ...data,
       createdAt: data.createdAt?.toDate?.() ?? new Date(),
-      updatedAt: data.updatedAt?.toDate?.() ?? new Date()
+      updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+      scheduledStartAt: data.scheduledStartAt?.toDate?.() ?? null,
+      attendanceMarkedAt: data.attendanceMarkedAt?.toDate?.() ?? null,
     } as Session
   })
 }

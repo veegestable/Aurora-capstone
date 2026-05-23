@@ -59,10 +59,7 @@ export function SelectStudentForChatModal({
       >
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-[10px] font-bold tracking-[0.15em] text-aurora-blue uppercase mb-0.5">
-              New conversation
-            </p>
-            <h2 className="text-xl font-bold text-white">Write a message</h2>
+            <h2 className="text-xl font-bold text-white">Add student</h2>
           </div>
           <button
             onClick={onClose}
@@ -80,7 +77,7 @@ export function SelectStudentForChatModal({
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search students…"
+            placeholder="Search name, ID or program..."
             className="w-full bg-aurora-card-alt border border-aurora-border rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-aurora-text-muted focus:outline-none focus:border-aurora-blue/50"
           />
         </div>

@@ -359,12 +359,14 @@ service cloud.firestore {
       let cCollege = docCollegeCode(userDocData(conv.counselorId));
       let sCollege = docCollegeCode(userDocData(conv.studentId));
       return viewer.size() > 0 &&
-        tag.size() > 0 &&
-        tag == viewer &&
         cCollege.size() > 0 &&
         cCollege == viewer &&
         sCollege.size() > 0 &&
-        sCollege == viewer;
+        sCollege == viewer &&
+        (
+          (tag.size() > 0 && tag == viewer) ||
+          tag.size() == 0
+        );
     }
 
     function isPastCollegeConversation(convId) {
@@ -383,17 +385,29 @@ service cloud.firestore {
         ? docCollegeCode(userDocData(s.studentId))
         : '';
       return viewer.size() > 0 &&
-        tag.size() > 0 &&
-        tag == viewer &&
         cCollege.size() > 0 &&
         cCollege == viewer &&
         sCollege.size() > 0 &&
-        sCollege == viewer;
+        sCollege == viewer &&
+        (
+          (tag.size() > 0 && tag == viewer) ||
+          tag.size() == 0
+        );
     }
 
     function isPastCollegeSession(sessionId) {
       let viewer = docCollegeCode(userDoc(request.auth.uid).data);
       return viewer.size() > 0 && !isActiveCollegeSession(sessionId);
+    }
+
+    /** Counselor may record attendance even when messaging is closed (past-college thread). */
+    function counselorSessionAttendanceUpdate() {
+      return resource.data.counselorId == request.auth.uid &&
+        request.resource.data.counselorId == resource.data.counselorId &&
+        request.resource.data.studentId == resource.data.studentId &&
+        validSessionStatus(request.resource.data.status) &&
+        sessionTransitionValid() &&
+        request.resource.data.status in ['confirmed', 'completed', 'missed'];
     }
 
     function messageCreateValid(convId) {
@@ -429,10 +443,10 @@ service cloud.firestore {
       let old = resource.data.status;
       let next = request.resource.data.status;
       return old == next ||
-        (old == 'requested' && (next == 'pending' || next == 'confirmed' || next == 'cancelled' || next == 'expired')) ||
-        (old == 'pending' && (next == 'confirmed' || next == 'needs_rescheduling' || next == 'cancelled' || next == 'expired')) ||
-        (old == 'confirmed' && (next == 'completed' || next == 'missed' || next == 'needs_rescheduling' || next == 'cancelled' || next == 'expired')) ||
-        (old == 'needs_rescheduling' && (next == 'pending' || next == 'cancelled' || next == 'expired' || next == 'completed' || next == 'missed')) ||
+        (old == 'requested' && (next == 'pending' || next == 'confirmed' || next == 'cancelled' || next == 'expired' || next == 'completed' || next == 'missed')) ||
+        (old == 'pending' && (next == 'confirmed' || next == 'needs_rescheduling' || next == 'cancelled' || next == 'expired' || next == 'completed' || next == 'missed')) ||
+        (old == 'confirmed' && (next == 'completed' || next == 'missed' || next == 'needs_rescheduling' || next == 'cancelled' || next == 'expired' || next == 'rescheduled')) ||
+        (old == 'needs_rescheduling' && (next == 'pending' || next == 'cancelled' || next == 'expired' || next == 'completed' || next == 'missed' || next == 'rescheduled')) ||
         (old == 'expired' && (next == 'completed' || next == 'missed' || next == 'cancelled')) ||
         (old == 'rescheduled' && (next == 'pending' || next == 'cancelled' || next == 'expired'));
     }
@@ -716,7 +730,10 @@ service cloud.firestore {
           !request.resource.data.keys().hasAny(['college_code']) ||
           request.resource.data.college_code == resource.data.college_code
         ) &&
-        !isPastCollegeSession(id) &&
+        (
+          !isPastCollegeSession(id) ||
+          counselorSessionAttendanceUpdate()
+        ) &&
         (
           resource.data.counselorId == request.auth.uid ||
           resource.data.studentId == request.auth.uid ||

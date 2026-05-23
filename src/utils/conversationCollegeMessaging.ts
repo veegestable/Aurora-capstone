@@ -44,7 +44,7 @@ export function isActiveCollegeInboxThread(
   const counselor = input.counselorCollegeCode.trim()
   const student = input.studentCollegeCode.trim()
 
-  if (!tag || tag !== viewer) return false
+  if (tag && tag !== viewer) return false
   if (!counselor || !isCollegeCode(counselor) || counselor !== viewer) {
     return false
   }

@@ -51,13 +51,16 @@ export interface SessionMessage {
   session: {
     id: string
     title?: string
-    timeSlots?: Array<{ 
-      date: string 
+    date?: string
+    time?: string
+    timeSlots?: Array<{
+      date: string
       time: string
     }>
     note?: string
     sessionStatus?: string
     agreedSlot?: { date: string; time: string }
+    scheduledStartAtMs?: number | null
   }
   time: string
 }
@@ -72,6 +75,7 @@ export interface SessionRequestMessage {
     preferredTime: string
     note: string
     status: string
+    requestedAtMs?: number
   }
   time: string
 }

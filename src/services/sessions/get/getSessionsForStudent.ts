@@ -17,6 +17,8 @@ export async function getSessionsForStudent(studentId: string): Promise<Session[
       ...data,
       createdAt: data.createdAt?.toDate?.() ?? new Date(),
       updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+      scheduledStartAt: data.scheduledStartAt?.toDate?.() ?? null,
+      attendanceMarkedAt: data.attendanceMarkedAt?.toDate?.() ?? null,
     } as Session
   })
 }

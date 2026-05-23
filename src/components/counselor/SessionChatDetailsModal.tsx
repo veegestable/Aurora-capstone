@@ -1,4 +1,5 @@
-import { Calendar, Clock, FileText, X } from 'lucide-react'
+import { Calendar, Clock, FileText, MapPin, X } from 'lucide-react'
+import { ModalPortal } from '../common/ModalPortal'
 import type { SessionMessage } from '../../types/message.types'
 
 interface SessionChatDetailsModalProps {
@@ -25,19 +26,23 @@ export function SessionChatDetailsModal({ open, message, onClose }: SessionChatD
   const status = session.sessionStatus ?? 'pending'
   const pill = STATUS_PILL[status] ?? STATUS_PILL.pending
   const displaySlot = session.agreedSlot
+  const firstSlot = session.timeSlots?.[0]
+  const displayDate = session.date ?? firstSlot?.date ?? ''
+  const displayTime = session.time ?? firstSlot?.time ?? ''
   const slots = session.timeSlots ?? []
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
-    >
+    <ModalPortal open>
       <div
-        className="relative w-full max-w-lg card-aurora border border-aurora-border p-6 max-h-[85vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-20 lg:pb-4 bg-black/60 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        onClick={onClose}
       >
+        <div
+          className="relative w-full max-w-lg card-aurora border border-aurora-border p-6 max-h-[min(85vh,calc(100dvh-6rem))] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-xl font-bold text-white">Session details</h2>
           <button
@@ -57,11 +62,15 @@ export function SessionChatDetailsModal({ open, message, onClose }: SessionChatD
           {session.title ?? 'Counseling Session'}
         </DetailRow>
 
-        {displaySlot && (
+        {displaySlot ? (
           <DetailRow icon={<Clock className="w-4 h-4 text-aurora-blue" />} label="Confirmed time">
             {displaySlot.date} at {displaySlot.time}
           </DetailRow>
-        )}
+        ) : slots.length === 0 && displayDate ? (
+          <DetailRow icon={<Clock className="w-4 h-4 text-aurora-blue" />} label="Scheduled time">
+            {displayDate} at {displayTime}
+          </DetailRow>
+        ) : null}
 
         {slots.length > 0 && (
           <DetailRow icon={<Calendar className="w-4 h-4 text-aurora-blue" />} label="Proposed times">
@@ -74,6 +83,10 @@ export function SessionChatDetailsModal({ open, message, onClose }: SessionChatD
             </div>
           </DetailRow>
         )}
+
+        <DetailRow icon={<MapPin className="w-4 h-4 text-aurora-blue" />} label="Location">
+          Guidance Office, West Wing
+        </DetailRow>
 
         <DetailRow icon={<FileText className="w-4 h-4 text-aurora-blue" />} label="Note">
           {session.note?.trim() ? (
@@ -90,8 +103,9 @@ export function SessionChatDetailsModal({ open, message, onClose }: SessionChatD
         >
           Done
         </button>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   )
 }
 

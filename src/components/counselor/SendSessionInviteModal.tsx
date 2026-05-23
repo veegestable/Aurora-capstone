@@ -1,11 +1,36 @@
 import { useState } from 'react'
 import { X, Send, Calendar } from 'lucide-react'
 import { sessionsService } from '../../services/sessions'
+import { ModalPortal } from '../common/ModalPortal'
 import { LetterAvatar } from '../LetterAvatar'
 
 export interface ProposedSlot {
   date: string
   time: string
+}
+
+export function formatSlotsFromInputs(
+  slots: Array<{ date: string; time: string }>,
+): ProposedSlot[] {
+  return slots
+    .filter((s) => s.date && s.time)
+    .map((s) => {
+      const [y, m, d] = s.date.split('-').map(Number)
+      const [hh, mm] = s.time.split(':').map(Number)
+      const dateObj = new Date(y, m - 1, d, hh, mm)
+      return {
+        date: dateObj.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        time: dateObj.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }),
+      }
+    })
 }
 
 interface SendSessionInviteModalProps {
@@ -16,19 +41,34 @@ interface SendSessionInviteModalProps {
     avatar?: string
   }
   counselorId: string
+  mode?: 'invite' | 'propose'
+  modalTitle?: string
+  subtitle?: string
+  submitLabel?: string
+  initialNote?: string
   onClose: () => void
   onSuccess: () => void
+  onProposeSlots?: (slots: ProposedSlot[], note: string) => Promise<void>
 }
 
 export function SendSessionInviteModal({
   visible,
   student,
   counselorId,
+  mode = 'invite',
+  modalTitle,
+  subtitle,
+  submitLabel,
+  initialNote,
   onClose,
   onSuccess,
+  onProposeSlots,
 }: SendSessionInviteModalProps) {
   const [sending, setSending] = useState(false)
-  const [note, setNote] = useState(`Hi ${student.name.split(' ')[0]}, I'd like to check in with you regarding your recent academic progress.`)
+  const [note, setNote] = useState(
+    initialNote ??
+      `Hi ${student.name.split(' ')[0]}, I'd like to check in with you regarding your recent academic progress.`,
+  )
   
   // State for the 3 slots
   const [slots, setSlots] = useState<{ date: string; time: string }[]>([
@@ -52,26 +92,20 @@ export function SendSessionInviteModal({
     }
 
     // Format raw dates/times to readable string (e.g., April 28, 2026 at 2:00 PM)
-    const formattedSlots = validSlots.map(s => {
-      // Split YYYY-MM-DD to avoid timezone shifting
-      const [y, m, d] = s.date.split('-').map(Number)
-      const [hh, mm] = s.time.split(':').map(Number)
-      const dateObj = new Date(y, m - 1, d, hh, mm)
-
-      return {
-        date: dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-        time: dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-      }
-    })
+    const formattedSlots = formatSlotsFromInputs(validSlots)
 
     setSending(true)
     try {
-      await sessionsService.createCounselorSessionInvite(
-        counselorId,
-        student.id,
-        formattedSlots,
-        { note: note.trim() }
-      )
+      if (mode === 'propose' && onProposeSlots) {
+        await onProposeSlots(formattedSlots, note.trim())
+      } else {
+        await sessionsService.createCounselorSessionInvite(
+          counselorId,
+          student.id,
+          formattedSlots,
+          { note: note.trim() },
+        )
+      }
       onSuccess()
       onClose()
     } catch (e) {
@@ -85,14 +119,17 @@ export function SendSessionInviteModal({
   if (!visible) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+    <ModalPortal open={visible}>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-20 lg:pb-4">
+        {/* Backdrop */}
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-lg card-aurora border border-aurora-border p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        {/* Modal */}
+        <div className="relative w-full max-w-lg card-aurora border border-aurora-border p-6 shadow-2xl max-h-[min(90vh,calc(100dvh-6rem))] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-white">Send Session Invite</h2>
+          <h2 className="text-xl font-bold text-white">
+            {modalTitle ?? (mode === 'propose' ? 'Propose New Time' : 'Send Session Invite')}
+          </h2>
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-white/5 text-aurora-text-sec transition-colors cursor-pointer"
@@ -104,7 +141,9 @@ export function SendSessionInviteModal({
         <div className="flex flex-col items-center mb-6">
           <LetterAvatar name={student.name} size={64} avatarUrl={student.avatar} />
           <p className="text-lg font-bold text-white mt-3">{student.name}</p>
-          <p className="text-sm text-aurora-text-sec">Invite to a supportive counseling session</p>
+          <p className="text-sm text-aurora-text-sec text-center">
+            {subtitle ?? 'Invite to a supportive counseling session'}
+          </p>
         </div>
 
         <div className="space-y-4 mb-6">
@@ -156,11 +195,12 @@ export function SendSessionInviteModal({
           ) : (
             <>
               <Send className="w-5 h-5" />
-              <span>Send Session Invite</span>
+              <span>{submitLabel ?? (mode === 'propose' ? 'Send new times' : 'Send Session Invite')}</span>
             </>
           )}
         </button>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   )
 }

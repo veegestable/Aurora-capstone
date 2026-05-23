@@ -3,18 +3,36 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { counselorService } from '../services/counselor'
 import { sessionsService } from '../services/sessions'
+import { userSettingsService } from '../services/user-settings'
+import { counselorCheckInContextService } from '../services/counselor-checkin-context'
 import { LetterAvatar } from '../components/LetterAvatar'
 import { AnnouncementBanner } from '../components/announcements/AnnouncementBanner'
 import { AnnouncementFormModal } from '../components/announcements/AnnouncementFormModal'
 import { AnnouncementGuideModal } from '../components/announcements/AnnouncementGuideModal'
 import { CounselorSessionsPane } from '../components/counselor/CounselorSessionsPane'
 import { Users, CalendarClock, ChevronRight, Plus } from 'lucide-react'
+import {
+  type CounselorStudentRosterPill,
+  COUNSELOR_ROSTER_PILL_LABEL,
+  COUNSELOR_ROSTER_PILL_SORT,
+} from '../constants/counselor/counselor-student-roster-pills'
+import { formatCounselorStudentSubtitle } from '../constants/student/programs'
+import { formatTimeAgo } from '../utils/formatters'
 import type { StudentInfo } from '../services/counselor'
 
 interface StatCardProps {
   icon: React.ReactNode
   count: string | number
   label: string
+}
+
+interface RosterPreviewStudent {
+  id: string
+  full_name: string
+  programLine: string
+  activityLine: string
+  rosterPill: CounselorStudentRosterPill
+  avatar_url?: string
 }
 
 function StatCard({ icon, count, label }: StatCardProps) {
@@ -29,7 +47,12 @@ function StatCard({ icon, count, label }: StatCardProps) {
   )
 }
 
-function StudentChip({ student }: { student: StudentInfo }) {
+function StudentChip({ student }: { student: RosterPreviewStudent }) {
+  const pillStyle =
+    student.rosterPill === 'session_started'
+      ? 'bg-aurora-blue/15 border-aurora-blue/30 text-aurora-blue'
+      : 'bg-slate-500/10 border-slate-500/20 text-aurora-text-sec'
+
   return (
     <Link
       to={`/counselor/students/${student.id}`}
@@ -42,10 +65,16 @@ function StudentChip({ student }: { student: StudentInfo }) {
         avatarUrl={student.avatar_url}
       />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-white truncate">
-          {student.full_name || 'Student'}
-        </p>
-        <p className="text-[11px] text-aurora-text-muted truncate">{student.email}</p>
+        <p className="text-sm font-bold text-white truncate">{student.full_name || 'Student'}</p>
+        <p className="text-[11px] text-aurora-text-muted truncate">{student.programLine}</p>
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+          <span
+            className={`text-[10px] font-extrabold tracking-wide px-2 py-0.5 rounded-lg border ${pillStyle}`}
+          >
+            {COUNSELOR_ROSTER_PILL_LABEL[student.rosterPill]}
+          </span>
+          <span className="text-[10px] text-aurora-text-muted truncate">{student.activityLine}</span>
+        </div>
       </div>
       <ChevronRight className="w-4 h-4 text-aurora-text-muted shrink-0" />
     </Link>
@@ -54,7 +83,8 @@ function StudentChip({ student }: { student: StudentInfo }) {
 
 export default function CounselorDashboard() {
   const { user } = useAuth()
-  const [students, setStudents] = useState<StudentInfo[]>([])
+  const [studentCount, setStudentCount] = useState(0)
+  const [rosterPreview, setRosterPreview] = useState<RosterPreviewStudent[]>([])
   const [upcomingCount, setUpcomingCount] = useState(0)
   const [showSessionsPane, setShowSessionsPane] = useState(false)
   const [showAddAnnouncement, setShowAddAnnouncement] = useState(false)
@@ -70,12 +100,61 @@ export default function CounselorDashboard() {
       setIsLoading(true)
       try {
         const [studentList, sessions] = await Promise.all([
-          counselorService.getStudents(user?.college_code ?? ''),
+          counselorService.getStudentsForCounselor(user.id, {
+            activeCollegeCode: user.college_code,
+          }),
           sessionsService.getSessionsForCounselor(user.id),
         ])
         if (cancelled) return
-        setStudents(studentList)
-        setUpcomingCount(sessions.filter(s => s.status === 'confirmed').length)
+
+        setStudentCount(studentList.length)
+        setUpcomingCount(sessions.filter((s) => s.status === 'confirmed').length)
+
+        const limit = Math.min(6, studentList.length)
+        const previewRows = await Promise.all(
+          studentList.slice(0, limit).map(async (s: StudentInfo) => {
+            let rosterPill: CounselorStudentRosterPill = 'no_session_yet'
+            let activityLine = 'No session with you yet'
+            try {
+              const settings = await userSettingsService.getUserSettings(s.id)
+              const sessionStarted =
+                settings?.counselorJournalAccess?.[user.id] === true
+              if (sessionStarted) {
+                rosterPill = 'session_started'
+                const { logs } = await counselorCheckInContextService.fetchStudentCheckInContext(s.id)
+                const latest = logs[0]
+                activityLine = latest?.log_date
+                  ? formatTimeAgo(new Date(latest.log_date))
+                  : 'No Aurora entries yet'
+              }
+            } catch {
+              /* keep defaults */
+            }
+            return {
+              id: s.id,
+              full_name: s.full_name || 'Student',
+              programLine:
+                formatCounselorStudentSubtitle({
+                  college_code: s.college_code,
+                  department: s.department,
+                  program: s.program,
+                  year_level: s.year_level ?? s.yearLevel,
+                }) || 'CCS',
+              activityLine,
+              rosterPill,
+              avatar_url: s.avatar_url,
+            }
+          }),
+        )
+
+        if (!cancelled) {
+          setRosterPreview(
+            previewRows.sort(
+              (a, b) =>
+                COUNSELOR_ROSTER_PILL_SORT[a.rosterPill] - COUNSELOR_ROSTER_PILL_SORT[b.rosterPill],
+            ),
+          )
+        }
       } catch (e) {
         console.error('Error fetching counselor dashboard data:', e)
       } finally {
@@ -89,11 +168,10 @@ export default function CounselorDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Welcome row */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold tracking-[0.15em] text-aurora-primary-dark/40 uppercase">
-            Counselor Portal
+            COUNSELOR PORTAL
           </p>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-aurora-primary-dark font-heading mt-1">
             Hello, {firstName}
@@ -102,7 +180,7 @@ export default function CounselorDashboard() {
         <button
           type="button"
           onClick={() => setShowSessionsPane(true)}
-          aria-label="Open sessions pane"
+          aria-label="Sessions overview"
           className="shrink-0 w-11 h-11 rounded-2xl bg-aurora-blue/15 hover:bg-aurora-blue/25
                      border border-aurora-blue/35 flex items-center justify-center cursor-pointer
                      transition-colors"
@@ -111,7 +189,6 @@ export default function CounselorDashboard() {
         </button>
       </div>
 
-      {/* Dashboard Overview */}
       <section>
         <h3 className="text-lg font-extrabold text-aurora-primary-dark mb-3 font-heading">
           Dashboard Overview
@@ -123,7 +200,7 @@ export default function CounselorDashboard() {
                 <Users className="w-[18px] h-[18px] text-aurora-secondary-blue" />
               </div>
             }
-            count={isLoading ? '…' : students.length}
+            count={isLoading ? '…' : studentCount}
             label="Total Students"
           />
           <StatCard
@@ -133,17 +210,14 @@ export default function CounselorDashboard() {
               </div>
             }
             count={isLoading ? '…' : upcomingCount}
-            label="Upcoming Accepted Sessions"
+            label="Upcoming Sessions"
           />
         </div>
       </section>
 
-      {/* Students */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-extrabold text-aurora-primary-dark font-heading">
-            Students
-          </h3>
+          <h3 className="text-lg font-extrabold text-aurora-primary-dark font-heading">Students</h3>
           <Link
             to="/counselor/students"
             className="flex items-center gap-1 text-aurora-secondary-blue text-xs font-bold hover:underline"
@@ -157,21 +231,20 @@ export default function CounselorDashboard() {
           <div className="card-aurora flex items-center justify-center py-10">
             <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-aurora-secondary-blue" />
           </div>
-        ) : students.length === 0 ? (
+        ) : rosterPreview.length === 0 ? (
           <div className="card-aurora text-center py-10">
             <Users className="w-10 h-10 text-aurora-primary-dark/20 mx-auto mb-2" />
-            <p className="text-sm text-aurora-text-sec">No students yet.</p>
+            <p className="text-sm text-aurora-text-sec">No students to show here yet.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {students.slice(0, 6).map(s => (
+            {rosterPreview.map((s) => (
               <StudentChip key={s.id} student={s} />
             ))}
           </div>
         )}
       </section>
 
-      {/* Announcements */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -194,7 +267,6 @@ export default function CounselorDashboard() {
         <AnnouncementBanner role="counselor" />
       </section>
 
-      {/* Modals */}
       <CounselorSessionsPane
         visible={showSessionsPane}
         counselorId={user?.id ?? ''}
@@ -204,7 +276,6 @@ export default function CounselorDashboard() {
       <AnnouncementFormModal
         open={showAddAnnouncement}
         onClose={() => setShowAddAnnouncement(false)}
-        onSuccess={() => setShowAddAnnouncement(false)}
       />
     </div>
   )

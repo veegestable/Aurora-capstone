@@ -3,38 +3,55 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { sessionsService } from '../../services/sessions'
 import { counselorService } from '../../services/counselor'
-import { SessionCard } from '../../components/sessions/SessionCard'
 import { SessionHistoryDetailModal } from '../../components/counselor/SessionHistoryDetailModal'
+import { SessionHistoryTimelineCard } from '../../components/counselor/SessionHistoryTimelineCard'
+import {
+  SessionAttendanceModal,
+  type AttendanceStatus,
+} from '../../components/counselor/SessionAttendanceModal'
+import { SendSessionInviteModal } from '../../components/counselor/SendSessionInviteModal'
 import type { Session, SessionStatus } from '../../types/session.types'
 import type { StudentInfo } from '../../services/counselor'
 import { Search, Loader2 } from 'lucide-react'
+import { computeSessionHistoryBadge, getAgreedSessionSlot } from '../../utils/sessionScheduling'
+import {
+  formatDateHeader,
+  formatSlotForDisplay,
+  groupSessionsByTimelineDate,
+} from '../../utils/sessionHistoryDisplay'
 
 type FilterValue = SessionStatus | 'all'
 
 const FILTERS: { label: string; value: FilterValue }[] = [
-  { label: 'All',         value: 'all' },
-  { label: 'Pending',     value: 'pending' },
-  { label: 'Confirmed',   value: 'confirmed' },
-  { label: 'Reschedule',  value: 'needs_rescheduling' },
-  { label: 'Completed',   value: 'completed' },
-  { label: 'Expired',     value: 'expired' },
-  { label: 'Cancelled',   value: 'cancelled' },
-  { label: 'Missed',      value: 'missed' },
+  { label: 'All Sessions', value: 'all' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Confirmed', value: 'confirmed' },
+  { label: 'Reschedule', value: 'needs_rescheduling' },
+  { label: 'Completed', value: 'completed' },
+  { label: 'Expired', value: 'expired' },
+  { label: 'Cancelled', value: 'cancelled' },
+  { label: 'Missed', value: 'missed' },
 ]
 
 interface LocationStateShape {
-  /** Either a SessionStatus or one of the bucket keys used by `CounselorSessionsPane`. */
   statusFilter?: FilterValue | 'upcoming' | 'reschedule' | 'closed'
   openSessionId?: string
 }
 
-/** Map bucket keys (from CounselorSessionsPane) to the matching FilterValue. */
 function resolveIncomingFilter(raw: LocationStateShape['statusFilter']): FilterValue {
   if (!raw) return 'all'
   if (raw === 'upcoming') return 'confirmed'
   if (raw === 'reschedule') return 'needs_rescheduling'
-  if (raw === 'closed') return 'cancelled' // 'closed' bucket can be cancelled OR missed; default chip = Cancelled
+  if (raw === 'closed') return 'cancelled'
   return raw as FilterValue
+}
+
+function mapAttendanceToOutcome(
+  status: AttendanceStatus,
+): 'completed' | 'missed' | 'rescheduled' {
+  if (status === 'showed_up') return 'completed'
+  if (status === 'did_not_show') return 'missed'
+  return 'rescheduled'
 }
 
 export default function SessionHistory() {
@@ -47,10 +64,13 @@ export default function SessionHistory() {
   const [studentsMap, setStudentsMap] = useState<Record<string, StudentInfo>>({})
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<FilterValue>(
-    () => resolveIncomingFilter(incoming?.statusFilter),
+  const [statusFilter, setStatusFilter] = useState<FilterValue>(() =>
+    resolveIncomingFilter(incoming?.statusFilter),
   )
   const [openSession, setOpenSession] = useState<Session | null>(null)
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false)
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false)
+  const [attendanceBusy, setAttendanceBusy] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -59,7 +79,9 @@ export default function SessionHistory() {
       try {
         const [fetchedSessions, fetchedStudents] = await Promise.all([
           sessionsService.getSessionsForCounselor(user.id),
-          counselorService.getStudents(user?.college_code ?? ''),
+          counselorService.getStudentsForCounselor(user.id, {
+            activeCollegeCode: user.college_code,
+          }),
         ])
         if (cancelled) return
         setSessions(fetchedSessions)
@@ -75,34 +97,110 @@ export default function SessionHistory() {
       }
     }
     loadData()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [user])
 
-  // Auto-open a specific session when arriving with `openSessionId` in route state.
   useEffect(() => {
     if (loading || !incoming?.openSessionId) return
     const target = sessions.find((s) => s.id === incoming.openSessionId)
     if (target) {
       setOpenSession(target)
-      // Clear the consumed state so a refresh doesn't re-open the modal.
       navigate(location.pathname, { replace: true, state: null })
     }
   }, [loading, incoming?.openSessionId, sessions, navigate, location.pathname])
 
   const filteredSessions = useMemo(() => {
-    return sessions.filter((session) => {
-      const studentName = studentsMap[session.studentId]?.full_name || 'Unknown Student'
-      const matchesSearch = studentName.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchesStatus = statusFilter === 'all' || session.status === statusFilter
-      return matchesSearch && matchesStatus
-    })
+    let list = sessions.filter(
+      (s) =>
+        s.finalSlot != null ||
+        s.confirmedSlot != null ||
+        (s.proposedSlots?.length ?? 0) > 0 ||
+        [
+          'completed',
+          'missed',
+          'cancelled',
+          'rescheduled',
+          'needs_rescheduling',
+          'expired',
+        ].includes(s.status),
+    )
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter((session) => {
+        const studentName = studentsMap[session.studentId]?.full_name || 'Unknown Student'
+        return studentName.toLowerCase().includes(q) || session.studentId.toLowerCase().includes(q)
+      })
+    }
+
+    if (statusFilter !== 'all') {
+      list = list.filter((session) => session.status === statusFilter)
+    }
+
+    return list
   }, [sessions, studentsMap, searchQuery, statusFilter])
+
+  const groupedByDate = useMemo(
+    () => groupSessionsByTimelineDate(filteredSessions),
+    [filteredSessions],
+  )
 
   const handleSessionUpdated = (sessionId: string, newStatus: SessionStatus) => {
     setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, status: newStatus } : s)),
+      prev.map((s) => {
+        if (s.id !== sessionId) return s
+        const next = { ...s, status: newStatus }
+        return {
+          ...next,
+          sessionHistoryBadge: computeSessionHistoryBadge(next),
+        }
+      }),
     )
   }
+
+  const handleMarkAttendance = async (status: AttendanceStatus) => {
+    if (!openSession || !user?.id) return
+    if (status === 'needs_rescheduling') {
+      setShowAttendanceModal(false)
+      setShowRescheduleModal(true)
+      return
+    }
+
+    setAttendanceBusy(true)
+    try {
+      const outcome = mapAttendanceToOutcome(status)
+      await sessionsService.markSessionAttendance(openSession.id, outcome, {
+        counselorId: user.id,
+        studentId: openSession.studentId,
+        attendanceNote:
+          outcome === 'completed'
+            ? 'Marked completed by counselor.'
+            : 'Student did not show up.',
+      })
+      handleSessionUpdated(openSession.id, outcome)
+      setShowAttendanceModal(false)
+      setOpenSession(null)
+    } catch (e) {
+      console.error('Failed to mark attendance:', e)
+      const msg =
+        e instanceof Error && e.message.trim()
+          ? e.message
+          : 'Could not mark attendance. Please try again.'
+      alert(msg)
+    } finally {
+      setAttendanceBusy(false)
+    }
+  }
+
+  const attendanceSlot =
+    openSession &&
+    (formatSlotForDisplay(
+      getAgreedSessionSlot(openSession) ?? openSession.proposedSlots?.[0],
+    ) ??
+      getAgreedSessionSlot(openSession) ??
+      openSession.proposedSlots?.[0])
 
   if (loading) {
     return (
@@ -127,7 +225,7 @@ export default function SessionHistory() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by student name..."
+            placeholder="Search student name or ID..."
             className="w-full bg-aurora-card border border-aurora-border rounded-[14px] py-3.5 pl-12 pr-4 text-white placeholder-aurora-text-muted focus:outline-none focus:border-aurora-blue/50"
           />
         </div>
@@ -157,32 +255,90 @@ export default function SessionHistory() {
           <p className="text-aurora-text-sec font-semibold">No sessions found.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredSessions.map((session) => (
-            <button
-              key={session.id}
-              type="button"
-              onClick={() => setOpenSession(session)}
-              className="text-left cursor-pointer hover:scale-[1.01] transition-transform"
-            >
-              <SessionCard
-                session={session}
-                peerName={studentsMap[session.studentId]?.full_name || 'Unknown Student'}
-              />
-            </button>
+        <div className="max-w-3xl">
+          {groupedByDate.map(({ dateKey, headerDate, items }) => (
+            <section key={dateKey} className="mb-6">
+              <p className="text-[11px] font-semibold tracking-wider text-aurora-text-muted mb-2">
+                {formatDateHeader(headerDate)}
+              </p>
+              <div className="h-px bg-aurora-border mb-3" />
+              {items.map((session) => (
+                <SessionHistoryTimelineCard
+                  key={session.id}
+                  session={session}
+                  student={studentsMap[session.studentId] ?? null}
+                  onPress={() => setOpenSession(session)}
+                />
+              ))}
+            </section>
           ))}
         </div>
       )}
 
       <SessionHistoryDetailModal
-        open={!!openSession}
+        open={!!openSession && !showAttendanceModal}
         session={openSession}
         student={openSession ? studentsMap[openSession.studentId] ?? null : null}
         onClose={() => setOpenSession(null)}
-        onUpdated={(newStatus) => {
-          if (openSession) handleSessionUpdated(openSession.id, newStatus)
+        onMarkAttendance={() => {
+          setShowAttendanceModal(true)
         }}
       />
+
+      {openSession && (
+        <SessionAttendanceModal
+          open={showAttendanceModal}
+          studentName={studentsMap[openSession.studentId]?.full_name || 'Student'}
+          studentAvatar={studentsMap[openSession.studentId]?.avatar_url ?? undefined}
+          sessionDate={attendanceSlot?.date ?? '—'}
+          sessionTime={attendanceSlot?.time ?? ''}
+          busy={attendanceBusy}
+          onClose={() => {
+            setShowAttendanceModal(false)
+          }}
+          onMarkLater={() => {
+            setShowAttendanceModal(false)
+          }}
+          onMarkStatus={handleMarkAttendance}
+        />
+      )}
+
+      {openSession && user && (
+        <SendSessionInviteModal
+          visible={showRescheduleModal}
+          mode="propose"
+          modalTitle="Propose new times"
+          subtitle="Student did not attend or needs a new schedule. Send up to three options."
+          submitLabel="Send new times"
+          student={{
+            id: openSession.studentId,
+            name: studentsMap[openSession.studentId]?.full_name || 'Student',
+            avatar: studentsMap[openSession.studentId]?.avatar_url ?? undefined,
+          }}
+          counselorId={user.id}
+          onClose={() => {
+            setShowRescheduleModal(false)
+            setOpenSession(null)
+          }}
+          onSuccess={() => {
+            setShowRescheduleModal(false)
+            setOpenSession(null)
+          }}
+          onProposeSlots={async (slots, note) => {
+            if (!user?.id) return
+            const conversationId = `${user.id}_${openSession.studentId}`
+            await sessionsService.proposeSlots(openSession.id, slots, {
+              conversationId,
+              counselorId: user.id,
+              studentId: openSession.studentId,
+              counselorName: user.full_name || 'Counselor',
+              note,
+              proposalKind: 'attendance_reschedule',
+            })
+            handleSessionUpdated(openSession.id, 'pending')
+          }}
+        />
+      )}
     </div>
   )
 }

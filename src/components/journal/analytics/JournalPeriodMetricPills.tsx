@@ -7,6 +7,8 @@ type Props = {
   periodDays: number
   checkIns: number
   bestStreak: number
+  /** Third-person copy for counselor student profile (mobile parity). */
+  audience?: 'student' | 'counselor'
 }
 
 export function JournalPeriodMetricPills({
@@ -14,6 +16,7 @@ export function JournalPeriodMetricPills({
   periodDays,
   checkIns,
   bestStreak,
+  audience = 'student',
 }: Props) {
   const [activePill, setActivePill] = useState<PillKey | null>(null)
 
@@ -25,11 +28,17 @@ export function JournalPeriodMetricPills({
 
   const explainer =
     activePill === 'days'
-      ? `${daysLogged} out of ${periodDays} days had at least one mood check-in.`
+      ? audience === 'counselor'
+        ? `This student logged on ${daysLogged} of the last ${periodDays} days.`
+        : `${daysLogged} out of ${periodDays} days had at least one mood check-in.`
       : activePill === 'checkins'
-        ? `You logged ${checkIns} mood entries in the last ${periodDays} days.`
+        ? audience === 'counselor'
+          ? `${checkIns} mood check-in${checkIns === 1 ? '' : 's'} in the last ${periodDays} days.`
+          : `You logged ${checkIns} mood entries in the last ${periodDays} days.`
         : activePill === 'streak'
-          ? `Your longest check-in streak in the last ${periodDays} days was ${bestStreak} day${bestStreak === 1 ? '' : 's'}.`
+          ? audience === 'counselor'
+            ? `Longest consecutive logging streak in this window: ${bestStreak} day${bestStreak === 1 ? '' : 's'}.`
+            : `Your longest check-in streak in the last ${periodDays} days was ${bestStreak} day${bestStreak === 1 ? '' : 's'}.`
           : null
 
   return (

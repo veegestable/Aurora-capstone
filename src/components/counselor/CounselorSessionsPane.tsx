@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { doc, getDoc } from 'firebase/firestore'
 import { CalendarClock, Loader2, X } from 'lucide-react'
 import { sessionsService } from '../../services/sessions'
-import { counselorService } from '../../services/counselor'
-import { SessionCard } from '../sessions/SessionCard'
-import type { Session, SessionStatus } from '../../types/session.types'
-import { useAuth } from '../../contexts/AuthContext'
+import { LetterAvatar } from '../LetterAvatar'
+import { db } from '../../config/firebase'
+import {
+  buildCounselorSessionOverviewItems,
+  buildCounselorSessionsSheetSections,
+  pendingSessionStatusLabel,
+  type CounselorSessionOverviewItem,
+} from '../../utils/counselorSessionOverview'
 
 interface CounselorSessionsPaneProps {
   visible: boolean
@@ -13,56 +18,13 @@ interface CounselorSessionsPaneProps {
   onClose: () => void
 }
 
-type TabKey = 'pending' | 'upcoming' | 'reschedule' | 'completed' | 'expired' | 'closed'
-
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'pending', label: 'Pending' },
-  { key: 'upcoming', label: 'Upcoming' },
-  { key: 'reschedule', label: 'Reschedule' },
-  { key: 'completed', label: 'Completed' },
-  { key: 'expired', label: 'Expired' },
-  { key: 'closed', label: 'Closed' },
-]
-
-const PENDING_STATUSES: SessionStatus[] = ['requested', 'pending']
-const UPCOMING_STATUSES: SessionStatus[] = ['confirmed']
-const RESCHEDULE_STATUSES: SessionStatus[] = ['needs_rescheduling', 'rescheduled']
-const COMPLETED_STATUSES: SessionStatus[] = ['completed']
-const EXPIRED_STATUSES: SessionStatus[] = ['expired']
-// 'closed' is the catch-all for missed / cancelled (and any future status we haven't bucketed).
-
-function bucketFor(status: SessionStatus): TabKey {
-  if (PENDING_STATUSES.includes(status)) return 'pending'
-  if (UPCOMING_STATUSES.includes(status)) return 'upcoming'
-  if (RESCHEDULE_STATUSES.includes(status)) return 'reschedule'
-  if (COMPLETED_STATUSES.includes(status)) return 'completed'
-  if (EXPIRED_STATUSES.includes(status)) return 'expired'
-  return 'closed'
-}
-
-const EMPTY_LABELS: Record<TabKey, string> = {
-  pending: 'No pending requests',
-  upcoming: 'No upcoming sessions',
-  reschedule: 'Nothing needs rescheduling',
-  completed: 'No completed sessions yet',
-  expired: 'No expired sessions',
-  closed: 'Nothing here yet',
-}
-
-/**
- * Counselor-side modal pane: groups all of the counselor's sessions by status
- * and routes to Session History (with state) when a chip is selected.
- */
 export function CounselorSessionsPane({
   visible,
   counselorId,
   onClose,
 }: CounselorSessionsPaneProps) {
-  const { user } = useAuth()
   const navigate = useNavigate()
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [studentNames, setStudentNames] = useState<Map<string, string>>(new Map())
-  const [activeTab, setActiveTab] = useState<TabKey>('pending')
+  const [items, setItems] = useState<CounselorSessionOverviewItem[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -72,52 +34,46 @@ export function CounselorSessionsPane({
     const run = async () => {
       setLoading(true)
       try {
-        const [list, students] = await Promise.all([
-          sessionsService.getSessionsForCounselor(counselorId),
-          counselorService.getStudents(user?.college_code ?? ''),
-        ])
-        if (cancelled) return
-        setSessions(list)
-        setStudentNames(new Map(students.map(s => [s.id, s.full_name || 'Student'])))
+        const list = await sessionsService.getSessionsForCounselor(counselorId)
+        const overview = await buildCounselorSessionOverviewItems(
+          list as unknown as Array<Record<string, unknown>>,
+          async (studentId) => {
+            try {
+              const snap = await getDoc(doc(db, 'users', studentId))
+              if (!snap.exists()) return { name: 'Student' }
+              const u = snap.data() as Record<string, unknown>
+              return {
+                name: String(u.full_name ?? u.fullName ?? 'Student'),
+                avatar:
+                  typeof u.avatar_url === 'string' ? u.avatar_url : undefined,
+              }
+            } catch {
+              return { name: 'Student' }
+            }
+          },
+        )
+        if (!cancelled) setItems(overview)
       } catch (e) {
         console.error('Failed to load counselor sessions:', e)
-        if (!cancelled) setSessions([])
+        if (!cancelled) setItems([])
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
 
-    run()
+    void run()
     return () => { cancelled = true }
-  }, [visible, counselorId, user?.college_code])
-
-  const grouped = useMemo(() => {
-    const buckets: Record<TabKey, Session[]> = {
-      pending: [], upcoming: [], reschedule: [], completed: [], expired: [], closed: [],
-    }
-    sessions.forEach(s => buckets[bucketFor(s.status)].push(s))
-    return buckets
-  }, [sessions])
+  }, [visible, counselorId])
 
   if (!visible) return null
 
-  const visibleSessions = grouped[activeTab]
+  const sections = buildCounselorSessionsSheetSections(items)
 
-  // Plan §3.2: Completed → Session History with detail open. Expired → plain redirect.
-  // Other statuses also redirect to Session History; future state can be honored there.
-  const handleSelectSession = (s: Session) => {
+  const openSession = (item: CounselorSessionOverviewItem) => {
     onClose()
-    if (s.status === 'completed') {
-      navigate('/counselor/session-history', {
-        state: { openSessionId: s.id, statusFilter: 'completed' },
-      })
-      return
-    }
-    if (s.status === 'expired') {
-      navigate('/counselor/session-history', { state: { statusFilter: 'expired' } })
-      return
-    }
-    navigate('/counselor/session-history', { state: { statusFilter: s.status } })
+    navigate('/counselor/session-history', {
+      state: { openSessionId: item.id, statusFilter: item.status },
+    })
   }
 
   return (
@@ -132,7 +88,6 @@ export function CounselorSessionsPane({
         onClick={(e) => e.stopPropagation()}
         className="bg-[#0f0f11] w-full max-w-lg max-h-[85vh] sm:rounded-3xl rounded-t-3xl border-t sm:border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300"
       >
-        {/* Header */}
         <header className="flex items-center justify-between px-5 py-4 border-b border-white/5">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-aurora-blue/15 flex items-center justify-center">
@@ -152,78 +107,69 @@ export function CounselorSessionsPane({
           </button>
         </header>
 
-        {/* Tabs */}
-        <nav
-          className="flex gap-2 px-5 pt-3 overflow-x-auto scrollbar-hide"
-          aria-label="Session category"
-        >
-          {TABS.map((t) => {
-            const active = activeTab === t.key
-            const count = grouped[t.key].length
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setActiveTab(t.key)}
-                className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
-                  active
-                    ? 'bg-aurora-blue/15 border-aurora-blue/40 text-aurora-blue'
-                    : 'bg-white/5 border-white/10 text-aurora-text-sec hover:bg-white/10'
-                }`}
-                aria-pressed={active}
-              >
-                {t.label}
-                <span
-                  className={`text-[10px] font-extrabold tabular-nums ${
-                    active ? 'text-aurora-blue' : 'text-aurora-text-muted'
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            )
-          })}
-        </nav>
+        <p className="px-5 pt-2 pb-3 text-xs text-aurora-text-sec leading-relaxed">
+          Student requests, invites, scheduled, and outcomes.
+        </p>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2.5">
+        <div className="flex-1 overflow-y-auto px-5 pb-6">
           {loading ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="w-5 h-5 animate-spin text-aurora-blue" />
               <span className="ml-2 text-sm text-aurora-text-muted">Loading sessions…</span>
             </div>
-          ) : visibleSessions.length === 0 ? (
+          ) : items.length === 0 ? (
             <div className="text-center py-12">
               <CalendarClock className="w-10 h-10 text-aurora-text-muted/40 mx-auto mb-3" />
-              <p className="text-sm font-semibold text-aurora-text-sec">
-                {EMPTY_LABELS[activeTab]}
+              <p className="text-sm font-semibold text-white">All caught up</p>
+              <p className="text-xs text-aurora-text-muted mt-2 max-w-xs mx-auto">
+                No open requests or agreed sessions to show right now.
               </p>
             </div>
           ) : (
-            visibleSessions.map((s) => {
-              const peerName = studentNames.get(s.studentId)
-              return (
-                <div
-                  key={s.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleSelectSession(s)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      handleSelectSession(s)
-                    }
-                  }}
-                  className="rounded-xl cursor-pointer transition-transform hover:-translate-y-0.5
-                             focus-visible:outline focus-visible:outline-aurora-blue/60"
-                >
-                  <SessionCard
-                    session={s}
-                    peerName={peerName ? `Student: ${peerName}` : undefined}
-                  />
-                </div>
-              )
-            })
+            <div className="space-y-5">
+              {sections.map((section) => (
+                <section key={section.key}>
+                  <div className="mb-2">
+                    <h3 className="text-sm font-extrabold text-white">{section.title}</h3>
+                    <p className="text-[11px] text-aurora-text-muted mt-0.5 leading-snug">
+                      {section.subtitle}
+                    </p>
+                  </div>
+                  <ul className="space-y-2">
+                    {section.items.map((item) => (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => openSession(item)}
+                          className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10
+                                     hover:bg-white/8 transition-colors cursor-pointer text-left"
+                        >
+                          <LetterAvatar
+                            name={item.studentName}
+                            size={40}
+                            avatarUrl={item.studentAvatar}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-white truncate">
+                              {item.studentName}
+                            </p>
+                            {item.scheduleSummary ? (
+                              <p className="text-[11px] text-aurora-text-sec truncate mt-0.5">
+                                {item.scheduleSummary}
+                              </p>
+                            ) : null}
+                          </div>
+                          <span className="shrink-0 text-[10px] font-extrabold tracking-wide px-2 py-1 rounded-full
+                                           bg-aurora-blue/15 border border-aurora-blue/30 text-aurora-blue">
+                            {pendingSessionStatusLabel(item.category)}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
           )}
         </div>
       </div>

@@ -10,9 +10,17 @@ import { ChatBubble } from './ChatBubble'
 import { ConversationReadOnlyBanner } from './ConversationReadOnlyBanner'
 import { SendSessionInviteModal } from '../counselor/SendSessionInviteModal'
 import { SessionChatDetailsModal } from '../counselor/SessionChatDetailsModal'
-import { Calendar, ArrowLeft, Send, Info, CalendarPlus } from 'lucide-react'
-import type { CounselorContact, StudentContact, ChatMessage, SessionMessage } from '../../types/message.types'
+import { SessionAttendanceModal, type AttendanceStatus } from '../counselor/SessionAttendanceModal'
+import { Calendar, ArrowLeft, Send, CalendarPlus } from 'lucide-react'
+import type {
+  CounselorContact,
+  StudentContact,
+  ChatMessage,
+  SessionMessage,
+  SessionRequestMessage,
+} from '../../types/message.types'
 import { usePeerPresence } from '../../hooks/usePeerPresence'
+import { isOpenSessionRequestExpired } from '../../utils/dateHelpers'
 
 interface DirectMessageViewProps {
   contact: CounselorContact | StudentContact
@@ -33,6 +41,9 @@ export function DirectMessageView({
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [showSessionRequestModal, setShowSessionRequestModal] = useState(false)
   const [detailsTarget, setDetailsTarget] = useState<SessionMessage | null>(null)
+  const [proposeSessionId, setProposeSessionId] = useState<string | null>(null)
+  const [proposeFlow, setProposeFlow] = useState<'student_request' | 'reschedule' | null>(null)
+  const [attendanceTarget, setAttendanceTarget] = useState<SessionMessage | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const openedSessionRequestByParamRef = useRef(false)
   const peerOnline = usePeerPresence(contact.id)
@@ -204,31 +215,137 @@ export function DirectMessageView({
     setDetailsTarget(msg)
   }
 
-  const handleReschedule = async (msg: SessionMessage) => {
-    if (!user?.id) return
+  function parsePreferredTimeToSlot(preferredTime: string): { date: string; time: string } {
+    const normalized = preferredTime.replace(/\s+at\s+/i, ', ')
+    const parts = normalized.split(', ')
+    if (parts.length < 2) return { date: preferredTime, time: '' }
+    const time = parts[parts.length - 1]
+    const date = parts.slice(0, -1).join(', ')
+    return { date, time }
+  }
+
+  function resolveSessionDocId(msg: SessionMessage): string | null {
     const id = msg.session.id
-    if (!id || id.startsWith('session_')) {
+    if (!id || id.startsWith('session_')) return null
+    return id
+  }
+
+  const handleAcceptSessionRequest = async (msg: SessionRequestMessage) => {
+    if (!user?.id || !contact.conversationId || isSending || messagingClosed) return
+    const sessionId = msg.sessionRequest.sessionId
+    const preferredTime = msg.sessionRequest.preferredTime
+    if (!sessionId || !preferredTime) return
+    if (
+      isOpenSessionRequestExpired({
+        status: msg.sessionRequest.status,
+        preferredTime,
+        requestedAtMs: msg.sessionRequest.requestedAtMs,
+      })
+    ) {
+      alert(
+        'This session request can no longer be accepted because 24 hours have passed without a response, or the preferred time has already passed.',
+      )
+      return
+    }
+    setIsSending(true)
+    try {
+      const slot = parsePreferredTimeToSlot(preferredTime)
+      await sessionsService.acceptStudentSessionRequest(
+        contact.conversationId,
+        sessionId,
+        slot,
+        user.id,
+        contact.id,
+      )
+      refreshMessages()
+    } catch (e) {
+      console.error('Failed to accept session request:', e)
+      alert(e instanceof Error ? e.message : 'Could not accept request. Please try again.')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const handleProposeSessionRequest = (msg: SessionRequestMessage) => {
+    const sessionId = msg.sessionRequest.sessionId
+    if (!sessionId) return
+    setProposeFlow('student_request')
+    setProposeSessionId(sessionId)
+  }
+
+  const handleReschedule = (msg: SessionMessage) => {
+    const id = resolveSessionDocId(msg)
+    if (!id) {
       alert('This invite is missing a valid session link.')
       return
     }
+    setProposeFlow('reschedule')
+    setProposeSessionId(id)
+  }
+
+  const handleProposeSlotsFromModal = async (slots: Array<{ date: string; time: string }>, note: string) => {
+    if (!user?.id || !contact.conversationId || !proposeSessionId || isSending) return
+    setIsSending(true)
     try {
-      await sessionsService.updateSessionStatus({
-        sessionId: id,
-        status: 'rescheduled',
-        performedBy: user.id,
-        performedByRole: user.role ?? 'counselor',
+      const firstName = contact.name.split(' ')[0] || 'there'
+      const lead =
+        proposeFlow === 'student_request'
+          ? `Hi ${firstName}, here are some schedules that work on my side. Please tap the session card below and choose one that fits you.`
+          : undefined
+      await sessionsService.proposeSlots(proposeSessionId, slots, {
+        conversationId: contact.conversationId,
+        counselorId: user.id,
+        studentId: contact.id,
+        counselorName: user.full_name || 'Counselor',
+        note,
+        proposalKind: proposeFlow === 'reschedule' ? 'attendance_reschedule' : 'counselor_new_times',
+        leadMessage: lead,
       })
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.type === 'session' && m.session.id === id
-            ? { ...m, session: { ...m.session, sessionStatus: 'rescheduled' } }
-            : m,
-        ),
-      )
+      setProposeSessionId(null)
+      setProposeFlow(null)
+      refreshMessages()
     } catch (e) {
-      console.error('Failed to flag session as rescheduled:', e)
+      console.error('Failed to propose slots:', e)
+      alert(e instanceof Error ? e.message : 'Could not send new times. Please try again.')
+    } finally {
+      setIsSending(false)
     }
-    setIsInviteModalOpen(true)
+  }
+
+  const handleMarkAttendance = async (status: AttendanceStatus) => {
+    if (!user?.id || !attendanceTarget) return
+    const sessionId = resolveSessionDocId(attendanceTarget)
+    if (!sessionId) {
+      alert('This session is missing a valid link.')
+      return
+    }
+
+    if (status === 'needs_rescheduling') {
+      setAttendanceTarget(null)
+      setProposeFlow('reschedule')
+      setProposeSessionId(sessionId)
+      return
+    }
+
+    const outcome = status === 'showed_up' ? 'completed' : 'missed'
+    setIsSending(true)
+    try {
+      await sessionsService.markSessionAttendance(sessionId, outcome, {
+        counselorId: user.id,
+        studentId: contact.id,
+        attendanceNote:
+          outcome === 'completed'
+            ? 'Marked completed by counselor.'
+            : 'Student did not show up.',
+      })
+      setAttendanceTarget(null)
+      refreshMessages()
+    } catch (e) {
+      console.error('Failed to mark attendance:', e)
+      alert('Could not update attendance. Please try again.')
+    } finally {
+      setIsSending(false)
+    }
   }
 
   return (
@@ -255,29 +372,23 @@ export function DirectMessageView({
             <div className="flex items-center justify-center gap-1.5">
               <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-aurora-accent-green' : 'bg-aurora-gray-400'}`} />
               <span className="text-xs text-aurora-gray-500">
-                {isOnline ? 'Online now' : 'Offline'}
+                {isOnline ? 'Online' : 'Offline'}
               </span>
             </div>
           </div>
         </div>
-
-        <button
-          className="p-1.5 rounded-lg hover:bg-aurora-gray-100 transition-colors cursor-pointer"
-          aria-label="Conversation info"
-        >
-          <Info className="w-5 h-5 text-aurora-gray-500" />
-        </button>
+        <div className="w-9" aria-hidden />
       </div>
 
-      {messagingClosed ? (
-        <ConversationReadOnlyBanner role={viewerRole} />
-      ) : (
+      {messagingClosed ? <ConversationReadOnlyBanner role={viewerRole} /> : null}
+
+      {viewerRole === 'student' && !messagingClosed ? (
         <div className="mx-4 mt-3 px-4 py-2.5 rounded-xl bg-aurora-accent-purple/10 border border-aurora-accent-purple/20">
           <p className="text-[11px] font-bold text-aurora-accent-purple text-center tracking-wider uppercase">
             This is a private conversation with your counselor.
           </p>
         </div>
-      )}
+      ) : null}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         <p className="text-xs font-semibold text-aurora-gray-400 text-center tracking-wider mb-4">
@@ -298,10 +409,30 @@ export function DirectMessageView({
               contactAvatarUrl={contact.avatar || undefined}
               userAvatarUrl={user?.avatar_url ?? undefined}
               viewerRole={user?.role === 'counselor' ? 'counselor' : 'student'}
+              messagingClosed={messagingClosed}
               onConfirmSession={handleConfirmSession}
               isConfirming={isSending}
               onViewDetails={handleViewDetails}
-              onReschedule={handleReschedule}
+              onReschedule={user?.role === 'counselor' ? handleReschedule : undefined}
+              onAcceptSessionRequest={
+                user?.role === 'counselor'
+                  ? (m) => {
+                      if (m.type === 'session_request') void handleAcceptSessionRequest(m)
+                    }
+                  : undefined
+              }
+              onProposeSessionRequest={
+                user?.role === 'counselor'
+                  ? (m) => {
+                      if (m.type === 'session_request') handleProposeSessionRequest(m)
+                    }
+                  : undefined
+              }
+              onMarkAttendance={
+                user?.role === 'counselor'
+                  ? (m) => setAttendanceTarget(m)
+                  : undefined
+              }
             />
           ))
         )}
@@ -361,25 +492,69 @@ export function DirectMessageView({
       </div>
 
       {user?.role === 'counselor' && (
-        <SendSessionInviteModal
-          visible={isInviteModalOpen}
-          student={{
-            id: contact.id,
-            name: contact.name,
-            avatar: contact.avatar,
-          }}
-          counselorId={user.id}
-          onClose={() => setIsInviteModalOpen(false) }
-          onSuccess={() => {
-            refreshMessages()
-            setTimeout(() => {
-              scrollRef.current?.scrollTo({
-                top: scrollRef.current.scrollHeight,
-                behavior: 'smooth',
-              })
-            }, 500)
-          }}
-        />
+        <>
+          <SendSessionInviteModal
+            visible={isInviteModalOpen}
+            student={{
+              id: contact.id,
+              name: contact.name,
+              avatar: contact.avatar,
+            }}
+            counselorId={user.id}
+            onClose={() => setIsInviteModalOpen(false)}
+            onSuccess={() => {
+              refreshMessages()
+              setTimeout(() => {
+                scrollRef.current?.scrollTo({
+                  top: scrollRef.current.scrollHeight,
+                  behavior: 'smooth',
+                })
+              }, 500)
+            }}
+          />
+          <SendSessionInviteModal
+            visible={!!proposeSessionId}
+            mode="propose"
+            modalTitle={proposeFlow === 'reschedule' ? 'Reschedule session' : 'Propose New Time'}
+            subtitle={
+              proposeFlow === 'reschedule'
+                ? 'Send updated time options for this student.'
+                : 'Suggest times that work on your side.'
+            }
+            submitLabel="Send new times"
+            student={{
+              id: contact.id,
+              name: contact.name,
+              avatar: contact.avatar,
+            }}
+            counselorId={user.id}
+            onClose={() => {
+              setProposeSessionId(null)
+              setProposeFlow(null)
+            }}
+            onSuccess={() => {
+              refreshMessages()
+              setTimeout(() => {
+                scrollRef.current?.scrollTo({
+                  top: scrollRef.current.scrollHeight,
+                  behavior: 'smooth',
+                })
+              }, 500)
+            }}
+            onProposeSlots={handleProposeSlotsFromModal}
+          />
+          <SessionAttendanceModal
+            open={!!attendanceTarget}
+            studentName={contact.name}
+            studentAvatar={contact.avatar}
+            sessionDate={attendanceTarget?.session.date ?? attendanceTarget?.session.agreedSlot?.date ?? ''}
+            sessionTime={attendanceTarget?.session.time ?? attendanceTarget?.session.agreedSlot?.time ?? ''}
+            busy={isSending}
+            onClose={() => setAttendanceTarget(null)}
+            onMarkLater={() => setAttendanceTarget(null)}
+            onMarkStatus={(status) => void handleMarkAttendance(status)}
+          />
+        </>
       )}
 
       <SessionChatDetailsModal

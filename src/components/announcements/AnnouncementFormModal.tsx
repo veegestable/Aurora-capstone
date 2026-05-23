@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { X, Image as ImageIcon, Upload, Trash2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { announcementsService } from '../../services/announcements'
+import {
+  isCollegeCode,
+  resolveCollegeCodeFromUserData,
+  type CollegeCode,
+} from '../../constants/colleges'
 import type {
   Announcement,
   AnnouncementTargetRole,
@@ -16,18 +21,23 @@ interface AnnouncementFormModalProps {
   onSuccess?: () => void
 }
 
-const ROLE_OPTIONS: { key: AnnouncementTargetRole; label: string }[] = [
+const ADMIN_ROLE_OPTIONS: { key: AnnouncementTargetRole; label: string }[] = [
   { key: 'all', label: 'Everyone' },
   { key: 'student', label: 'Students only' },
   { key: 'counselor', label: 'Counselors only' },
 ]
 
-/** Bridge legacy UI selector → new visibility model. */
 function targetRoleToVisibility(tr: AnnouncementTargetRole): AnnouncementVisibility {
   if (tr === 'student') return 'students_all'
   if (tr === 'counselor') return 'counselors_all'
-  return 'students_all' // "Everyone" defaults to students_all for now
+  return 'students_all'
 }
+
+const inputClass =
+  'w-full px-3.5 py-3 text-sm text-white bg-aurora-card rounded-xl border border-aurora-border placeholder:text-aurora-text-muted focus:border-aurora-blue focus:ring-2 focus:ring-aurora-blue/25 outline-none transition-colors'
+
+const labelClass =
+  'block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide'
 
 export function AnnouncementFormModal({
   announcement,
@@ -37,6 +47,8 @@ export function AnnouncementFormModal({
 }: AnnouncementFormModalProps) {
   const { user } = useAuth()
   const isEdit = !!announcement
+  const isCounselor = user?.role === 'counselor'
+  const isAdmin = user?.role === 'admin'
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [title, setTitle] = useState('')
@@ -97,6 +109,54 @@ export function AnnouncementFormModal({
     if (fileRef.current) fileRef.current.value = ''
   }
 
+  const imageField = (
+    <div>
+      <label className={labelClass}>Image (optional)</label>
+      {displayImage ? (
+        <div className="relative rounded-xl overflow-hidden border border-aurora-border">
+          <img src={displayImage} alt="Announcement preview" className="w-full h-40 object-cover" />
+          <div className="absolute top-2 right-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-black/60 hover:bg-black/80 transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Replace
+            </button>
+            <button
+              type="button"
+              onClick={handleRemoveImage}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="w-full h-32 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-aurora-border bg-aurora-card hover:bg-aurora-card-alt text-aurora-text-sec transition-colors cursor-pointer"
+        >
+          <ImageIcon className="w-6 h-6 text-aurora-blue" />
+          <span className="text-xs font-bold text-white">
+            {isCounselor ? 'Add image from gallery' : 'Click to upload an image'}
+          </span>
+          <span className="text-[10px] text-aurora-text-muted">PNG or JPG · up to 5 MB</span>
+        </button>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handlePickFile}
+      />
+    </div>
+  )
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user?.id) return
@@ -105,6 +165,18 @@ export function AnnouncementFormModal({
     const c = content.trim()
     if (!t) return setError('Please enter a title.')
     if (!c) return setError('Please enter the announcement content.')
+
+    if (isCounselor && !isEdit) {
+      const cc = resolveCollegeCodeFromUserData(
+        user as unknown as Record<string, unknown>,
+      )
+      if (!cc) {
+        setError(
+          'Your profile must have a college before you can post announcements.',
+        )
+        return
+      }
+    }
 
     setSaving(true)
     setError(null)
@@ -124,16 +196,33 @@ export function AnnouncementFormModal({
           targetRole,
           ...(imageUrl === undefined ? {} : { imageUrl }),
         })
-      } else {
+      } else if (isCounselor) {
+        const cc = resolveCollegeCodeFromUserData(
+          user as unknown as Record<string, unknown>,
+        ) as CollegeCode
         await announcementsService.createAnnouncement({
           title: t,
           content: c,
-          publisherRole: (user.role === 'counselor' ? 'counselor' : 'admin') as 'admin' | 'counselor',
+          publisherRole: 'counselor',
+          visibility: 'students_one_college',
+          collegeCodes: isCollegeCode(cc) ? [cc] : [],
+          imageUrl: uploadedUrl ?? undefined,
+          createdBy: user.id,
+          createdByName: user.full_name || user.preferred_name || 'Counselor',
+        })
+      } else if (isAdmin) {
+        await announcementsService.createAnnouncement({
+          title: t,
+          content: c,
+          publisherRole: 'admin',
           visibility: targetRoleToVisibility(targetRole),
           imageUrl: uploadedUrl ?? undefined,
           createdBy: user.id,
           createdByName: user.full_name || user.preferred_name || 'Admin',
         })
+      } else {
+        setError('Only admins and counselors can post announcements.')
+        return
       }
 
       onSuccess?.()
@@ -148,7 +237,7 @@ export function AnnouncementFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -157,143 +246,106 @@ export function AnnouncementFormModal({
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg max-h-[90vh] overflow-hidden bg-white rounded-2xl shadow-xl flex flex-col"
+        className="w-full sm:max-w-lg max-h-[90vh] overflow-hidden bg-aurora-bg border border-aurora-border sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-aurora-gray-200">
-          <h2 id="announcement-form-title" className="text-lg font-extrabold text-aurora-primary-dark font-heading">
-            {isEdit ? 'Edit announcement' : 'New announcement'}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-aurora-border">
+          <h2 id="announcement-form-title" className="text-lg font-bold text-white font-heading">
+            {isEdit ? 'Edit announcement' : 'New Announcement'}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-aurora-gray-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
             aria-label="Close"
           >
-            <X className="w-5 h-5 text-aurora-gray-500" />
+            <X className="w-5 h-5 text-aurora-text-sec" />
           </button>
         </div>
 
         <div className="overflow-y-auto px-5 py-5 space-y-4">
           <div>
-            <label className="block text-[11px] font-bold tracking-wider uppercase text-aurora-primary-dark/60 mb-1.5">
-              Title
-            </label>
+            <label className={labelClass}>Title</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={120}
-              placeholder="e.g. Mental Health Week"
-              className="w-full px-3 py-2.5 text-sm text-aurora-primary-dark bg-aurora-gray-50 rounded-lg border border-aurora-gray-200 focus:border-aurora-secondary-blue focus:ring-2 focus:ring-aurora-secondary-blue/20 outline-none transition-colors"
+              placeholder={isCounselor ? 'Enter announcement title' : 'e.g. Mental Health Week'}
+              className={inputClass}
               required
             />
           </div>
 
+          {isCounselor && !isEdit ? imageField : null}
+
           <div>
-            <label className="block text-[11px] font-bold tracking-wider uppercase text-aurora-primary-dark/60 mb-1.5">
-              Content
-            </label>
+            <label className={labelClass}>Content</label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={4}
               placeholder="Write the announcement..."
-              className="w-full px-3 py-2.5 text-sm text-aurora-primary-dark bg-aurora-gray-50 rounded-lg border border-aurora-gray-200 focus:border-aurora-secondary-blue focus:ring-2 focus:ring-aurora-secondary-blue/20 outline-none transition-colors resize-none"
+              className={`${inputClass} resize-none`}
               required
             />
           </div>
 
-          <div>
-            <label className="block text-[11px] font-bold tracking-wider uppercase text-aurora-primary-dark/60 mb-1.5">
-              Visible to
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {ROLE_OPTIONS.map((r) => (
-                <button
-                  key={r.key}
-                  type="button"
-                  onClick={() => setTargetRole(r.key)}
-                  className={`py-2 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
-                    targetRole === r.key
-                      ? 'bg-aurora-secondary-blue/10 border-aurora-secondary-blue text-aurora-secondary-blue'
-                      : 'bg-aurora-gray-50 border-aurora-gray-200 text-aurora-primary-dark/60 hover:bg-aurora-gray-100'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {isCounselor && !isEdit ? (
+            <p className="text-[13px] text-aurora-text-sec leading-relaxed">
+              Students and counselors in your college will see this on their dashboards.
+              Admins can see all announcements.
+            </p>
+          ) : null}
 
-          <div>
-            <label className="block text-[11px] font-bold tracking-wider uppercase text-aurora-primary-dark/60 mb-1.5">
-              Image (optional)
-            </label>
-            {displayImage ? (
-              <div className="relative rounded-lg overflow-hidden border border-aurora-gray-200">
-                <img src={displayImage} alt="Announcement preview" className="w-full h-40 object-cover" />
-                <div className="absolute top-2 right-2 flex gap-2">
+          {isAdmin ? (
+            <div>
+              <label className={labelClass}>Visible to</label>
+              <div className="grid grid-cols-3 gap-2">
+                {ADMIN_ROLE_OPTIONS.map((r) => (
                   <button
+                    key={r.key}
                     type="button"
-                    onClick={() => fileRef.current?.click()}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-black/60 hover:bg-black/80 transition-colors cursor-pointer flex items-center gap-1.5"
+                    onClick={() => setTargetRole(r.key)}
+                    className={`py-2 text-xs font-semibold rounded-xl border transition-colors cursor-pointer ${
+                      targetRole === r.key
+                        ? 'bg-aurora-blue/15 border-aurora-blue text-aurora-blue'
+                        : 'bg-aurora-card border-aurora-border text-aurora-text-sec hover:text-white hover:border-white/20'
+                    }`}
                   >
-                    <Upload className="w-3.5 h-3.5" />
-                    Replace
+                    {r.label}
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 transition-colors cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Remove
-                  </button>
-                </div>
+                ))}
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-full h-32 flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-aurora-gray-300 bg-aurora-gray-50 hover:bg-aurora-gray-100 text-aurora-primary-dark/50 transition-colors cursor-pointer"
-              >
-                <ImageIcon className="w-6 h-6" />
-                <span className="text-xs font-semibold">Click to upload an image</span>
-                <span className="text-[10px]">PNG or JPG · up to 5 MB</span>
-              </button>
-            )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handlePickFile}
-            />
-          </div>
+            </div>
+          ) : null}
+
+          {!isCounselor || isEdit ? imageField : null}
 
           {error && (
-            <p className="text-xs font-semibold text-red-500 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+            <p className="text-xs font-semibold text-aurora-red bg-aurora-red/10 border border-aurora-red/30 rounded-lg px-3 py-2">
               {error}
             </p>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-aurora-gray-200 bg-aurora-gray-50">
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-aurora-border bg-aurora-card">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 text-sm font-semibold text-aurora-primary-dark/70 hover:bg-aurora-gray-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+            className="px-4 py-2 text-sm font-semibold text-aurora-text-sec hover:text-white rounded-xl transition-colors cursor-pointer disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="px-4 py-2 text-sm font-semibold text-white bg-aurora-secondary-blue hover:bg-aurora-secondary-dark-blue rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
+            className="px-5 py-2 text-sm font-bold text-white bg-aurora-blue hover:bg-aurora-blue/90 rounded-xl transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
           >
-            {saving && <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />}
-            {isEdit ? 'Save changes' : 'Publish'}
+            {saving && (
+              <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+            )}
+            {saving ? 'Publishing...' : isEdit ? 'Save changes' : 'Publish'}
           </button>
         </div>
       </form>

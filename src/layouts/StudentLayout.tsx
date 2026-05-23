@@ -90,7 +90,7 @@ export default function StudentLayout() {
                 </span>
               </div>
               <button
-                onClick={handleSignOut}
+                onClick={() => setShowSignOutModal(true)}
                 className="flex items-center space-x-1 sm:space-x-2 text-aurora-text-muted cursor-pointer hover:text-white transition-all px-2.5 sm:px-3 py-2 rounded-[10px] hover:bg-white/5"
                 aria-label="Sign out"
               >

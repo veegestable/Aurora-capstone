@@ -39,7 +39,7 @@ export function StudentCounselingHistorySummary({
         </div>
         <div className="flex shrink-0 gap-1.5">
           <span className="inline-flex items-center rounded-lg bg-emerald-500/15 border border-emerald-500/25 px-2 py-1 text-[11px] font-bold text-emerald-300">
-            {completed} completed
+            {completed} done
           </span>
           <span className="inline-flex items-center rounded-lg bg-orange-500/15 border border-orange-500/25 px-2 py-1 text-[11px] font-bold text-orange-300">
             {missed} missed

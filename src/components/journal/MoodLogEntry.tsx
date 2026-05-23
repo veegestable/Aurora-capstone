@@ -10,40 +10,8 @@ import {
   getSchoolWorkloadCaption,
   SCHOOL_TAGS,
 } from '../../constants/mood/journalTemplates'
-
-const DAY_DETAIL_ICONS: Record<string, string> = {
-  joy: '😊', happy: '😊', sadness: '😢', sad: '😢',
-  anger: '😠', angry: '😠', surprise: '😲', neutral: '😐',
-  stressed: '😰', anxious: '😟', overwhelmed: '😩',
-  relieved: '😌', productive: '🚀',
-}
-
-const EMOTION_BG: Record<string, string> = {
-  joy: 'bg-green-900/30', happy: 'bg-green-900/30',
-  sadness: 'bg-blue-900/30', sad: 'bg-blue-900/30',
-  anger: 'bg-red-900/30', angry: 'bg-red-900/30',
-  surprise: 'bg-orange-900/30', neutral: 'bg-gray-700/30',
-  stressed: 'bg-orange-800/30', overwhelmed: 'bg-red-800/30',
-  relieved: 'bg-emerald-900/30', productive: 'bg-cyan-900/30',
-}
-
-const EMOTION_COLOR: Record<string, string> = {
-  joy: 'text-green-400', happy: 'text-green-400',
-  sadness: 'text-blue-400', sad: 'text-blue-400',
-  anger: 'text-red-400', angry: 'text-red-400',
-  surprise: 'text-orange-400', neutral: 'text-gray-400',
-  stressed: 'text-orange-500', overwhelmed: 'text-red-500',
-  relieved: 'text-emerald-400', productive: 'text-cyan-400',
-}
-
-const EMOTION_DOT_COLOR: Record<string, string> = {
-  joy: '#4ADE80', happy: '#4ADE80',
-  sadness: '#60A5FA', sad: '#60A5FA',
-  anger: '#F87171', angry: '#F87171',
-  surprise: '#FB923C', neutral: '#94A3B8',
-  stressed: '#F97316', overwhelmed: '#EF4444',
-  relieved: '#34D399', productive: '#06B6D4',
-}
+import { getEmotionColor, getEmotionLabel } from '../../utils/moodColors'
+import { getMoodIconUrl } from '../../utils/moodIconAssets'
 
 function formatTime(date: Date) {
   if (!date) return ''
@@ -94,11 +62,10 @@ export function MoodLogEntry({
   const [photoOpen, setPhotoOpen] = useState(false)
 
   const isBaseline = privacyMode === 'baseline'
-  const primaryEmotion = entry.mood?.toLowerCase() || 'neutral'
-  const emotionLabel = primaryEmotion.charAt(0).toUpperCase() + primaryEmotion.slice(1)
-  const bgClass = EMOTION_BG[primaryEmotion] || 'bg-gray-700/30'
-  const textClass = EMOTION_COLOR[primaryEmotion] || 'text-gray-400'
-  const dotColor = EMOTION_DOT_COLOR[primaryEmotion] || '#94A3B8'
+  const rawMood = entry.mood || 'neutral'
+  const emotionLabel = getEmotionLabel(rawMood)
+  const moodColor = getEmotionColor(rawMood)
+  const moodIconUrl = getMoodIconUrl(rawMood)
   const confidence = entry.intensity / 10
 
   const entryDate = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp)
@@ -126,11 +93,19 @@ export function MoodLogEntry({
         role="button"
         aria-expanded={isExpanded}
       >
-        <div className={`w-11 h-11 rounded-xl ${bgClass} flex items-center justify-center shrink-0`}>
-          <span className="text-xl">{DAY_DETAIL_ICONS[primaryEmotion] || '😶'}</span>
+        <div
+          className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-white/10"
+          style={{ backgroundColor: `${moodColor}22` }}
+        >
+          <img
+            src={moodIconUrl}
+            alt=""
+            className="w-7 h-7 object-contain"
+            aria-hidden
+          />
         </div>
         <div className="flex-1 min-w-0">
-          <p className={`font-bold ${textClass}`}>{emotionLabel}</p>
+          <p className="font-bold" style={{ color: moodColor }}>{emotionLabel}</p>
           <div className="flex items-center text-sm text-aurora-text-muted mt-0.5">
             <Clock className="w-3.5 h-3.5 mr-1" />
             <span>{formatTime(entryDate)}</span>
@@ -140,7 +115,7 @@ export function MoodLogEntry({
           <p className="text-[10px] font-bold tracking-widest text-aurora-text-muted uppercase mb-1">
             Intensity
           </p>
-          <IntensityDots confidence={confidence} color={dotColor} />
+          <IntensityDots confidence={confidence} color={moodColor} />
         </div>
         <div className="ml-2 text-aurora-text-muted">
           {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}

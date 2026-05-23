@@ -3117,10 +3117,15 @@ export const firestoreService = {
   ) {
     try {
       const uid = actorId ?? auth.currentUser?.uid ?? "";
-      if (uid) {
-        await this.assertSessionMessagingOpen(sessionId, uid);
-      }
       const sessionRef = doc(db, "sessions", sessionId);
+      const sessionSnap = await getDoc(sessionRef);
+      if (!sessionSnap.exists()) throw new Error("Session not found.");
+      const sessionData = sessionSnap.data() as Record<string, unknown>;
+      if (uid && String(sessionData.counselorId ?? "") !== uid) {
+        throw new Error(
+          "Only the assigned counselor can mark attendance for this session.",
+        );
+      }
       const badge: SessionHistoryBadge =
         outcome === "completed"
           ? "completed"

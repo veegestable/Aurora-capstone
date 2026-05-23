@@ -15,6 +15,12 @@ import type { StudentInfo } from '../types'
 
 function toStudentInfo(row: Record<string, unknown>): StudentInfo {
   const id = String(row.id ?? '').trim()
+  const yearLevel =
+    typeof row.year_level === 'string'
+      ? row.year_level
+      : typeof row.yearLevel === 'string'
+        ? row.yearLevel
+        : undefined
   return {
     id,
     full_name:
@@ -25,13 +31,11 @@ function toStudentInfo(row: Record<string, unknown>): StudentInfo {
           : 'Unknown Student',
     email: typeof row.email === 'string' ? row.email : '',
     role: 'student',
+    college_code:
+      typeof row.college_code === 'string' ? row.college_code : undefined,
     program: typeof row.program === 'string' ? row.program : undefined,
-    yearLevel:
-      typeof row.year_level === 'string'
-        ? row.year_level
-        : typeof row.yearLevel === 'string'
-          ? row.yearLevel
-          : undefined,
+    yearLevel,
+    year_level: yearLevel,
     department:
       typeof row.department === 'string' ? row.department : undefined,
     avatar_url:

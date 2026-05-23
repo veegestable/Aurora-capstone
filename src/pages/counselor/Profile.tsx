@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Pencil, User as UserIcon, Bell, Shield, LogOut, ExternalLink,
+  Pencil, User as UserIcon, Bell, Shield, LogOut, ExternalLink, GraduationCap,
 } from 'lucide-react'
 import { LetterAvatar } from '../../components/LetterAvatar'
 import { SectionHeader } from '../../components/profile/SectionHeader'
@@ -11,7 +11,13 @@ import { ToggleRow } from '../../components/student/ToggleRow'
 import { EditCounselorProfileModal } from '../../components/counselor/EditCounselorProfileModal'
 import { useAuth } from '../../contexts/AuthContext'
 import { SignOutConfirmModal } from '../../components/common/SignOutConfirmModal'
-import { resolveCollegeCodeFromUserData, getCollegeName } from '../../constants/colleges'
+import {
+  COLLEGES,
+  type CollegeCode,
+  resolveCollegeCodeFromUserData,
+  getCollegeName,
+  isCollegeCode,
+} from '../../constants/colleges'
 import { userSettingsService } from '../../services/user-settings'
 
 export default function CounselorProfile() {
@@ -22,6 +28,11 @@ export default function CounselorProfile() {
   const [pushSaving, setPushSaving] = useState(false)
   const [showSignOutModal, setShowSignOutModal] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [collegeShiftOpen, setCollegeShiftOpen] = useState(false)
+  const [shiftTargetCollege, setShiftTargetCollege] = useState<CollegeCode | ''>('')
+  const [shiftReason, setShiftReason] = useState('')
+  const [shiftSubmitting, setShiftSubmitting] = useState(false)
+  const [shiftError, setShiftError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user?.id) return
@@ -69,12 +80,35 @@ export default function CounselorProfile() {
     user as Record<string, unknown> | null,
   )
 
+  const handleSubmitCollegeShift = async () => {
+    if (!user?.id || !shiftTargetCollege || !isCollegeCode(shiftTargetCollege)) return
+    if (shiftReason.trim().length < 8) {
+      setShiftError('Please explain your college change (at least 8 characters).')
+      return
+    }
+    setShiftSubmitting(true)
+    setShiftError(null)
+    try {
+      await userSettingsService.submitCollegeShiftRequest(
+        user.id,
+        shiftTargetCollege,
+        '',
+        shiftReason,
+      )
+      setCollegeShiftOpen(false)
+      setShiftReason('')
+      setShiftTargetCollege('')
+      alert('Your request is pending admin review.')
+      window.location.reload()
+    } catch (e) {
+      setShiftError(e instanceof Error ? e.message : 'Please try again.')
+    } finally {
+      setShiftSubmitting(false)
+    }
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-10">
-      <h2 className="text-xl sm:text-2xl font-bold text-white font-heading text-center">
-        Profile &amp; Settings
-      </h2>
 
       {/* Avatar & Name */}
       <div className="flex flex-col items-center pt-2 pb-1">
@@ -111,8 +145,7 @@ export default function CounselorProfile() {
               label="College"
               value={resolvedCollege ? `${resolvedCollege} — ${getCollegeName(resolvedCollege)}` : 'Not set'}
             />
-            <InfoRow label="Counselor Number" value={user?.student_number || 'Not set'} />
-            <InfoRow label="Contact Number" value={user?.contact_number || 'Not set'} />
+            <InfoRow label="Contact number" value={user?.contact_number || 'Not set'} />
           </div>
         </div>
       </div>
@@ -127,6 +160,29 @@ export default function CounselorProfile() {
               label="Edit Profile"
               onClick={() => setShowEditProfile(true)}
             />
+            {resolvedCollege && !user?.college_shift_pending ? (
+              <SettingsRow
+                icon={<GraduationCap className="w-[18px] h-[18px] text-aurora-blue" />}
+                label="Request college change"
+                onClick={() => {
+                  setShiftTargetCollege('')
+                  setShiftReason('')
+                  setShiftError(null)
+                  setCollegeShiftOpen(true)
+                }}
+              />
+            ) : null}
+            {user?.college_shift_pending ? (
+              <div className="px-5 py-4 border-t border-aurora-border">
+                <p className="text-sm font-bold text-amber-400 mb-1">
+                  College change pending review
+                </p>
+                <p className="text-xs text-aurora-text-sec leading-relaxed">
+                  An administrator is reviewing your request. You will keep your current college
+                  until it is approved.
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -199,6 +255,77 @@ export default function CounselorProfile() {
         onLeave={handleSignOut}
         leaving={isSigningOut}
       />
+
+      {collegeShiftOpen && (
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center p-5 bg-black/60 backdrop-blur-sm"
+          onClick={() => { if (!shiftSubmitting) setCollegeShiftOpen(false) }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Request college change"
+        >
+          <div
+            className="w-full max-w-md card-aurora border border-aurora-border p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-extrabold text-white">Request college change</h3>
+            {shiftError && (
+              <p className="text-sm text-aurora-red bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
+                {shiftError}
+              </p>
+            )}
+            <div>
+              <label htmlFor="counselorShiftCollege" className="block text-xs font-semibold text-aurora-text-sec mb-1.5">
+                New college <span className="text-red-400">*</span>
+              </label>
+              <select
+                id="counselorShiftCollege"
+                value={shiftTargetCollege}
+                onChange={(e) => setShiftTargetCollege(e.target.value as CollegeCode | '')}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-aurora-border bg-aurora-card-alt text-white text-sm outline-none
+                           focus:ring-2 focus:ring-aurora-blue/30"
+              >
+                <option value="" disabled>Select a college</option>
+                {COLLEGES.map((c) => (
+                  <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="counselorShiftReason" className="block text-xs font-semibold text-aurora-text-sec mb-1.5">
+                Reason <span className="text-red-400">*</span> (at least 8 characters)
+              </label>
+              <textarea
+                id="counselorShiftReason"
+                value={shiftReason}
+                onChange={(e) => setShiftReason(e.target.value)}
+                rows={3}
+                placeholder="Briefly explain why you need this change…"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-aurora-border bg-aurora-card-alt text-white text-sm outline-none resize-none
+                           placeholder:text-aurora-text-muted focus:ring-2 focus:ring-aurora-blue/30"
+              />
+            </div>
+            <div className="flex gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setCollegeShiftOpen(false)}
+                disabled={shiftSubmitting}
+                className="flex-1 py-2.5 rounded-full text-sm font-bold text-white bg-white/5 border border-aurora-border cursor-pointer disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSubmitCollegeShift()}
+                disabled={shiftSubmitting || !shiftTargetCollege || !shiftReason.trim()}
+                className="flex-1 py-2.5 rounded-full text-sm font-bold text-white bg-aurora-blue cursor-pointer disabled:opacity-60"
+              >
+                {shiftSubmitting ? 'Submitting…' : 'Submit request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

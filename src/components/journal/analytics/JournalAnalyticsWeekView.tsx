@@ -24,6 +24,7 @@ export function JournalAnalyticsWeekView({
 }: PeriodViewProps) {
   const stability = a.stabilityRange === '7days' ? a.weekStability : a.monthStability
   const bars = a.stabilityMetric === 'stress' ? a.dailyStress : a.dailyEnergy
+  const chartScrollsHorizontally = bars.length > 7
   const periodDays = a.periodDays
   const periodTitle = periodDays === 30 ? 'Your last 30 days' : 'Your last 7 days'
   const periodSubtitle =
@@ -137,17 +138,35 @@ export function JournalAnalyticsWeekView({
           </button>
         </div>
 
-        <div className="flex h-40 gap-2">
-          {bars.map((bar, i) => (
-            <div key={i} className="group flex flex-1 flex-col items-center gap-2">
-              <div className="relative flex flex-1 w-full items-end justify-center">
-                {bar.hasData ? (
-                  <div className="relative flex h-full w-full cursor-pointer items-end justify-center">
-                    <div
-                      className="max-w-[36px] w-full rounded-t-lg opacity-85 transition-all duration-500 group-hover:scale-x-110 group-hover:opacity-100"
-                      style={{ height: `${(bar.avg / 5) * 100}%`, backgroundColor: bar.color }}
-                    />
-                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+        <div
+          className={
+            chartScrollsHorizontally
+              ? 'overflow-x-auto pb-2 md:overflow-x-visible [-webkit-overflow-scrolling:touch]'
+              : undefined
+          }
+        >
+          <div
+            className={`flex h-40 gap-2 ${
+              chartScrollsHorizontally ? 'min-w-max w-max md:min-w-0 md:w-full' : 'w-full'
+            }`}
+          >
+            {bars.map((bar, i) => (
+              <div
+                key={i}
+                className={`group flex flex-col items-center gap-2 ${
+                  chartScrollsHorizontally
+                    ? 'w-8 shrink-0 md:w-auto md:min-w-0 md:flex-1'
+                    : 'min-w-0 flex-1'
+                }`}
+              >
+                <div className="relative flex h-full w-full flex-1 items-end justify-center">
+                  {bar.hasData ? (
+                    <div className="relative flex h-full w-full cursor-pointer items-end justify-center">
+                      <div
+                        className="max-w-[36px] w-full rounded-t-lg opacity-85 transition-all duration-500 group-hover:scale-x-110 group-hover:opacity-100"
+                        style={{ height: `${(bar.avg / 5) * 100}%`, backgroundColor: bar.color }}
+                      />
+                      <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                       <div className="rounded-xl border border-white/10 bg-[#1a1a2e] px-3 py-2 shadow-xl whitespace-nowrap">
                         <div className="mb-1 flex items-center gap-2">
                           <div className="h-2 w-2 rounded-full" style={{ backgroundColor: bar.color }} />
@@ -167,6 +186,7 @@ export function JournalAnalyticsWeekView({
               <span className="text-[10px] font-bold text-aurora-text-sec">{bar.dayLabel}</span>
             </div>
           ))}
+          </div>
         </div>
 
         {a.stabilityRange === '30days' ? (

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { moodService } from '../../services/mood'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { BarChart3, BookMarked, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { MoodLogEntryRow } from '../../services/mood/types'
 import { MoodLogEntry } from './MoodLogEntry'
 import { getEmotionColor } from '../../utils/moodColors'
@@ -41,11 +41,16 @@ export type JournalCalendarProps = {
   forUserId?: string
   /** When 'baseline', day-detail entries hide notes / wellness / photo / context. Default 'full'. */
   privacyMode?: 'full' | 'baseline'
+  /** Special-population analytics panel (counselor mobile parity). */
+  analyticsSlot?: ReactNode
 }
+
+type JournalTab = 'calendar' | 'analytics'
 
 export function JournalCalendar({
   forUserId,
   privacyMode = 'full',
+  analyticsSlot,
 }: JournalCalendarProps = {}) {
   const { user } = useAuth()
   const targetUserId = forUserId ?? user?.id
@@ -53,6 +58,12 @@ export function JournalCalendar({
   const [moodData, setMoodData] = useState<MoodLogEntryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null)
+  const [tab, setTab] = useState<JournalTab>('calendar')
+  const showAnalyticsTab = privacyMode === 'full' && analyticsSlot != null
+
+  useEffect(() => {
+    if (!showAnalyticsTab) setTab('calendar')
+  }, [showAnalyticsTab])
 
   useEffect(() => {
     if (targetUserId) void loadMoodData()
@@ -132,6 +143,35 @@ export function JournalCalendar({
 
   return (
     <div className="space-y-6">
+      {showAnalyticsTab ? (
+        <div className="relative flex rounded-[14px] border border-aurora-border bg-aurora-card-alt p-1">
+          <button
+            type="button"
+            onClick={() => setTab('calendar')}
+            className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-bold transition-colors cursor-pointer ${
+              tab === 'calendar' ? 'text-white' : 'text-[#9AA9C8] hover:text-white'
+            }`}
+          >
+            <BookMarked className="w-4 h-4" />
+            Journal
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('analytics')}
+            className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-bold transition-colors cursor-pointer ${
+              tab === 'analytics' ? 'text-white bg-aurora-blue' : 'text-[#9AA9C8] hover:text-white'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            Analytics
+          </button>
+        </div>
+      ) : null}
+
+      {tab === 'analytics' && showAnalyticsTab ? (
+        analyticsSlot
+      ) : (
+        <>
       {/* Calendar Card */}
       <div className="card-aurora p-5">
         {/* Month Navigation */}
@@ -249,6 +289,8 @@ export function JournalCalendar({
             Tap a day on the calendar to see your mood entries.
           </p>
         </div>
+      )}
+        </>
       )}
     </div>
   )

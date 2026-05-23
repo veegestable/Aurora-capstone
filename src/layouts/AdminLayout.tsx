@@ -65,7 +65,7 @@ export default function AdminLayout() {
                 </span>
               </div>
               <button
-                onClick={handleSignOut}
+                onClick={() => setShowSignOutModal(true)}
                 className="flex items-center space-x-1 sm:space-x-2 text-aurora-text-muted cursor-pointer hover:text-white transition-colors px-2 sm:px-3 py-2 rounded-md hover:bg-white/5"
                 aria-label="Sign out"
               >
