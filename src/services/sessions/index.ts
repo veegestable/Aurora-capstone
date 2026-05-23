@@ -7,6 +7,7 @@ import { getSessionsForStudent } from "./get/getSessionsForStudent"
 import { getSessionsForCounselor } from "./get/getSessionsForCounselor"
 import { getCounselorNamesForSessions } from "./get/getCounselorNamesForSessions"
 import { getSessionOutcomeCountsForCounselorStudent } from "./get/getSessionOutcomeCountsForCounselorStudent"
+import { getStudentCounselingOutcomeCounts } from "./get/getStudentCounselingOutcomeCounts"
 import { getSessionNotes } from "./get/getSessionNotes"
 import { acceptStudentSessionRequest } from "./post/acceptStudentSessionRequest"
 import { proposeSlots } from "./post/proposeSlots"
@@ -29,6 +30,7 @@ export const sessionsService = {
   getSessionsForCounselor,
   getCounselorNamesForSessions,
   getSessionOutcomeCountsForCounselorStudent,
+  getStudentCounselingOutcomeCounts,
   getSessionNotes,
   updateSessionStatus,
   markSessionAttendance,

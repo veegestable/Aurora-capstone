@@ -467,6 +467,20 @@ service cloud.firestore {
       );
     }
 
+    /** Counselor may read any session row for a same-college student (counseling history totals). */
+    function counselorCanReadStudentCounselingSession() {
+      let s = resource.data;
+      return isCounselor() &&
+        s.studentId is string &&
+        s.studentId.size() > 0 &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        exists(/databases/$(database)/documents/users/$(s.studentId)) &&
+        sameCollegeForUsers(
+          userDocData(request.auth.uid),
+          userDocData(s.studentId)
+        );
+    }
+
     /** conversations/{counselorId}_{studentId} — student may only notify their assigned counselor. */
     function canStudentNotifyCounselorRecipient() {
       let recipient = request.resource.data.user_id;
@@ -696,6 +710,7 @@ service cloud.firestore {
       allow read: if isAuthed() && (
         resource.data.counselorId == request.auth.uid ||
         resource.data.studentId == request.auth.uid ||
+        counselorCanReadStudentCounselingSession() ||
         isAdmin()
       );
 

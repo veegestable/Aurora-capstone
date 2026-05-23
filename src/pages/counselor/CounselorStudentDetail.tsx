@@ -17,7 +17,6 @@ import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
 import { counselorCheckInContextService } from '../../services/counselor-checkin-context'
 import { sessionsService } from '../../services/sessions'
-import { getStudentCounselingOutcomeCountsTrusted } from '../../services/trusted-backend.service'
 import type { StudentCounselingOutcomeCounts } from '../../services/trusted-backend.service'
 import { LetterAvatar } from '../../components/LetterAvatar'
 import { StudentCounselingHistorySummary } from '../../components/counselor/StudentCounselingHistorySummary'
@@ -173,16 +172,34 @@ export default function CounselorStudentDetail() {
     setCounselingCountsLoading(true)
     ;(async () => {
       try {
-        const counts = await getStudentCounselingOutcomeCountsTrusted(id)
+        const counts = await sessionsService.getStudentCounselingOutcomeCounts(
+          user.id,
+          id,
+        )
         if (!cancelled) setCounselingCounts(counts)
       } catch {
         if (!cancelled) {
-          setCounselingCounts({
+          let fallback: StudentCounselingOutcomeCounts = {
             completed: 0,
             missed: 0,
             withYouCompleted: 0,
             withYouMissed: 0,
-          })
+          }
+          try {
+            const withYou = await sessionsService.getSessionOutcomeCountsForCounselorStudent(
+              user.id,
+              id,
+            )
+            fallback = {
+              completed: withYou.completed,
+              missed: withYou.missed,
+              withYouCompleted: withYou.completed,
+              withYouMissed: withYou.missed,
+            }
+          } catch {
+            /* keep zeros */
+          }
+          setCounselingCounts(fallback)
         }
       } finally {
         if (!cancelled) setCounselingCountsLoading(false)

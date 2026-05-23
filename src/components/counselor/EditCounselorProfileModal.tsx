@@ -16,7 +16,6 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
 
   const [name, setName] = useState('')
   const [sex, setSex] = useState<SexOption | undefined>(undefined)
-  const [counselorNumber, setCounselorNumber] = useState('')
   const [contactNumber, setContactNumber] = useState('')
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -26,7 +25,6 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
     if (user) {
       setName(user.full_name || '')
       setSex(user.sex ?? undefined)
-      setCounselorNumber(user.student_number || '')
       setContactNumber(user.contact_number || '')
     }
   }, [user])
@@ -45,15 +43,14 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
   }
 
   const handleSave = async () => {
-    const numTrim = counselorNumber.trim()
     const contactTrim = contactNumber.trim()
 
-    if (!numTrim) {
-      alert('Please enter your counselor number.')
+    if (!contactTrim) {
+      alert('Please enter your contact number.')
       return
     }
-    if (contactTrim && !/^[0-9+\-\s()]{7,20}$/.test(contactTrim)) {
-      alert('Please enter a valid contact number.')
+    if (contactTrim.length < 7) {
+      alert('Contact number should be at least 7 digits.')
       return
     }
 
@@ -62,7 +59,6 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
       await updateUser({
         full_name: name.trim() || user?.full_name || 'Counselor',
         sex,
-        student_number: numTrim,
         contact_number: contactTrim,
       })
       onClose()
@@ -154,31 +150,15 @@ export function EditCounselorProfileModal({ onClose, user }: EditCounselorProfil
             </div>
           </div>
 
-          {/* Counselor Number */}
-          <div>
-            <label className="block text-xs font-semibold text-[#7B8EC8] mb-2 tracking-wide">
-              Counselor Number <span className="text-[#EF4444]">*</span>
-            </label>
-            <input
-              type="text"
-              value={counselorNumber}
-              onChange={(e) => setCounselorNumber(e.target.value)}
-              placeholder="e.g. 2015-0482"
-              className="w-full border border-white/8 rounded-[12px] px-3.5 py-3.5 text-[15px]
-                         text-white bg-[#10143C] placeholder:text-[#4B5693] outline-none
-                         focus:ring-2 focus:ring-[#2D6BFF]/30 focus:border-[#2D6BFF]"
-            />
-          </div>
-
           {/* Contact Number */}
-          <FieldShell label="Contact Number">
+          <FieldShell label="Contact number *">
             <Phone className="w-4 h-4 text-[#4B5693] shrink-0" />
             <input
               type="tel"
               inputMode="tel"
               value={contactNumber}
               onChange={(e) => setContactNumber(e.target.value)}
-              placeholder="e.g. 09171234567"
+              placeholder="Mobile phone for reach-out"
               className="flex-1 py-3.5 text-[15px] text-white bg-transparent placeholder:text-[#4B5693] outline-none"
             />
           </FieldShell>
