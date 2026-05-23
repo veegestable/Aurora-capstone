@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Image as ImageIcon, Upload, Trash2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { announcementsService } from '../../services/announcements'
@@ -79,6 +80,15 @@ export function AnnouncementFormModal({
     }
   }, [pickedPreview])
 
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open])
+
   if (!open) return null
 
   const displayImage = pickedPreview ?? (!removedImage ? existingImageUrl : null)
@@ -141,10 +151,9 @@ export function AnnouncementFormModal({
           className="w-full h-32 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-aurora-border bg-aurora-card hover:bg-aurora-card-alt text-aurora-text-sec transition-colors cursor-pointer"
         >
           <ImageIcon className="w-6 h-6 text-aurora-blue" />
-          <span className="text-xs font-bold text-white">
+          <span className="text-sm font-semibold text-aurora-blue">
             {isCounselor ? 'Add image from gallery' : 'Click to upload an image'}
           </span>
-          <span className="text-[10px] text-aurora-text-muted">PNG or JPG · up to 5 MB</span>
         </button>
       )}
       <input
@@ -235,9 +244,10 @@ export function AnnouncementFormModal({
     }
   }
 
-  return (
+  const modal = (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-[2px] p-0 sm:p-4"
+      style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom))' }}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -246,23 +256,23 @@ export function AnnouncementFormModal({
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-lg max-h-[90vh] overflow-hidden bg-aurora-bg border border-aurora-border sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col"
+        className="w-full sm:max-w-lg max-h-[min(85vh,100dvh)] sm:max-h-[90vh] overflow-hidden bg-aurora-bg border border-aurora-border sm:rounded-2xl rounded-t-[24px] shadow-2xl flex flex-col mb-[5.5rem] lg:mb-0"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-aurora-border">
-          <h2 id="announcement-form-title" className="text-lg font-bold text-white font-heading">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-aurora-border shrink-0">
+          <h2 id="announcement-form-title" className="text-lg font-bold text-white">
             {isEdit ? 'Edit announcement' : 'New Announcement'}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+            className="p-1 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
             aria-label="Close"
           >
-            <X className="w-5 h-5 text-aurora-text-sec" />
+            <X className="w-[22px] h-[22px] text-aurora-text-sec" />
           </button>
         </div>
 
-        <div className="overflow-y-auto px-5 py-5 space-y-4">
+        <div className="overflow-y-auto flex-1 min-h-0 px-5 py-4 space-y-4">
           <div>
             <label className={labelClass}>Title</label>
             <input
@@ -285,7 +295,7 @@ export function AnnouncementFormModal({
               onChange={(e) => setContent(e.target.value)}
               rows={4}
               placeholder="Write the announcement..."
-              className={`${inputClass} resize-none`}
+              className={`${inputClass} resize-none min-h-[100px]`}
               required
             />
           </div>
@@ -300,13 +310,13 @@ export function AnnouncementFormModal({
           {isAdmin ? (
             <div>
               <label className={labelClass}>Visible to</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {ADMIN_ROLE_OPTIONS.map((r) => (
                   <button
                     key={r.key}
                     type="button"
                     onClick={() => setTargetRole(r.key)}
-                    className={`py-2 text-xs font-semibold rounded-xl border transition-colors cursor-pointer ${
+                    className={`py-3 px-3.5 text-sm font-semibold rounded-xl border text-left sm:text-center transition-colors cursor-pointer ${
                       targetRole === r.key
                         ? 'bg-aurora-blue/15 border-aurora-blue text-aurora-blue'
                         : 'bg-aurora-card border-aurora-border text-aurora-text-sec hover:text-white hover:border-white/20'
@@ -321,14 +331,26 @@ export function AnnouncementFormModal({
 
           {!isCounselor || isEdit ? imageField : null}
 
-          {error && (
+          {error ? (
             <p className="text-xs font-semibold text-aurora-red bg-aurora-red/10 border border-aurora-red/30 rounded-lg px-3 py-2">
               {error}
             </p>
-          )}
+          ) : null}
+
+          {/* Mobile: full-width publish inside scroll (matches app sheet) */}
+          <button
+            type="submit"
+            disabled={saving}
+            className="lg:hidden w-full py-3.5 text-base font-bold text-white bg-aurora-blue hover:bg-aurora-blue/90 rounded-[14px] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {saving ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+            ) : null}
+            {saving ? 'Publishing...' : isEdit ? 'Save changes' : 'Publish'}
+          </button>
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-aurora-border bg-aurora-card">
+        <div className="hidden lg:flex items-center justify-end gap-2 px-5 py-4 border-t border-aurora-border bg-aurora-card shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -342,13 +364,15 @@ export function AnnouncementFormModal({
             disabled={saving}
             className="px-5 py-2 text-sm font-bold text-white bg-aurora-blue hover:bg-aurora-blue/90 rounded-xl transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
           >
-            {saving && (
+            {saving ? (
               <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-            )}
+            ) : null}
             {saving ? 'Publishing...' : isEdit ? 'Save changes' : 'Publish'}
           </button>
         </div>
       </form>
     </div>
   )
+
+  return createPortal(modal, document.body)
 }
