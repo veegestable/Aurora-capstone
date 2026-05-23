@@ -15,7 +15,11 @@ export interface AdminStudentUser {
   full_name: string
   email: string
   department?: string
+  college_code?: string
+  program?: string
   year_level?: string
   student_number?: string
+  contact_number?: string
+  preferred_name?: string
   avatar_url?: string | null
 }

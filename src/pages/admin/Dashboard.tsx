@@ -1,114 +1,163 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { adminService } from '../../services/admin'
-import { Users, GraduationCap, Clock, Megaphone, ChevronRight } from 'lucide-react'
+import { announcementsService } from '../../services/announcements'
+import {
+  Users,
+  GraduationCap,
+  Clock,
+  Megaphone,
+  FileText,
+  School,
+  MessageSquare,
+} from 'lucide-react'
 import { StatCard } from '../../components/admin/StatCard'
+import { AdminQuickActionRow } from '../../components/admin/AdminQuickActionRow'
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader'
+import { isCounselorPendingApproval } from '../../utils/counselorApprovalForAdmin'
+import { AdminDashboardAnnouncements } from '../../components/announcements/AdminDashboardAnnouncements'
 
 export default function AdminDashboard() {
   const { user } = useAuth()
+  const firstName = user?.full_name?.split(' ')[0] || 'Admin'
+
   const [counselorCount, setCounselorCount] = useState(0)
   const [studentCount, setStudentCount] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
+  const [announcementCount, setAnnouncementCount] = useState<number | null>(null)
+  const [overviewLoading, setOverviewLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  const firstName = user?.full_name?.split(' ')[0] || 'Admin'
-
-  useEffect(() => {
-    let cancelled = false
-    async function fetchData() {
-      try {
-        const [counselors, students] = await Promise.all([
-          adminService.getCounselors(),
-          adminService.getStudents(),
-        ])
-        if (cancelled) return
-        setCounselorCount(counselors.length)
-        setStudentCount(students.length)
-        setPendingCount(counselors.filter(c => c.approval_status === 'pending').length)
-      } catch (error) {
-        console.error('Error fetching admin dashboard data:', error)
-      } finally {
-        if (!cancelled) setIsLoading(false)
-      }
+  const loadOverview = useCallback(async () => {
+    try {
+      const [counselors, students, annCount] = await Promise.all([
+        adminService.getCounselors(),
+        adminService.getStudents(),
+        announcementsService.countAll(),
+      ])
+      setCounselorCount(counselors.length)
+      setStudentCount(students.length)
+      setPendingCount(
+        counselors.filter((c) =>
+          isCounselorPendingApproval(c as unknown as Record<string, unknown>),
+        ).length,
+      )
+      setAnnouncementCount(annCount)
+    } catch (error) {
+      console.error('Admin dashboard overview:', error)
+    } finally {
+      setOverviewLoading(false)
+      setRefreshing(false)
     }
-    fetchData()
-    return () => { cancelled = true }
   }, [])
 
-  const quickLinks = [
-    { to: '/admin/counselors', label: 'Counselors', description: 'Review and approve counselor signups', icon: Users, color: 'bg-aurora-secondary-blue/15', iconColor: 'text-aurora-secondary-blue' },
-    { to: '/admin/students', label: 'Students', description: 'Manage CCS student records', icon: GraduationCap, color: 'bg-green-500/15', iconColor: 'text-green-500' },
-    { to: '/admin/announcements', label: 'Announcements', description: 'Publish updates to counselors and students', icon: Megaphone, color: 'bg-amber-500/15', iconColor: 'text-amber-500' },
-  ]
+  useEffect(() => {
+    void loadOverview()
+  }, [loadOverview])
+
+  const onRefresh = () => {
+    setRefreshing(true)
+    void loadOverview()
+  }
+
+  const announcementStatDisplay =
+    announcementCount === null ? '—' : announcementCount
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-[10px] font-bold tracking-[0.15em] text-aurora-primary-dark/40 uppercase">
-          Admin Portal
-        </p>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-aurora-primary-dark font-heading mt-1">
-          Hello, {firstName}
-        </h2>
-      </div>
+    <div className="space-y-6 max-w-3xl lg:max-w-none">
+      <AdminPageHeader title={`Hello, ${firstName}`} />
 
       <div>
-        <h3 className="text-lg font-extrabold text-aurora-primary-dark mb-3 font-heading">Overview</h3>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-aurora-secondary-blue" />
-            <span className="ml-3 text-aurora-primary-dark/50 text-sm">Loading...</span>
+        <h3 className="text-[17px] font-extrabold text-white mb-3">Overview</h3>
+        {overviewLoading ? (
+          <div className="flex items-center justify-center gap-2.5 py-7">
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-aurora-border border-t-aurora-blue" />
+            <span className="text-sm text-aurora-text-sec">Loading…</span>
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatCard
-              icon={<div className="w-9 h-9 rounded-full bg-aurora-secondary-blue/15 flex items-center justify-center"><Users className="w-[18px] h-[18px] text-aurora-secondary-blue" /></div>}
-              count={counselorCount}
-              label="Total Counselors"
-            />
-            <StatCard
-              icon={<div className="w-9 h-9 rounded-full bg-green-500/15 flex items-center justify-center"><GraduationCap className="w-[18px] h-[18px] text-green-500" /></div>}
-              count={studentCount}
-              label="Total Students"
-            />
-            <StatCard
-              icon={<div className="w-9 h-9 rounded-full bg-amber-500/15 flex items-center justify-center"><Clock className="w-[18px] h-[18px] text-amber-500" /></div>}
-              count={pendingCount}
-              label="Pending Approvals"
-              accent={pendingCount > 0 ? 'ring-1 ring-amber-500/20' : ''}
-            />
-            <StatCard
-              icon={<div className="w-9 h-9 rounded-full bg-purple-500/15 flex items-center justify-center"><Megaphone className="w-[18px] h-[18px] text-purple-500" /></div>}
-              count="—"
-              label="Announcements"
-            />
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <StatCard
+                icon={<Users className="w-[18px] h-[18px] text-aurora-blue" />}
+                count={counselorCount}
+                label="Total Counselors"
+              />
+              <StatCard
+                icon={<GraduationCap className="w-[18px] h-[18px] text-aurora-green" />}
+                count={studentCount}
+                label="Total Students"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <StatCard
+                icon={<Clock className="w-[18px] h-[18px] text-aurora-amber" />}
+                count={pendingCount}
+                label="Pending Approvals"
+                accent={pendingCount > 0}
+              />
+              <StatCard
+                icon={<Megaphone className="w-[18px] h-[18px] text-aurora-purple" />}
+                count={announcementStatDisplay}
+                label="Announcements"
+              />
+            </div>
           </div>
         )}
       </div>
 
       <div>
-        <h3 className="text-lg font-extrabold text-aurora-primary-dark mb-3 font-heading">Quick Actions</h3>
-        <div className="space-y-3">
-          {quickLinks.map(({ to, label, description, icon: Icon, color, iconColor }) => (
-            <Link
-              key={to}
-              to={to}
-              className="card-aurora flex items-center p-4 hover:shadow-lg transition-shadow"
-              aria-label={`Go to ${label}`}
-            >
-              <div className={`w-12 h-12 rounded-full ${color} flex items-center justify-center shrink-0`}>
-                <Icon className={`w-6 h-6 ${iconColor}`} />
-              </div>
-              <div className="flex-1 ml-4">
-                <p className="font-bold text-aurora-primary-dark text-sm">{label}</p>
-                <p className="text-xs text-aurora-primary-dark/50 mt-0.5">{description}</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-aurora-primary-dark/30 shrink-0" />
-            </Link>
-          ))}
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-[17px] font-extrabold text-white">Quick Actions</h3>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="text-xs font-semibold text-aurora-blue hover:text-aurora-blue-light disabled:opacity-50 cursor-pointer"
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+        </div>
+        <div className="space-y-2.5">
+          <AdminQuickActionRow
+            to="/admin/counselors"
+            title="Counselors"
+            description="Review and approve counselor signups"
+            icon={<Users className="w-6 h-6 text-aurora-blue" />}
+          />
+          <AdminQuickActionRow
+            to="/admin/students"
+            title="Students"
+            description="Read-only roster — directory fields only"
+            icon={<GraduationCap className="w-6 h-6 text-aurora-green" />}
+          />
+          <AdminQuickActionRow
+            to="/admin/college-shifts"
+            title="College change requests"
+            description="Approve or reject student and counselor college shifts"
+            icon={<School className="w-6 h-6 text-aurora-purple" />}
+          />
+          <AdminQuickActionRow
+            to="/admin/messaging-repair"
+            title="Repair message tags"
+            description="Fix inbox vs past-college after a student returns to a college"
+            icon={<MessageSquare className="w-6 h-6 text-aurora-blue" />}
+          />
+          <AdminQuickActionRow
+            to="/admin/announcements"
+            title="Announcements"
+            description="Publish updates to counselors and students"
+            icon={<Megaphone className="w-6 h-6 text-aurora-amber" />}
+          />
+          <AdminQuickActionRow
+            to="/admin/audit-logs"
+            title="Activity timeline"
+            description="Logins, app usage, and admin actions"
+            icon={<FileText className="w-[22px] h-[22px] text-aurora-blue" />}
+          />
         </div>
       </div>
+
+      <AdminDashboardAnnouncements />
     </div>
   )
 }

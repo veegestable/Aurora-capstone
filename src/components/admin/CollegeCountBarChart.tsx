@@ -13,11 +13,14 @@ type Props = {
   minWidth?: number
 }
 
+/** Matches tailwind h-44 (11rem) — plot area for bars only */
+const CHART_PLOT_HEIGHT_PX = 176
+
 export function CollegeCountBarChart({
   title,
   caption,
   points,
-  barClassName = 'bg-aurora-secondary-blue',
+  barClassName = 'bg-aurora-blue',
   emptyHint = 'No students in this group yet.',
   minWidth = 520,
 }: Props) {
@@ -25,46 +28,55 @@ export function CollegeCountBarChart({
   const allZero = points.every((p) => p.count === 0)
 
   return (
-    <div className="card-aurora p-6">
-      <h3 className="text-lg font-bold text-aurora-primary-dark">{title}</h3>
-      <p className="text-sm text-aurora-primary-dark/60 mt-1">{caption}</p>
+    <div className="card-aurora p-3.5 mb-3">
+      <h3 className="text-base font-extrabold text-white">{title}</h3>
+      <p className="text-xs text-aurora-text-sec mt-1 leading-relaxed">{caption}</p>
 
       {allZero ? (
-        <p className="text-sm text-aurora-primary-dark/45 mt-4">{emptyHint}</p>
+        <p className="text-xs text-aurora-text-muted mt-4">{emptyHint}</p>
       ) : (
-        <div className="mt-5 overflow-x-auto pb-2">
+        <div className="mt-4 overflow-x-auto pb-2">
           <div
-            className="flex items-end gap-2 h-44 border-b border-aurora-primary-dark/10 px-1"
-            style={{ minWidth }}
+            className="flex items-end gap-2 border-b border-aurora-border-light px-1"
+            style={{ minWidth, height: CHART_PLOT_HEIGHT_PX }}
           >
             {points.map((p) => {
-              const pct = p.count === 0 ? 0 : Math.max(4, (p.count / max) * 100)
+              const barHeightPx =
+                p.count === 0
+                  ? 0
+                  : Math.max(6, Math.round((p.count / max) * (CHART_PLOT_HEIGHT_PX - 24)))
+
               return (
                 <div
                   key={p.key}
-                  className="flex flex-col items-center flex-1 min-w-[48px]"
+                  className="flex flex-col items-center flex-1 min-w-[48px] h-full justify-end"
                   title={p.key}
                 >
                   {p.count > 0 ? (
-                    <span className="text-[10px] font-bold text-aurora-primary-dark/55 mb-1">
+                    <span className="text-[10px] font-bold text-aurora-text-sec mb-1 shrink-0">
                       {p.count}
                     </span>
-                  ) : (
-                    <span className="text-[10px] mb-1 opacity-0">0</span>
-                  )}
+                  ) : null}
                   <div
-                    className={`w-full max-w-[36px] rounded-t-md transition-all ${barClassName} ${
+                    className={`w-full max-w-[36px] min-w-[12px] rounded-t-md shrink-0 ${barClassName} ${
                       p.count === 0 ? 'opacity-25' : 'opacity-90'
                     }`}
-                    style={{ height: `${pct}%` }}
+                    style={{ height: barHeightPx }}
                     title={`${p.key}: ${p.count}`}
                   />
-                  <span className="text-xs font-extrabold text-aurora-primary-dark mt-2">
-                    {p.label}
-                  </span>
                 </div>
-              )
-            })}
+              )}
+            )}
+          </div>
+          <div className="flex gap-2 mt-2 px-1" style={{ minWidth }}>
+            {points.map((p) => (
+              <span
+                key={p.key}
+                className="flex-1 min-w-[48px] text-center text-[11px] font-extrabold text-white"
+              >
+                {p.label}
+              </span>
+            ))}
           </div>
         </div>
       )}

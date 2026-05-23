@@ -4,8 +4,18 @@ import { getSchoolAnalytics } from './get/getSchoolAnalytics'
 import { getThresholdSnapshot } from './get/getThresholdSnapshot'
 import { getCollegeRosterCounts } from './get/getCollegeRosterCounts'
 import { updateCounselorApproval } from './post/updateCounselorApproval'
+import {
+  getUsersWithPendingCollegeShifts,
+  adminApproveCollegeShift,
+  adminRejectCollegeShift,
+  findUserByEmailForAdmin,
+  adminRepairConversationCollegeTags,
+  formatRepairSummary,
+} from './adminCollegeMessagingTools'
 
 export * from './types'
+export type { ConversationCollegeRepairResult } from './adminCollegeMessagingTools'
+export { formatRepairSummary }
 export * from './get/getSchoolAnalytics'
 export * from './get/getThresholdSnapshot'
 
@@ -15,5 +25,10 @@ export const adminService = {
   getSchoolAnalytics,
   getThresholdSnapshot,
   getCollegeRosterCounts,
-  updateCounselorApproval
+  updateCounselorApproval,
+  getUsersWithPendingCollegeShifts,
+  adminApproveCollegeShift,
+  adminRejectCollegeShift,
+  findUserByEmailForAdmin,
+  adminRepairConversationCollegeTags,
 }

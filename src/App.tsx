@@ -27,6 +27,8 @@ import AdminAnnouncements from './pages/admin/Announcements'
 import AdminAnalytics from './pages/admin/Analytics'
 import AdminAuditLogs from './pages/admin/AuditLogs'
 import AdminSettings from './pages/admin/Settings'
+import AdminCollegeShifts from './pages/admin/CollegeShifts'
+import AdminMessagingRepair from './pages/admin/MessagingRepair'
 import AdminCounselorDetail from './pages/admin/CounselorDetail'
 import AdminStudentDetail from './pages/admin/StudentDetail'
 import AdminResourceDetail from './pages/admin/ResourceDetail'
@@ -85,6 +87,8 @@ function AppContent() {
             <Route path="admin/announcements" element={<AdminAnnouncements />} />
             <Route path="admin/analytics" element={<AdminAnalytics />} />
             <Route path="admin/audit-logs" element={<AdminAuditLogs />} />
+            <Route path="admin/college-shifts" element={<AdminCollegeShifts />} />
+            <Route path="admin/messaging-repair" element={<AdminMessagingRepair />} />
             <Route path="admin/settings" element={<AdminSettings />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />

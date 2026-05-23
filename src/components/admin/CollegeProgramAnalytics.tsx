@@ -15,10 +15,10 @@ export function CollegeProgramAnalytics({ roster }: Props) {
   const collegeName = getCollegeName(selectedCollege)
 
   return (
-    <div className="space-y-4 pt-2">
+    <div className="space-y-3 pt-2">
       <div>
-        <h3 className="text-lg font-bold text-aurora-primary-dark">Roster by program</h3>
-        <p className="text-sm text-aurora-primary-dark/55 mt-1">
+        <h3 className="text-base font-extrabold text-white">Roster by program</h3>
+        <p className="text-xs text-aurora-text-sec mt-1">
           Choose a college to see degree-program counts for that unit only.
         </p>
       </div>
@@ -32,10 +32,10 @@ export function CollegeProgramAnalytics({ roster }: Props) {
               key={row.code}
               type="button"
               onClick={() => setSelectedCollege(row.code)}
-              className={`px-3 py-1.5 rounded-full text-sm font-bold border transition-colors ${
+              className={`px-3 py-1.5 rounded-full text-sm font-bold border transition-colors cursor-pointer ${
                 active
-                  ? 'border-aurora-secondary-blue/55 bg-aurora-secondary-blue/15 text-aurora-secondary-blue'
-                  : 'border-aurora-primary-dark/15 bg-white text-aurora-primary-dark/70 hover:border-aurora-primary-dark/25'
+                  ? 'border-aurora-blue/55 bg-aurora-blue/15 text-aurora-blue'
+                  : 'border-aurora-border bg-aurora-card text-aurora-text-sec hover:border-aurora-border-light hover:text-white'
               }`}
             >
               {row.code}
@@ -45,10 +45,10 @@ export function CollegeProgramAnalytics({ roster }: Props) {
         })}
       </div>
 
-      <p className="text-sm font-bold text-aurora-primary-dark">
+      <p className="text-sm font-bold text-white">
         {selectedCollege} — {collegeName}
       </p>
-      <p className="text-sm text-aurora-primary-dark/55 -mt-2">
+      <p className="text-xs text-aurora-text-sec -mt-1">
         {programRoster.totalInCollege} student(s) in this college
         {programRoster.totalSpecialInCollege > 0
           ? ` · ${programRoster.totalSpecialInCollege} in special population`
@@ -60,7 +60,7 @@ export function CollegeProgramAnalytics({ roster }: Props) {
         title="Students per program"
         caption={`Active student accounts in ${selectedCollege} grouped by degree program.`}
         points={programRoster.studentsByProgram}
-        barClassName="bg-green-500"
+        barClassName="bg-aurora-green"
         minWidth={Math.max(520, programRoster.studentsByProgram.length * 56)}
         emptyHint={`No students assigned to ${selectedCollege} yet.`}
       />
@@ -68,7 +68,7 @@ export function CollegeProgramAnalytics({ roster }: Props) {
         title="Special population per program"
         caption={`Guidance session consent (journal access) within ${selectedCollege}.`}
         points={programRoster.specialPopulationByProgram}
-        barClassName="bg-aurora-accent-purple"
+        barClassName="bg-aurora-purple"
         minWidth={Math.max(520, programRoster.specialPopulationByProgram.length * 56)}
         emptyHint="No special population students in this college yet."
       />

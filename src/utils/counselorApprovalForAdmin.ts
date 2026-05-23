@@ -1,3 +1,5 @@
+import type { CounselorApprovalStatus } from '../types/user.types'
+
 /** Read snake_case or camelCase from Firestore. */
 export function readCounselorApprovalRaw(
   c: Record<string, unknown>,
@@ -6,6 +8,20 @@ export function readCounselorApprovalRaw(
   if (v == null) return undefined
   const s = String(v).trim().toLowerCase()
   return s === '' ? undefined : s
+}
+
+/** True only for counselors who still need an admin decision (explicit pending). */
+export function isCounselorPendingApproval(c: Record<string, unknown>): boolean {
+  return readCounselorApprovalRaw(c) === 'pending'
+}
+
+/** Unset / unknown → approved (legacy counselors without a field). */
+export function counselorApprovalBadgeStatus(
+  c: Record<string, unknown>,
+): CounselorApprovalStatus {
+  const s = readCounselorApprovalRaw(c)
+  if (s === 'pending' || s === 'rejected' || s === 'approved') return s
+  return 'approved'
 }
 
 /**

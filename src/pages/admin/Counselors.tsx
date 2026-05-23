@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { adminService, type AdminCounselorUser } from '../../services/admin'
 import { auditLogsService } from '../../services/audit-logs'
 import { StatusBadge } from '../../components/admin/StatusBadge'
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader'
 import { LetterAvatar } from '../../components/LetterAvatar'
 import { Users, Check, X, RefreshCw } from 'lucide-react'
 import type { CounselorApprovalStatus } from '../../types/user.types'
 import { useAuth } from '../../contexts/AuthContext'
+import { isCounselorPendingApproval } from '../../utils/counselorApprovalForAdmin'
 
 export default function AdminCounselors() {
   const { user } = useAuth()
@@ -50,30 +52,31 @@ export default function AdminCounselors() {
     }
   }
 
-  const pendingCount = counselors.filter(c => c.approval_status === 'pending').length
+  const pendingCount = counselors.filter((c) =>
+    isCounselorPendingApproval(c as unknown as Record<string, unknown>),
+  ).length
   const filtered = filter === 'all'
     ? counselors
     : counselors.filter(c => (c.approval_status ?? 'pending') === filter)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-bold tracking-[0.15em] text-aurora-primary-dark/40 uppercase">Admin</p>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-aurora-primary-dark font-heading mt-1">
-            Counselors
-          </h2>
-        </div>
-        <button
-          onClick={loadCounselors}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-aurora-secondary-blue hover:bg-aurora-secondary-blue/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-          aria-label="Refresh counselor list"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline">Refresh</span>
-        </button>
-      </div>
+      <AdminPageHeader
+        kicker="Admin"
+        title="Counselors"
+        action={
+          <button
+            type="button"
+            onClick={loadCounselors}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-aurora-blue hover:bg-aurora-blue/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+            aria-label="Refresh counselor list"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        }
+      />
 
       {pendingCount > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
@@ -129,7 +132,7 @@ export default function AdminCounselors() {
                 <StatusBadge status={c.approval_status} />
               </div>
 
-              {(c.approval_status === 'pending' || !c.approval_status) && (
+              {isCounselorPendingApproval(c as unknown as Record<string, unknown>) && (
                 <div className="flex gap-2 mt-4">
                   <button
                     onClick={() => handleApproval(c, 'approved')}
