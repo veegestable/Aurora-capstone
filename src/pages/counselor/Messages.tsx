@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Pencil, History } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { messagesService } from '../../services/messages'
@@ -16,6 +16,7 @@ const TABS: TabType[] = ['All Messages', 'Unread']
 
 export default function Messages() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<TabType>('All Messages')
   const [selectedContact, setSelectedContact] = useState<StudentContact | null>(null)
@@ -61,6 +62,14 @@ export default function Messages() {
       .finally(() => { if (!isCancelled) setIsLoading(false) })
     return () => { isCancelled = true }
   }, [user?.id, user?.college_code])
+
+  useEffect(() => {
+    const studentId = (location.state as { studentId?: string } | null)?.studentId
+    if (!studentId || contacts.length === 0) return
+    const match = contacts.find((c) => c.id === studentId)
+    if (match) setSelectedContact(match)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, contacts, navigate, location.pathname])
 
   const confirmArchiveConversation = async () => {
     if (!user?.id || !archiveContact) return

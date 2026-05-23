@@ -154,6 +154,63 @@ export function counselorSessionOverviewCategory(
   return null
 }
 
+export function pendingSessionCategoryStyle(category: CounselorSessionOverviewCategory): {
+  bg: string
+  border: string
+  text: string
+} {
+  switch (category) {
+    case 'student_request_pending':
+      return {
+        bg: 'rgba(45,107,255,0.2)',
+        border: 'rgba(45,107,255,0.45)',
+        text: '#93c5fd',
+      }
+    case 'counselor_invite_pending':
+      return {
+        bg: 'rgba(168,85,247,0.18)',
+        border: 'rgba(168,85,247,0.45)',
+        text: '#c4b5fd',
+      }
+    case 'upcoming':
+      return {
+        bg: 'rgba(34,197,94,0.18)',
+        border: 'rgba(34,197,94,0.45)',
+        text: '#22c55e',
+      }
+    case 'awaiting_action':
+      return {
+        bg: 'rgba(254,189,3,0.18)',
+        border: 'rgba(254,189,3,0.45)',
+        text: '#fbbf24',
+      }
+    case 'completed':
+      return {
+        bg: 'rgba(45,107,255,0.18)',
+        border: 'rgba(45,107,255,0.45)',
+        text: '#5b75ff',
+      }
+    case 'missed':
+      return {
+        bg: 'rgba(239,68,68,0.16)',
+        border: 'rgba(239,68,68,0.4)',
+        text: '#f87171',
+      }
+    case 'expired':
+      return {
+        bg: 'rgba(148,163,184,0.14)',
+        border: 'rgba(148,163,184,0.35)',
+        text: '#94a3b8',
+      }
+    default:
+      return {
+        bg: 'rgba(148,163,184,0.14)',
+        border: 'rgba(148,163,184,0.35)',
+        text: '#94a3b8',
+      }
+  }
+}
+
 export function pendingSessionStatusLabel(category: CounselorSessionOverviewCategory): string {
   switch (category) {
     case 'student_request_pending':
