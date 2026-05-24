@@ -1815,7 +1815,7 @@ export default function CounselorMessagesScreen() {
   const unreadCount = contactsWithPresence.filter((c) => c.isUnread).length;
 
   return (
-    <View style={{ flex: 1, backgroundColor: AURORA.bgMessages }}>
+    <View style={{ flex: 1, backgroundColor: AURORA.bgMessages, marginBottom: 40 }}>
       <SafeAreaView style={{ flex: 1 }}>
         {/* ── Header + Filter Tabs (fixed top section) ─────────────── */}
         <View
