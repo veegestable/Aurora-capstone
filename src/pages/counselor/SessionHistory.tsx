@@ -13,37 +13,23 @@ import { SendSessionInviteModal } from '../../components/counselor/SendSessionIn
 import type { Session, SessionStatus } from '../../types/session.types'
 import type { StudentInfo } from '../../services/counselor'
 import { Search, Loader2 } from 'lucide-react'
-import { computeSessionHistoryBadge, getAgreedSessionSlot } from '../../utils/sessionScheduling'
+import {
+  computeSessionHistoryBadge,
+  getAgreedSessionSlot,
+  resolveSessionHistoryListFilter,
+  SESSION_HISTORY_LIST_FILTERS,
+  sessionMatchesSessionHistoryListFilter,
+  type SessionHistoryListFilter,
+} from '../../utils/sessionScheduling'
 import {
   formatDateHeader,
   formatSlotForDisplay,
   groupSessionsByTimelineDate,
 } from '../../utils/sessionHistoryDisplay'
 
-type FilterValue = SessionStatus | 'all'
-
-const FILTERS: { label: string; value: FilterValue }[] = [
-  { label: 'All Sessions', value: 'all' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Confirmed', value: 'confirmed' },
-  { label: 'Reschedule', value: 'needs_rescheduling' },
-  { label: 'Completed', value: 'completed' },
-  { label: 'Expired', value: 'expired' },
-  { label: 'Cancelled', value: 'cancelled' },
-  { label: 'Missed', value: 'missed' },
-]
-
 interface LocationStateShape {
-  statusFilter?: FilterValue | 'upcoming' | 'reschedule' | 'closed'
+  statusFilter?: SessionHistoryListFilter | SessionStatus | 'upcoming' | 'reschedule' | 'closed'
   openSessionId?: string
-}
-
-function resolveIncomingFilter(raw: LocationStateShape['statusFilter']): FilterValue {
-  if (!raw) return 'all'
-  if (raw === 'upcoming') return 'confirmed'
-  if (raw === 'reschedule') return 'needs_rescheduling'
-  if (raw === 'closed') return 'cancelled'
-  return raw as FilterValue
 }
 
 function mapAttendanceToOutcome(
@@ -64,8 +50,8 @@ export default function SessionHistory() {
   const [studentsMap, setStudentsMap] = useState<Record<string, StudentInfo>>({})
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<FilterValue>(() =>
-    resolveIncomingFilter(incoming?.statusFilter),
+  const [statusFilter, setStatusFilter] = useState<SessionHistoryListFilter>(() =>
+    resolveSessionHistoryListFilter(incoming?.statusFilter),
   )
   const [openSession, setOpenSession] = useState<Session | null>(null)
   const [showAttendanceModal, setShowAttendanceModal] = useState(false)
@@ -136,7 +122,9 @@ export default function SessionHistory() {
     }
 
     if (statusFilter !== 'all') {
-      list = list.filter((session) => session.status === statusFilter)
+      list = list.filter((session) =>
+        sessionMatchesSessionHistoryListFilter(session, statusFilter),
+      )
     }
 
     return list
@@ -231,7 +219,7 @@ export default function SessionHistory() {
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {FILTERS.map((filter) => {
+          {SESSION_HISTORY_LIST_FILTERS.map((filter) => {
             const isActive = statusFilter === filter.value
             return (
               <button

@@ -46,14 +46,12 @@ import {
   getAgreedSessionSlot,
   getOverdueSchedulingState,
   getSessionScheduledDate,
+  SESSION_HISTORY_LIST_FILTERS,
+  sessionMatchesSessionHistoryListFilter,
   type SessionHistoryBadge,
+  type SessionHistoryListFilter,
 } from "../../src/utils/sessionScheduling";
-import {
-  formatCounselorStudentSubtitle,
-  normalizeStudentToProgramFilter,
-  PROGRAM_FILTER_LABELS,
-  type ProgramFilterCode,
-} from "../../src/constants/ccs-student-programs";
+import { formatCounselorStudentSubtitle } from "../../src/constants/ccs-student-programs";
 import { InfoGuideModal } from "../../src/components/common/InfoGuideModal";
 import { SESSION_HISTORY_GUIDE } from "../../src/constants/sessionHistoryGuideCopy";
 import { triggerHaptic } from "../../src/utils/haptics";
@@ -81,8 +79,6 @@ function formatSlotForDisplay(
     }),
   };
 }
-
-type ProgramFilter = "All Sessions" | ProgramFilterCode;
 
 interface SessionHistoryItem {
   id: string;
@@ -220,8 +216,8 @@ export default function SessionHistoryScreen() {
   const [sessions, setSessions] = useState<SessionHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [programFilter, setProgramFilter] =
-    useState<ProgramFilter>("All Sessions");
+  const [statusFilter, setStatusFilter] =
+    useState<SessionHistoryListFilter>("all");
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedSession, setSelectedSession] =
@@ -294,17 +290,13 @@ export default function SessionHistoryScreen() {
         );
       });
     }
-    if (programFilter !== "All Sessions") {
-      list = list.filter(
-        (s) =>
-          normalizeStudentToProgramFilter(
-            s.studentDepartment,
-            s.studentProgram,
-          ) === programFilter,
+    if (statusFilter !== "all") {
+      list = list.filter((s) =>
+        sessionMatchesSessionHistoryListFilter(s, statusFilter),
       );
     }
     return list;
-  }, [sessions, searchQuery, programFilter]);
+  }, [sessions, searchQuery, statusFilter]);
 
   const rescheduleInitialData = useMemo<Partial<SessionInviteData> | undefined>(
     () => {
@@ -484,14 +476,6 @@ export default function SessionHistoryScreen() {
     }
   };
 
-  const PROGRAMS: ProgramFilter[] = [
-    "All Sessions",
-    "BSCS",
-    "BSIT",
-    "BSIS",
-    "BSCA",
-  ];
-
   return (
     <View style={{ flex: 1, backgroundColor: AURORA.bgMessages }}>
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -581,47 +565,33 @@ export default function SessionHistoryScreen() {
               flexDirection: "row",
             }}
           >
-            {PROGRAMS.map((p) => (
-              <TouchableOpacity
-                key={p}
-                onPress={() => setProgramFilter(p)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: 20,
-                  backgroundColor:
-                    programFilter === p ? AURORA.blue : "transparent",
-                  borderWidth: 1,
-                  borderColor:
-                    programFilter === p ? AURORA.blue : AURORA.border,
-                  gap: 4,
-                }}
-              >
-                <Text
+            {SESSION_HISTORY_LIST_FILTERS.map((filter) => {
+              const isActive = statusFilter === filter.value;
+              return (
+                <TouchableOpacity
+                  key={filter.value}
+                  onPress={() => setStatusFilter(filter.value)}
                   style={{
-                    color: programFilter === p ? "#FFFFFF" : AURORA.textSec,
-                    fontSize: 13,
-                    fontWeight: programFilter === p ? "700" : "500",
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    backgroundColor: isActive ? AURORA.blue : "transparent",
+                    borderWidth: 1,
+                    borderColor: isActive ? AURORA.blue : AURORA.border,
                   }}
                 >
-                  {p === "All Sessions"
-                    ? p
-                    : PROGRAM_FILTER_LABELS[p as ProgramFilterCode]}
-                </Text>
-                {p !== "All Sessions" && (
                   <Text
                     style={{
-                      color: programFilter === p ? "#FFFFFF" : AURORA.textSec,
-                      fontSize: 10,
+                      color: isActive ? "#FFFFFF" : AURORA.textSec,
+                      fontSize: 13,
+                      fontWeight: isActive ? "700" : "500",
                     }}
                   >
-                    ▼
+                    {filter.label}
                   </Text>
-                )}
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
         {/* Session list */}

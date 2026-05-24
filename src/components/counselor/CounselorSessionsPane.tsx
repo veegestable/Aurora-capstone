@@ -12,8 +12,10 @@ import {
   buildCounselorSessionsSheetSections,
   pendingSessionCategoryStyle,
   pendingSessionStatusLabel,
+  type CounselorSessionOverviewCategory,
   type CounselorSessionOverviewItem,
 } from '../../utils/counselorSessionOverview'
+import type { SessionHistoryListFilter } from '../../utils/sessionScheduling'
 import {
   loadHiddenCounselorSheetSessionIds,
   saveHiddenCounselorSheetSessionIds,
@@ -106,6 +108,25 @@ export function CounselorSessionsPane({
     })
   }
 
+  const historyFilterForCategory = (
+    category: CounselorSessionOverviewCategory,
+  ): SessionHistoryListFilter | undefined => {
+    switch (category) {
+      case 'upcoming':
+        return 'upcoming'
+      case 'awaiting_action':
+        return 'needs_rescheduling'
+      case 'completed':
+        return 'completed'
+      case 'missed':
+        return 'missed'
+      case 'expired':
+        return 'expired'
+      default:
+        return undefined
+    }
+  }
+
   const openSession = (item: CounselorSessionOverviewItem) => {
     onClose()
     if (
@@ -116,7 +137,10 @@ export function CounselorSessionsPane({
       return
     }
     navigate('/counselor/session-history', {
-      state: { openSessionId: item.id, statusFilter: item.status },
+      state: {
+        openSessionId: item.id,
+        statusFilter: historyFilterForCategory(item.category) ?? item.status,
+      },
     })
   }
 

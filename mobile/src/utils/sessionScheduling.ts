@@ -166,3 +166,72 @@ export function computeSessionHistoryBadge(
   if (isSameDay(scheduled, now)) return "today";
   return "pending";
 }
+
+/** Counselor Session History chip filters (labels ≠ raw Firestore `status` for upcoming/reschedule). */
+export type SessionHistoryListFilter =
+  | "all"
+  | "upcoming"
+  | "needs_rescheduling"
+  | "completed"
+  | "expired"
+  | "cancelled"
+  | "missed";
+
+export const SESSION_HISTORY_LIST_FILTERS: ReadonlyArray<{
+  label: string;
+  value: SessionHistoryListFilter;
+}> = [
+  { label: "All Sessions", value: "all" },
+  { label: "Upcoming", value: "upcoming" },
+  { label: "Reschedule", value: "needs_rescheduling" },
+  { label: "Completed", value: "completed" },
+  { label: "Expired", value: "expired" },
+  { label: "Cancelled", value: "cancelled" },
+  { label: "Missed", value: "missed" },
+];
+
+export function sessionMatchesSessionHistoryListFilter(
+  session: Parameters<typeof computeSessionHistoryBadge>[0],
+  filter: SessionHistoryListFilter,
+  now?: Date,
+): boolean {
+  if (filter === "all") return true;
+
+  const badge = computeSessionHistoryBadge(session, now);
+
+  if (filter === "upcoming") {
+    return badge === "pending" || badge === "today";
+  }
+
+  if (filter === "needs_rescheduling") {
+    return session.status === "needs_rescheduling" || badge === "reschedule";
+  }
+
+  if (filter === "expired") {
+    return session.status === "expired" || badge === "expired";
+  }
+
+  return session.status === filter;
+}
+
+export function resolveSessionHistoryListFilter(
+  raw: SessionHistoryListFilter | string | undefined,
+): SessionHistoryListFilter {
+  if (!raw) return "all";
+  if (raw === "upcoming" || raw === "pending" || raw === "confirmed") {
+    return "upcoming";
+  }
+  if (raw === "reschedule") return "needs_rescheduling";
+  if (raw === "closed") return "cancelled";
+  if (
+    raw === "all" ||
+    raw === "needs_rescheduling" ||
+    raw === "completed" ||
+    raw === "expired" ||
+    raw === "cancelled" ||
+    raw === "missed"
+  ) {
+    return raw;
+  }
+  return "all";
+}

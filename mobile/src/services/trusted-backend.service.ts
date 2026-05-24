@@ -1,4 +1,5 @@
 import { getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 /** Must match every `onCall({ region: 'asia-southeast2' })` in `functions/src/index.ts`. */
@@ -157,6 +158,12 @@ export type StudentCounselingOutcomeCounts = {
 export async function getStudentCounselingOutcomeCountsTrustedCallable(
   studentId: string,
 ): Promise<StudentCounselingOutcomeCounts> {
+  const authUser = getAuth(getApp()).currentUser;
+  if (!authUser) {
+    throw new Error("FirebaseError: unauthenticated");
+  }
+  await authUser.getIdToken();
+
   const callable = httpsCallable<
     { studentId: string },
     {

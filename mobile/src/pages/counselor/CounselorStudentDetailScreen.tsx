@@ -24,10 +24,8 @@ import { LetterAvatar } from "../../components/common/LetterAvatar";
 import { formatCounselorStudentSubtitle } from "../../constants/ccs-student-programs";
 import { fetchStudentCounselorDetailedContext } from "../../services/counselor-checkin-context.service";
 import { firestoreService } from "../../services/firebase-firestore.service";
-import {
-  getStudentCounselingOutcomeCountsTrustedCallable,
-  type StudentCounselingOutcomeCounts,
-} from "../../services/trusted-backend.service";
+import { getStudentCounselingOutcomeCounts } from "../../services/student-counseling-outcome-counts.service";
+import type { StudentCounselingOutcomeCounts } from "../../services/trusted-backend.service";
 import { StudentCounselingHistorySummary } from "../../components/counselor/StudentCounselingHistorySummary";
 import { useAuth } from "../../stores/AuthContext";
 import { CounselorStudentJournalCalendar } from "../../components/counselor/CounselorStudentJournalCalendar";
@@ -53,7 +51,7 @@ type StudentDoc = {
 export default function CounselorStudentDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const counselorId = user?.id;
 
   const [student, setStudent] = useState<(StudentDoc & { id: string }) | null>(
@@ -140,43 +138,27 @@ export default function CounselorStudentDetailScreen() {
   }, [reloadContext]);
 
   useEffect(() => {
-    if (!id || !counselorId) {
-      setCounselingHistoryLoading(false);
-      setCounselingHistoryCounts(null);
+    if (authLoading || !id || !counselorId) {
+      if (!authLoading && (!id || !counselorId)) {
+        setCounselingHistoryLoading(false);
+        setCounselingHistoryCounts(null);
+      }
       return;
     }
     let cancelled = false;
     setCounselingHistoryLoading(true);
     void (async () => {
       try {
-        const counts = await getStudentCounselingOutcomeCountsTrustedCallable(id);
+        const counts = await getStudentCounselingOutcomeCounts(counselorId, id);
         if (!cancelled) setCounselingHistoryCounts(counts);
-      } catch (e) {
-        console.warn(
-          "[Counseling history] getStudentCounselingOutcomeCountsTrusted failed — deploy Cloud Functions. Using with-you counts only.",
-          e,
-        );
-        if (!cancelled && counselorId) {
-          try {
-            const withYou =
-              await firestoreService.getSessionOutcomeCountsForCounselorStudent(
-                counselorId,
-                id,
-              );
-            setCounselingHistoryCounts({
-              completed: withYou.completed,
-              missed: withYou.missed,
-              withYouCompleted: withYou.completed,
-              withYouMissed: withYou.missed,
-            });
-          } catch {
-            setCounselingHistoryCounts({
-              completed: 0,
-              missed: 0,
-              withYouCompleted: 0,
-              withYouMissed: 0,
-            });
-          }
+      } catch {
+        if (!cancelled) {
+          setCounselingHistoryCounts({
+            completed: 0,
+            missed: 0,
+            withYouCompleted: 0,
+            withYouMissed: 0,
+          });
         }
       } finally {
         if (!cancelled) setCounselingHistoryLoading(false);
@@ -185,7 +167,7 @@ export default function CounselorStudentDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [id, counselorId]);
+  }, [authLoading, id, counselorId]);
 
   const programLine =
     formatCounselorStudentSubtitle({
