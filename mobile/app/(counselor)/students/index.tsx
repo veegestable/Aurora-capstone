@@ -390,7 +390,7 @@ export default function CounselorStudentsScreen() {
   }, [students, activeFilter, searchQuery]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: AURORA.bgDeep }}>
+    <View style={{ flex: 1, backgroundColor: AURORA.bgDeep, marginBottom: 40 }}>
       <SafeAreaView style={{ flex: 1 }}>
         {/* ── Header, Search, Filters (fixed top section) ──────────── */}
         <View

@@ -1,7 +1,5 @@
-import { getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "./firebase";
+import { auth, db } from "./firebase";
 import {
   getStudentCounselingOutcomeCountsTrustedCallable,
   type StudentCounselingOutcomeCounts,
@@ -46,7 +44,7 @@ export async function getStudentCounselingOutcomeCounts(
   counselorId: string,
   studentId: string,
 ): Promise<StudentCounselingOutcomeCounts> {
-  const authUser = getAuth(getApp()).currentUser;
+  const authUser = auth.currentUser;
   if (authUser) {
     try {
       await authUser.getIdToken();
