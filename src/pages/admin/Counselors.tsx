@@ -128,6 +128,9 @@ export default function AdminCounselors() {
                     {c.full_name || 'Unknown'}
                   </p>
                   <p className="text-xs text-aurora-primary-dark/50 truncate">{c.email}</p>
+                  {c.contact_number && (
+                    <p className="text-xs text-aurora-primary-dark/40 truncate">{c.contact_number}</p>
+                  )}
                 </div>
                 <StatusBadge status={c.approval_status} />
               </div>

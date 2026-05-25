@@ -9,7 +9,7 @@ import { AppTextInput as TextInput } from "../../src/components/common/AppTextIn
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable, Modal, StyleSheet } from "react-native";
+import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable, Modal, StyleSheet, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -740,6 +740,11 @@ function ChatView({
         );
       } catch (e) {
         console.error("Failed to mark attendance:", e);
+        const message =
+          e instanceof Error && e.message.trim()
+            ? e.message
+            : "Could not mark attendance. Please try again.";
+        Alert.alert("Could not mark attendance", message);
       }
     }
     setShowAttendanceModal(false);

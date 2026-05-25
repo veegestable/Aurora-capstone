@@ -110,6 +110,8 @@ export function announcementMatchesReader(
       return viewerRole === 'student'
     case 'counselors_all':
       return viewerRole === 'counselor'
+    case 'everyone':
+      return viewerRole === 'student' || viewerRole === 'counselor'
     case 'colleges_cross':
       if (!college || codes.length === 0) return false
       return codes.includes(college)
@@ -135,6 +137,8 @@ export function formatAnnouncementAudienceLabel(a: Announcement): string {
       return 'Students · all colleges'
     case 'counselors_all':
       return 'Counselors · all colleges'
+    case 'everyone':
+      return 'All students & counselors'
     case 'colleges_cross':
       return codes ? `Students & counselors · ${codes}` : 'Selected colleges'
     case 'students_one_college':

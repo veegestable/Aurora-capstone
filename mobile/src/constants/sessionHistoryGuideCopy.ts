@@ -10,7 +10,7 @@ export const SESSION_HISTORY_GUIDE: InfoGuideContent = {
     "• EXPIRED — more than 24 hours past the scheduled time with no outcome yet.\n" +
     "• CANCELLED — the appointment was cancelled.\n\n" +
     "Completed and did not attend (you set these):\n" +
-    "After the agreed time passes, tap a row and choose Mark attendance:\n" +
+    "After the student agrees to a time and that time passes, tap a row and choose Mark attendance:\n" +
     "• Showed Up → COMPLETED. The session is closed as held.\n" +
     "• Did Not Show Up → DID NOT ATTEND. The student is recorded as not attending; they can request a new time in Messages.\n" +
     "• Needs Rescheduling → the locked time is cleared so you can propose new slots in Messages (badge returns to upcoming when a new time is agreed).\n\n" +

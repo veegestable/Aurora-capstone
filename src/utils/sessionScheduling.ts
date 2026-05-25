@@ -8,6 +8,9 @@ import {
   normalizeScheduleWhitespace,
 } from './dateHelpers'
 
+export const COUNSELOR_ATTENDANCE_MARK_DENIED =
+  'Attendance can only be recorded after the student has agreed to a session time and that scheduled time has passed.'
+
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 export type SessionHistoryBadge =
@@ -177,13 +180,22 @@ export function getEffectiveSessionStatus(session: {
 
 const ATTENDANCE_ELIGIBLE_STATUSES = new Set([
   'confirmed',
-  'pending',
-  'requested',
   'needs_rescheduling',
   'expired',
 ])
 
-/** Counselor may mark attendance only after the scheduled instant has passed. */
+/** Session History list — agreed slot or terminal attendance outcome (matches mobile fetch filter). */
+export function sessionQualifiesForCounselorHistoryList(session: {
+  status: string
+  finalSlot?: unknown
+  confirmedSlot?: unknown
+}): boolean {
+  const st = String(session.status ?? '').toLowerCase()
+  if (st === 'completed' || st === 'missed' || st === 'rescheduled') return true
+  return getConfirmedFinalSlot(session) != null
+}
+
+/** Counselor may mark attendance only after a locked slot exists and scheduled time has passed. */
 export function canCounselorMarkSessionAttendance(session: {
   status: string
   finalSlot?: { date: string; time: string } | null
@@ -192,16 +204,29 @@ export function canCounselorMarkSessionAttendance(session: {
   preferredTimeFromStudent?: string
   scheduledStartAt?: unknown
 }): boolean {
-  const rawSlot = getAgreedSessionSlot(session) ?? session.proposedSlots?.[0]
-  if (!rawSlot) return false
+  const st = String(session.status ?? '').toLowerCase()
+  if (st === 'completed' || st === 'missed' || st === 'cancelled') return false
+
+  const lockedSlot = getConfirmedFinalSlot(session)
+  if (!lockedSlot) return false
+
   if (
-    !isSessionScheduledTimeReached(rawSlot, {
+    !isSessionScheduledTimeReached(lockedSlot, {
       scheduledStartMs: getScheduledStartMs(session.scheduledStartAt),
     })
   ) {
     return false
   }
+
   return ATTENDANCE_ELIGIBLE_STATUSES.has(getEffectiveSessionStatus(session))
+}
+
+export function assertCounselorCanMarkSessionAttendance(
+  session: Parameters<typeof canCounselorMarkSessionAttendance>[0],
+): void {
+  if (!canCounselorMarkSessionAttendance(session)) {
+    throw new Error(COUNSELOR_ATTENDANCE_MARK_DENIED)
+  }
 }
 
 /** Counselor Session History chip filters (labels ≠ raw Firestore `status` for upcoming/reschedule). */
@@ -211,7 +236,6 @@ export type SessionHistoryListFilter =
   | 'needs_rescheduling'
   | 'completed'
   | 'expired'
-  | 'cancelled'
   | 'missed'
 
 export const SESSION_HISTORY_LIST_FILTERS: ReadonlyArray<{
@@ -223,7 +247,6 @@ export const SESSION_HISTORY_LIST_FILTERS: ReadonlyArray<{
   { label: 'Reschedule', value: 'needs_rescheduling' },
   { label: 'Completed', value: 'completed' },
   { label: 'Expired', value: 'expired' },
-  { label: 'Cancelled', value: 'cancelled' },
   { label: 'Missed', value: 'missed' },
 ]
 
@@ -269,13 +292,12 @@ export function resolveSessionHistoryListFilter(
   if (!raw) return 'all'
   if (raw === 'upcoming' || raw === 'pending' || raw === 'confirmed') return 'upcoming'
   if (raw === 'reschedule') return 'needs_rescheduling'
-  if (raw === 'closed') return 'cancelled'
+  if (raw === 'closed') return 'all'
   if (
     raw === 'all' ||
     raw === 'needs_rescheduling' ||
     raw === 'completed' ||
     raw === 'expired' ||
-    raw === 'cancelled' ||
     raw === 'missed'
   ) {
     return raw

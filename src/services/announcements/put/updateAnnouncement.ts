@@ -6,6 +6,7 @@ import { isCollegeCode } from '../../../constants/colleges'
 function targetRoleFromVisibility(vis: AnnouncementVisibility): 'all' | 'counselor' | 'student' {
   if (vis === 'counselors_all') return 'counselor'
   if (vis === 'students_all' || vis === 'students_one_college') return 'student'
+  if (vis === 'everyone') return 'all'
   return 'all'
 }
 

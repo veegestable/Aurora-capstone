@@ -38,6 +38,7 @@ interface CounselorUser {
     approval_status?: CounselorApprovalStatus;
     college_code?: string;
     department?: string;
+    contact_number?: string;
 }
 
 function StatusBadge({ status }: { status: CounselorApprovalStatus }) {
@@ -187,6 +188,9 @@ export default function AdminCounselorsScreen() {
                                         <View style={{ flex: 1 }}>
                                             <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>{c.full_name || 'Unknown'}</Text>
                                             <Text style={{ color: AURORA.textSec, fontSize: 13, marginTop: 2 }}>{c.email}</Text>
+                                            {c.contact_number ? (
+                                                <Text style={{ color: AURORA.textMuted, fontSize: 12, marginTop: 2 }}>{c.contact_number}</Text>
+                                            ) : null}
                                         </View>
                                         <StatusBadge
                                             status={counselorApprovalBadgeStatus(

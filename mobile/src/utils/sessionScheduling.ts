@@ -1,14 +1,29 @@
 import {
   isSameDay,
+  isSessionScheduledTimeReached,
   normalizeScheduleWhitespace,
   parsePreferredTimeToDate,
   parseSlotToDate,
 } from "./dateHelpers";
 
+export const COUNSELOR_ATTENDANCE_MARK_DENIED =
+  "Attendance can only be recorded after the student has agreed to a session time and that scheduled time has passed.";
+
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 function coerceFirestoreTimeToDate(v: unknown): Date | null {
   if (v == null) return null;
+  if (v instanceof Date) {
+    return !Number.isNaN(v.getTime()) ? v : null;
+  }
+  if (typeof v === "number" && Number.isFinite(v)) {
+    const d = new Date(v);
+    return !Number.isNaN(d.getTime()) ? d : null;
+  }
+  if (typeof v === "string" && v.trim()) {
+    const d = new Date(v);
+    return !Number.isNaN(d.getTime()) ? d : null;
+  }
   if (
     typeof v === "object" &&
     typeof (v as { toDate?: () => Date }).toDate === "function"
@@ -17,6 +32,11 @@ function coerceFirestoreTimeToDate(v: unknown): Date | null {
     return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
   }
   return null;
+}
+
+export function getScheduledStartMs(scheduledStartAt: unknown): number | null {
+  const d = coerceFirestoreTimeToDate(scheduledStartAt);
+  return d ? d.getTime() : null;
 }
 
 /**
@@ -174,7 +194,6 @@ export type SessionHistoryListFilter =
   | "needs_rescheduling"
   | "completed"
   | "expired"
-  | "cancelled"
   | "missed";
 
 export const SESSION_HISTORY_LIST_FILTERS: ReadonlyArray<{
@@ -186,7 +205,6 @@ export const SESSION_HISTORY_LIST_FILTERS: ReadonlyArray<{
   { label: "Reschedule", value: "needs_rescheduling" },
   { label: "Completed", value: "completed" },
   { label: "Expired", value: "expired" },
-  { label: "Cancelled", value: "cancelled" },
   { label: "Missed", value: "missed" },
 ];
 
@@ -214,6 +232,91 @@ export function sessionMatchesSessionHistoryListFilter(
   return session.status === filter;
 }
 
+/** Effective status for attendance eligibility (includes overdue derivation). */
+export function getEffectiveSessionStatus(session: {
+  status: string;
+  scheduledStartAt?: unknown;
+  finalSlot?: { date: string; time: string } | null;
+  confirmedSlot?: { date: string; time: string } | null;
+  proposedSlots?: Array<{ date: string; time: string }>;
+  preferredTimeFromStudent?: string;
+}): string {
+  if (
+    [
+      "completed",
+      "missed",
+      "cancelled",
+      "rescheduled",
+      "needs_rescheduling",
+      "expired",
+    ].includes(session.status)
+  ) {
+    return session.status;
+  }
+  const scheduled = getSessionScheduledDate(session);
+  const overdue = getOverdueSchedulingState(scheduled);
+  if (overdue === "expired") return "expired";
+  if (overdue === "needs_rescheduling") return "needs_rescheduling";
+  return session.status;
+}
+
+const ATTENDANCE_ELIGIBLE_STATUSES = new Set([
+  "confirmed",
+  "needs_rescheduling",
+  "expired",
+]);
+
+/** Session History list — agreed slot or terminal attendance outcome. */
+export function sessionQualifiesForCounselorHistoryList(session: {
+  status: string;
+  finalSlot?: unknown;
+  confirmedSlot?: unknown;
+}): boolean {
+  const st = String(session.status ?? "").toLowerCase();
+  if (st === "completed" || st === "missed" || st === "rescheduled") {
+    return true;
+  }
+  return getConfirmedFinalSlot(session) != null;
+}
+
+/** Counselor may mark attendance only after a locked slot exists and scheduled time has passed. */
+export function canCounselorMarkSessionAttendance(session: {
+  status: string;
+  finalSlot?: { date: string; time: string } | null;
+  confirmedSlot?: { date: string; time: string } | null;
+  proposedSlots?: Array<{ date: string; time: string }>;
+  preferredTimeFromStudent?: string;
+  scheduledStartAt?: unknown;
+}): boolean {
+  const st = String(session.status ?? "").toLowerCase();
+  if (st === "completed" || st === "missed" || st === "cancelled") {
+    return false;
+  }
+
+  const lockedSlot = getConfirmedFinalSlot(session);
+  if (!lockedSlot) return false;
+
+  if (
+    !isSessionScheduledTimeReached(lockedSlot, {
+      scheduledStartMs: getScheduledStartMs(session.scheduledStartAt),
+    })
+  ) {
+    return false;
+  }
+
+  return ATTENDANCE_ELIGIBLE_STATUSES.has(
+    getEffectiveSessionStatus(session),
+  );
+}
+
+export function assertCounselorCanMarkSessionAttendance(
+  session: Parameters<typeof canCounselorMarkSessionAttendance>[0],
+): void {
+  if (!canCounselorMarkSessionAttendance(session)) {
+    throw new Error(COUNSELOR_ATTENDANCE_MARK_DENIED);
+  }
+}
+
 export function resolveSessionHistoryListFilter(
   raw: SessionHistoryListFilter | string | undefined,
 ): SessionHistoryListFilter {
@@ -222,13 +325,12 @@ export function resolveSessionHistoryListFilter(
     return "upcoming";
   }
   if (raw === "reschedule") return "needs_rescheduling";
-  if (raw === "closed") return "cancelled";
+  if (raw === "closed") return "all";
   if (
     raw === "all" ||
     raw === "needs_rescheduling" ||
     raw === "completed" ||
     raw === "expired" ||
-    raw === "cancelled" ||
     raw === "missed"
   ) {
     return raw;

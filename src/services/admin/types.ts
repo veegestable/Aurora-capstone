@@ -8,6 +8,7 @@ export interface AdminCounselorUser {
   department?: string
   bio?: string
   avatar_url?: string | null
+  contact_number?: string
 }
 
 export interface AdminStudentUser {

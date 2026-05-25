@@ -7,7 +7,7 @@ import { formatCounselorStudentSubtitle } from '../../constants/student/programs
 import {
   canCounselorMarkSessionAttendance,
   computeSessionHistoryBadge,
-  getAgreedSessionSlot,
+  getConfirmedFinalSlot,
 } from '../../utils/sessionScheduling'
 import {
   getSessionHistoryBadgePresentation,
@@ -32,7 +32,7 @@ export function SessionHistoryDetailModal({
 }: SessionHistoryDetailModalProps) {
   if (!open || !session) return null
 
-  const rawSlot = getAgreedSessionSlot(session) ?? session.proposedSlots?.[0]
+  const rawSlot = getConfirmedFinalSlot(session)
   const slotDisplay = formatSlotForDisplay(rawSlot)
   const badge = computeSessionHistoryBadge(session)
   const historyPresentation = getSessionHistoryBadgePresentation(badge)

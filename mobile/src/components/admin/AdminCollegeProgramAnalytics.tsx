@@ -56,7 +56,7 @@ export function AdminCollegeProgramAnalytics({ roster }: Props) {
         })}
       </ScrollView>
 
-      <Text style={styles.collegeTitle}>
+      {/* <Text style={styles.collegeTitle}>
         {selectedCollege} — {collegeName}
       </Text>
       <Text style={styles.hint}>
@@ -65,11 +65,11 @@ export function AdminCollegeProgramAnalytics({ roster }: Props) {
           ? ` · ${programRoster.totalSpecialInCollege} in special population`
           : ""}
         . Scroll charts for longer program lists.
-      </Text>
+      </Text> */}
 
       <AdminCollegeCountBarChart
         title="Students per program"
-        caption={`Active student accounts in ${selectedCollege} grouped by degree program.`}
+        caption=''
         points={programRoster.studentsByProgram}
         barColor={AURORA.green}
         xSlot={64}
@@ -77,7 +77,7 @@ export function AdminCollegeProgramAnalytics({ roster }: Props) {
       />
       <AdminCollegeCountBarChart
         title="Special population per program"
-        caption={`Guidance session consent (journal access) within ${selectedCollege}.`}
+        caption=''
         points={programRoster.specialPopulationByProgram}
         barColor={AURORA.purple}
         xSlot={64}

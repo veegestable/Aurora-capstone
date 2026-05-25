@@ -22,7 +22,7 @@ export function CounselorSessionChatCard({
 }: CounselorSessionChatCardProps) {
   const session = message.session
   const st = session.sessionStatus ?? 'pending'
-  const hasAgreedTime = !!(session.agreedSlot?.date && session.agreedSlot?.time)
+  const hasLockedAgreedTime = !!(session.agreedSlot?.date && session.agreedSlot?.time)
   const firstSlot = session.timeSlots?.[0]
   const displayDate = session.agreedSlot?.date ?? firstSlot?.date ?? ''
   const displayTime = session.agreedSlot?.time ?? firstSlot?.time ?? ''
@@ -30,14 +30,16 @@ export function CounselorSessionChatCard({
   const resolvedStatus =
     st === 'completed' || st === 'missed' || st === 'cancelled'
       ? st
-      : st === 'confirmed' || hasAgreedTime
+      : st === 'confirmed' || hasLockedAgreedTime
         ? 'confirmed'
         : st
 
   const presentation = getSessionPresentation({ status: resolvedStatus, role: 'counselor' })
   const pillColors = sessionPresentationColors(presentation.variant)
   const scheduledTimeReached = isSessionScheduledTimeReached(
-    displayDate && displayTime ? { date: displayDate, time: displayTime } : null,
+    hasLockedAgreedTime && displayDate
+      ? { date: displayDate, time: displayTime }
+      : null,
   )
 
   const isScheduled = resolvedStatus === 'confirmed'
@@ -100,7 +102,10 @@ export function CounselorSessionChatCard({
           ) : null}
         </div>
 
-        {scheduledTimeReached && onMarkAttendance && resolvedStatus === 'confirmed' ? (
+        {scheduledTimeReached &&
+        onMarkAttendance &&
+        resolvedStatus === 'confirmed' &&
+        hasLockedAgreedTime ? (
           <button
             type="button"
             onClick={() => onMarkAttendance(message)}

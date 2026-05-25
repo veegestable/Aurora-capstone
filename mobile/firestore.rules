@@ -434,21 +434,36 @@ service cloud.firestore {
         'expired',
         'completed',
         'missed',
-        'rescheduled',
-        'cancelled'
+        'rescheduled'
       ];
+    }
+
+    function sessionHasAgreedSlot(data) {
+      return (data.finalSlot is map &&
+          data.finalSlot.date is string &&
+          data.finalSlot.date.size() > 0) ||
+        (data.confirmedSlot is map &&
+          data.confirmedSlot.date is string &&
+          data.confirmedSlot.date.size() > 0);
+    }
+
+    function sessionAttendanceOutcomeAllowed() {
+      let next = request.resource.data.status;
+      return (next != 'completed' && next != 'missed') || sessionHasAgreedSlot(resource.data);
     }
 
     function sessionTransitionValid() {
       let old = resource.data.status;
       let next = request.resource.data.status;
-      return old == next ||
-        (old == 'requested' && (next == 'pending' || next == 'confirmed' || next == 'cancelled' || next == 'expired' || next == 'completed' || next == 'missed')) ||
-        (old == 'pending' && (next == 'confirmed' || next == 'needs_rescheduling' || next == 'cancelled' || next == 'expired' || next == 'completed' || next == 'missed')) ||
-        (old == 'confirmed' && (next == 'completed' || next == 'missed' || next == 'needs_rescheduling' || next == 'cancelled' || next == 'expired' || next == 'rescheduled')) ||
-        (old == 'needs_rescheduling' && (next == 'pending' || next == 'cancelled' || next == 'expired' || next == 'completed' || next == 'missed' || next == 'rescheduled')) ||
-        (old == 'expired' && (next == 'completed' || next == 'missed' || next == 'cancelled')) ||
-        (old == 'rescheduled' && (next == 'pending' || next == 'cancelled' || next == 'expired'));
+      return sessionAttendanceOutcomeAllowed() && (
+        old == next ||
+        (old == 'requested' && (next == 'pending' || next == 'confirmed' || next == 'expired')) ||
+        (old == 'pending' && (next == 'confirmed' || next == 'needs_rescheduling' || next == 'expired')) ||
+        (old == 'confirmed' && (next == 'completed' || next == 'missed' || next == 'needs_rescheduling' || next == 'expired' || next == 'rescheduled')) ||
+        (old == 'needs_rescheduling' && (next == 'pending' || next == 'expired' || next == 'completed' || next == 'missed' || next == 'rescheduled')) ||
+        (old == 'expired' && (next == 'completed' || next == 'missed')) ||
+        (old == 'rescheduled' && (next == 'pending' || next == 'expired'))
+      );
     }
 
     function isConversationParticipant(convId) {

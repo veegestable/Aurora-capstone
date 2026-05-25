@@ -11,6 +11,7 @@ export type AnnouncementPublisherRole = 'admin' | 'counselor'
 export type AnnouncementVisibility =
   | 'students_all'
   | 'counselors_all'
+  | 'everyone'
   | 'colleges_cross'
   | 'students_one_college'
 

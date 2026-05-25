@@ -6,7 +6,7 @@ import { formatCounselorStudentSubtitle } from '../../constants/student/programs
 import {
   canCounselorMarkSessionAttendance,
   computeSessionHistoryBadge,
-  getAgreedSessionSlot,
+  getConfirmedFinalSlot,
 } from '../../utils/sessionScheduling'
 import { formatSessionTimelineLine, formatSlotForDisplay } from '../../utils/sessionHistoryDisplay'
 import { SessionHistoryBadgePill } from './SessionHistoryBadgePill'
@@ -23,7 +23,7 @@ export function SessionHistoryTimelineCard({
   onPress,
 }: SessionHistoryTimelineCardProps) {
   const studentName = student?.full_name?.trim() || 'Unknown student'
-  const rawSlot = getAgreedSessionSlot(session) ?? session.proposedSlots?.[0]
+  const rawSlot = getConfirmedFinalSlot(session)
   const slot = formatSlotForDisplay(rawSlot) ?? rawSlot
   const badge = computeSessionHistoryBadge(session)
   const canMarkAttendance = canCounselorMarkSessionAttendance(session)

@@ -1,5 +1,6 @@
 import { deleteField, doc, getDoc, Timestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../../../config/firebase'
+import { assertCounselorCanMarkSessionAttendance } from '../../../utils/sessionScheduling'
 
 export type SessionAttendanceOutcome = 'completed' | 'missed' | 'rescheduled'
 
@@ -20,17 +21,19 @@ export async function markSessionAttendance(
     throw new Error('Session student does not match.')
   }
 
-  const currentStatus = String(snap.data()?.status ?? '')
-  const needsConfirmFirst =
-    (currentStatus === 'pending' || currentStatus === 'requested') &&
-    (outcome === 'completed' || outcome === 'missed')
-
-  if (needsConfirmFirst) {
-    await updateDoc(sessionRef, {
-      status: 'confirmed',
-      updatedAt: Timestamp.now(),
-    })
-  }
+  assertCounselorCanMarkSessionAttendance({
+    status: String(data.status ?? ''),
+    finalSlot: data.finalSlot as { date: string; time: string } | null | undefined,
+    confirmedSlot: data.confirmedSlot as { date: string; time: string } | null | undefined,
+    proposedSlots: Array.isArray(data.proposedSlots)
+      ? (data.proposedSlots as Array<{ date: string; time: string }>)
+      : undefined,
+    preferredTimeFromStudent:
+      typeof data.preferredTimeFromStudent === 'string'
+        ? data.preferredTimeFromStudent
+        : undefined,
+    scheduledStartAt: data.scheduledStartAt,
+  })
 
   const badge =
     outcome === 'completed' ? 'completed' : outcome === 'missed' ? 'missed' : 'pending'

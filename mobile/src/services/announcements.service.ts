@@ -26,6 +26,7 @@ export type AnnouncementPublisherRole = "admin" | "counselor";
 export type AnnouncementVisibility =
   | "students_all"
   | "counselors_all"
+  | "everyone"
   | "colleges_cross"
   | "students_one_college";
 
@@ -146,6 +147,8 @@ export function formatAnnouncementAudienceLabel(a: Announcement): string {
       return "Students · all colleges";
     case "counselors_all":
       return "Counselors · all colleges";
+    case "everyone":
+      return "All students & counselors";
     case "colleges_cross":
       return codes ? `Students & counselors · ${codes}` : "Selected colleges";
     case "students_one_college":
@@ -197,6 +200,8 @@ export function announcementMatchesReader(
       return viewerRole === "student";
     case "counselors_all":
       return viewerRole === "counselor";
+    case "everyone":
+      return viewerRole === "student" || viewerRole === "counselor";
     case "colleges_cross":
       if (!college || codes.length === 0) return false;
       return codes.includes(college);
@@ -261,6 +266,7 @@ function mapAnnouncementsForRole(
 function targetRoleFromVisibility(vis: AnnouncementVisibility): Announcement["targetRole"] {
   if (vis === "counselors_all") return "counselor";
   if (vis === "students_all" || vis === "students_one_college") return "student";
+  if (vis === "everyone") return "all";
   return "all";
 }
 

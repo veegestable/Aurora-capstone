@@ -7,7 +7,6 @@ const STATUS_OPTIONS: SessionStatus[] = [
   'confirmed',
   'completed',
   'missed',
-  'cancelled',
   'needs_rescheduling',
   'rescheduled',
 ]

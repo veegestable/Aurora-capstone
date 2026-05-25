@@ -28,6 +28,7 @@ import {
 } from "./trusted-backend.service";
 import {
   type SessionHistoryBadge,
+  assertCounselorCanMarkSessionAttendance,
   computeSessionHistoryBadge,
   getConfirmedFinalSlot,
   getOverdueSchedulingState,
@@ -3126,6 +3127,27 @@ export const firestoreService = {
           "Only the assigned counselor can mark attendance for this session.",
         );
       }
+
+      assertCounselorCanMarkSessionAttendance({
+        status: String(sessionData.status ?? ""),
+        finalSlot: sessionData.finalSlot as
+          | { date: string; time: string }
+          | null
+          | undefined,
+        confirmedSlot: sessionData.confirmedSlot as
+          | { date: string; time: string }
+          | null
+          | undefined,
+        proposedSlots: Array.isArray(sessionData.proposedSlots)
+          ? (sessionData.proposedSlots as Array<{ date: string; time: string }>)
+          : undefined,
+        preferredTimeFromStudent:
+          typeof sessionData.preferredTimeFromStudent === "string"
+            ? sessionData.preferredTimeFromStudent
+            : undefined,
+        scheduledStartAt: sessionData.scheduledStartAt,
+      });
+
       const badge: SessionHistoryBadge =
         outcome === "completed"
           ? "completed"
@@ -3367,7 +3389,7 @@ export const firestoreService = {
             return "expired";
           }
           if (overdue === "needs_rescheduling") {
-            if (["confirmed", "pending", "requested"].includes(status)) {
+            if (status === "confirmed") {
               await updateDoc(doc(db, "sessions", s.id), {
                 status: "needs_rescheduling",
                 schedulingOverdueAt: Timestamp.now(),

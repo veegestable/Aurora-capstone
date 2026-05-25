@@ -30,7 +30,7 @@ import {
 import { InfoGuideOverlay, type InfoGuideContent } from "../common/InfoGuideModal";
 import { buildFeedback } from "../../utils/aurora-feedback";
 
-type AdminAudience = "students_all" | "counselors_all" | "colleges_cross";
+type AdminAudience = "students_all" | "counselors_all" | "everyone" | "colleges_cross";
 
 interface EditAnnouncementModalProps {
   visible: boolean;
@@ -43,6 +43,7 @@ function visibilityToAdminAudience(
   vis: AnnouncementVisibility | undefined,
   targetRole: Announcement["targetRole"],
 ): AdminAudience {
+  if (vis === "everyone") return "everyone";
   if (vis === "counselors_all") return "counselors_all";
   if (vis === "colleges_cross") return "colleges_cross";
   if (vis === "students_all" || vis === "students_one_college")
@@ -187,7 +188,9 @@ export function EditAnnouncementModal({
             ? "students_all"
             : adminAudience === "counselors_all"
               ? "counselors_all"
-              : "colleges_cross";
+              : adminAudience === "everyone"
+                ? "everyone"
+                : "colleges_cross";
         const collegeCodes =
           adminAudience === "colleges_cross"
             ? selectedCollegeCodes.filter((x) => isCollegeCode(x))
@@ -215,6 +218,7 @@ export function EditAnnouncementModal({
   const adminAudienceOptions: { key: AdminAudience; label: string }[] = [
     { key: "students_all", label: "All students" },
     { key: "counselors_all", label: "All counselors" },
+    { key: "everyone", label: "All students and counselors" },
     { key: "colleges_cross", label: "Selected colleges" },
   ];
 

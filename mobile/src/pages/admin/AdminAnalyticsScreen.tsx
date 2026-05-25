@@ -264,13 +264,13 @@ export default function AdminAnalyticsScreen() {
                 </Text>
                 <AdminCollegeCountBarChart
                   title="Students per college"
-                  caption="All active student accounts grouped by college code."
+                  caption=""
                   points={collegeRoster.studentsByCollege}
                   barColor={AURORA.green}
                 />
                 <AdminCollegeCountBarChart
                   title="Special population per college"
-                  caption={`${collegeRoster.totalSpecialPopulation} student(s) have guidance session consent with at least one counselor (journal access granted).`}
+                  caption=''
                   points={collegeRoster.specialPopulationByCollege}
                   barColor={AURORA.purple}
                   emptyHint="No students in special population yet."
@@ -339,7 +339,7 @@ export default function AdminAnalyticsScreen() {
 }
 
 const COLLEGE_LEGEND =
-  "COE Engineering · CSM Science & Math · CCS Computer Studies · CED Education · CASS Arts & Social Sciences · CEBA Economics, Business & Accountancy · CHS Health Services";
+  "COE Engineering · CSM Science & Mathematics · CCS Computer Studies · CED Education · CASS Arts & Social Sciences · CEBA Economics, Business & Accountancy · CHS Health Sciences";
 
 const styles = StyleSheet.create({
   header: {

@@ -15,7 +15,8 @@ import type { StudentInfo } from '../../services/counselor'
 import { Search, Loader2 } from 'lucide-react'
 import {
   computeSessionHistoryBadge,
-  getAgreedSessionSlot,
+  getConfirmedFinalSlot,
+  sessionQualifiesForCounselorHistoryList,
   resolveSessionHistoryListFilter,
   SESSION_HISTORY_LIST_FILTERS,
   sessionMatchesSessionHistoryListFilter,
@@ -98,20 +99,7 @@ export default function SessionHistory() {
   }, [loading, incoming?.openSessionId, sessions, navigate, location.pathname])
 
   const filteredSessions = useMemo(() => {
-    let list = sessions.filter(
-      (s) =>
-        s.finalSlot != null ||
-        s.confirmedSlot != null ||
-        (s.proposedSlots?.length ?? 0) > 0 ||
-        [
-          'completed',
-          'missed',
-          'cancelled',
-          'rescheduled',
-          'needs_rescheduling',
-          'expired',
-        ].includes(s.status),
-    )
+    let list = sessions.filter((s) => sessionQualifiesForCounselorHistoryList(s))
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -184,11 +172,8 @@ export default function SessionHistory() {
 
   const attendanceSlot =
     openSession &&
-    (formatSlotForDisplay(
-      getAgreedSessionSlot(openSession) ?? openSession.proposedSlots?.[0],
-    ) ??
-      getAgreedSessionSlot(openSession) ??
-      openSession.proposedSlots?.[0])
+    (formatSlotForDisplay(getConfirmedFinalSlot(openSession)) ??
+      getConfirmedFinalSlot(openSession))
 
   if (loading) {
     return (

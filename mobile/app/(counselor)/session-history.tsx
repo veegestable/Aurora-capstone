@@ -11,7 +11,13 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { View, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import {
+  View,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import {
@@ -42,12 +48,13 @@ import {
   parsePreferredTimeToDate,
 } from "../../src/utils/dateHelpers";
 import {
+  canCounselorMarkSessionAttendance,
   computeSessionHistoryBadge,
   getAgreedSessionSlot,
-  getOverdueSchedulingState,
-  getSessionScheduledDate,
+  getConfirmedFinalSlot,
   SESSION_HISTORY_LIST_FILTERS,
   sessionMatchesSessionHistoryListFilter,
+  sessionQualifiesForCounselorHistoryList,
   type SessionHistoryBadge,
   type SessionHistoryListFilter,
 } from "../../src/utils/sessionScheduling";
@@ -157,26 +164,6 @@ function formatDateHeader(date: Date): string {
   return fullDate.toUpperCase();
 }
 
-function getEffectiveStatus(session: SessionHistoryItem): string {
-  if (
-    [
-      "completed",
-      "missed",
-      "cancelled",
-      "rescheduled",
-      "needs_rescheduling",
-      "expired",
-    ].includes(session.status)
-  ) {
-    return session.status;
-  }
-  const scheduled = getSessionScheduledDate(session);
-  const overdue = getOverdueSchedulingState(scheduled);
-  if (overdue === "expired") return "expired";
-  if (overdue === "needs_rescheduling") return "needs_rescheduling";
-  return session.status;
-}
-
 /** Badge row — labels from {@link getSessionHistoryBadgePresentation} (timeline, not raw Firestore status). */
 function SessionHistoryBadgePill({ badge }: { badge: SessionHistoryBadge }) {
   const p = getSessionHistoryBadgePresentation(badge);
@@ -260,20 +247,8 @@ export default function SessionHistoryScreen() {
   }, [params.sessionId, loading, sessions]);
 
   const filteredSessions = useMemo(() => {
-    // Only show sessions counselor has acted on: confirmed slot, proposed slots, or terminal status
-    let list = sessions.filter(
-      (s) =>
-        s.finalSlot != null ||
-        s.confirmedSlot != null ||
-        s.proposedSlots?.length > 0 ||
-        [
-          "completed",
-          "missed",
-          "cancelled",
-          "rescheduled",
-          "needs_rescheduling",
-          "expired",
-        ].includes(s.status),
+    let list = sessions.filter((s) =>
+      sessionQualifiesForCounselorHistoryList(s),
     );
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -407,6 +382,11 @@ export default function SessionHistoryScreen() {
       );
     } catch (e) {
       console.error("Failed to mark attendance:", e);
+      const message =
+        e instanceof Error && e.message.trim()
+          ? e.message
+          : "Could not mark attendance. Please try again.";
+      Alert.alert("Could not mark attendance", message);
     } finally {
       setShowAttendanceModal(false);
       setSelectedSession(null);
@@ -672,42 +652,22 @@ export default function SessionHistoryScreen() {
                 sessionHistoryBadge:
                   computeSessionHistoryBadge(selectedSession),
                 dateDisplay:
-                  formatSlotForDisplay(
-                    getAgreedSessionSlot(selectedSession) ??
-                      selectedSession.proposedSlots?.[0],
-                  )?.date ??
+                  formatSlotForDisplay(getConfirmedFinalSlot(selectedSession))
+                    ?.date ??
                   selectedSession.finalSlot?.date ??
-                  selectedSession.confirmedSlot?.date ??
-                  selectedSession.proposedSlots?.[0]?.date,
+                  selectedSession.confirmedSlot?.date,
                 timeDisplay:
-                  formatSlotForDisplay(
-                    getAgreedSessionSlot(selectedSession) ??
-                      selectedSession.proposedSlots?.[0],
-                  )?.time ??
+                  formatSlotForDisplay(getConfirmedFinalSlot(selectedSession))
+                    ?.time ??
                   selectedSession.finalSlot?.time ??
                   selectedSession.confirmedSlot?.time ??
-                  selectedSession.proposedSlots?.[0]?.time ??
                   selectedSession.preferredTimeFromStudent,
               } as SessionHistoryDetailData)
             : null
         }
         canMarkAttendance={
           selectedSession
-            ? !!(
-                (getAgreedSessionSlot(selectedSession) ??
-                  selectedSession.proposedSlots?.[0]) &&
-                isSessionScheduledTimeReached(
-                  getAgreedSessionSlot(selectedSession) ??
-                    selectedSession.proposedSlots?.[0] ?? { date: "", time: "" },
-                ) &&
-                [
-                  "confirmed",
-                  "pending",
-                  "requested",
-                  "needs_rescheduling",
-                  "expired",
-                ].includes(getEffectiveStatus(selectedSession))
-              )
+            ? canCounselorMarkSessionAttendance(selectedSession)
             : false
         }
         onClose={() => {
@@ -729,22 +689,16 @@ export default function SessionHistoryScreen() {
           }}
           session={{
             date:
-              formatSlotForDisplay(
-                getAgreedSessionSlot(selectedSession) ??
-                  selectedSession.proposedSlots?.[0],
-              )?.date ??
+              formatSlotForDisplay(getConfirmedFinalSlot(selectedSession))
+                ?.date ??
               selectedSession.finalSlot?.date ??
               selectedSession.confirmedSlot?.date ??
-              selectedSession.proposedSlots?.[0]?.date ??
               "",
             timeRange:
-              formatSlotForDisplay(
-                getAgreedSessionSlot(selectedSession) ??
-                  selectedSession.proposedSlots?.[0],
-              )?.time ??
+              formatSlotForDisplay(getConfirmedFinalSlot(selectedSession))
+                ?.time ??
               selectedSession.finalSlot?.time ??
               selectedSession.confirmedSlot?.time ??
-              selectedSession.proposedSlots?.[0]?.time ??
               selectedSession.preferredTimeFromStudent ??
               "",
           }}
@@ -804,18 +758,9 @@ function SessionHistoryCard({
   session: SessionHistoryItem;
   onPress: () => void;
 }) {
-  const rawSlot = getAgreedSessionSlot(session) ?? session.proposedSlots[0];
+  const rawSlot = getConfirmedFinalSlot(session);
   const slot = formatSlotForDisplay(rawSlot) ?? rawSlot;
-  const canMarkAttendance =
-    rawSlot &&
-    isSessionScheduledTimeReached(rawSlot) &&
-    [
-      "confirmed",
-      "pending",
-      "requested",
-      "needs_rescheduling",
-      "expired",
-    ].includes(getEffectiveStatus(session));
+  const canMarkAttendance = canCounselorMarkSessionAttendance(session);
 
   const badge = computeSessionHistoryBadge(session);
 
