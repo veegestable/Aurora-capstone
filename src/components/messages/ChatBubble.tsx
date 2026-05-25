@@ -235,6 +235,16 @@ export function ChatBubble({
               </>
             )}
 
+            {onViewDetails && (
+              <button
+                type="button"
+                onClick={() => onViewDetails(message)}
+                className="w-full mt-2 py-2 rounded-xl text-[13px] font-bold border border-aurora-border text-aurora-secondary-blue hover:bg-aurora-secondary-blue/10 transition-colors cursor-pointer"
+              >
+                View Details
+              </button>
+            )}
+
             <p className="text-[11px] text-aurora-gray-400 mt-2 text-right">{message.time}</p>
           </div>
         )}

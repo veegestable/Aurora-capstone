@@ -103,6 +103,10 @@ export function SessionHistoryDetailModal({
               <p className="text-aurora-text-muted text-xs mb-1">Scheduled Slot</p>
               <p className="text-white">{slot ? `${slot.date}${slot.time ? ` at ${slot.time}` : ''}` : 'No slot selected'}</p>
             </div>
+            <div className="bg-aurora-bg rounded-xl border border-aurora-border p-3 md:col-span-2">
+              <p className="text-aurora-text-muted text-xs mb-1">Location</p>
+              <p className="text-white">Office of Guidance and Counseling (OGC)</p>
+            </div>
           </div>
 
           {session.studentRequestNote && (
