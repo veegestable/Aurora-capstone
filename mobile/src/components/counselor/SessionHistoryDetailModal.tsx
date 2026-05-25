@@ -6,7 +6,7 @@ import { AppText as Text } from "../common/AppText";
 
 import React from 'react';
 import { Modal, View, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
-import { Calendar, Clock, FileText, AlertTriangle, X, Hash } from 'lucide-react-native';
+import { Calendar, Clock, FileText, AlertTriangle, X, Hash, MapPin } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { LetterAvatar } from '../common/LetterAvatar';
 import type { SessionHistoryBadge } from '../../utils/sessionScheduling';
@@ -140,6 +140,16 @@ export default function SessionHistoryDetailModal({
                                     <Text style={styles.sectionLabel}>Time</Text>
                                 </View>
                                 <Text style={styles.sectionValue}>{timeStr}</Text>
+                            </View>
+
+                            <View style={styles.section}>
+                                <View style={styles.sectionHeader}>
+                                    <MapPin size={18} color={AURORA.blue} />
+                                    <Text style={styles.sectionLabel}>Location</Text>
+                                </View>
+                                <Text style={styles.sectionValue}>
+                                    Office of Guidance and Counseling (OGC)
+                                </Text>
                             </View>
 
                             {data.createdAt ? (
