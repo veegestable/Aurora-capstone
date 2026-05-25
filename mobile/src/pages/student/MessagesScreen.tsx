@@ -6,8 +6,8 @@ import { AppTextInput as TextInput } from "../../components/common/AppTextInput"
  * Loads from Firestore.
  */
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable } from "react-native";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { View, ScrollView, FlatList, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -128,6 +128,8 @@ interface SessionRequestMessage {
 }
 
 type ChatMessage = TextMessage | SessionMessage | SessionRequestMessage;
+
+const chatMessageKeyExtractor = (item: ChatMessage) => item.id;
 
 // ─── Contact Row ───────────────────────────────────────────────────────────────
 function ContactRow({
@@ -290,30 +292,19 @@ function DirectMessageView({
   } | null>(null);
   const [messageOptionsSheet, setMessageOptionsSheet] =
     useState<AuroraActionSheetContent | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
-  /** One-shot scroll after switching threads; cleared after first successful scroll. */
-  const pendingScrollToEndRef = useRef(false);
+  const chatListRef = useRef<FlatList<ChatMessage>>(null);
   const peerOnline = usePeerPresence(contact.id);
   const openedByParamRef = useRef(false);
 
+  const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
+
   const scrollChatToEnd = useCallback(() => {
-    const scroller = scrollViewRef.current;
-    if (!scroller) return;
-    const animated = Platform.OS === "ios";
-    requestAnimationFrame(() => {
-      scroller.scrollToEnd({ animated });
-      if (Platform.OS === "android") {
-        requestAnimationFrame(() => {
-          scroller.scrollToEnd({ animated: false });
-        });
-      }
-    });
+    chatListRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
 
   useEffect(() => {
     messageDraftRef.current = "";
     setMessage("");
-    pendingScrollToEndRef.current = true;
   }, [contact.conversationId]);
 
   useEffect(() => {
@@ -382,28 +373,6 @@ function DirectMessageView({
     );
     return unsub;
   }, [contact.conversationId, user?.id, readOnly]);
-
-  useEffect(() => {
-    if (loadingMessages || messages.length === 0) return;
-    if (!pendingScrollToEndRef.current) return;
-    const t = setTimeout(() => {
-      if (!pendingScrollToEndRef.current) return;
-      scrollChatToEnd();
-      pendingScrollToEndRef.current = false;
-    }, 120);
-    return () => clearTimeout(t);
-  }, [
-    loadingMessages,
-    messages.length,
-    contact.conversationId,
-    scrollChatToEnd,
-  ]);
-
-  useEffect(() => {
-    if (!loadingMessages && messages.length === 0) {
-      pendingScrollToEndRef.current = false;
-    }
-  }, [loadingMessages, messages.length]);
 
   const sendMessage = async () => {
     if (readOnly) return;
@@ -708,32 +677,12 @@ function DirectMessageView({
 
           {/* Messages */}
           <View style={{ flex: 1 }}>
-            <ScrollView
-              ref={scrollViewRef}
-              style={{ flex: 1 }}
-              contentContainerStyle={{
-                ...(Platform.OS === "android"
-                  ? { paddingLeft: 14, paddingRight: 6 }
-                  : { paddingHorizontal: 16 }),
-                paddingTop: 8,
-                paddingBottom: 20,
-              }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              onContentSizeChange={() => {
-                if (loadingMessages || messages.length === 0) return;
-                if (!pendingScrollToEndRef.current) return;
-                scrollChatToEnd();
-                pendingScrollToEndRef.current = false;
-              }}
-            >
-              {loadingMessages ? (
-                <View style={{ paddingVertical: 40, alignItems: "center" }}>
-                  <ActivityIndicator size="small" color={AURORA.blue} />
-                </View>
-              ) : (
-                messages.map((msg) => {
+            <FlatList<ChatMessage>
+              ref={chatListRef}
+              data={loadingMessages ? [] : reversedMessages}
+              inverted={!loadingMessages && reversedMessages.length > 0}
+              keyExtractor={chatMessageKeyExtractor}
+              renderItem={({ item: msg }) => {
                   const isMe = msg.senderId === "me";
                   const rawText = msg.type === "text" ? msg.text : "";
                   const hasAcceptMarker =
@@ -979,7 +928,7 @@ function DirectMessageView({
                       </Pressable>
                     );
                   return (
-                    <View key={msg.id} style={{ marginBottom: 14 }}>
+                    <View style={{ marginBottom: 14 }}>
                       <View
                         style={{
                           flexDirection: "row",
@@ -1019,21 +968,33 @@ function DirectMessageView({
                           </Text>
                           {messageContent}
                         </View>
-                        {/* {isMe && (
-                          <View style={{ marginBottom: 14 }}>
-                            <LetterAvatar
-                              name={user?.full_name ?? "You"}
-                              size={34}
-                              avatarUrl={user?.avatar_url}
-                            />
-                          </View>
-                        )} */}
                       </View>
                     </View>
                   );
-                })
-              )}
-            </ScrollView>
+              }}
+              style={{ flex: 1 }}
+              contentContainerStyle={{
+                ...(Platform.OS === "android"
+                  ? { paddingLeft: 14, paddingRight: 6 }
+                  : { paddingHorizontal: 16 }),
+                paddingTop: 8,
+                paddingBottom: 20,
+              }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              initialNumToRender={15}
+              maxToRenderPerBatch={10}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === "android"}
+              ListEmptyComponent={
+                loadingMessages ? (
+                  <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                    <ActivityIndicator size="small" color={AURORA.blue} />
+                  </View>
+                ) : null
+              }
+            />
             <LinearGradient
               pointerEvents="none"
               colors={[AURORA.bgMessages, "rgba(8,12,48,0)"]}

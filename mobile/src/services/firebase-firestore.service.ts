@@ -813,7 +813,7 @@ export const firestoreService = {
       console.log("✅ Retrieved", moodLogs.length, "mood logs");
       return moodLogs;
     } catch (error: unknown) {
-      console.error("❌ Error getting mood logs:", error);
+      console.warn("⚠️ Error getting mood logs:", error);
       throw error;
     }
   },
@@ -1009,6 +1009,7 @@ export const firestoreService = {
         collection(db, "notifications"),
         where("user_id", "==", userId),
         orderBy("created_at", "desc"),
+        limit(50),
       );
 
       const querySnapshot = await getDocs(q);
@@ -2124,12 +2125,15 @@ export const firestoreService = {
         conversationId,
         "messages",
       );
-      const snapshot = await getDocs(messagesRef);
+      const unreadQuery = query(
+        messagesRef,
+        where("isRead", "==", false),
+      );
+      const snapshot = await getDocs(unreadQuery);
       snapshot.docs.forEach((d) => {
         const data = d.data() as Record<string, unknown>;
         const senderId = typeof data.senderId === "string" ? data.senderId : "";
-        const isRead = data.isRead === true;
-        if (senderId && senderId !== viewerId && !isRead) {
+        if (senderId && senderId !== viewerId) {
           updates.push(
             updateDoc(
               doc(db, "conversations", conversationId, "messages", d.id),

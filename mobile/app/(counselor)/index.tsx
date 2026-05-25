@@ -1003,19 +1003,17 @@ export default function CounselorHomeScreen() {
     [user?.id, user?.college_code],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void fetchData(() => cancelled);
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchData]);
+  const initialLoadDone = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      void fetchData(() => cancelled);
+      if (!initialLoadDone.current) {
+        setLoading(true);
+      }
+      void fetchData(() => cancelled).then(() => {
+        initialLoadDone.current = true;
+      });
       return () => {
         cancelled = true;
       };

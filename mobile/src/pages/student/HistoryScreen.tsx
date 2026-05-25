@@ -836,7 +836,9 @@ function DayDetailsCard({
                               <Image
                                 source={{ uri: journalImageUrl }}
                                 style={styles.journalImage}
-                                resizeMode="cover"
+                                contentFit="cover"
+                                cachePolicy="memory-disk"
+                                recyclingKey={journalImageUrl}
                               />
                             ) : (
                               <View style={styles.detailsAnswerWrap}>

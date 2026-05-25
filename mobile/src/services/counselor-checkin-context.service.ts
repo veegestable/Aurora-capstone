@@ -12,7 +12,12 @@ async function loadMoodWindowForStudent(
 ): Promise<MergedMoodLog[]> {
   const start = counselorCheckInWindowStart(windowDays);
   const end = new Date();
-  return moodService.getMoodLogs(studentId, start.toISOString(), end.toISOString());
+  try {
+    return await moodService.getMoodLogs(studentId, start.toISOString(), end.toISOString());
+  } catch (err) {
+    console.warn("[counselor-checkin] Could not load mood logs for student", studentId, err);
+    return [];
+  }
 }
 
 /**

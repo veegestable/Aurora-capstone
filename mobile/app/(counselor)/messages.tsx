@@ -102,6 +102,7 @@ type ChatMessage =
 
 const AUTO_ACCEPTED_PREFIX = "__AUTO_ACCEPTED__";
 const SESSION_ACCEPT_NOTICE_TEXT = "Just accepted your request";
+const chatMessageKeyExtractor = (item: ChatMessage) => item.id;
 
 function matchesSessionAcceptNoticeText(raw: string): boolean {
   const t = raw.trim().replace(/\s+/g, " ").toLowerCase();
@@ -346,28 +347,17 @@ function ChatView({
   } | null>(null);
   const [messageOptionsSheet, setMessageOptionsSheet] =
     useState<AuroraActionSheetContent | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
-  /** One-shot scroll after switching threads; cleared after first successful scroll. */
-  const pendingScrollToEndRef = useRef(false);
+  const chatListRef = useRef<FlatList<ChatMessage>>(null);
+
+  const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
   const scrollChatToEnd = useCallback(() => {
-    const scroller = scrollViewRef.current;
-    if (!scroller) return;
-    const animated = Platform.OS === "ios";
-    requestAnimationFrame(() => {
-      scroller.scrollToEnd({ animated });
-      if (Platform.OS === "android") {
-        requestAnimationFrame(() => {
-          scroller.scrollToEnd({ animated: false });
-        });
-      }
-    });
+    chatListRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
 
   useEffect(() => {
     messageDraftRef.current = "";
     setMessage("");
-    pendingScrollToEndRef.current = true;
   }, [conversationId]);
 
   useEffect(() => {
@@ -433,24 +423,6 @@ function ChatView({
       .markConversationAsRead(conversationId, user.id)
       .catch(() => {});
   }, [conversationId, user?.id, readOnly]);
-
-  // Scroll once messages are loaded (Android: fixed delay is often too early vs layout).
-  useEffect(() => {
-    if (loadingMessages || messages.length === 0) return;
-    if (!pendingScrollToEndRef.current) return;
-    const t = setTimeout(() => {
-      if (!pendingScrollToEndRef.current) return;
-      scrollChatToEnd();
-      pendingScrollToEndRef.current = false;
-    }, 120);
-    return () => clearTimeout(t);
-  }, [loadingMessages, messages.length, conversationId, scrollChatToEnd]);
-
-  useEffect(() => {
-    if (!loadingMessages && messages.length === 0) {
-      pendingScrollToEndRef.current = false;
-    }
-  }, [loadingMessages, messages.length]);
 
   const sendMessage = async () => {
     if (readOnly) return;
@@ -889,33 +861,13 @@ function ChatView({
 
           {/* Messages */}
           <View style={{ flex: 1 }}>
-            <ScrollView
-              ref={scrollViewRef}
-              style={{ flex: 1 }}
-              contentContainerStyle={{
-                ...(Platform.OS === "android"
-                  ? { paddingLeft: 14, paddingRight: 6 }
-                  : { paddingHorizontal: 16 }),
-                paddingVertical: 16,
-              }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              onContentSizeChange={() => {
-                if (loadingMessages || messages.length === 0) return;
-                if (!pendingScrollToEndRef.current) return;
-                scrollChatToEnd();
-                pendingScrollToEndRef.current = false;
-              }}
-            >
-              {loadingMessages ? (
-                <View style={{ paddingVertical: 40, alignItems: "center" }}>
-                  <ActivityIndicator size="small" color={AURORA.blue} />
-                </View>
-              ) : (
-                messages.map((msg, idx) => {
+            <FlatList<ChatMessage>
+              ref={chatListRef}
+              data={loadingMessages ? [] : reversedMessages}
+              inverted={!loadingMessages && reversedMessages.length > 0}
+              keyExtractor={chatMessageKeyExtractor}
+              renderItem={({ item: msg, index: idx }) => {
                   const isMe = msg.senderId === "me";
-                  // Counselor should always show student session requests on the left (student perspective).
                   const isSessionRequest = msg.type === "session_request";
                   const isMeForLayout = isSessionRequest ? false : isMe;
                   const senderLabel = isMeForLayout ? "You" : contact.name;
@@ -950,9 +902,9 @@ function ChatView({
                       ? !msg.text.startsWith("[Deleted")
                       : true;
                   const isDateStamp = isLikelyDateLabel(msg.time);
-                  const prevTime = idx > 0 ? messages[idx - 1].time : null;
+                  const olderMsgTime = idx < reversedMessages.length - 1 ? reversedMessages[idx + 1].time : null;
                   const showDateSeparator =
-                    isDateStamp && prevTime !== msg.time;
+                    isDateStamp && olderMsgTime !== msg.time;
 
                   const messageContent =
                     msg.type === "text" ? (
@@ -1177,7 +1129,6 @@ function ChatView({
                     ) : msg.type === "session" ? (
                       <Pressable
                         onLongPress={() => {
-                          // Session cards: delete only (no copy) and only for messages you sent.
                           if (!isMe) return;
                           confirmDeleteMessage(msg.id, "session");
                         }}
@@ -1283,7 +1234,7 @@ function ChatView({
                     );
 
                   return (
-                    <View key={msg.id} style={{ marginBottom: 18 }}>
+                    <View style={{ marginBottom: 18 }}>
                       {showDateSeparator ? (
                         <Text
                           style={{
@@ -1339,20 +1290,32 @@ function ChatView({
                           </Text>
                           {messageContent}
                         </View>
-
-                        {/* {isMeForLayout && (
-                          <LetterAvatar
-                            name={user?.full_name ?? "You"}
-                            size={34}
-                            avatarUrl={user?.avatar_url}
-                          />
-                        )} */}
                       </View>
                     </View>
                   );
-                })
-              )}
-            </ScrollView>
+              }}
+              style={{ flex: 1 }}
+              contentContainerStyle={{
+                ...(Platform.OS === "android"
+                  ? { paddingLeft: 14, paddingRight: 6 }
+                  : { paddingHorizontal: 16 }),
+                paddingVertical: 16,
+              }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              initialNumToRender={15}
+              maxToRenderPerBatch={10}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === "android"}
+              ListEmptyComponent={
+                loadingMessages ? (
+                  <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                    <ActivityIndicator size="small" color={AURORA.blue} />
+                  </View>
+                ) : null
+              }
+            />
             <LinearGradient
               pointerEvents="none"
               colors={[AURORA.bgMessages, "rgba(8,12,48,0)"]}

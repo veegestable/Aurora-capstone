@@ -732,6 +732,7 @@ export function MoodCheckIn({
   ].filter((x) => isCategoryEnabled(x.key));
 
   useEffect(() => {
+    let cancelled = false;
     const loadDaily = async () => {
       if (!user?.id) return;
       const now = new Date();
@@ -755,6 +756,7 @@ export function MoodCheckIn({
             .getMoodLogs(user.id, startOfDay.toISOString(), endOfDay.toISOString())
             .catch(() => []),
         ]);
+        if (cancelled) return;
         const priorCheckInsToday = priorLogs.filter(
           (log) => calendarDayKeyLocal(new Date(log.log_date)) === calKey,
         ).length;
@@ -762,12 +764,14 @@ export function MoodCheckIn({
           sleepKey !== calKey
             ? await getDailyContext(user.id, sleepKey)
             : calCtx;
+        if (cancelled) return;
         const bathCtx =
           bathKey === calKey
             ? calCtx
             : bathKey === sleepKey
               ? sleepCtx
               : await getDailyContext(user.id, bathKey);
+        if (cancelled) return;
         const mealsFromEarlier = { ...(calCtx?.mealStatusById ?? {}) };
         setDailyContextState(calCtx);
         setPersistedMealStatusById(mealsFromEarlier);
@@ -791,6 +795,7 @@ export function MoodCheckIn({
           setBathChoiceMade(false);
         }
       } catch {
+        if (cancelled) return;
         setDailyContextState(null);
         setSleepCapturedToday(false);
         setSleepQuality(null);
@@ -803,6 +808,7 @@ export function MoodCheckIn({
       }
     };
     loadDaily();
+    return () => { cancelled = true; };
   }, [user?.id, usualWakeTime, usualBathTime]);
 
   useEffect(() => {
