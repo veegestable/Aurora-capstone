@@ -2,8 +2,9 @@
  * LetterAvatar - Shows profile image when avatar_url provided, otherwise first letter of name
  */
 
-import React from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import React, { memo } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { AppText as Text } from './AppText';
 import { AURORA } from '../../constants/aurora-colors';
 
@@ -16,7 +17,7 @@ interface LetterAvatarProps {
     avatarUrl?: string | null;
 }
 
-export function LetterAvatar({
+export const LetterAvatar = memo(function LetterAvatar({
     name,
     size = 44,
     backgroundColor = AURORA.card,
@@ -34,7 +35,10 @@ export function LetterAvatar({
                     styles.image,
                     { width: size, height: size, borderRadius: size / 2},
                 ]}
-                resizeMode="cover"
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                recyclingKey={avatarUrl}
+                transition={200}
             />
         );
     }
@@ -54,9 +58,9 @@ export function LetterAvatar({
             <Text style={[styles.letter, { fontSize: size * 0.42, color: textColor }]}>{letter}</Text>
         </View>
     );
-}
+});
 
-export function LetterAvatarWithBorder({
+export const LetterAvatarWithBorder = memo(function LetterAvatarWithBorder({
     name,
     size = 44,
     backgroundColor = AURORA.card,
@@ -74,7 +78,10 @@ export function LetterAvatarWithBorder({
                     styles.image,
                     { width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: AURORA.blue },
                 ]}
-                resizeMode="cover"
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                recyclingKey={avatarUrl}
+                transition={200}
             />
         );
     }
@@ -94,7 +101,7 @@ export function LetterAvatarWithBorder({
             <Text style={[styles.letter, { fontSize: size * 0.42, color: textColor }]}>{letter}</Text>
         </View>
     );
-}
+});
 
 const styles = StyleSheet.create({
     avatar: {

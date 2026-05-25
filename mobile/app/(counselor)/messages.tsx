@@ -8,8 +8,8 @@ import { AppTextInput as TextInput } from "../../src/components/common/AppTextIn
  * Supports appointment scheduling: counselor can invite students to sessions.
  */
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable, Modal, StyleSheet, Alert } from "react-native";
+import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
+import { View, ScrollView, FlatList, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable, Modal, StyleSheet, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -109,7 +109,7 @@ function matchesSessionAcceptNoticeText(raw: string): boolean {
 }
 
 // ─── Conversation Row ──────────────────────────────────────────────────────────
-function ConversationRow({
+const ConversationRow = memo(function ConversationRow({
   item,
   onPress,
   onLongPress,
@@ -128,135 +128,73 @@ function ConversationRow({
       onLongPress={onLongPress}
       delayLongPress={450}
       activeOpacity={0.85}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: item.isUnread
-          ? "rgba(45,107,255,0.12)"
-          : isArchived
-            ? "rgba(148,163,184,0.08)"
-            : AURORA.card,
-        borderRadius: 16,
-        marginBottom: 10,
-        overflow: "hidden",
-        borderWidth: 1,
-        borderColor: item.isUnread
-          ? "rgba(45,107,255,0.45)"
-          : isArchived
-            ? "rgba(148,163,184,0.35)"
-            : AURORA.border,
-        opacity: isArchived ? 0.88 : 1,
-      }}
+      style={[
+        convRowStyles.container,
+        {
+          backgroundColor: item.isUnread
+            ? "rgba(45,107,255,0.12)"
+            : isArchived
+              ? "rgba(148,163,184,0.08)"
+              : AURORA.card,
+          borderColor: item.isUnread
+            ? "rgba(45,107,255,0.45)"
+            : isArchived
+              ? "rgba(148,163,184,0.35)"
+              : AURORA.border,
+          opacity: isArchived ? 0.88 : 1,
+        },
+      ]}
     >
       {/* Left color border */}
-      <View
-        style={{ width: 0, backgroundColor: AURORA.blue, alignSelf: "stretch" }}
-      />
+      <View style={convRowStyles.leftBorder} />
 
       {/* Avatar */}
-      <View style={{ position: "relative", margin: 12 }}>
+      <View style={convRowStyles.avatarWrap}>
         <LetterAvatar
           name={item.name}
           size={52}
           avatarUrl={item.avatar || undefined}
         />
         <View
-          style={{
-            position: "absolute",
-            bottom: 1,
-            right: 1,
-            width: 13,
-            height: 13,
-            borderRadius: 7,
-            backgroundColor: item.isOnline ? AURORA.green : AURORA.textMuted,
-            borderWidth: 2,
-            borderColor: AURORA.card,
-          }}
+          style={[
+            convRowStyles.onlineDot,
+            { backgroundColor: item.isOnline ? AURORA.green : AURORA.textMuted },
+          ]}
         />
       </View>
 
       {/* Content */}
-      <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 4,
-            gap: 8,
-          }}
-        >
-          <View
-            style={{
-              flex: 1,
-              minWidth: 0,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
+      <View style={convRowStyles.content}>
+        <View style={convRowStyles.headerRow}>
+          <View style={convRowStyles.nameRow}>
             <Text
               numberOfLines={1}
-              style={{
-                flexShrink: 1,
-                color: "#FFFFFF",
-                fontSize: 15,
-                fontWeight: item.isUnread ? "700" : "600",
-              }}
+              style={[
+                convRowStyles.name,
+                { fontWeight: item.isUnread ? "700" : "600" },
+              ]}
             >
               {item.name}
             </Text>
             {isArchived ? (
-              <View
-                style={{
-                  paddingHorizontal: 6,
-                  paddingVertical: 2,
-                  borderRadius: 6,
-                  backgroundColor: "rgba(148,163,184,0.2)",
-                  borderWidth: 1,
-                  borderColor: "rgba(148,163,184,0.35)",
-                }}
-              >
-                <Text
-                  style={{
-                    color: AURORA.textMuted,
-                    fontSize: 9,
-                    fontWeight: "700",
-                    letterSpacing: 0.3,
-                  }}
-                >
-                  ARCHIVED
-                </Text>
+              <View style={convRowStyles.archivedBadge}>
+                <Text style={convRowStyles.archivedText}>ARCHIVED</Text>
               </View>
             ) : null}
           </View>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              flexShrink: 0,
-            }}
-          >
+          <View style={convRowStyles.timeRow}>
             <Text
-              style={{
-                fontSize: 12,
-                color: item.isUnread ? AURORA.blue : AURORA.textSec,
-                fontWeight: item.isUnread ? "700" : "400",
-              }}
+              style={[
+                convRowStyles.time,
+                {
+                  color: item.isUnread ? AURORA.blue : AURORA.textSec,
+                  fontWeight: item.isUnread ? "700" : "400",
+                },
+              ]}
             >
               {item.time}
             </Text>
-            {item.isUnread ? (
-              <View
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: AURORA.blue,
-                }}
-              />
-            ) : null}
+            {item.isUnread ? <View style={convRowStyles.unreadDot} /> : null}
           </View>
         </View>
         <Text
@@ -272,7 +210,90 @@ function ConversationRow({
       </View>
     </TouchableOpacity>
   );
-}
+});
+
+const convRowStyles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 16,
+    marginBottom: 10,
+    overflow: "hidden",
+    borderWidth: 1,
+  },
+  leftBorder: {
+    width: 0,
+    backgroundColor: AURORA.blue,
+    alignSelf: "stretch",
+  },
+  avatarWrap: {
+    position: "relative",
+    margin: 12,
+  },
+  onlineDot: {
+    position: "absolute",
+    bottom: 1,
+    right: 1,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: AURORA.card,
+  },
+  content: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+    gap: 8,
+  },
+  nameRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  name: {
+    flexShrink: 1,
+    color: "#FFFFFF",
+    fontSize: 15,
+  },
+  archivedBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "rgba(148,163,184,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.35)",
+  },
+  archivedText: {
+    color: AURORA.textMuted,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  timeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  time: {
+    fontSize: 12,
+  },
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: AURORA.blue,
+  },
+});
 
 // ─── Chat View ─────────────────────────────────────────────────────────────────
 function ChatView({
@@ -1758,6 +1779,24 @@ export default function CounselorMessagesScreen() {
     );
   }, [currentUserId]);
 
+  const handleConversationPress = useCallback((item: Conversation) => {
+    setSelectedContact(item);
+  }, []);
+
+  const handleConversationLongPress = useCallback((item: Conversation) => {
+    setArchiveModalContact(item);
+  }, []);
+
+  const renderConversationItem = useCallback(({ item }: { item: Conversation }) => (
+    <ConversationRow
+      item={item}
+      onPress={() => handleConversationPress(item)}
+      onLongPress={() => handleConversationLongPress(item)}
+    />
+  ), [handleConversationPress, handleConversationLongPress]);
+
+  const conversationKeyExtractor = useCallback((item: Conversation) => item.id, []);
+
   const confirmArchiveConversation = useCallback(async () => {
     if (!currentUserId || !archiveModalContact) return;
     const convId = conversationIdFor(archiveModalContact);
@@ -2064,60 +2103,59 @@ export default function CounselorMessagesScreen() {
           </View>
         </View>
 
-        {/* ── Conversation List (scrollable, fills remaining space) ─── */}
-        <ScrollView
-          style={{ flex: 1, minHeight: 0 }}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingTop: 4,
-            paddingBottom: 20,
-          }}
-          showsVerticalScrollIndicator={false}
-        >
-          {loading ? (
-            <View style={{ paddingTop: 60, alignItems: "center" }}>
-              <ActivityIndicator size="large" color={AURORA.blue} />
-              <Text
-                style={{ color: AURORA.textMuted, fontSize: 14, marginTop: 12 }}
-              >
-                Loading conversations...
-              </Text>
-            </View>
-          ) : filtered.length === 0 ? (
-            <View style={{ paddingTop: 60, alignItems: "center" }}>
-              <Text
-                style={{
-                  color: AURORA.textMuted,
-                  fontSize: 14,
-                  textAlign: "center",
-                }}
-              >
-                {showPastCollegeConversations
-                  ? pastContacts.length === 0
-                    ? "No past-college conversations. Transferred students and older college threads appear here (read-only)."
-                    : activeTab === "Unread"
-                      ? "No unread past-college conversations."
-                      : "No conversations match this filter."
-                  : contacts.length === 0
-                    ? "No conversations yet. Tap + to add a student, or invite from the Student Directory."
-                    : activeTab === "Unread"
-                      ? "No unread conversations. Try All Messages, Past college, or Show archived."
-                      : !showArchivedConversations
-                        ? "No conversations match this filter. Turn on Show archived to see hidden threads."
-                        : "No conversations match this filter."}
-              </Text>
-            </View>
-          ) : (
-            filtered.map((item) => (
-              <ConversationRow
-                key={item.id}
-                item={item}
-                onPress={() => setSelectedContact(item)}
-                onLongPress={() => setArchiveModalContact(item)}
-              />
-            ))
-          )}
-        </ScrollView>
+        {/* ── Conversation List (virtualized) ─── */}
+        {loading ? (
+          <View style={{ flex: 1, paddingTop: 60, alignItems: "center" }}>
+            <ActivityIndicator size="large" color={AURORA.blue} />
+            <Text
+              style={{ color: AURORA.textMuted, fontSize: 14, marginTop: 12 }}
+            >
+              Loading conversations...
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filtered}
+            renderItem={renderConversationItem}
+            keyExtractor={conversationKeyExtractor}
+            style={{ flex: 1, minHeight: 0 }}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingTop: 4,
+              paddingBottom: 20,
+            }}
+            showsVerticalScrollIndicator={false}
+            initialNumToRender={12}
+            maxToRenderPerBatch={8}
+            windowSize={7}
+            removeClippedSubviews={Platform.OS === "android"}
+            ListEmptyComponent={
+              <View style={{ paddingTop: 60, alignItems: "center" }}>
+                <Text
+                  style={{
+                    color: AURORA.textMuted,
+                    fontSize: 14,
+                    textAlign: "center",
+                  }}
+                >
+                  {showPastCollegeConversations
+                    ? pastContacts.length === 0
+                      ? "No past-college conversations. Transferred students and older college threads appear here (read-only)."
+                      : activeTab === "Unread"
+                        ? "No unread past-college conversations."
+                        : "No conversations match this filter."
+                    : contacts.length === 0
+                      ? "No conversations yet. Tap + to add a student, or invite from the Student Directory."
+                      : activeTab === "Unread"
+                        ? "No unread conversations. Try All Messages, Past college, or Show archived."
+                        : !showArchivedConversations
+                          ? "No conversations match this filter. Turn on Show archived to see hidden threads."
+                          : "No conversations match this filter."}
+                </Text>
+              </View>
+            }
+          />
+        )}
 
         {!showPastCollegeConversations ? (
         <TouchableOpacity

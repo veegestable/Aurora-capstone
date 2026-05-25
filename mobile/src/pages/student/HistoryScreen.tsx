@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { type ImageSourcePropType, View, ScrollView, TouchableOpacity, StyleSheet, Image } from "react-native";
+import { type ImageSourcePropType, View, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { AppText as Text } from "../../components/common/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -325,7 +326,8 @@ function MoodIcon({
     <Image
       source={MOOD_ICON_BY_MOOD[mood]}
       style={{ width: size, height: size }}
-      resizeMode="contain"
+      contentFit="contain"
+      cachePolicy="memory-disk"
     />
   );
 }

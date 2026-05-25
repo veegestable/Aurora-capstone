@@ -3,6 +3,8 @@
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "./firebase";
 
+const UPLOAD_TIMEOUT_MS = 30_000;
+
 /**
  * Upload an image from a local URI (e.g. from ImagePicker) to Firebase Storage.
  * @param storagePath - Full path in Storage bucket (e.g. 'avatars/uid123' or 'announcements/abc-uuid.jpg')
@@ -15,23 +17,44 @@ export async function uploadImage(
   imageUri: string,
   contentType = "image/jpeg",
 ): Promise<string> {
-  const blob = await uriToBlob(imageUri);
+  const blob = await withTimeout(uriToBlob(imageUri), UPLOAD_TIMEOUT_MS, "Image conversion timed out");
   const storageRef = ref(storage, storagePath);
-  const snapshot = await uploadBytes(storageRef, blob, { contentType });
+  const snapshot = await withTimeout(
+    uploadBytes(storageRef, blob, { contentType }),
+    UPLOAD_TIMEOUT_MS,
+    "Image upload timed out — check your connection",
+  );
   return getDownloadURL(snapshot.ref);
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
 }
 
 /**
  * Convert a React Native / Expo image URI to a Blob for upload.
- * Works with file:// and content:// URIs.
+ * Uses fetch (reliable across iOS/Android) with XHR fallback.
  */
 async function uriToBlob(uri: string): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.onload = () => resolve(xhr.response);
-    xhr.onerror = () => reject(new TypeError("Failed to fetch image"));
-    xhr.responseType = "blob";
-    xhr.open("GET", uri, true);
-    xhr.send();
-  });
+  try {
+    const response = await fetch(uri);
+    return await response.blob();
+  } catch {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.timeout = UPLOAD_TIMEOUT_MS;
+      xhr.onload = () => resolve(xhr.response);
+      xhr.onerror = () => reject(new TypeError("Failed to read image file"));
+      xhr.ontimeout = () => reject(new Error("Reading image timed out"));
+      xhr.responseType = "blob";
+      xhr.open("GET", uri, true);
+      xhr.send();
+    });
+  }
 }

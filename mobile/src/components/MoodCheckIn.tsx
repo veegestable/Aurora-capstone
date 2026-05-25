@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Image, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
+import { AppState, Modal, PanResponder, ScrollView, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
@@ -185,35 +186,35 @@ const MANUAL_EMOTIONS = [
     name: "joy",
     color: AURORA.moodHappy,
     label: "Happy",
-    image: require("../assets/moods3d/happy-3d.png"),
+    image: require("../assets/moodIcon/happy.png"),
     icon: require("../assets/moodIcon/happy.png"),
   },
   {
     name: "sadness",
     color: AURORA.moodSad,
     label: "Sad",
-    image: require("../assets/moods3d/sad-3d.png"),
+    image: require("../assets/moodIcon/sad.png"),
     icon: require("../assets/moodIcon/sad.png"),
   },
   {
     name: "anger",
     color: AURORA.moodAngry,
     label: "Angry",
-    image: require("../assets/moods3d/angry-3d.png"),
+    image: require("../assets/moodIcon/angry.png"),
     icon: require("../assets/moodIcon/angry.png"),
   },
   {
     name: "surprise",
     color: AURORA.moodSurprise,
     label: "Surprise",
-    image: require("../assets/moods3d/surprise-3d.png"),
+    image: require("../assets/moodIcon/surprise.png"),
     icon: require("../assets/moodIcon/surprise.png"),
   },
   {
     name: "neutral",
     color: AURORA.moodNeutral,
     label: "Neutral",
-    image: require("../assets/moods3d/neutral-3d.png"),
+    image: require("../assets/moodIcon/neutral.png"),
     icon: require("../assets/moodIcon/neutral.png"),
   },
 ];
@@ -645,13 +646,15 @@ export function MoodCheckIn({
   const renderMoodVisual = (
     emotion: (typeof MANUAL_EMOTIONS)[0],
     size: number,
+    variant: "icon" | "3d" = "icon",
   ) => {
     return (
       <Image
-        source={emotion.icon}
+        source={variant === "3d" ? emotion.image : emotion.icon}
         style={{ width: size, height: size }}
-        resizeMode="contain"
-        fadeDuration={0}
+        contentFit="contain"
+        cachePolicy="memory-disk"
+        transition={0}
       />
     );
   };
@@ -1159,18 +1162,24 @@ export function MoodCheckIn({
     }
     try {
       setIsSubmitting(true);
+
+      // Run image upload and daily-context reads in parallel
       let uploadedJournalImageUrl = "";
-      if (journalImageUri && user?.id) {
-        setUploadingJournalImage(true);
-        const storagePath = `journal_selfies/${user.id}/${Date.now()}.jpg`;
-        uploadedJournalImageUrl = await uploadImage(
-          storagePath,
-          journalImageUri,
-          "image/jpeg",
-        );
-        setUploadingJournalImage(false);
-      }
-      const calCtx = await getDailyContext(user.id, dk);
+      const uploadPromise = (journalImageUri && user?.id)
+        ? (async () => {
+            setUploadingJournalImage(true);
+            const storagePath = `journal_selfies/${user.id}/${Date.now()}.jpg`;
+            const url = await uploadImage(storagePath, journalImageUri, "image/jpeg");
+            setUploadingJournalImage(false);
+            return url;
+          })()
+        : Promise.resolve("");
+
+      const calCtxPromise = getDailyContext(user.id, dk);
+
+      const [uploadUrl, calCtx] = await Promise.all([uploadPromise, calCtxPromise]);
+      uploadedJournalImageUrl = uploadUrl;
+
       const sleepDoc =
         sleepKey === dk ? calCtx : await getDailyContext(user.id, sleepKey);
       const bathDoc =
@@ -1248,58 +1257,67 @@ export function MoodCheckIn({
       });
 
       const keys = Array.from(new Set([dk, sleepKey, bathKey]));
-      for (const key of keys) {
-        const existing =
-          key === dk ? calCtx : key === sleepKey ? sleepDoc : bathDoc;
-        await setDailyContext(user.id, key, buildDoc(key, existing));
-      }
+      await Promise.all(
+        keys.map((key) => {
+          const existing =
+            key === dk ? calCtx : key === sleepKey ? sleepDoc : bathDoc;
+          return setDailyContext(user.id, key, buildDoc(key, existing));
+        }),
+      );
 
       setMealStatusById(mealMergedCal);
       setDailyContextState((prev) =>
         prev ? { ...prev, mealStatusById: { ...mealMergedCal } } : prev,
       );
 
-      try {
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 14);
-        const recent = await moodService.getMoodLogs(
-          user.id,
-          weekAgo.toISOString(),
-          new Date().toISOString(),
-        );
-        const prev = getMostRecentLogNotOnSameCalendarDay(
-          recent as { log_date: Date; energy_level?: number }[],
-          new Date(),
-        );
-        logSuddenMoodDropIfNeeded(prev?.energy_level, energyLevel * 2);
-      } catch {
-        // no-op
-      }
-
-      try {
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date();
-        endOfDay.setHours(23, 59, 59, 999);
-        const todayLogs = await moodService.getMoodLogs(
-          user.id,
-          startOfDay.toISOString(),
-          endOfDay.toISOString(),
-        );
-        setSubmittedTodayCheckIns(
-          Math.max(1, Array.isArray(todayLogs) ? todayLogs.length : 1),
-        );
-      } catch {
-        setSubmittedTodayCheckIns(1);
-      }
-
       notifyMoodLogsRefresh();
 
+      // Mark done immediately — analytics runs in background so user doesn't wait
       setIsSubmitting(false);
       setIsSubmitted(true);
       quickResetDoneRef.current = false;
       pendingZenReminderQueuedRef.current = false;
       setShowQuickResetPrompt(true);
+
+      // Fire-and-forget: mood-drop detection + today-count (non-blocking)
+      const userId = user.id;
+      const energyVal = energyLevel * 2;
+      void (async () => {
+        try {
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 14);
+          const recent = await moodService.getMoodLogs(
+            userId,
+            weekAgo.toISOString(),
+            new Date().toISOString(),
+          );
+          const prev = getMostRecentLogNotOnSameCalendarDay(
+            recent as { log_date: Date; energy_level?: number }[],
+            new Date(),
+          );
+          logSuddenMoodDropIfNeeded(prev?.energy_level, energyVal);
+        } catch {
+          // no-op
+        }
+      })();
+      void (async () => {
+        try {
+          const startOfDay = new Date();
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date();
+          endOfDay.setHours(23, 59, 59, 999);
+          const todayLogs = await moodService.getMoodLogs(
+            userId,
+            startOfDay.toISOString(),
+            endOfDay.toISOString(),
+          );
+          setSubmittedTodayCheckIns(
+            Math.max(1, Array.isArray(todayLogs) ? todayLogs.length : 1),
+          );
+        } catch {
+          setSubmittedTodayCheckIns(1);
+        }
+      })();
     } catch (error: unknown) {
       setIsSubmitting(false);
       setUploadingJournalImage(false);
@@ -2428,7 +2446,7 @@ export function MoodCheckIn({
                               floatingGlowStyle,
                             ]}
                           />
-                          {renderMoodVisual(selectedManualEmotion, 132)}
+                          {renderMoodVisual(selectedManualEmotion, 132, "3d")}
                         </Animated.View>
                         <Animated.View
                           style={[

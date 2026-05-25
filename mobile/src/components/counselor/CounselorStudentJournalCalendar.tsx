@@ -5,7 +5,8 @@ import { AppText as Text } from "../common/AppText";
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { type ImageSourcePropType, View, ScrollView, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from "react-native";
+import { type ImageSourcePropType, View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
 import {
   ChevronLeft,
   ChevronRight,
@@ -195,7 +196,8 @@ function MoodIcon({ mood, size = 16 }: { mood: MoodLog["mood"]; size?: number })
     <Image
       source={MOOD_ICON_BY_MOOD[mood]}
       style={{ width: size, height: size }}
-      resizeMode="contain"
+      contentFit="contain"
+      cachePolicy="memory-disk"
     />
   );
 }
@@ -566,7 +568,8 @@ function CounselorDayDetailCard({
                         <Image
                           source={{ uri: journalUrl }}
                           style={styles.journalImage}
-                          resizeMode="cover"
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
                         />
                       ) : (
                         <View style={styles.detailsAnswerWrap}>

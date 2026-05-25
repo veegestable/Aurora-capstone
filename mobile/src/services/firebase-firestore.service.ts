@@ -1853,6 +1853,7 @@ export const firestoreService = {
         collection(db, "conversations"),
         where("counselorId", "==", counselorId),
         orderBy("lastMessageAt", "desc"),
+        limit(150),
       );
       const snapshot = await getDocs(q);
       const archivedIds = await this.getCounselorArchivedConversationIds(
@@ -2157,16 +2158,16 @@ export const firestoreService = {
     onNext: (messages: unknown[]) => void,
     onError?: (error: Error) => void,
   ): () => void {
-    const messagesRef = collection(
-      db,
-      "conversations",
-      conversationId,
-      "messages",
+    const messagesQuery = query(
+      collection(db, "conversations", conversationId, "messages"),
+      orderBy("createdAt", "desc"),
+      limit(100),
     );
     let messagesSnapshot: QuerySnapshot | null = null;
     const sessionCache: Record<string, LinkedSessionSnapshot> = {};
     const sessionUnsubs = new Map<string, () => void>();
     let generation = 0;
+    let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
 
     const rebuild = () => {
       if (!messagesSnapshot) return;
@@ -2184,6 +2185,11 @@ export const firestoreService = {
             onError?.(e instanceof Error ? e : new Error(String(e)));
           }
         });
+    };
+
+    const debouncedRebuild = () => {
+      if (rebuildTimer) clearTimeout(rebuildTimer);
+      rebuildTimer = setTimeout(rebuild, 80);
     };
 
     const syncSessionListeners = (sessionIds: string[]) => {
@@ -2207,7 +2213,7 @@ export const firestoreService = {
             } else {
               delete sessionCache[id];
             }
-            rebuild();
+            debouncedRebuild();
           },
           (err) => {
             const code =
@@ -2223,7 +2229,7 @@ export const firestoreService = {
     };
 
     const messagesUnsub = onSnapshot(
-      messagesRef,
+      messagesQuery,
       (snapshot) => {
         messagesSnapshot = snapshot;
         syncSessionListeners(collectLinkedSessionIdsFromSnapshot(snapshot));
@@ -2233,6 +2239,7 @@ export const firestoreService = {
     );
 
     return () => {
+      if (rebuildTimer) clearTimeout(rebuildTimer);
       messagesUnsub();
       for (const unsub of sessionUnsubs.values()) unsub();
       sessionUnsubs.clear();
@@ -3232,6 +3239,7 @@ export const firestoreService = {
         collection(db, "sessions"),
         where("counselorId", "==", counselorId),
         orderBy("updatedAt", "desc"),
+        limit(200),
       );
       const snapshot = await getDocs(q);
       const taggedDocs = mapSessionsDocsForCounselorHistory(snapshot.docs);

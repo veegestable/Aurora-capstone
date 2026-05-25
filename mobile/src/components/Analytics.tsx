@@ -12,13 +12,13 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react"; impor
   TouchableOpacity,
   AppState,
   Platform,
-  Image,
   type AppStateStatus,
   type ImageSourcePropType,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
+import { Image } from "expo-image";
 import * as Animatable from "react-native-animatable";
 import Animated, {
   Easing,
@@ -2024,7 +2024,8 @@ export default function Analytics() {
                               getMoodIconSource(todayDominantMoodDisplay.label)
                             }
                             style={{ width: 32, height: 32 }}
-                            resizeMode="contain"
+                            contentFit="contain"
+                            cachePolicy="memory-disk"
                             accessibilityLabel={todayDominantMoodDisplay.label}
                           />
                           <Text
@@ -3294,7 +3295,8 @@ export default function Analytics() {
                         getMoodIconSource(periodDominantMoodDisplay.label)
                       }
                       style={{ width: 56, height: 56 }}
-                      resizeMode="contain"
+                      contentFit="contain"
+                      cachePolicy="memory-disk"
                       accessibilityLabel={periodDominantMoodDisplay.label}
                     />
                     <Text

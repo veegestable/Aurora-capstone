@@ -3,6 +3,8 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
+  useMemo,
   ReactNode,
 } from "react";
 import { AppState } from "react-native";
@@ -288,7 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [user?.id]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     try {
       console.log("🔥 Signing in user:", email);
       const userProfile = await authService.signIn({ email, password });
@@ -308,9 +310,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("❌ Sign in error:", error);
       throw error;
     }
-  };
+  }, []);
 
-  const signUp = async (
+  const signUp = useCallback(async (
     email: string,
     password: string,
     fullName: string,
@@ -349,7 +351,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...(role === "student" && prog ? { program: prog } : {}),
       });
 
-      // Don't set user - they need to log in manually
       console.log("✅ Sign up successful - account created for:", email);
 
       return {
@@ -364,9 +365,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         message: error instanceof Error ? error.message : "Sign up failed",
       };
     }
-  };
+  }, []);
 
-  const resendRegistrationVerificationEmail = async (
+  const resendRegistrationVerificationEmail = useCallback(async (
     email: string,
     password: string,
   ) => {
@@ -389,17 +390,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             : "Could not resend verification email",
       };
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       const uid = auth.currentUser?.uid;
-      if (uid && user && (user.role === "counselor" || user.role === "student")) {
+      const currentUser = user;
+      if (uid && currentUser && (currentUser.role === "counselor" || currentUser.role === "student")) {
         await logUserLogoutCounselorOrStudent({
           userId: uid,
-          role: user.role,
-          displayName: user.full_name ?? "",
-          email: user.email ?? "",
+          role: currentUser.role,
+          displayName: currentUser.full_name ?? "",
+          email: currentUser.email ?? "",
         });
       }
       if (uid) {
@@ -417,9 +419,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("❌ Sign out error:", error);
     }
-  };
+  }, [user]);
 
-  const updateUser = async (data: {
+  const updateUser = useCallback(async (data: {
     full_name?: string;
     preferred_name?: string;
     college_code?: string;
@@ -442,16 +444,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("❌ Update user error:", error);
       throw error;
     }
-  };
+  }, [user]);
 
-  const uploadAvatar = async (imageUri: string): Promise<string> => {
+  const uploadAvatar = useCallback(async (imageUri: string): Promise<string> => {
     if (!user) throw new Error("Not authenticated");
     const url = await authService.uploadAvatar(user.id, imageUri);
     setUser((prev) => (prev ? { ...prev, avatar_url: url } : null));
     return url;
-  };
+  }, [user]);
 
-  const refreshUserProfile = async () => {
+  const refreshUserProfile = useCallback(async () => {
     if (!auth.currentUser) return;
     try {
       const userProfile = await authService.getCurrentUser();
@@ -461,9 +463,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error("❌ refreshUserProfile:", e);
     }
-  };
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     user,
     loading,
     signIn,
@@ -473,7 +475,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateUser,
     uploadAvatar,
     refreshUserProfile,
-  };
+  }), [user, loading, signIn, signUp, resendRegistrationVerificationEmail, signOut, updateUser, uploadAvatar, refreshUserProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -10,13 +10,16 @@ import React, {
   useMemo,
   useCallback,
   useRef,
+  memo,
 } from "react";
 import {
   View,
   ScrollView,
+  SectionList,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  StyleSheet as RNStyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -165,25 +168,22 @@ function formatDateHeader(date: Date): string {
 }
 
 /** Badge row — labels from {@link getSessionHistoryBadgePresentation} (timeline, not raw Firestore status). */
-function SessionHistoryBadgePill({ badge }: { badge: SessionHistoryBadge }) {
+const SessionHistoryBadgePill = memo(function SessionHistoryBadgePill({ badge }: { badge: SessionHistoryBadge }) {
   const p = getSessionHistoryBadgePresentation(badge);
   const colors = sessionPresentationColors(p.variant);
   return (
     <View
-      style={{
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 8,
-        borderWidth: 1.5,
-        borderColor: colors.text,
-      }}
+      style={[
+        shCardStyles.badgePill,
+        { borderColor: colors.text },
+      ]}
     >
       <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
         {p.counselorPillUpper}
       </Text>
     </View>
   );
-}
+});
 
 export default function SessionHistoryScreen() {
   const { user } = useAuth();
@@ -301,7 +301,7 @@ export default function SessionHistoryScreen() {
     return null;
   };
 
-  const groupedByDate = useMemo(() => {
+  const sections = useMemo(() => {
     const groups: Record<string, SessionHistoryItem[]> = {};
     for (const s of filteredSessions) {
       const d =
@@ -334,13 +334,54 @@ export default function SessionHistoryScreen() {
       const d2 = new Date(b).getTime();
       return isNaN(d2) ? -1 : isNaN(d1) ? 1 : d2 - d1;
     });
-    return sortedKeys.map((k) => ({ dateKey: k, items: groups[k] }));
+    return sortedKeys.map((k) => {
+      const items = groups[k];
+      const firstItem = items[0];
+      const firstDate = firstItem
+        ? (getSessionDate(firstItem) ??
+          (firstItem.updatedAt instanceof Date
+            ? firstItem.updatedAt
+            : new Date(firstItem.updatedAt)))
+        : new Date();
+      return { title: formatDateHeader(firstDate), data: items, key: k };
+    });
   }, [filteredSessions]);
 
-  const handleSessionPress = (session: SessionHistoryItem) => {
+  const handleSessionPress = useCallback((session: SessionHistoryItem) => {
     setSelectedSession(session);
     setShowDetailModal(true);
-  };
+  }, []);
+
+  const sessionKeyExtractor = useCallback((item: SessionHistoryItem) => item.id, []);
+
+  const renderSessionItem = useCallback(({ item }: { item: SessionHistoryItem }) => (
+    <SessionHistoryCard
+      session={item}
+      onPress={() => handleSessionPress(item)}
+    />
+  ), [handleSessionPress]);
+
+  const renderSectionHeader = useCallback(({ section }: { section: { title: string } }) => (
+    <View style={{ marginTop: 12, marginBottom: 12 }}>
+      <Text
+        style={{
+          color: AURORA.textMuted,
+          fontSize: 11,
+          fontWeight: "600",
+          letterSpacing: 0.5,
+          marginBottom: 8,
+        }}
+      >
+        {section.title}
+      </Text>
+      <View
+        style={{
+          height: 1,
+          backgroundColor: AURORA.border,
+        }}
+      />
+    </View>
+  ), []);
 
   const handleMarkAttendanceFromDetail = () => {
     setShowDetailModal(false);
@@ -574,72 +615,39 @@ export default function SessionHistoryScreen() {
             })}
           </ScrollView>
         </View>
-        {/* Session list */}
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {loading ? (
-            <View style={{ paddingTop: 60, alignItems: "center" }}>
-              <ActivityIndicator size="large" color={AURORA.blue} />
-            </View>
-          ) : groupedByDate.length === 0 ? (
-            <View style={{ paddingTop: 60, alignItems: "center" }}>
-              <Text
-                style={{
-                  color: AURORA.textMuted,
-                  fontSize: 14,
-                  textAlign: "center",
-                }}
-              >
-                No sessions found. Accepted session requests will appear here.
-              </Text>
-            </View>
-          ) : (
-            groupedByDate.map(({ dateKey, items }) => {
-              const firstItem = items[0];
-              const firstDate = firstItem
-                ? (getSessionDate(firstItem) ??
-                  (firstItem.updatedAt instanceof Date
-                    ? firstItem.updatedAt
-                    : new Date(firstItem.updatedAt)))
-                : new Date();
-              const header = dateKey.startsWith("fallback_")
-                ? formatDateHeader(firstDate)
-                : formatDateHeader(firstDate);
-              return (
-                <View key={dateKey} style={{ marginBottom: 20 }}>
-                  <Text
-                    style={{
-                      color: AURORA.textMuted,
-                      fontSize: 11,
-                      fontWeight: "600",
-                      letterSpacing: 0.5,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {header}
-                  </Text>
-                  <View
-                    style={{
-                      height: 1,
-                      backgroundColor: AURORA.border,
-                      marginBottom: 12,
-                    }}
-                  />
-                  {items.map((session) => (
-                    <SessionHistoryCard
-                      key={session.id}
-                      session={session}
-                      onPress={() => handleSessionPress(session)}
-                    />
-                  ))}
-                </View>
-              );
-            })
-          )}
-        </ScrollView>
+        {/* Session list (virtualized) */}
+        {loading ? (
+          <View style={{ flex: 1, paddingTop: 60, alignItems: "center" }}>
+            <ActivityIndicator size="large" color={AURORA.blue} />
+          </View>
+        ) : (
+          <SectionList
+            sections={sections}
+            keyExtractor={sessionKeyExtractor}
+            renderItem={renderSessionItem}
+            renderSectionHeader={renderSectionHeader}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+            showsVerticalScrollIndicator={false}
+            stickySectionHeadersEnabled={false}
+            initialNumToRender={10}
+            maxToRenderPerBatch={8}
+            windowSize={7}
+            ListEmptyComponent={
+              <View style={{ paddingTop: 60, alignItems: "center" }}>
+                <Text
+                  style={{
+                    color: AURORA.textMuted,
+                    fontSize: 14,
+                    textAlign: "center",
+                  }}
+                >
+                  No sessions found. Accepted session requests will appear here.
+                </Text>
+              </View>
+            }
+          />
+        )}
       </SafeAreaView>
 
       {/* Session Detail Modal */}
@@ -751,7 +759,7 @@ export default function SessionHistoryScreen() {
   );
 }
 
-function SessionHistoryCard({
+const SessionHistoryCard = memo(function SessionHistoryCard({
   session,
   onPress,
 }: {
@@ -768,48 +776,22 @@ function SessionHistoryCard({
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      style={{
-        backgroundColor: AURORA.card,
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: AURORA.border,
-      }}
+      style={shCardStyles.card}
     >
-      <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+      <View style={shCardStyles.row}>
         <LetterAvatar
           name={session.studentName}
           size={48}
           avatarUrl={session.studentAvatar}
         />
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 4,
-            }}
-          >
-            <Text
-              style={{
-                color: "#FFFFFF",
-                fontSize: 16,
-                fontWeight: "700",
-              }}
-            >
+        <View style={shCardStyles.body}>
+          <View style={shCardStyles.nameRow}>
+            <Text style={shCardStyles.studentName}>
               {session.studentName}
             </Text>
             <SessionHistoryBadgePill badge={badge} />
           </View>
-          <Text
-            style={{
-              color: AURORA.textSec,
-              fontSize: 13,
-              marginBottom: 10,
-            }}
-          >
+          <Text style={shCardStyles.subtitle}>
             {formatCounselorStudentSubtitle({
               department: session.studentDepartment,
               program: session.studentProgram,
@@ -817,8 +799,8 @@ function SessionHistoryCard({
             }) || "CCS"}
           </Text>
 
-          <View style={{ marginBottom: 8 }}>
-            <Text style={{ color: AURORA.textMuted, fontSize: 11, lineHeight: 16 }}>
+          <View style={shCardStyles.timelineBlock}>
+            <Text style={shCardStyles.timelineText}>
               {(session.initiatedBy ?? "student") === "counselor"
                 ? "Invite sent"
                 : "Requested"}
@@ -830,14 +812,7 @@ function SessionHistoryCard({
               )}
             </Text>
             {session.slotConfirmedAt ? (
-              <Text
-                style={{
-                  color: AURORA.textMuted,
-                  fontSize: 11,
-                  lineHeight: 16,
-                  marginTop: 2,
-                }}
-              >
+              <Text style={[shCardStyles.timelineText, { marginTop: 2 }]}>
                 Time agreed:{" "}
                 {formatSessionTimelineLine(
                   session.slotConfirmedAt instanceof Date
@@ -850,86 +825,25 @@ function SessionHistoryCard({
 
           {session.status === "completed" && (
             <>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 8,
-                }}
-              >
+              <View style={shCardStyles.detailRow8}>
                 <Calendar size={14} color={AURORA.textSec} />
-                <Text style={{ color: AURORA.textSec, fontSize: 13 }}>
+                <Text style={shCardStyles.detailText}>
                   {slot?.date ?? "-"}
                 </Text>
               </View>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 12,
-                }}
-              >
+              <View style={[shCardStyles.detailRow8, { marginBottom: 12 }]}>
                 <Clock size={14} color={AURORA.textSec} />
-                <Text style={{ color: AURORA.textSec, fontSize: 13 }}>
+                <Text style={shCardStyles.detailText}>
                   {slot?.time ?? "-"}
                 </Text>
               </View>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                {/* <TouchableOpacity
-                  style={{
-                    flex: 1,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    backgroundColor: AURORA.blue,
-                    borderRadius: 10,
-                    paddingVertical: 10,
-                  }}
-                >
-                  <FileText size={16} color="#FFFFFF" />
-                  <Text
-                    style={{
-                      color: "#FFFFFF",
-                      fontSize: 13,
-                      fontWeight: "600",
-                    }}
-                  >
-                    View Note
-                  </Text>
-                </TouchableOpacity> */}
-                {/* <TouchableOpacity
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 22,
-                    backgroundColor: AURORA.cardDark,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderWidth: 1,
-                    borderColor: AURORA.border,
-                  }}
-                >
-                  <Share2 size={18} color={AURORA.textSec} />
-                </TouchableOpacity> */}
-              </View>
+              <View style={shCardStyles.detailRow} />
             </>
           )}
 
           {session.status === "missed" && (
             <>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 8,
-                }}
-              >
+              <View style={shCardStyles.detailRow8}>
                 <AlertTriangle size={16} color={AURORA.orange} />
                 <Text
                   style={{ color: AURORA.orange, fontSize: 13, fontWeight: "600" }}
@@ -937,11 +851,9 @@ function SessionHistoryCard({
                   Student did not attend
                 </Text>
               </View>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
+              <View style={shCardStyles.detailRow}>
                 <Clock size={14} color={AURORA.textSec} />
-                <Text style={{ color: AURORA.textSec, fontSize: 13 }}>
+                <Text style={shCardStyles.detailText}>
                   {slot?.time ?? "-"}
                 </Text>
               </View>
@@ -949,9 +861,7 @@ function SessionHistoryCard({
           )}
 
           {session.status === "cancelled" && (
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-            >
+            <View style={shCardStyles.detailRow}>
               <CalendarX size={14} color={AURORA.textMuted} />
               <Text style={{ color: AURORA.textMuted, fontSize: 13 }}>
                 {session.cancelReason ?? "Cancelled"} ({slot?.date ?? "-"})
@@ -961,14 +871,7 @@ function SessionHistoryCard({
 
           {(badge === "reschedule" || badge === "expired") && slot && (
             <>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 8,
-                }}
-              >
+              <View style={shCardStyles.detailRow8}>
                 <AlertTriangle
                   size={16}
                   color={badge === "expired" ? AURORA.textMuted : AURORA.orange}
@@ -987,36 +890,20 @@ function SessionHistoryCard({
                     : "Past scheduled time (within 24h) — needs rescheduling or mark attendance."}
                 </Text>
               </View>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 6,
-                }}
-              >
+              <View style={[shCardStyles.detailRow8, { marginBottom: 6 }]}>
                 <Calendar size={14} color={AURORA.textSec} />
-                <Text style={{ color: AURORA.textSec, fontSize: 13 }}>
+                <Text style={shCardStyles.detailText}>
                   {slot.date}
                 </Text>
               </View>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
+              <View style={shCardStyles.detailRow}>
                 <Clock size={14} color={AURORA.textSec} />
-                <Text style={{ color: AURORA.textSec, fontSize: 13 }}>
+                <Text style={shCardStyles.detailText}>
                   {slot.time}
                 </Text>
               </View>
               {canMarkAttendance && (
-                <Text
-                  style={{
-                    color: AURORA.blue,
-                    fontSize: 12,
-                    fontWeight: "600",
-                    marginTop: 8,
-                  }}
-                >
+                <Text style={shCardStyles.tapAttendance}>
                   Tap to mark attendance
                 </Text>
               )}
@@ -1025,36 +912,20 @@ function SessionHistoryCard({
 
           {(badge === "pending" || badge === "today") && slot && (
             <>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 6,
-                }}
-              >
+              <View style={[shCardStyles.detailRow8, { marginBottom: 6 }]}>
                 <Calendar size={14} color={AURORA.textSec} />
-                <Text style={{ color: AURORA.textSec, fontSize: 13 }}>
+                <Text style={shCardStyles.detailText}>
                   {slot.date}
                 </Text>
               </View>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
+              <View style={shCardStyles.detailRow}>
                 <Clock size={14} color={AURORA.textSec} />
-                <Text style={{ color: AURORA.textSec, fontSize: 13 }}>
+                <Text style={shCardStyles.detailText}>
                   {slot.time}
                 </Text>
               </View>
               {canMarkAttendance && (
-                <Text
-                  style={{
-                    color: AURORA.blue,
-                    fontSize: 12,
-                    fontWeight: "600",
-                    marginTop: 8,
-                  }}
-                >
+                <Text style={shCardStyles.tapAttendance}>
                   Tap to mark attendance
                 </Text>
               )}
@@ -1064,4 +935,74 @@ function SessionHistoryCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
+
+const shCardStyles = RNStyleSheet.create({
+  card: {
+    backgroundColor: AURORA.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: AURORA.border,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  body: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  studentName: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  subtitle: {
+    color: AURORA.textSec,
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  timelineBlock: {
+    marginBottom: 8,
+  },
+  timelineText: {
+    color: AURORA.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  detailRow8: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  detailText: {
+    color: AURORA.textSec,
+    fontSize: 13,
+  },
+  tapAttendance: {
+    color: AURORA.blue,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 8,
+  },
+  badgePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+});

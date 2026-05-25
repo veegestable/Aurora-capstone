@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { View, ScrollView, TouchableOpacity, Image, Modal, Platform, ActivityIndicator, StyleSheet, Animated, Easing } from "react-native";
+import { View, ScrollView, TouchableOpacity, Modal, Platform, ActivityIndicator, StyleSheet, Animated, Easing } from "react-native";
+import { Image } from "expo-image";
 import { AppText as Text } from "../../components/common/AppText";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -415,7 +416,8 @@ function MoodBubble({
         <Image
           source={mood.icon}
           style={{ width: 38, height: 38 }}
-          resizeMode="contain"
+          contentFit="contain"
+          cachePolicy="memory-disk"
         />
       </View>
       <Text
