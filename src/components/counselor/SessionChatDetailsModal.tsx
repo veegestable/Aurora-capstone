@@ -85,7 +85,7 @@ export function SessionChatDetailsModal({ open, message, onClose }: SessionChatD
         )}
 
         <DetailRow icon={<MapPin className="w-4 h-4 text-aurora-blue" />} label="Location">
-          Guidance Office, West Wing
+          Office of Guidance and Counseling (OGC)
         </DetailRow>
 
         <DetailRow icon={<FileText className="w-4 h-4 text-aurora-blue" />} label="Note">

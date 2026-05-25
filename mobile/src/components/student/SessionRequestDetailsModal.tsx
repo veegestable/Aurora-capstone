@@ -6,7 +6,7 @@ import { AppText as Text } from "../common/AppText";
 
 import React from 'react';
 import { Modal, View, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
-import { X, Clock, FileText } from 'lucide-react-native';
+import { X, Clock, FileText, MapPin } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import type { SessionRequestData } from './SessionRequestCard';
 import {
@@ -76,6 +76,16 @@ export default function SessionRequestDetailsModal({
                                     </Text>
                                 </View>
                                 <Text style={styles.sectionValue}>{data.preferredTime}</Text>
+                            </View>
+
+                            <View style={styles.section}>
+                                <View style={styles.sectionHeader}>
+                                    <MapPin size={18} color={AURORA.blue} />
+                                    <Text style={styles.sectionLabel}>Location</Text>
+                                </View>
+                                <Text style={styles.sectionValue}>
+                                    Office of Guidance and Counseling (OGC)
+                                </Text>
                             </View>
 
                             <View style={styles.section}>

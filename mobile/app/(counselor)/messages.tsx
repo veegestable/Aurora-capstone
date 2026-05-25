@@ -495,7 +495,7 @@ function ChatView({
         counselorName: user.full_name || "Counselor",
         date: headline.date,
         time: headline.time,
-        location: "Guidance Office, West Wing",
+        location: "Office of Guidance and Counseling (OGC)",
         note: data.note,
         timeSlots,
       };
@@ -669,7 +669,7 @@ function ChatView({
           minute: "2-digit",
           hour12: true,
         }),
-        location: "Guidance Office, West Wing",
+        location: "Office of Guidance and Counseling (OGC)",
         note: data.note.trim(),
         timeSlots: slots,
       };

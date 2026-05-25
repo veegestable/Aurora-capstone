@@ -437,7 +437,7 @@ export default function SessionHistoryScreen() {
           counselorName: user.full_name || "Counselor",
           date: headline.date,
           time: headline.time,
-          location: "Guidance Office, West Wing",
+          location: "Office of Guidance and Counseling (OGC)",
           note: data.note.trim(),
           timeSlots,
         },

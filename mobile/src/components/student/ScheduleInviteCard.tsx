@@ -4,9 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Pressable, Platform, Modal, ScrollView } from 'react-native';
 import { AppText as Text } from '../common/AppText';
-import { Calendar, Check } from 'lucide-react-native';
+import { Calendar, Check, X, Clock, User, FileText, MapPin } from 'lucide-react-native';
 import { AURORA } from '../../constants/aurora-colors';
 import { isSessionDocOpenRequestExpired24h } from '../../utils/dateHelpers';
 
@@ -84,6 +84,7 @@ export default function ScheduleInviteCard({
             ? [{ date: data.date, time: data.time }]
             : [];
     const [selectedIndex, setSelectedIndex] = useState(0);
+    const [detailOpen, setDetailOpen] = useState(false);
 
     const handleConfirm = () => {
         if (confirmBusy) return;
@@ -91,6 +92,16 @@ export default function ScheduleInviteCard({
             onConfirm(slots[selectedIndex]);
         }
     };
+
+    const dateTimeLine = hasLockedSlot
+        ? `${data.agreedSlot!.date}, ${data.agreedSlot!.time}`
+        : slots.length > 0
+            ? slots.map((s) => `${s.date}, ${s.time}`).join('\n')
+            : 'Not set';
+
+    const statusLabel = settled
+        ? (st === 'confirmed' ? 'Confirmed' : st === 'completed' ? 'Completed' : st === 'missed' ? 'Missed' : 'Cancelled')
+        : showInviteExpiredBanner ? 'Expired' : 'Pending';
 
     return (
         <View style={styles.wrapper}>
@@ -186,8 +197,109 @@ export default function ScheduleInviteCard({
                     </View>
                 </Pressable>
             )}
+            <TouchableOpacity
+                style={styles.viewDetailsBtn}
+                onPress={() => setDetailOpen(true)}
+                activeOpacity={0.8}
+            >
+                <Text style={styles.viewDetailsBtnText}>View Details</Text>
+            </TouchableOpacity>
         </View>
         <View style={[styles.tail, isFromMe ? styles.tailRight : styles.tailLeft]} />
+
+        <Modal
+            visible={detailOpen}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setDetailOpen(false)}
+        >
+            <View style={styles.sheetOverlay}>
+                <TouchableOpacity
+                    style={styles.sheetBackdrop}
+                    activeOpacity={1}
+                    onPress={() => setDetailOpen(false)}
+                />
+                <View style={styles.sheet}>
+                    <View style={styles.sheetHandle} />
+                    <View style={styles.sheetHeader}>
+                        <Text style={styles.sheetTitle}>Session Details</Text>
+                        <TouchableOpacity
+                            onPress={() => setDetailOpen(false)}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        >
+                            <X size={24} color={AURORA.textSec} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <ScrollView
+                        style={styles.sheetScroll}
+                        contentContainerStyle={styles.sheetScrollContent}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        <View style={[
+                            styles.statusPill,
+                            statusLabel === 'Confirmed' || statusLabel === 'Completed'
+                                ? styles.statusPillOk
+                                : statusLabel === 'Expired' || statusLabel === 'Missed' || statusLabel === 'Cancelled'
+                                    ? styles.statusPillDanger
+                                    : styles.statusPillPending,
+                        ]}>
+                            <Text style={styles.statusPillText}>{statusLabel}</Text>
+                        </View>
+
+                        <View style={styles.sheetSection}>
+                            <View style={styles.sheetSectionHeader}>
+                                <Calendar size={18} color={AURORA.blue} />
+                                <Text style={styles.sheetSectionLabel}>Session Title</Text>
+                            </View>
+                            <Text style={styles.sheetSectionValue}>
+                                {data.title || 'Academic Guidance'}
+                            </Text>
+                        </View>
+
+                        {data.counselorName ? (
+                            <View style={styles.sheetSection}>
+                                <View style={styles.sheetSectionHeader}>
+                                    <User size={18} color={AURORA.blue} />
+                                    <Text style={styles.sheetSectionLabel}>Counselor</Text>
+                                </View>
+                                <Text style={styles.sheetSectionValue}>{data.counselorName}</Text>
+                            </View>
+                        ) : null}
+
+                        <View style={styles.sheetSection}>
+                            <View style={styles.sheetSectionHeader}>
+                                <Clock size={18} color={AURORA.blue} />
+                                <Text style={styles.sheetSectionLabel}>
+                                    {hasLockedSlot ? 'Confirmed Time' : 'Proposed Times'}
+                                </Text>
+                            </View>
+                            <Text style={styles.sheetSectionValue}>{dateTimeLine}</Text>
+                        </View>
+
+                        {data.location ? (
+                            <View style={styles.sheetSection}>
+                                <View style={styles.sheetSectionHeader}>
+                                    <MapPin size={18} color={AURORA.blue} />
+                                    <Text style={styles.sheetSectionLabel}>Location</Text>
+                                </View>
+                                <Text style={styles.sheetSectionValue}>{data.location}</Text>
+                            </View>
+                        ) : null}
+
+                        {data.note ? (
+                            <View style={styles.sheetSection}>
+                                <View style={styles.sheetSectionHeader}>
+                                    <FileText size={18} color={AURORA.blue} />
+                                    <Text style={styles.sheetSectionLabel}>Counselor's Note</Text>
+                                </View>
+                                <Text style={styles.sheetSectionValue}>{data.note}</Text>
+                            </View>
+                        ) : null}
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
         </View>
     );
 }
@@ -379,5 +491,103 @@ const styles = StyleSheet.create({
     },
     statusBannerTextMuted: {
         color: AURORA.textSec,
+    },
+    viewDetailsBtn: {
+        marginTop: 8,
+        paddingVertical: 10,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: AURORA.border,
+        alignItems: 'center',
+    },
+    viewDetailsBtnText: {
+        color: AURORA.blue,
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    sheetOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    sheetBackdrop: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    sheet: {
+        backgroundColor: AURORA.bg,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+        maxHeight: '70%',
+    },
+    sheetHandle: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: AURORA.border,
+        alignSelf: 'center',
+        marginTop: 12,
+        marginBottom: 8,
+    },
+    sheetHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingBottom: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: AURORA.border,
+    },
+    sheetTitle: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    sheetScroll: {
+        maxHeight: 400,
+    },
+    sheetScrollContent: {
+        padding: 20,
+        gap: 18,
+    },
+    statusPill: {
+        alignSelf: 'flex-start',
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    statusPillOk: {
+        backgroundColor: 'rgba(34,197,94,0.2)',
+    },
+    statusPillDanger: {
+        backgroundColor: 'rgba(239,68,68,0.2)',
+    },
+    statusPillPending: {
+        backgroundColor: 'rgba(45,107,255,0.2)',
+    },
+    statusPillText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    sheetSection: {
+        gap: 6,
+    },
+    sheetSectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    sheetSectionLabel: {
+        color: AURORA.textSec,
+        fontSize: 12,
+        fontWeight: '600',
+        letterSpacing: 0.3,
+    },
+    sheetSectionValue: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        lineHeight: 22,
+        paddingLeft: 26,
     },
 });

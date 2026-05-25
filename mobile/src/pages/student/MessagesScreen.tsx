@@ -937,6 +937,7 @@ function DirectMessageView({
                               agreedSlot: msg.session.agreedSlot,
                               sessionDocCreatedAt: msg.session.sessionDocCreatedAt,
                               sessionDocUpdatedAt: msg.session.sessionDocUpdatedAt,
+                              location: msg.session.location || "Office of Guidance and Counseling (OGC)",
                             }}
                             senderLabel="Aurora Academic Support"
                             isFromMe={isMe}

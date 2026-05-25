@@ -55,6 +55,7 @@ import {
 import { SESSION_SCHEDULING_TIMEZONE } from "../constants/session-scheduling";
 import { firestoreTimestampFromSlotManila } from "../utils/sessionSlotAuthority";
 import { isProgramInCollege } from "../constants/college-programs-iit";
+import { formatCounselorStudentSubtitle } from "../constants/ccs-student-programs";
 import {
   conversationCollegeTagFromData,
   isActiveCollegeInboxThread,
@@ -67,23 +68,44 @@ const AUTO_ACCEPTED_PREFIX = "__AUTO_ACCEPTED__";
 
 export type ConversationInboxScope = "active" | "past";
 
-async function fetchUserCollegeMap(
+interface UserProfileSlice {
+  college: string;
+  programLine: string;
+}
+
+async function fetchUserProfileMap(
   userIds: string[],
-): Promise<Record<string, string>> {
+): Promise<Record<string, UserProfileSlice>> {
   const unique = [...new Set(userIds.filter((id) => id.trim()))];
-  const map: Record<string, string> = {};
+  const map: Record<string, UserProfileSlice> = {};
   await Promise.all(
     unique.map(async (id) => {
       try {
         const snap = await getDoc(doc(db, "users", id));
-        map[id] = resolveCollegeFromUserRecord(
-          (snap.data() ?? {}) as Record<string, unknown>,
-        );
+        const data = (snap.data() ?? {}) as Record<string, unknown>;
+        map[id] = {
+          college: resolveCollegeFromUserRecord(data),
+          programLine: formatCounselorStudentSubtitle({
+            college_code: typeof data.college_code === "string" ? data.college_code : undefined,
+            department: typeof data.department === "string" ? data.department : undefined,
+            program: typeof data.program === "string" ? data.program : undefined,
+            year_level: typeof data.year_level === "string" ? data.year_level : undefined,
+          }),
+        };
       } catch {
-        map[id] = "";
+        map[id] = { college: "", programLine: "" };
       }
     }),
   );
+  return map;
+}
+
+async function fetchUserCollegeMap(
+  userIds: string[],
+): Promise<Record<string, string>> {
+  const profiles = await fetchUserProfileMap(userIds);
+  const map: Record<string, string> = {};
+  for (const [id, p] of Object.entries(profiles)) map[id] = p.college;
   return map;
 }
 
@@ -529,38 +551,25 @@ async function repairConversationPeerProfile(params: {
   let name = String(params.existingName ?? "").trim();
   const userId = String(params.userId ?? "").trim();
 
-  const needsAvatarRepair =
-    !avatar || params.isPlaceholderAvatar(String(avatar));
-  const needsNameRepair = isGenericConversationName(
-    params.existingName,
-    params.fallbackName,
-  );
-
   let didRepairAvatar = false;
   let didRepairName = false;
 
-  if ((needsAvatarRepair || needsNameRepair) && userId) {
+  if (userId) {
     try {
       const userDoc = await getDoc(doc(db, "users", userId));
       const userData = userDoc.data() as Record<string, unknown> | undefined;
       const userAvatar = String(userData?.avatar_url ?? "");
       const userDisplayName = resolveUserDisplayNameFromProfile(userData);
 
-      if (
-        needsAvatarRepair &&
-        userAvatar &&
-        !params.isPlaceholderAvatar(userAvatar)
-      ) {
+      if (userAvatar && !params.isPlaceholderAvatar(userAvatar) && userAvatar !== avatar) {
         avatar = userAvatar;
         didRepairAvatar = true;
-        if (params.isPlaceholderAvatar(String(params.existingAvatar ?? ""))) {
-          updateDoc(params.convRef, {
-            [params.avatarField]: userAvatar,
-          }).catch(() => {});
-        }
+        updateDoc(params.convRef, {
+          [params.avatarField]: userAvatar,
+        }).catch(() => {});
       }
 
-      if (needsNameRepair && userDisplayName) {
+      if (userDisplayName && userDisplayName !== name) {
         name = userDisplayName;
         didRepairName = true;
         updateDoc(params.convRef, {
@@ -1853,10 +1862,12 @@ export const firestoreService = {
       const eligibleDocs = snapshot.docs.filter(
         (d) => includeArchived || !archivedIds.has(d.id),
       );
-      const collegeMap = await fetchUserCollegeMap([
+      const profileMap = await fetchUserProfileMap([
         counselorId,
         ...eligibleDocs.map((d) => String(d.data().studentId ?? "")),
       ]);
+      const collegeMap: Record<string, string> = {};
+      for (const [id, p] of Object.entries(profileMap)) collegeMap[id] = p.college;
       const scopedDocs = eligibleDocs.filter((d) => {
         const data = d.data() as Record<string, unknown>;
         const classify = conversationInboxClassifyInput(
@@ -1894,6 +1905,12 @@ export const firestoreService = {
           });
           if (repaired.didRepairName) repairedNames += 1;
           if (repaired.didRepairAvatar) repairedAvatars += 1;
+          const studentId = String(data.studentId ?? "");
+          const freshProgram = profileMap[studentId]?.programLine || "";
+          const storedProgram = String(data.student_program ?? "");
+          if (freshProgram && freshProgram !== storedProgram) {
+            updateDoc(convRef, { student_program: freshProgram }).catch(() => {});
+          }
           return {
             id: data.studentId,
             conversationId: d.id,
@@ -1905,7 +1922,7 @@ export const firestoreService = {
             avatar: repaired.avatar,
             isOnline: false,
             isUnread: (data.unreadCountCounselor ?? 0) > 0,
-            program: data.student_program ?? undefined,
+            program: freshProgram || storedProgram || undefined,
             studentId: data.studentId,
             messagingClosed,
             isPastCollege: messagingClosed,

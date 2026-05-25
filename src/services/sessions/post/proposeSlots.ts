@@ -51,7 +51,7 @@ export async function proposeSlots(
     counselorName,
     date: primary.date,
     time: primary.time,
-    location: 'Guidance Office, West Wing',
+    location: 'Office of Guidance and Counseling (OGC)',
     note: note?.trim() ?? '',
     timeSlots: slots,
     sessionStatus: 'pending',

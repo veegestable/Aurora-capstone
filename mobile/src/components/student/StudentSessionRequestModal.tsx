@@ -58,8 +58,10 @@ export default function StudentSessionRequestModal({
 }: StudentSessionRequestModalProps) {
     const getDefaultPreferredDate = () => {
         const d = new Date();
+        d.setHours(d.getHours() + 1);
         d.setMinutes(0);
         d.setSeconds(0);
+        d.setMilliseconds(0);
         return d;
     };
 
@@ -83,10 +85,14 @@ export default function StudentSessionRequestModal({
         if (Platform.OS === 'android') {
             if (event.type !== 'set' || !selectedDate) return;
             setPreferredDate(selectedDate);
+            setValidationError(null);
             return;
         }
 
-        if (selectedDate) setPreferredDate(selectedDate);
+        if (selectedDate) {
+            setPreferredDate(selectedDate);
+            setValidationError(null);
+        }
     };
 
     const openPicker = () => {
@@ -97,7 +103,14 @@ export default function StudentSessionRequestModal({
         setShowPicker(true);
     };
 
+    const [validationError, setValidationError] = useState<string | null>(null);
+
     const handleSend = () => {
+        if (preferredDate.getTime() <= Date.now()) {
+            setValidationError("Please choose a future date and time.");
+            return;
+        }
+        setValidationError(null);
         onSend({ preferredDate, note: note.trim() });
     };
 
@@ -163,6 +176,10 @@ export default function StudentSessionRequestModal({
                         textAlignVertical="top"
                     />
 
+                    {validationError && (
+                        <Text style={styles.validationError}>{validationError}</Text>
+                    )}
+
                     <TouchableOpacity
                         style={styles.sendBtn}
                         onPress={handleSend}
@@ -190,7 +207,7 @@ export default function StudentSessionRequestModal({
                 visible={showAndroidDatePicker}
                 value={preferredDate}
                 title="Preferred time"
-                onConfirm={setPreferredDate}
+                onConfirm={(d) => { setPreferredDate(d); setValidationError(null); }}
                 onClose={() => setShowAndroidDatePicker(false)}
             />
         )}
@@ -280,6 +297,13 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: AURORA.border,
         marginBottom: 20,
+    },
+    validationError: {
+        color: '#EF4444',
+        fontSize: 13,
+        fontWeight: '600',
+        marginBottom: 10,
+        textAlign: 'center',
     },
     sendBtn: {
         flexDirection: 'row',
