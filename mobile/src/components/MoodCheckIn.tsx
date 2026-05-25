@@ -398,7 +398,12 @@ export function MoodCheckIn({
   } = useUserDaySettings();
 
   const [selectedEmotions, setSelectedEmotions] = useState<DetectedEmotion[]>(
-    [],
+    () => {
+      if (!initialMood) return [];
+      const found = MANUAL_EMOTIONS.find((item) => item.name === initialMood);
+      if (!found) return [];
+      return [{ emotion: found.name, confidence: 0.6, color: found.color }];
+    },
   );
   const [moodInputMode, setMoodInputMode] = useState<"manual" | "selfie">(
     "manual",
@@ -541,6 +546,7 @@ export function MoodCheckIn({
     }
   }, [onComplete]);
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
+  const suppressBounceRef = useRef(!!initialMood);
   const scrollRef = useRef<ScrollView | null>(null);
   const durationInputYRef = useRef(0);
   const [moodToggleWidth, setMoodToggleWidth] = useState(0);
@@ -811,10 +817,16 @@ export function MoodCheckIn({
     return () => { cancelled = true; };
   }, [user?.id, usualWakeTime, usualBathTime]);
 
+  const initialMoodAppliedRef = useRef(!!initialMood);
   useEffect(() => {
+    if (initialMoodAppliedRef.current) {
+      initialMoodAppliedRef.current = false;
+      return;
+    }
     if (!initialMood) return;
     const emotion = MANUAL_EMOTIONS.find((item) => item.name === initialMood);
     if (!emotion) return;
+    suppressBounceRef.current = true;
     setMoodInputMode("manual");
     setDetectionMethod("manual");
     setSelectedEmotions([
@@ -2341,7 +2353,11 @@ export function MoodCheckIn({
                         return (
                           <Animatable.View
                             key={emotion.name}
-                            animation={selected ? "bounceIn" : undefined}
+                            animation={
+                              selected && !suppressBounceRef.current
+                                ? "bounceIn"
+                                : undefined
+                            }
                             duration={260}
                             useNativeDriver
                             style={{
@@ -2356,6 +2372,7 @@ export function MoodCheckIn({
                           >
                             <TouchableOpacity
                               onPress={() => {
+                                suppressBounceRef.current = false;
                                 triggerHaptic("light");
                                 setSelectedEmotions([
                                   {

@@ -235,17 +235,6 @@ const EVENT_CATEGORY_STYLE: Record<
   },
 };
 
-const SCHOOL_TAGS = new Set([
-  "classes",
-  "study",
-  "quiz",
-  "exam",
-  "homework",
-  "deadline",
-  "group-project",
-  "presentation",
-]);
-
 function formatTagLabel(tag: string): string {
   return tag.replace(/-/g, " ");
 }
@@ -255,57 +244,6 @@ function formatCategoryLabel(category: string): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
 }
 
-function ruleBasedSchoolInsight(entry: MoodEntry): string | null {
-  const tags = (Array.isArray(entry.event_tags) ? entry.event_tags : []).filter(
-    (t) => SCHOOL_TAGS.has(t),
-  );
-  if (!tags.length) return null;
-  const stress5 =
-    entry.stress_level > 5
-      ? Math.round(entry.stress_level / 2)
-      : entry.stress_level;
-  const mood5 =
-    entry.energy_level > 5
-      ? Math.round(entry.energy_level / 2)
-      : entry.energy_level;
-  const dominantEmotion = (
-    entry.emotions?.[0]?.emotion || "neutral"
-  ).toLowerCase();
-  const sleep = entry.sleep_quality || "fair";
-  const tagCount = tags.length;
-  const loadBand =
-    tagCount === 0
-      ? "Light workload"
-      : tagCount <= 2
-        ? "Balanced load"
-        : tagCount <= 4
-          ? "Busy day"
-          : "Heavy load";
-  if (mood5 >= 4 && stress5 <= 3 && sleep === "good") {
-    return `${loadBand}: good sleep and a ${dominantEmotion} mood pattern suggest you handled school demands very well.`;
-  }
-  if (mood5 >= 4 && stress5 <= 3) {
-    return `${loadBand}: your mood-stress pattern suggests you handled school demands well.`;
-  }
-  if (mood5 >= 3 && stress5 <= 4) {
-    return `${loadBand}: stress looks manageable. Keep pacing and recovery habits consistent.`;
-  }
-  if (sleep === "poor" && stress5 >= 4) {
-    return `${loadBand}: poor sleep may be amplifying stress around school activities in this check-in.`;
-  }
-  if (
-    dominantEmotion === "sad" ||
-    dominantEmotion === "sadness" ||
-    dominantEmotion === "anger" ||
-    dominantEmotion === "angry"
-  ) {
-    return `${loadBand}: lower-valence emotion plus higher stress suggests this school period felt challenging.`;
-  }
-  if (dominantEmotion === "surprise") {
-    return `${loadBand}: surprise with school events may reflect sudden workload changes or time pressure.`;
-  }
-  return `${loadBand}: this check-in shows a tougher mood-stress pattern around school activities.`;
-}
 
 const MOOD_ICON_BY_MOOD: Record<MoodLog["mood"], ImageSourcePropType> = {
   Happy: require("../../assets/moodIcon/happy.png"),
@@ -565,7 +503,6 @@ function DayDetailsCard({
                               .filter(Boolean),
                           ),
                         );
-                  const schoolInsight = ruleBasedSchoolInsight(entry);
                   const expanded = expandedEntryId === groupKey;
 
                   return (
@@ -846,16 +783,6 @@ function DayDetailsCard({
                               </View>
                             )}
                           </View>
-                          {schoolInsight ? (
-                            <View style={styles.schoolInsightBlock}>
-                              <Text style={styles.schoolInsightLabel}>
-                                Academic insight
-                              </Text>
-                              <Text style={styles.schoolInsightText}>
-                                {schoolInsight}
-                              </Text>
-                            </View>
-                          ) : null}
                         </View>
                       ) : null}
                     </TouchableOpacity>
@@ -1099,28 +1026,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: "center",
     fontStyle: "italic",
-  },
-  schoolInsightBlock: {
-    marginTop: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(45,107,255,0.28)",
-    backgroundColor: "rgba(45,107,255,0.10)",
-  },
-  schoolInsightLabel: {
-    color: AURORA.blue,
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    marginBottom: 4,
-    letterSpacing: 0.6,
-  },
-  schoolInsightText: {
-    color: "#dbeafe",
-    fontSize: 12,
-    lineHeight: 18,
   },
   journalImageBlock: {
     marginTop: 10,

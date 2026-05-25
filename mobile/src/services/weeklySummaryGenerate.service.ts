@@ -5,8 +5,6 @@ import {
   aggregateByDay,
   aggregateEntriesAsSingleDay,
 } from "../utils/moodAggregates";
-import { getApp } from "firebase/app";
-import { getFunctions, httpsCallable } from "firebase/functions";
 
 export interface WeekSummaryInput {
   weekLabel: string;
@@ -30,7 +28,6 @@ export type WeeklySummaryResult = {
 };
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const functions = getFunctions(getApp(), "asia-southeast2");
 
 export function buildTemplateWeeklySummary(data: WeekSummaryInput): string {
   if (data.totalEntries === 0) {
@@ -62,20 +59,7 @@ export function buildTemplateWeeklySummary(data: WeekSummaryInput): string {
 export async function generateWeeklySummary(
   data: WeekSummaryInput,
 ): Promise<WeeklySummaryResult> {
-  const fallback = buildTemplateWeeklySummary(data);
-
-  try {
-    const callable = httpsCallable<
-      WeekSummaryInput,
-      { summary?: string; fromAi?: boolean }
-    >(functions, "generateWeeklySummaryAi");
-    const resp = await callable(data);
-    const text = resp.data?.summary?.trim();
-    if (!text) return { summary: fallback, source: "fallback" };
-    return { summary: text, source: resp.data?.fromAi ? "ai" : "fallback" };
-  } catch {
-    return { summary: fallback, source: "fallback" };
-  }
+  return { summary: buildTemplateWeeklySummary(data), source: "fallback" };
 }
 
 export function buildWeekSummaryInput(

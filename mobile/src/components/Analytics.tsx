@@ -46,7 +46,6 @@ import {
 } from "../services/weeklySummaryGenerate.service";
 import type { MoodData } from "../services/firebase-firestore.service";
 import {
-  fetchWeeklyAiAnalyticsWithPayload,
   deterministicWeeklyFallback,
   type WeeklyAiResult,
 } from "../services/weeklyAnalyticsAi.service";
@@ -529,10 +528,14 @@ type SchoolAnalysis = {
   topSchoolEvents: Array<{ label: string; count: number }>;
 };
 
-function schoolLoadBandFromTagCount(totalSchoolEvents: number): string {
-  if (totalSchoolEvents === 0) return "Light workload";
-  if (totalSchoolEvents <= 3) return "Balanced load";
-  if (totalSchoolEvents <= 6) return "Busy load";
+function schoolLoadBandFromTagCount(
+  totalSchoolEvents: number,
+  periodDays: number = 1,
+): string {
+  const avgPerDay = periodDays > 0 ? totalSchoolEvents / periodDays : totalSchoolEvents;
+  if (avgPerDay === 0) return "Light workload";
+  if (avgPerDay <= 3) return "Balanced load";
+  if (avgPerDay <= 6) return "Busy load";
   return "Heavy load";
 }
 
@@ -647,6 +650,7 @@ function analyzeSchoolLogs(
       event_categories?: string[];
     }
   >,
+  periodDays: number = 1,
 ): SchoolAnalysis | null {
   const schoolLogs = inputLogs.filter((l) => {
     const tags = Array.isArray(l.event_tags) ? l.event_tags : [];
@@ -673,7 +677,7 @@ function analyzeSchoolLogs(
   return {
     totalSchoolEvents,
     schoolCheckIns: schoolLogs.length,
-    loadBand: schoolLoadBandFromTagCount(totalSchoolEvents),
+    loadBand: schoolLoadBandFromTagCount(totalSchoolEvents, periodDays),
     topSchoolEvents,
   };
 }
@@ -682,13 +686,13 @@ function buildAcademicAnalyticsGuideBody(timeWindow: string): string {
   return [
     `Academic analytics uses check-ins tagged with school activities (classes, study, exams, homework, etc.) ${timeWindow}.`,
     "",
-    'Labels like "Balanced load" come from how many school tags you logged:',
-    "• 0 tags — Light workload",
-    "• 1–3 tags — Balanced load",
-    "• 4–6 tags — Busy load",
-    "• 7+ tags — Heavy load",
+    'Labels like "Balanced load" come from average school tags per day:',
+    "• 0 tags/day — Light workload",
+    "• 1–3 tags/day — Balanced load",
+    "• 4–6 tags/day — Busy load",
+    "• 7+ tags/day — Heavy load",
     "",
-    "Each tag counts separately, even on the same check-in.",
+    "For multi-day views, total tags are divided by the number of days in the period.",
   ].join("\n");
 }
 
@@ -1197,20 +1201,11 @@ export default function Analytics() {
     if (!user) return;
     try {
       const list = await refreshMoodLogs();
+      const payload = buildLast7DaysPayload(list);
+      setWeeklyAi(deterministicWeeklyFallback(payload));
       setLoading(false);
       setRefreshing(false);
-
-      setAiLoading(true);
-      setWeeklyAi(null);
-      try {
-        const payload = buildLast7DaysPayload(list);
-        const ai = await fetchWeeklyAiAnalyticsWithPayload(payload);
-        setWeeklyAi(ai);
-      } catch {
-        setWeeklyAi(deterministicWeeklyFallback(buildLast7DaysPayload(list)));
-      } finally {
-        setAiLoading(false);
-      }
+      setAiLoading(false);
     } catch (e) {
       console.error("Analytics load failed", e);
       setLogs([]);
@@ -1512,7 +1507,7 @@ export default function Analytics() {
     );
   }, [selectedTodayMood, todayMoodCharts]);
   const todaySchoolAnalysis = useMemo(() => {
-    return analyzeSchoolLogs(todayDayLogs as Parameters<typeof analyzeSchoolLogs>[0]);
+    return analyzeSchoolLogs(todayDayLogs as Parameters<typeof analyzeSchoolLogs>[0], 1);
   }, [todayDayLogs]);
   const todayEventInsight = useMemo(
     () => analyzeTodayEvents(todayDayLogs),
@@ -1531,7 +1526,7 @@ export default function Analytics() {
     ).filter((l) =>
       periodDayKeySet.has(calendarDayKeyLocal(new Date(l.log_date))),
     );
-    return analyzeSchoolLogs(periodLogsForSchool as Parameters<typeof analyzeSchoolLogs>[0]);
+    return analyzeSchoolLogs(periodLogsForSchool as Parameters<typeof analyzeSchoolLogs>[0], periodDays);
   }, [logs, periodDayKeySet, periodDays]);
   const periodLogs = useMemo(() => {
     if (!periodDays) return [];
