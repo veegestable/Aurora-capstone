@@ -655,7 +655,12 @@ export default function MoodLogScreen() {
       ]),
     );
     loop.start();
+    const stopTimer = setTimeout(() => {
+      loop.stop();
+      tourReplayGlowPhase.setValue(0);
+    }, 6000);
     return () => {
+      clearTimeout(stopTimer);
       loop.stop();
       tourReplayGlowPhase.setValue(0);
     };

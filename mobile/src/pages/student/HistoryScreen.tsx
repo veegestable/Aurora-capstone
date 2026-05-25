@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useIsFocused } from "@react-navigation/native";
 import { type ImageSourcePropType, View, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { AppText as Text } from "../../components/common/AppText";
@@ -1157,6 +1158,7 @@ function calendarMonthGridEnter(
 
 export default function HistoryScreen() {
   const { user } = useAuth();
+  const isFocused = useIsFocused();
   const reduceMotion = useReducedMotion();
   const [currentDate, setCurrentDate] = useState(new Date());
   /** Last month change via chevron; null = initial mount (no enter animation). */
@@ -1194,9 +1196,11 @@ export default function HistoryScreen() {
   }, [journalTab, journalTrackW, reduceMotion, journalThumbX, journalThumbW]);
 
   useEffect(() => {
-    if (!user?.id) {
-      setMoodData([]);
-      setLoading(false);
+    if (!user?.id || !isFocused) {
+      if (!user?.id) {
+        setMoodData([]);
+        setLoading(false);
+      }
       return;
     }
     setLoading(true);
@@ -1225,7 +1229,7 @@ export default function HistoryScreen() {
       },
     );
     return unsub;
-  }, [currentDate, user]);
+  }, [currentDate, user, isFocused]);
 
   const generateCalendarDays = (): CalendarDay[] => {
     const year = currentDate.getFullYear();
@@ -1294,6 +1298,10 @@ export default function HistoryScreen() {
   const isCurrentMonthView =
     currentDate.getFullYear() === now.getFullYear() &&
     currentDate.getMonth() === now.getMonth();
+
+  if (!isFocused) {
+    return <View style={{ flex: 1, backgroundColor: AURORA.bg }} />;
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: AURORA.bg }}>

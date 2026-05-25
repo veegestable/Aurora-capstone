@@ -51,6 +51,7 @@ function CounselorTabs() {
       }}
       screenOptions={{
         headerShown: false,
+        lazy: true,
         tabBarBackground: () => <CounselorTabBarGlass />,
         sceneStyle: {
           paddingBottom: STUDENT_TAB_BAR_BOTTOM_CLEARANCE,

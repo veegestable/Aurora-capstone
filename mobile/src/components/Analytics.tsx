@@ -4,7 +4,9 @@ import { AppText as Text } from "./common/AppText";
  * stagger + count-up animations (respects Reduce Motion).
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"; import {
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useIsFocused } from "@react-navigation/native";
+import {
   View,
   ScrollView,
   ActivityIndicator,
@@ -1057,6 +1059,7 @@ function ChartSection({ children }: { children: React.ReactNode }) {
 
 export default function Analytics() {
   const { user } = useAuth();
+  const isFocused = useIsFocused();
   const reduceMotion = useReducedMotion();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1218,18 +1221,18 @@ export default function Analytics() {
   }, [user, refreshMoodLogs]);
 
   useEffect(() => {
-    if (user) {
+    if (user && isFocused) {
       setLoading(true);
       load();
     }
-  }, [user, load]);
+  }, [user, load, isFocused]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isFocused) return;
     return subscribeMoodLogsRefresh(() => {
       void load();
     });
-  }, [user, load]);
+  }, [user, load, isFocused]);
 
   useEffect(() => {
     setActiveWeekPill(null);
@@ -1285,7 +1288,7 @@ export default function Analytics() {
   }, [logs, periodDayKeySet, periodDays]);
 
   useEffect(() => {
-    if (!periodDays) {
+    if (!periodDays || !isFocused) {
       setPeriodWrittenSummary("");
       return;
     }
@@ -1311,7 +1314,7 @@ export default function Analytics() {
     return () => {
       cancelled = true;
     };
-  }, [periodDays, logs]);
+  }, [periodDays, logs, isFocused]);
 
   const todayMoodAgg = useMemo(() => {
     const dk = calendarDayKeyLocal(new Date());
@@ -1409,7 +1412,7 @@ export default function Analytics() {
   };
 
   useEffect(() => {
-    if (!user || analyticsView !== "today") return;
+    if (!user || analyticsView !== "today" || !isFocused) return;
 
     const intervalMs = 30_000;
     const intervalId = setInterval(() => {
@@ -1417,10 +1420,10 @@ export default function Analytics() {
     }, intervalMs);
 
     return () => clearInterval(intervalId);
-  }, [user, analyticsView, refreshMoodLogs]);
+  }, [user, analyticsView, refreshMoodLogs, isFocused]);
 
   useEffect(() => {
-    if (!user || analyticsView !== "today") return;
+    if (!user || analyticsView !== "today" || !isFocused) return;
 
     const onAppStateChange = (state: AppStateStatus) => {
       if (state === "active") {
@@ -1430,7 +1433,7 @@ export default function Analytics() {
 
     const sub = AppState.addEventListener("change", onAppStateChange);
     return () => sub.remove();
-  }, [user, analyticsView, refreshMoodLogs]);
+  }, [user, analyticsView, refreshMoodLogs, isFocused]);
 
   const totalCheckIns = logs.length;
   const animPeriodHighestStreak = useCountUp(

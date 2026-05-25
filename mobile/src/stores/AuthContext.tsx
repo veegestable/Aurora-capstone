@@ -99,8 +99,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper function to convert UserProfile to User
-/** Apply live Firestore user-doc fields onto in-memory auth user. */
+/**
+ * Apply live Firestore user-doc fields onto in-memory auth user.
+ * Returns the *same* object reference (`prev`) when nothing changed,
+ * so downstream useEffect / useCallback deps stay stable.
+ */
 function mergeUserDocFromFirestore(
   prev: User,
   data: Record<string, unknown>,
@@ -113,13 +116,15 @@ function mergeUserDocFromFirestore(
 
   const shiftPending = data.college_shift_pending === true;
   const req = data.college_shift_request;
-  const college_shift_request =
-    shiftPending &&
-    req &&
-    typeof req === "object" &&
-    !Array.isArray(req)
-      ? (req as CollegeShiftRequest)
-      : undefined;
+  const hasNewShiftRequest =
+    shiftPending && req && typeof req === "object" && !Array.isArray(req);
+  const college_shift_request = hasNewShiftRequest
+    ? (req as CollegeShiftRequest)
+    : undefined;
+  const shiftRequestUnchanged =
+    college_shift_request === prev.college_shift_request ||
+    JSON.stringify(college_shift_request) ===
+      JSON.stringify(prev.college_shift_request);
 
   const approval_status =
     data.approval_status === "pending" ||
@@ -128,40 +133,76 @@ function mergeUserDocFromFirestore(
       ? data.approval_status
       : prev.approval_status;
 
+  const full_name =
+    typeof data.full_name === "string" ? data.full_name : prev.full_name;
+  const preferred_name =
+    typeof data.preferred_name === "string"
+      ? data.preferred_name
+      : prev.preferred_name;
+  const department =
+    typeof data.department === "string" ? data.department : prev.department;
+  const program =
+    typeof data.program === "string" ? data.program : prev.program;
+  const year_level =
+    typeof data.year_level === "string" ? data.year_level : prev.year_level;
+  const student_number =
+    typeof data.student_number === "string"
+      ? data.student_number
+      : prev.student_number;
+  const contact_number =
+    typeof data.contact_number === "string"
+      ? data.contact_number
+      : prev.contact_number;
+  const sex =
+    data.sex === "male" || data.sex === "female" ? data.sex : prev.sex;
+  const bio = typeof data.bio === "string" ? data.bio : prev.bio;
+  const avatar_url =
+    typeof data.avatar_url === "string" ? data.avatar_url : prev.avatar_url;
+  const session_push_notifications_enabled =
+    typeof data.session_push_notifications_enabled === "boolean"
+      ? data.session_push_notifications_enabled
+      : prev.session_push_notifications_enabled;
+
+  if (
+    full_name === prev.full_name &&
+    preferred_name === prev.preferred_name &&
+    college_code === prev.college_code &&
+    department === prev.department &&
+    shiftPending === prev.college_shift_pending &&
+    shiftRequestUnchanged &&
+    program === prev.program &&
+    year_level === prev.year_level &&
+    student_number === prev.student_number &&
+    contact_number === prev.contact_number &&
+    sex === prev.sex &&
+    bio === prev.bio &&
+    avatar_url === prev.avatar_url &&
+    approval_status === prev.approval_status &&
+    session_push_notifications_enabled ===
+      prev.session_push_notifications_enabled
+  ) {
+    return prev;
+  }
+
   return {
     ...prev,
-    full_name:
-      typeof data.full_name === "string" ? data.full_name : prev.full_name,
-    preferred_name:
-      typeof data.preferred_name === "string"
-        ? data.preferred_name
-        : prev.preferred_name,
+    full_name,
+    preferred_name,
     college_code,
-    department:
-      typeof data.department === "string" ? data.department : prev.department,
+    department,
     college_shift_pending: shiftPending,
-    college_shift_request,
-    program: typeof data.program === "string" ? data.program : prev.program,
-    year_level:
-      typeof data.year_level === "string" ? data.year_level : prev.year_level,
-    student_number:
-      typeof data.student_number === "string"
-        ? data.student_number
-        : prev.student_number,
-    contact_number:
-      typeof data.contact_number === "string"
-        ? data.contact_number
-        : prev.contact_number,
-    sex:
-      data.sex === "male" || data.sex === "female" ? data.sex : prev.sex,
-    bio: typeof data.bio === "string" ? data.bio : prev.bio,
-    avatar_url:
-      typeof data.avatar_url === "string" ? data.avatar_url : prev.avatar_url,
+    college_shift_request: shiftRequestUnchanged
+      ? prev.college_shift_request
+      : college_shift_request,
+    program,
+    year_level,
+    student_number,
+    contact_number,
+    sex,
+    bio,
+    avatar_url,
     approval_status,
-    session_push_notifications_enabled:
-      typeof data.session_push_notifications_enabled === "boolean"
-        ? data.session_push_notifications_enabled
-        : prev.session_push_notifications_enabled,
+    session_push_notifications_enabled,
   };
 }
 

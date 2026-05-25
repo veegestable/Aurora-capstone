@@ -91,25 +91,12 @@ export function AnnouncementCarousel({
   const scrollingRef = useRef(false);
 
   useEffect(() => {
-    return announcementsService.subscribeForRole(
-      role,
-      viewerCollegeCode,
-      20,
-      (list) => setAnnouncements(list),
-      () => {
-        void announcementsService
-          .listForRole(
-            role,
-            viewerCollegeCode,
-            20,
-            skipAudienceFilter,
-            viewerUserId,
-          )
-          .then(setAnnouncements);
-      },
-      skipAudienceFilter,
-      viewerUserId,
-    );
+    let cancelled = false;
+    void announcementsService
+      .listForRole(role, viewerCollegeCode, 20, skipAudienceFilter, viewerUserId)
+      .then((list) => { if (!cancelled) setAnnouncements(list); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [role, viewerCollegeCode, skipAudienceFilter, viewerUserId]);
 
   if (announcements.length === 0) return null;
@@ -125,7 +112,7 @@ export function AnnouncementCarousel({
         autoPlayInterval={4000}
         scrollAnimationDuration={400}
         onScrollStart={() => { scrollingRef.current = true; }}
-        onScrollEnd={() => { setTimeout(() => { scrollingRef.current = false; }, 100); }}
+        onScrollEnd={() => { scrollingRef.current = false; }}
         renderItem={({ item }) => (
           <AnnouncementCard
             item={item}

@@ -62,6 +62,7 @@ function StudentTabs() {
       }}
       screenOptions={{
         headerShown: false,
+        lazy: true,
         tabBarBackground: () => <StudentTabBarGlass />,
         sceneStyle: {
           paddingBottom: STUDENT_TAB_BAR_BOTTOM_CLEARANCE,
