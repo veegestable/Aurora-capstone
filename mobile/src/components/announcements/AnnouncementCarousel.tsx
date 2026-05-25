@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Dimensions, StyleSheet, Image, TouchableOpacity } from "react-native";
 import Carousel, { Pagination } from "react-native-reanimated-carousel";
 import { useSharedValue } from "react-native-reanimated";
@@ -26,14 +26,17 @@ interface AnnouncementCarouselProps {
 function AnnouncementCard({
   item,
   onPress,
+  scrollingRef,
 }: {
   item: Announcement;
   onPress: () => void;
+  scrollingRef: React.MutableRefObject<boolean>;
 }) {
   return (
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={() => {
+        if (scrollingRef.current) return;
         triggerHaptic("light");
         onPress();
       }}
@@ -85,6 +88,7 @@ export function AnnouncementCarousel({
 }: AnnouncementCarouselProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const progress = useSharedValue(0);
+  const scrollingRef = useRef(false);
 
   useEffect(() => {
     return announcementsService.subscribeForRole(
@@ -120,10 +124,13 @@ export function AnnouncementCarousel({
         autoPlay={announcements.length > 1}
         autoPlayInterval={4000}
         scrollAnimationDuration={400}
+        onScrollStart={() => { scrollingRef.current = true; }}
+        onScrollEnd={() => { setTimeout(() => { scrollingRef.current = false; }, 100); }}
         renderItem={({ item }) => (
           <AnnouncementCard
             item={item}
             onPress={() => onAnnouncementPress?.(item)}
+            scrollingRef={scrollingRef}
           />
         )}
         onProgressChange={progress}

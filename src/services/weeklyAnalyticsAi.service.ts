@@ -1,9 +1,7 @@
 /**
- * Weekly analytics narrative — server-side via Cloud Function (mobile parity).
+ * Weekly analytics narrative — rule-based deterministic summaries.
  */
 
-import { httpsCallable } from 'firebase/functions'
-import { functions } from '../config/firebase'
 import { moodService } from './mood'
 import {
   buildLast7DaysPayload,
@@ -112,34 +110,6 @@ export async function getLast7Days(userId: string): Promise<WeeklySeriesPayload>
 export async function fetchWeeklyAiAnalyticsWithPayload(
   weeklyData: WeeklySeriesPayload,
 ): Promise<WeeklyAiResult> {
-  try {
-    const callable = httpsCallable<{ weeklyData: WeeklySeriesPayload }, WeeklyAiResult>(
-      functions,
-      'generateWeeklyAnalyticsAi',
-    )
-    const resp = await callable({ weeklyData })
-    const data = resp.data
-    if (
-      data &&
-      (data.trend === 'Improving' || data.trend === 'Declining' || data.trend === 'Stable') &&
-      typeof data.summary === 'string'
-    ) {
-      return {
-        trend: data.trend,
-        summary: data.summary,
-        observations: Array.isArray(data.observations)
-          ? data.observations.filter((x) => typeof x === 'string')
-          : [],
-        recommendations: Array.isArray(data.recommendations)
-          ? data.recommendations.filter((x) => typeof x === 'string')
-          : [],
-        support_note: typeof data.support_note === 'string' ? data.support_note : '',
-        fromAi: data.fromAi === true,
-      }
-    }
-  } catch (e) {
-    console.warn('[weeklyAnalyticsAi] Cloud Function unavailable', e)
-  }
   return deterministicWeeklyFallback(weeklyData)
 }
 

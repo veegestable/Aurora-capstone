@@ -1,5 +1,3 @@
-import { httpsCallable } from 'firebase/functions'
-import { functions } from '../config/firebase'
 import type { MoodLogEntryRow } from './mood/types'
 import {
   buildPeriodSummaryInput,
@@ -15,20 +13,7 @@ export type WeeklySummaryResult = {
 export async function generateWeeklySummary(
   data: PeriodSummaryInput,
 ): Promise<WeeklySummaryResult> {
-  const fallback = buildTemplatePeriodSummary(data)
-
-  try {
-    const callable = httpsCallable<PeriodSummaryInput, { summary?: string; fromAi?: boolean }>(
-      functions,
-      'generateWeeklySummaryAi',
-    )
-    const resp = await callable(data)
-    const text = resp.data?.summary?.trim()
-    if (!text) return { summary: fallback, source: 'fallback' }
-    return { summary: text, source: resp.data?.fromAi ? 'ai' : 'fallback' }
-  } catch {
-    return { summary: fallback, source: 'fallback' }
-  }
+  return { summary: buildTemplatePeriodSummary(data), source: 'fallback' }
 }
 
 export function buildWeekSummaryInputFromLogs(
