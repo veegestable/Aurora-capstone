@@ -6,7 +6,7 @@ import { AppText as Text } from "../common/AppText";
 import { useState } from "react";
 import { View, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
 import { AURORA } from "../../constants/aurora-colors";
-import { COLLEGES, getCollegeName, type CollegeCode } from "../../constants/colleges";
+import { COLLEGES, type CollegeCode } from "../../constants/colleges";
 import type { CollegeRosterCountsSnapshot } from "../../utils/admin/collegeRosterCounts";
 import { AdminCollegeCountBarChart } from "./AdminCollegeCountBarChart";
 
@@ -21,7 +21,6 @@ export function AdminCollegeProgramAnalytics({ roster }: Props) {
     useState<CollegeCode>(DEFAULT_COLLEGE);
 
   const programRoster = roster.programByCollege[selectedCollege];
-  const collegeName = getCollegeName(selectedCollege);
 
   return (
     <View style={{ marginTop: 4 }}>

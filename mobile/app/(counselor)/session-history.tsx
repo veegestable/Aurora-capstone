@@ -46,7 +46,6 @@ import SessionHistoryDetailModal, {
   type SessionHistoryDetailData,
 } from "../../src/components/counselor/SessionHistoryDetailModal";
 import {
-  isSessionScheduledTimeReached,
   parseSlotToDate,
   parsePreferredTimeToDate,
 } from "../../src/utils/dateHelpers";
