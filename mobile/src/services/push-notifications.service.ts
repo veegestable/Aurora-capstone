@@ -152,10 +152,33 @@ export async function clearZenBreathingReminderScheduled(): Promise<void> {
   configureNotificationHandler();
   const all = await Notifications.getAllScheduledNotificationsAsync();
   const ownIds = all
-    .filter((n) => n.content?.data?.type === ZEN_BREATHING_REMINDER_TYPE)
+    .filter(
+      (n) =>
+        n.content?.data?.type === ZEN_BREATHING_REMINDER_TYPE &&
+        !n.content?.data?.nudgeId,
+    )
     .map((n) => n.identifier);
   await Promise.all(
     ownIds.map((id) => Notifications.cancelScheduledNotificationAsync(id)),
+  );
+}
+
+export async function clearZenBreathingNudgePush(
+  nudgeId: string,
+): Promise<void> {
+  configureNotificationHandler();
+  const id = nudgeId.trim();
+  if (!id) return;
+  const all = await Notifications.getAllScheduledNotificationsAsync();
+  const ownIds = all
+    .filter(
+      (n) =>
+        n.content?.data?.type === ZEN_BREATHING_REMINDER_TYPE &&
+        n.content?.data?.nudgeId === id,
+    )
+    .map((n) => n.identifier);
+  await Promise.all(
+    ownIds.map((nid) => Notifications.cancelScheduledNotificationAsync(nid)),
   );
 }
 
@@ -165,7 +188,13 @@ export async function clearZenBreathingReminderScheduled(): Promise<void> {
  */
 export async function scheduleZenBreathingReminderPush(
   exerciseId: string,
-  opts?: { delaySeconds?: number },
+  opts?: {
+    delaySeconds?: number;
+    title?: string;
+    body?: string;
+    immediate?: boolean;
+    nudgeId?: string;
+  },
 ): Promise<boolean> {
   configureNotificationHandler();
   await ensureAndroidChannel();
@@ -173,36 +202,57 @@ export async function scheduleZenBreathingReminderPush(
   const permission = await ensureNotificationPermission();
   if (!permission) return false;
 
-  await clearZenBreathingReminderScheduled();
+  const nudgeId = opts?.nudgeId?.trim();
+  if (nudgeId) {
+    await clearZenBreathingNudgePush(nudgeId);
+  } else {
+    await clearZenBreathingReminderScheduled();
+  }
 
   const ex = BREATHING_EXERCISES.find((e) => e.id === exerciseId);
   const name = ex?.name ?? "your breathing exercise";
 
+  const content = {
+    title: opts?.title?.trim() || "Your breathing exercise is waiting",
+    body:
+      opts?.body?.trim() ||
+      `Take a few minutes for ${name} — open Zen when you're ready.`,
+    sound: true,
+    ...(Platform.OS === "android"
+      ? {
+          android: {
+            channelId: ANDROID_CHANNEL_WELLNESS,
+          },
+        }
+      : {}),
+    data: {
+      type: ZEN_BREATHING_REMINDER_TYPE,
+      targetRoute: "/(student)/resources",
+      exerciseId,
+      ...(nudgeId ? { nudgeId } : {}),
+    },
+  };
+
+  if (opts?.immediate) {
+    await Notifications.scheduleNotificationAsync({
+      content,
+      trigger: null,
+    });
+    return true;
+  }
+
+  const defaultDelay =
+    typeof __DEV__ !== "undefined" && __DEV__
+      ? 10
+      : ZEN_BREATHING_REMINDER_DELAY_SEC;
+  const minDelay = typeof __DEV__ !== "undefined" && __DEV__ ? 5 : 60;
   const delaySeconds = Math.max(
-    60,
-    typeof opts?.delaySeconds === "number"
-      ? opts.delaySeconds
-      : ZEN_BREATHING_REMINDER_DELAY_SEC,
+    minDelay,
+    typeof opts?.delaySeconds === "number" ? opts.delaySeconds : defaultDelay,
   );
 
   await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "Your breathing exercise is waiting",
-      body: `Take a few minutes for ${name} — open Zen when you're ready.`,
-      sound: true,
-      ...(Platform.OS === "android"
-        ? {
-            android: {
-              channelId: ANDROID_CHANNEL_WELLNESS,
-            },
-          }
-        : {}),
-      data: {
-        type: ZEN_BREATHING_REMINDER_TYPE,
-        targetRoute: "/(student)/resources",
-        exerciseId,
-      },
-    },
+    content,
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
       seconds: delaySeconds,

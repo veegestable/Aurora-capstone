@@ -15,9 +15,12 @@ import {
 } from "../../features/breathing/breathing-data";
 import {
   clearPendingBreathingReminder,
+  clearWellnessNudge,
   getPendingBreathingReminder,
+  getPendingWellnessNudges,
   type PendingBreathingReminder,
 } from "../../utils/pendingBreathingReminder";
+import { evaluateStudentWellnessNudgeAfterCheckIn } from "../../services/student-wellness-nudge.service";
 import { useAuth } from "../../stores/AuthContext";
 import { calendarDayKeyLocal } from "../../utils/dayKey";
 import {
@@ -39,6 +42,12 @@ export default function ResourcesScreen() {
   const [isSessionModalVisible, setIsSessionModalVisible] = useState(false);
   const [pendingCheckInExercise, setPendingCheckInExercise] =
     useState<PendingBreathingReminder | null>(null);
+  const [pendingWellnessNudges, setPendingWellnessNudges] = useState<
+    PendingBreathingReminder[]
+  >([]);
+  const [activeWellnessTriggerId, setActiveWellnessTriggerId] = useState<
+    string | null
+  >(null);
   const [suggestedQuickResetExercise, setSuggestedQuickResetExercise] =
     useState<BreathingExercise | null>(null);
   const [isSuggestedSessionVisible, setIsSuggestedSessionVisible] =
@@ -47,16 +56,30 @@ export default function ResourcesScreen() {
 
   const refreshPendingReminder = useCallback(async () => {
     const uid = user?.id;
+    if (uid) {
+      try {
+        await evaluateStudentWellnessNudgeAfterCheckIn(uid, {
+          schedulePush: false,
+        });
+      } catch {
+        /* no-op */
+      }
+    }
     const pending = await getPendingBreathingReminder(uid);
+    const wellness = await getPendingWellnessNudges(uid);
+    const validWellness = wellness.filter((row) =>
+      BREATHING_EXERCISES.some((e) => e.id === row.exerciseId),
+    );
     if (
       pending &&
       !BREATHING_EXERCISES.some((e) => e.id === pending.exerciseId)
     ) {
       await clearPendingBreathingReminder(uid);
       setPendingCheckInExercise(null);
-      return;
+    } else {
+      setPendingCheckInExercise(pending);
     }
-    setPendingCheckInExercise(pending);
+    setPendingWellnessNudges(validWellness);
   }, [user?.id]);
 
   useFocusEffect(
@@ -87,6 +110,23 @@ export default function ResourcesScreen() {
       return;
     }
     triggerHaptic("light");
+    setActiveWellnessTriggerId(null);
+    setSuggestedQuickResetExercise(ex);
+    setIsSuggestedSessionVisible(true);
+  };
+
+  const openWellnessNudge = (nudge: PendingBreathingReminder) => {
+    const ex =
+      BREATHING_EXERCISES.find((e) => e.id === nudge.exerciseId) ?? null;
+    if (!ex) {
+      void clearWellnessNudge(user?.id, nudge.triggerId);
+      setPendingWellnessNudges((prev) =>
+        prev.filter((row) => row.triggerId !== nudge.triggerId),
+      );
+      return;
+    }
+    triggerHaptic("light");
+    setActiveWellnessTriggerId(nudge.triggerId ?? null);
     setSuggestedQuickResetExercise(ex);
     setIsSuggestedSessionVisible(true);
   };
@@ -94,8 +134,16 @@ export default function ResourcesScreen() {
   const onSuggestedSessionComplete = async () => {
     setIsSuggestedSessionVisible(false);
     setSuggestedQuickResetExercise(null);
-    await clearPendingBreathingReminder(user?.id);
-    setPendingCheckInExercise(null);
+    if (activeWellnessTriggerId) {
+      await clearWellnessNudge(user?.id, activeWellnessTriggerId);
+      setPendingWellnessNudges((prev) =>
+        prev.filter((row) => row.triggerId !== activeWellnessTriggerId),
+      );
+      setActiveWellnessTriggerId(null);
+    } else {
+      await clearPendingBreathingReminder(user?.id);
+      setPendingCheckInExercise(null);
+    }
     const zenDayKey = calendarDayKeyLocal(new Date());
     if (user?.id) {
       try {
@@ -194,6 +242,71 @@ export default function ResourcesScreen() {
             Pick a breathing practice and pace your nervous system in real time.
           </Text>
 
+          {pendingWellnessNudges.map((nudge) => {
+            const exercise =
+              BREATHING_EXERCISES.find((e) => e.id === nudge.exerciseId) ??
+              null;
+            if (!exercise) return null;
+            return (
+              <TouchableOpacity
+                key={nudge.triggerId ?? nudge.exerciseId}
+                activeOpacity={0.88}
+                onPress={() => openWellnessNudge(nudge)}
+                style={{
+                  backgroundColor: "rgba(45,107,255,0.22)",
+                  borderWidth: 1,
+                  borderColor: "rgba(147,197,253,0.45)",
+                  borderRadius: 16,
+                  padding: 14,
+                  marginBottom: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <View
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 12,
+                    backgroundColor: "rgba(45,107,255,0.35)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Sparkles size={20} color="#E0E9FF" />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontWeight: "800",
+                      fontSize: 15,
+                    }}
+                  >
+                    {nudge.bannerTitle?.trim() || "Your recent check-ins"}
+                  </Text>
+                  <Text
+                    style={{
+                      color: "#C7D7FF",
+                      fontSize: 13,
+                      marginTop: 4,
+                      lineHeight: 18,
+                    }}
+                  >
+                    {nudge.bannerBody}
+                    {nudge.motivationLine ? ` ${nudge.motivationLine}` : ""}
+                  </Text>
+                </View>
+                <Text
+                  style={{ color: "#93C5FD", fontWeight: "800", fontSize: 13 }}
+                >
+                  Start
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+
           {pendingCheckInExercise && pendingExerciseResolved ? (
             <TouchableOpacity
               activeOpacity={0.88}
@@ -230,7 +343,8 @@ export default function ResourcesScreen() {
                     fontSize: 15,
                   }}
                 >
-                  From your latest check-in
+                  {pendingCheckInExercise.bannerTitle?.trim() ||
+                    "From your latest check-in"}
                 </Text>
                 <Text
                   style={{
@@ -240,11 +354,23 @@ export default function ResourcesScreen() {
                     lineHeight: 18,
                   }}
                 >
-                  Tap to try{" "}
-                  <Text style={{ fontWeight: "800" }}>
-                    {pendingExerciseResolved.name}
-                  </Text>{" "}
-                  (60s). Finishing clears this reminder.
+                  {pendingCheckInExercise.source === "check_in_skip" ? (
+                    <>
+                      Tap to try{" "}
+                      <Text style={{ fontWeight: "800" }}>
+                        {pendingExerciseResolved.name}
+                      </Text>{" "}
+                      (60s). Finishing clears this reminder.
+                    </>
+                  ) : (
+                    <>
+                      Tap to try{" "}
+                      <Text style={{ fontWeight: "800" }}>
+                        {pendingExerciseResolved.name}
+                      </Text>{" "}
+                      (60s).
+                    </>
+                  )}
                 </Text>
               </View>
               <Text style={{ color: "#93C5FD", fontWeight: "800", fontSize: 13 }}>

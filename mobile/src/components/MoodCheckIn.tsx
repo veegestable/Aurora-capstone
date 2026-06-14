@@ -73,6 +73,7 @@ import {
   clearPendingBreathingReminder,
   setPendingBreathingReminder,
 } from "../utils/pendingBreathingReminder";
+import { evaluateStudentWellnessNudgeAfterCheckIn } from "../services/student-wellness-nudge.service";
 import {
   InfoGuideOverlay,
   type InfoGuideContent,
@@ -1290,6 +1291,18 @@ export function MoodCheckIn({
 
       notifyMoodLogsRefresh();
 
+      const userId = user.id;
+
+      // Pattern nudge before Quick Reset so wellness banner is not overwritten by skip.
+      try {
+        const pushOk = user?.session_push_notifications_enabled !== false;
+        await evaluateStudentWellnessNudgeAfterCheckIn(userId, {
+          schedulePush: pushOk,
+        });
+      } catch {
+        // no-op
+      }
+
       // Mark done immediately — analytics runs in background so user doesn't wait
       setIsSubmitting(false);
       setIsSubmitted(true);
@@ -1298,7 +1311,6 @@ export function MoodCheckIn({
       setShowQuickResetPrompt(true);
 
       // Fire-and-forget: mood-drop detection + today-count (non-blocking)
-      const userId = user.id;
       const energyVal = energyLevel * 2;
       void (async () => {
         try {
@@ -1796,6 +1808,7 @@ export function MoodCheckIn({
                       {
                         exerciseId: quickResetExercise.id,
                         savedAtMs: Date.now(),
+                        source: "check_in_skip",
                       },
                       user.id,
                       { schedulePush: pushOk },
@@ -1948,6 +1961,7 @@ export function MoodCheckIn({
                         {
                           exerciseId: quickResetExercise.id,
                           savedAtMs: Date.now(),
+                          source: "check_in_skip",
                         },
                         user.id,
                         { schedulePush: pushOk },
