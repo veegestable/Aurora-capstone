@@ -4,6 +4,10 @@ import {
   COUNSELOR_CHECKIN_WINDOW_DAYS,
   COUNSELOR_JOURNAL_ANALYTICS_WINDOW_DAYS,
 } from "../constants/counselor-checkin-policy";
+import {
+  computeCounselorPatternIndicators,
+  type CounselorPatternIndicator,
+} from "../constants/counselor-pattern-indicators";
 import { moodService, type MergedMoodLog } from "./mood.service";
 
 async function loadMoodWindowForStudent(
@@ -80,6 +84,20 @@ export async function fetchStudentCheckInSignalContextForCounselor(
  * (session request or accepted proposed time). Otherwise returns the same mood-only
  * window as {@link fetchStudentCheckInSignalContextForCounselor}.
  */
+/**
+ * Pattern badges for roster triage — computed from raw logs for all assigned students.
+ * Journal sanitization does not apply here; only derived labels are shown on the roster.
+ */
+export async function fetchStudentPatternIndicators(
+  studentId: string,
+): Promise<CounselorPatternIndicator[]> {
+  const raw = await loadMoodWindowForStudent(
+    studentId,
+    COUNSELOR_CHECKIN_WINDOW_DAYS,
+  );
+  return computeCounselorPatternIndicators(raw);
+}
+
 export async function fetchStudentCounselorDetailedContext(
   studentId: string,
   counselorId: string,

@@ -16,6 +16,11 @@ import {
   COUNSELOR_ROSTER_PILL_LABEL,
   COUNSELOR_ROSTER_PILL_SORT,
 } from '../constants/counselor/counselor-student-roster-pills'
+import {
+  counselorPatternSortKey,
+  getCounselorPatternIndicatorTailwind,
+  type CounselorPatternIndicator,
+} from '../constants/counselor/counselor-pattern-indicators'
 import { formatCounselorStudentSubtitle } from '../constants/student/programs'
 import { formatTimeAgo } from '../utils/formatters'
 import type { StudentInfo } from '../services/counselor'
@@ -33,6 +38,7 @@ interface RosterPreviewStudent {
   activityLine: string
   rosterPill: CounselorStudentRosterPill
   avatar_url?: string
+  patternIndicators: CounselorPatternIndicator[]
 }
 
 function StatCard({ icon, count, label }: StatCardProps) {
@@ -75,6 +81,21 @@ function StudentChip({ student }: { student: RosterPreviewStudent }) {
           </span>
           <span className="text-[10px] text-aurora-text-muted truncate">{student.activityLine}</span>
         </div>
+        {student.patternIndicators.length > 0 ? (
+          <div className="flex flex-nowrap items-center gap-1.5 mt-1.5">
+            {student.patternIndicators.map((indicator) => {
+              const style = getCounselorPatternIndicatorTailwind(indicator.id)
+              return (
+                <span
+                  key={indicator.id}
+                  className={`text-[10px] font-extrabold tracking-wide px-2 py-0.5 rounded-lg border ${style.badgeBg} ${style.badgeBorder} ${style.text}`}
+                >
+                  {indicator.label}
+                </span>
+              )
+            })}
+          </div>
+        ) : null}
       </div>
       <ChevronRight className="w-4 h-4 text-aurora-text-muted shrink-0" />
     </Link>
@@ -115,18 +136,25 @@ export default function CounselorDashboard() {
           studentList.slice(0, limit).map(async (s: StudentInfo) => {
             let rosterPill: CounselorStudentRosterPill = 'no_session_yet'
             let activityLine = 'No session with you yet'
+            let patternIndicators: CounselorPatternIndicator[] = []
             try {
               const settings = await userSettingsService.getUserSettings(s.id)
               const sessionStarted =
                 settings?.counselorJournalAccess?.[user.id] === true
+              const [patterns, checkInCtx] = await Promise.all([
+                counselorCheckInContextService.fetchStudentPatternIndicators(s.id),
+                counselorCheckInContextService.fetchStudentCheckInContext(s.id),
+              ])
+              patternIndicators = patterns
               if (sessionStarted) {
                 rosterPill = 'session_started'
-                const { logs } = await counselorCheckInContextService.fetchStudentCheckInContext(s.id)
-                const latest = logs[0]
-                activityLine = latest?.log_date
-                  ? formatTimeAgo(new Date(latest.log_date))
-                  : 'No Aurora entries yet'
               }
+              const latest = checkInCtx.logs[0]
+              activityLine = latest?.log_date
+                ? formatTimeAgo(new Date(latest.log_date))
+                : sessionStarted
+                  ? 'No Aurora entries yet'
+                  : 'No session with you yet'
             } catch {
               /* keep defaults */
             }
@@ -143,16 +171,23 @@ export default function CounselorDashboard() {
               activityLine,
               rosterPill,
               avatar_url: s.avatar_url,
+              patternIndicators,
             }
           }),
         )
 
         if (!cancelled) {
           setRosterPreview(
-            previewRows.sort(
-              (a, b) =>
-                COUNSELOR_ROSTER_PILL_SORT[a.rosterPill] - COUNSELOR_ROSTER_PILL_SORT[b.rosterPill],
-            ),
+            previewRows.sort((a, b) => {
+              const patternDiff =
+                counselorPatternSortKey(a.patternIndicators) -
+                counselorPatternSortKey(b.patternIndicators)
+              if (patternDiff !== 0) return patternDiff
+              return (
+                COUNSELOR_ROSTER_PILL_SORT[a.rosterPill] -
+                COUNSELOR_ROSTER_PILL_SORT[b.rosterPill]
+              )
+            }),
           )
         }
       } catch (e) {

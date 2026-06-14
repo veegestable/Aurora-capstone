@@ -4,7 +4,7 @@ import { AppText as Text } from "../../src/components/common/AppText";
  * ======================================
  * Route: /(counselor)/
  * Shows stats overview and a short student roster.
- * Roster chips reflect session scheduling consent only (not whole-roster mood triage).
+ * Roster chips show session consent; pattern badges highlight repeating self-reports.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -44,13 +44,21 @@ import {
   isSessionDocOpenRequestExpired24h,
   parseSlotToDate,
 } from "../../src/utils/dateHelpers";
-import { fetchStudentCheckInSignalContextForCounselor } from "../../src/services/counselor-checkin-context.service";
+import {
+  fetchStudentCheckInSignalContextForCounselor,
+  fetchStudentPatternIndicators,
+} from "../../src/services/counselor-checkin-context.service";
 import { getUserSettings } from "../../src/services/mood-firestore-v2.service";
 import {
   type CounselorStudentRosterPill,
   COUNSELOR_ROSTER_PILL_LABEL,
   COUNSELOR_ROSTER_PILL_SORT,
 } from "../../src/constants/counselor-student-roster-pills";
+import {
+  counselorPatternSortKey,
+  getCounselorPatternIndicatorStyle,
+  type CounselorPatternIndicator,
+} from "../../src/constants/counselor-pattern-indicators";
 import { db } from "../../src/services/firebase";
 import {
   SpotlightTourOverlay,
@@ -143,6 +151,7 @@ interface FlagItem {
   time: string;
   rosterPill: CounselorStudentRosterPill;
   avatar: string;
+  patternIndicators: CounselorPatternIndicator[];
 }
 
 function formatTimeAgo(date: Date): string {
@@ -578,6 +587,7 @@ function StatCard({ icon, count, label, cardBg }: StatCardProps) {
 
 function FlagRow({ item }: { item: FlagItem }) {
   const style = getRosterPillStyle(item.rosterPill);
+  const hasPatterns = item.patternIndicators.length > 0;
   return (
     <TouchableOpacity
       activeOpacity={0.8}
@@ -589,8 +599,6 @@ function FlagRow({ item }: { item: FlagItem }) {
         });
       }}
       style={{
-        flexDirection: "row",
-        alignItems: "center",
         backgroundColor: AURORA.card,
         borderRadius: 16,
         marginBottom: 10,
@@ -601,65 +609,110 @@ function FlagRow({ item }: { item: FlagItem }) {
         paddingRight: 4,
       }}
     >
-      <View
-        style={{
-          width: 4,
-          backgroundColor: style.border,
-          alignSelf: "stretch",
-        }}
-      />
-      <View style={{ marginLeft: 12, marginRight: 12 }}>
-        <LetterAvatar name={item.name} size={48} avatarUrl={item.avatar} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-        <Text
-          style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}
-          numberOfLines={1}
-        >
-          {item.name}
-        </Text>
-        <Text
-          style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}
-          numberOfLines={2}
-          ellipsizeMode="tail"
-        >
-          {item.program}
-        </Text>
-        <Text style={{ color: "#9FB0D4", fontSize: 11, marginTop: 2 }}>
-          {item.time}
-        </Text>
-      </View>
-      <View
-        style={{
-          flexShrink: 0,
-          backgroundColor: style.badgeBg,
-          borderRadius: 12,
-          paddingHorizontal: 10,
-          paddingVertical: 6,
-          marginRight: 10,
-          borderWidth: 1,
-          borderColor: `${style.text}44`,
-        }}
-      >
-        <Text
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View
           style={{
-            color: style.text,
-            fontSize: 10,
-            fontWeight: "800",
-            letterSpacing: 0.35,
+            width: 4,
+            backgroundColor: style.border,
+            alignSelf: "stretch",
           }}
-          numberOfLines={2}
-        >
-          {formatRosterPillChip(item.rosterPill)}
-        </Text>
-      </View>
-      <View style={{ flexShrink: 0 }}>
-        <ChevronRight
-          size={16}
-          color={AURORA.textMuted}
-          style={{ marginRight: 2 }}
         />
+        <View style={{ marginLeft: 12, marginRight: 12 }}>
+          <LetterAvatar name={item.name} size={48} avatarUrl={item.avatar} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
+          <Text
+            style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}
+            numberOfLines={1}
+          >
+            {item.name}
+          </Text>
+          <Text
+            style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {item.program}
+          </Text>
+          <Text style={{ color: "#9FB0D4", fontSize: 11, marginTop: 2 }}>
+            {item.time}
+          </Text>
+        </View>
+        <View
+          style={{
+            flexShrink: 0,
+            backgroundColor: style.badgeBg,
+            borderRadius: 12,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            marginRight: 10,
+            borderWidth: 1,
+            borderColor: `${style.text}44`,
+          }}
+        >
+          <Text
+            style={{
+              color: style.text,
+              fontSize: 10,
+              fontWeight: "800",
+              letterSpacing: 0.35,
+            }}
+            numberOfLines={2}
+          >
+            {formatRosterPillChip(item.rosterPill)}
+          </Text>
+        </View>
+        <View style={{ flexShrink: 0 }}>
+          <ChevronRight
+            size={16}
+            color={AURORA.textMuted}
+            style={{ marginRight: 2 }}
+          />
+        </View>
       </View>
+      {hasPatterns ? (
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "nowrap",
+            alignItems: "center",
+            gap: 6,
+            marginTop: 6,
+            paddingLeft: 76,
+            paddingRight: 12,
+          }}
+        >
+          {item.patternIndicators.map((indicator) => {
+            const chipStyle = getCounselorPatternIndicatorStyle(indicator.id);
+            return (
+              <View
+                key={indicator.id}
+                style={{
+                  flexShrink: 0,
+                  backgroundColor: chipStyle.badgeBg,
+                  borderRadius: 8,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderWidth: 1,
+                  borderColor: chipStyle.border,
+                }}
+              >
+                <Text
+                  style={{
+                    color: chipStyle.text,
+                    fontSize: 10,
+                    fontWeight: "800",
+                    letterSpacing: 0.35,
+                  }}
+                  numberOfLines={1}
+                >
+                  {indicator.label}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -719,7 +772,7 @@ export default function CounselorHomeScreen() {
       },
       {
         title: "Student roster",
-        body: "Chips show scheduling consent with you—not full clinical triage. Tap a row to open that student in the Students tab, or use View all for the full directory.",
+        body: "Session chips show scheduling consent with you. Pattern badges highlight repeating self-reports. Tap a row to open that student in the Students tab, or use View all for the full directory.",
         targetRef: tourStudentsHeaderRef,
         padding: 8,
       },
@@ -867,20 +920,24 @@ export default function CounselorHomeScreen() {
             try {
               let sessionStarted = false;
               let lastLogDate: Date | undefined;
+              let patternIndicators: CounselorPatternIndicator[] = [];
               if (counselorId) {
                 const settings = await getUserSettings(studentId);
                 sessionStarted =
                   settings.counselorJournalAccess?.[counselorId] === true;
               }
-              if (sessionStarted && counselorId) {
-                const { logs } =
-                  await fetchStudentCheckInSignalContextForCounselor(
-                    studentId,
-                    counselorId,
-                  );
-                const latest = logs[0] as { log_date?: Date } | undefined;
-                lastLogDate = latest?.log_date;
-              }
+              const [patterns, signalResult] = await Promise.all([
+                fetchStudentPatternIndicators(studentId),
+                counselorId
+                  ? fetchStudentCheckInSignalContextForCounselor(
+                      studentId,
+                      counselorId,
+                    )
+                  : Promise.resolve({ logs: [] as { log_date?: Date }[] }),
+              ]);
+              patternIndicators = patterns;
+              const latest = signalResult.logs[0] as { log_date?: Date } | undefined;
+              lastLogDate = latest?.log_date;
               const rosterPill: CounselorStudentRosterPill = sessionStarted
                 ? "session_started"
                 : "no_session_yet";
@@ -888,12 +945,14 @@ export default function CounselorHomeScreen() {
                 student,
                 rosterPill,
                 lastLogDate,
+                patternIndicators,
               };
             } catch {
               return {
                 student,
                 rosterPill: "no_session_yet" as CounselorStudentRosterPill,
                 lastLogDate: undefined as Date | undefined,
+                patternIndicators: [] as CounselorPatternIndicator[],
               };
             }
           }),
@@ -905,7 +964,7 @@ export default function CounselorHomeScreen() {
           .filter(
             (row): row is NonNullable<(typeof rosterRows)[number]> => row != null,
           )
-          .map(({ student, rosterPill, lastLogDate }) => ({
+          .map(({ student, rosterPill, lastLogDate, patternIndicators }) => ({
             id: String(student.id ?? ""),
             name:
               typeof student.full_name === "string" && student.full_name.trim()
@@ -928,20 +987,25 @@ export default function CounselorHomeScreen() {
                     ? student.year_level
                     : undefined,
               }) || "CCS",
-            time:
-              rosterPill === "session_started"
-                ? lastLogDate
-                  ? formatTimeAgo(new Date(lastLogDate))
-                  : "No Aurora entries yet"
+            time: lastLogDate
+              ? formatTimeAgo(new Date(lastLogDate))
+              : rosterPill === "session_started"
+                ? "No Aurora entries yet"
                 : "No session with you yet",
             rosterPill,
             avatar: typeof student.avatar_url === "string" ? student.avatar_url : "",
+            patternIndicators,
           }))
-          .sort(
-            (a, b) =>
+          .sort((a, b) => {
+            const patternDiff =
+              counselorPatternSortKey(a.patternIndicators) -
+              counselorPatternSortKey(b.patternIndicators);
+            if (patternDiff !== 0) return patternDiff;
+            return (
               COUNSELOR_ROSTER_PILL_SORT[a.rosterPill] -
-              COUNSELOR_ROSTER_PILL_SORT[b.rosterPill],
-          );
+              COUNSELOR_ROSTER_PILL_SORT[b.rosterPill]
+            );
+          });
 
         setRecentFlags(flags);
 

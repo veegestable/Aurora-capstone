@@ -27,4 +27,4 @@ export function counselorJournalAnalyticsWindowStart(): Date {
  * Special population (after session consent) unlocks full journal fields for that counselor.
  */
 export const COUNSELOR_VISIBLE_CHECKIN_SUMMARY =
-    'Counselors can see each check-in’s date, time, and mood label from recent history. Notes, sleep, meals, bath, and photos are not shown unless you are in that counselor’s special population (session request or accepting their proposed time).';
+    'Counselors can see each check-in’s date, time, and mood label from recent history. Pattern badges (elevated stress, low energy) are derived from daily-averaged self-reports for roster triage and are not clinical assessments. Notes, sleep, meals, bath, and photos are not shown unless you are in that counselor’s special population (session request or accepting their proposed time).';

@@ -9,6 +9,12 @@ import {
   COUNSELOR_ROSTER_PILL_LABEL,
   COUNSELOR_ROSTER_PILL_SORT,
 } from '../../constants/counselor/counselor-student-roster-pills'
+import {
+  counselorPatternSortKey,
+  getCounselorPatternIndicatorTailwind,
+  hasCounselorPatternIndicators,
+  type CounselorPatternIndicator,
+} from '../../constants/counselor/counselor-pattern-indicators'
 import { formatCounselorStudentSubtitle } from '../../constants/student/programs'
 import { formatTimeAgo } from '../../utils/formatters'
 import { LetterAvatar } from '../../components/LetterAvatar'
@@ -24,12 +30,14 @@ interface StudentEntry {
   avatar_url?: string
   rosterPill: CounselorStudentRosterPill
   activitySummary: string
+  patternIndicators: CounselorPatternIndicator[]
 }
 
-type DirectoryFilter = 'all' | 'special_population'
+type DirectoryFilter = 'all' | 'special_population' | 'patterns'
 
 const DIRECTORY_FILTERS: Array<{ key: DirectoryFilter; label: string }> = [
   { key: 'all', label: 'All Students' },
+  { key: 'patterns', label: 'Patterns' },
   { key: 'special_population', label: 'In Session' },
 ]
 
@@ -52,6 +60,25 @@ function getRosterPillStyle(pill: CounselorStudentRosterPill) {
         text: 'text-aurora-text-sec',
       }
   }
+}
+
+function PatternIndicatorChips({ indicators }: { indicators: CounselorPatternIndicator[] }) {
+  if (indicators.length === 0) return null
+  return (
+    <div className="flex flex-nowrap items-center gap-1.5 mt-2">
+      {indicators.map((indicator) => {
+        const style = getCounselorPatternIndicatorTailwind(indicator.id)
+        return (
+          <span
+            key={indicator.id}
+            className={`inline-block text-[10px] font-extrabold tracking-wide px-2 py-1 rounded-lg border ${style.badgeBg} ${style.badgeBorder} ${style.text}`}
+          >
+            {indicator.label}
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
 function StudentRow({ student, onClick }: { student: StudentEntry; onClick: () => void }) {
@@ -88,6 +115,7 @@ function StudentRow({ student, onClick }: { student: StudentEntry; onClick: () =
             {student.activitySummary}
           </span>
         </div>
+        <PatternIndicatorChips indicators={student.patternIndicators} />
       </div>
     </div>
   )
@@ -103,6 +131,11 @@ export default function Students() {
 
   const specialPopulationCount = useMemo(
     () => students.filter(isSpecialPopulationStudent).length,
+    [students],
+  )
+
+  const patternsCount = useMemo(
+    () => students.filter((s) => hasCounselorPatternIndicators(s.patternIndicators)).length,
     [students],
   )
 
@@ -128,20 +161,25 @@ export default function Students() {
             const sid = s.id
             let rosterPill: CounselorStudentRosterPill = 'no_session_yet'
             let activitySummary = 'No session with you yet'
+            let patternIndicators: CounselorPatternIndicator[] = []
             try {
               let sessionStarted = false
               const settings = await userSettingsService.getUserSettings(sid)
               sessionStarted =
                 settings?.counselorJournalAccess?.[counselorId] === true
+              const [patterns, checkInCtx] = await Promise.all([
+                counselorCheckInContextService.fetchStudentPatternIndicators(sid),
+                counselorCheckInContextService.fetchStudentCheckInContext(sid),
+              ])
+              patternIndicators = patterns
               if (sessionStarted) {
                 rosterPill = 'session_started'
-                const { logs } = await counselorCheckInContextService.fetchStudentCheckInContext(sid)
-                const latest = logs[0]
-                if (latest?.log_date) {
-                  activitySummary = `Last in Aurora: ${formatTimeAgo(new Date(latest.log_date))}`
-                } else {
-                  activitySummary = 'No Aurora entries in this window yet'
-                }
+              }
+              const latest = checkInCtx.logs[0]
+              if (latest?.log_date) {
+                activitySummary = `Last in Aurora: ${formatTimeAgo(new Date(latest.log_date))}`
+              } else if (sessionStarted) {
+                activitySummary = 'No Aurora entries in this window yet'
               }
             } catch {
               rosterPill = 'no_session_yet'
@@ -157,17 +195,23 @@ export default function Students() {
               avatar_url: s.avatar_url,
               rosterPill,
               activitySummary,
+              patternIndicators,
             }
           }),
         )
 
         if (!cancelled) {
           setStudents(
-            mapped.sort(
-              (a, b) =>
+            mapped.sort((a, b) => {
+              const patternDiff =
+                counselorPatternSortKey(a.patternIndicators) -
+                counselorPatternSortKey(b.patternIndicators)
+              if (patternDiff !== 0) return patternDiff
+              return (
                 COUNSELOR_ROSTER_PILL_SORT[a.rosterPill] -
-                COUNSELOR_ROSTER_PILL_SORT[b.rosterPill],
-            ),
+                COUNSELOR_ROSTER_PILL_SORT[b.rosterPill]
+              )
+            }),
           )
         }
       } catch {
@@ -185,6 +229,9 @@ export default function Students() {
     let list = students
     if (activeFilter === 'special_population') {
       list = list.filter(isSpecialPopulationStudent)
+    }
+    if (activeFilter === 'patterns') {
+      list = list.filter((s) => hasCounselorPatternIndicators(s.patternIndicators))
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -204,7 +251,16 @@ export default function Students() {
         )
       })
     }
-    return list
+    return [...list].sort((a, b) => {
+      const patternDiff =
+        counselorPatternSortKey(a.patternIndicators) -
+        counselorPatternSortKey(b.patternIndicators)
+      if (patternDiff !== 0) return patternDiff
+      return (
+        COUNSELOR_ROSTER_PILL_SORT[a.rosterPill] -
+        COUNSELOR_ROSTER_PILL_SORT[b.rosterPill]
+      )
+    })
   }, [students, activeFilter, searchQuery])
 
   return (
@@ -214,8 +270,8 @@ export default function Students() {
           Student Directory
         </h2>
         <p className="text-sm text-aurora-primary-dark/50 mt-1 max-w-xl">
-          Open a student for journals &amp; analytics after they request a session with you, or
-          invite them to chat
+          Open a student for journals &amp; analytics after they request a session with you.
+          Pattern badges highlight repeating self-reports for all students.
         </p>
       </div>
 
@@ -238,7 +294,11 @@ export default function Students() {
       >
         {DIRECTORY_FILTERS.map((f) => {
           const countLabel =
-            f.key === 'special_population' ? ` (${specialPopulationCount})` : ''
+            f.key === 'special_population'
+              ? ` (${specialPopulationCount})`
+              : f.key === 'patterns'
+                ? ` (${patternsCount})`
+                : ''
           const active = activeFilter === f.key
           return (
             <button
@@ -267,9 +327,11 @@ export default function Students() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-aurora-primary-dark/50 text-sm">
-            {activeFilter === 'special_population'
-              ? 'No students in your special population yet.'
-              : 'No students found.'}
+            {activeFilter === 'patterns'
+              ? 'No students with repeating check-in patterns in this window.'
+              : activeFilter === 'special_population'
+                ? 'No students in your special population yet.'
+                : 'No students found.'}
           </p>
         </div>
       ) : (

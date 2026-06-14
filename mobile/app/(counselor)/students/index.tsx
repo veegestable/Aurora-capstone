@@ -22,21 +22,28 @@ import { AURORA } from "../../../src/constants/aurora-colors";
 import { LetterAvatar } from "../../../src/components/common/LetterAvatar";
 import { firestoreService } from "../../../src/services/firebase-firestore.service";
 import { formatCounselorStudentSubtitle } from "../../../src/constants/ccs-student-programs";
-import { fetchStudentCheckInSignalContextForCounselor } from "../../../src/services/counselor-checkin-context.service";
+import { fetchStudentCheckInSignalContextForCounselor, fetchStudentPatternIndicators } from "../../../src/services/counselor-checkin-context.service";
 import { getUserSettings } from "../../../src/services/mood-firestore-v2.service";
 import {
   type CounselorStudentRosterPill,
   COUNSELOR_ROSTER_PILL_LABEL,
   COUNSELOR_ROSTER_PILL_SORT,
 } from "../../../src/constants/counselor-student-roster-pills";
+import {
+  counselorPatternSortKey,
+  getCounselorPatternIndicatorStyle,
+  hasCounselorPatternIndicators,
+  type CounselorPatternIndicator,
+} from "../../../src/constants/counselor-pattern-indicators";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../../src/stores/AuthContext";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type DirectoryFilter = "all" | "special_population";
+type DirectoryFilter = "all" | "special_population" | "patterns";
 
 const DIRECTORY_FILTERS: Array<{ key: DirectoryFilter; label: string }> = [
   { key: "all", label: "All Students" },
+  { key: "patterns", label: "Patterns" },
   { key: "special_population", label: "In Session" },
 ];
 
@@ -49,8 +56,58 @@ interface StudentEntry {
   year_level?: string;
   avatar_url?: string;
   rosterPill: CounselorStudentRosterPill;
-  /** Activity line (neutral wording; avoids whole-roster mood triage). */
+  /** Activity line (neutral wording). */
   activitySummary: string;
+  patternIndicators: CounselorPatternIndicator[];
+}
+
+function PatternIndicatorChips({
+  indicators,
+}: {
+  indicators: CounselorPatternIndicator[];
+}) {
+  if (indicators.length === 0) return null;
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: "nowrap",
+        alignItems: "center",
+        gap: 6,
+        marginTop: 8,
+      }}
+    >
+      {indicators.map((indicator) => {
+        const style = getCounselorPatternIndicatorStyle(indicator.id);
+        return (
+          <View
+            key={indicator.id}
+            style={{
+              flexShrink: 0,
+              backgroundColor: style.badgeBg,
+              borderRadius: 8,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderWidth: 1,
+              borderColor: style.border,
+            }}
+          >
+            <Text
+              style={{
+                color: style.text,
+                fontSize: 10,
+                fontWeight: "800",
+                letterSpacing: 0.35,
+              }}
+              numberOfLines={1}
+            >
+              {indicator.label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
 }
 
 function isSpecialPopulationStudent(student: StudentEntry): boolean {
@@ -121,7 +178,6 @@ function StudentCard({
         borderColor: AURORA.border,
       }}
     >
-      {/* Left accent by roster pill */}
       <View
         style={{
           width: 4,
@@ -212,6 +268,7 @@ function StudentCard({
             {student.activitySummary}
           </Text>
         </View>
+        <PatternIndicatorChips indicators={student.patternIndicators} />
       </View>
 
       {/* Mood emoji */}
@@ -276,6 +333,11 @@ export default function CounselorStudentsScreen() {
     [students],
   );
 
+  const patternsCount = useMemo(
+    () => students.filter((s) => hasCounselorPatternIndicators(s.patternIndicators)).length,
+    [students],
+  );
+
   useEffect(() => {
     if (openStudentId == null || openStudentId === "") {
       lastProcessedOpenId.current = null;
@@ -300,6 +362,7 @@ export default function CounselorStudentsScreen() {
             const sid = String(rec.id ?? "").trim();
             let rosterPill: CounselorStudentRosterPill = "no_session_yet";
             let activitySummary = "No session with you yet";
+            let patternIndicators: CounselorPatternIndicator[] = [];
             try {
               let sessionStarted = false;
               if (counselorId) {
@@ -307,19 +370,21 @@ export default function CounselorStudentsScreen() {
                 sessionStarted =
                   settings.counselorJournalAccess?.[counselorId] === true;
               }
+              const [patternResult, signalResult] = await Promise.all([
+                fetchStudentPatternIndicators(sid),
+                counselorId
+                  ? fetchStudentCheckInSignalContextForCounselor(sid, counselorId)
+                  : Promise.resolve({ logs: [] as { log_date?: Date }[] }),
+              ]);
+              patternIndicators = patternResult;
+              const latest = signalResult.logs[0] as { log_date?: Date } | undefined;
               if (sessionStarted && counselorId) {
                 rosterPill = "session_started";
-                const { logs } =
-                  await fetchStudentCheckInSignalContextForCounselor(
-                    sid,
-                    counselorId,
-                  );
-                const latest = logs[0] as { log_date?: Date } | undefined;
-                if (latest?.log_date) {
-                  activitySummary = `Last in Aurora: ${formatTimeAgo(new Date(latest.log_date))}`;
-                } else {
-                  activitySummary = "No Aurora entries in this window yet";
-                }
+              }
+              if (latest?.log_date) {
+                activitySummary = `Last in Aurora: ${formatTimeAgo(new Date(latest.log_date))}`;
+              } else if (sessionStarted) {
+                activitySummary = "No Aurora entries in this window yet";
               }
             } catch {
               rosterPill = "no_session_yet";
@@ -342,6 +407,7 @@ export default function CounselorStudentsScreen() {
                 typeof rec.avatar_url === "string" ? rec.avatar_url : undefined,
               rosterPill,
               activitySummary,
+              patternIndicators,
             };
           }),
         );
@@ -364,6 +430,9 @@ export default function CounselorStudentsScreen() {
     if (activeFilter === "special_population") {
       list = list.filter(isSpecialPopulationStudent);
     }
+    if (activeFilter === "patterns") {
+      list = list.filter((s) => hasCounselorPatternIndicators(s.patternIndicators));
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter((s) => {
@@ -382,11 +451,16 @@ export default function CounselorStudentsScreen() {
         );
       });
     }
-    return [...list].sort(
-      (a, b) =>
+    return [...list].sort((a, b) => {
+      const patternDiff =
+        counselorPatternSortKey(a.patternIndicators) -
+        counselorPatternSortKey(b.patternIndicators);
+      if (patternDiff !== 0) return patternDiff;
+      return (
         COUNSELOR_ROSTER_PILL_SORT[a.rosterPill] -
-        COUNSELOR_ROSTER_PILL_SORT[b.rosterPill],
-    );
+        COUNSELOR_ROSTER_PILL_SORT[b.rosterPill]
+      );
+    });
   }, [students, activeFilter, searchQuery]);
 
   return (
@@ -415,7 +489,8 @@ export default function CounselorStudentsScreen() {
                 style={{ color: AURORA.textSec, fontSize: 13, marginTop: 3 }}
               >
                 Open a student for journals & analytics after they request a
-                session with you, or invite them to chat
+                session with you. Pattern badges highlight repeating
+                self-reports for all students.
               </Text>
             </View>
             {/* <TouchableOpacity style={{
@@ -471,7 +546,9 @@ export default function CounselorStudentsScreen() {
                 const countLabel =
                   f.key === "special_population"
                     ? ` (${specialPopulationCount})`
-                    : "";
+                    : f.key === "patterns"
+                      ? ` (${patternsCount})`
+                      : "";
                 return (
                   <FilterChip
                     key={f.key}
@@ -512,9 +589,11 @@ export default function CounselorStudentsScreen() {
             ListEmptyComponent={
               <View style={{ alignItems: "center", paddingTop: 60 }}>
                 <Text style={{ color: AURORA.textMuted, fontSize: 14 }}>
-                  {activeFilter === "special_population"
-                    ? "No students in your special population yet."
-                    : "No students found."}
+                  {activeFilter === "patterns"
+                    ? "No students with repeating check-in patterns in this window."
+                    : activeFilter === "special_population"
+                      ? "No students in your special population yet."
+                      : "No students found."}
                 </Text>
               </View>
             }
