@@ -37,6 +37,18 @@ export async function resendRegistrationVerificationTrusted(input: {
   await callable(input)
 }
 
+/** Server SIGNUP_EMAIL_ALLOWLIST — marks QA emails verified after sign-in. */
+export async function syncAllowlistedEmailVerificationTrusted(): Promise<{
+  synced: boolean
+}> {
+  const callable = httpsCallable<void, { ok: boolean; synced: boolean }>(
+    functions,
+    'syncAllowlistedEmailVerificationTrusted',
+  )
+  const result = await callable()
+  return { synced: result.data.synced === true }
+}
+
 export async function sendPasswordResetTrusted(input: {
   email: string
 }): Promise<void> {

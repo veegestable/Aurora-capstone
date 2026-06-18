@@ -27,6 +27,7 @@ import {
   readRegistrationVerificationPendingEmail,
   writeRegistrationVerificationPendingEmail,
 } from '../utils/registrationVerificationPending'
+import { syncAllowlistedEmailVerificationTrusted } from '../services/trusted-backend.service'
 
 interface AuthContextType {
   user: User | null
@@ -121,7 +122,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (firebaseUser) {
         const emailForPolicy = (firebaseUser.email ?? '').trim()
         if (isEmailVerificationRequiredForSignIn(emailForPolicy)) {
-          const verified = await readAuthEmailVerifiedEffective(firebaseUser)
+          let verified = await readAuthEmailVerifiedEffective(firebaseUser)
+          if (!verified) {
+            try {
+              const { synced } = await syncAllowlistedEmailVerificationTrusted()
+              if (synced) {
+                await firebaseUser.reload()
+                verified = await readAuthEmailVerifiedEffective(firebaseUser)
+              }
+            } catch {
+              /* ignore */
+            }
+          }
           if (!verified) {
             try {
               await authService.signOut()

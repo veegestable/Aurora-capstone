@@ -113,12 +113,13 @@ function createSignUpTrusted(enforceRateLimit) {
         }
         let uid;
         const db = admin.firestore();
+        const allowlisted = (0, signupEmailPolicy_1.isSignupEmailAllowlisted)(input.email);
         try {
             const userRecord = await auth.createUser({
                 email: input.email,
                 password: input.password,
                 displayName: input.fullName,
-                emailVerified: false,
+                emailVerified: allowlisted,
             });
             uid = userRecord.uid;
             const now = admin.firestore.FieldValue.serverTimestamp();
@@ -127,7 +128,7 @@ function createSignUpTrusted(enforceRateLimit) {
                 email: input.email,
                 full_name: input.fullName,
                 role: input.role,
-                email_verified: false,
+                email_verified: allowlisted,
                 college_code: input.college_code,
                 created_at: now,
                 updated_at: now,
@@ -139,13 +140,15 @@ function createSignUpTrusted(enforceRateLimit) {
                 profile.contact_number = input.contact_number;
             }
             await db.collection('users').doc(uid).set(profile);
-            const idToken = await (0, authHelpers_1.identityToolkitSignIn)(input.email, input.password);
-            if (!idToken) {
-                throw new https_1.HttpsError('unavailable', 'Could not send verification email right now. Please try again later.');
-            }
-            const sent = await (0, authHelpers_1.identityToolkitSendOobCode)('VERIFY_EMAIL', { idToken });
-            if (!sent) {
-                throw new https_1.HttpsError('unavailable', 'Could not send verification email right now. Please try again later.');
+            if (!allowlisted) {
+                const idToken = await (0, authHelpers_1.identityToolkitSignIn)(input.email, input.password);
+                if (!idToken) {
+                    throw new https_1.HttpsError('unavailable', 'Could not send verification email right now. Please try again later.');
+                }
+                const sent = await (0, authHelpers_1.identityToolkitSendOobCode)('VERIFY_EMAIL', { idToken });
+                if (!sent) {
+                    throw new https_1.HttpsError('unavailable', 'Could not send verification email right now. Please try again later.');
+                }
             }
             return { ok: true, uid };
         }

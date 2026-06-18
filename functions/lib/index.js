@@ -41,13 +41,15 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrateOldMoodLogs = exports.grantCounselorJournalAccessTrusted = exports.createSessionNotificationTrusted = exports.updateSessionRequestTrusted = exports.createCounselorSessionInviteTrusted = exports.sendSessionRequestTrusted = exports.sendTextMessageTrusted = exports.createCounselorAccountTrusted = exports.signUpTrusted = exports.sendPasswordResetTrusted = exports.resendRegistrationVerificationTrusted = exports.writeAuditLogTrusted = exports.cleanupUnverifiedAuthUsers = exports.generateWeeklyAnalyticsAi = exports.getStudentCounselingOutcomeCountsTrusted = exports.enqueueSessionReminders = exports.deliverSessionExpoPush = exports.generateWeeklySummaryAi = void 0;
+exports.migrateOldMoodLogs = exports.grantCounselorJournalAccessTrusted = exports.createSessionNotificationTrusted = exports.updateSessionRequestTrusted = exports.createCounselorSessionInviteTrusted = exports.sendSessionRequestTrusted = exports.sendTextMessageTrusted = exports.syncAllowlistedEmailVerificationTrusted = exports.createCounselorAccountTrusted = exports.signUpTrusted = exports.sendPasswordResetTrusted = exports.resendRegistrationVerificationTrusted = exports.writeAuditLogTrusted = exports.cleanupUnverifiedAuthUsers = exports.generateWeeklyAnalyticsAi = exports.getStudentCounselingOutcomeCountsTrusted = exports.enqueueSessionReminders = exports.deliverSessionExpoPush = exports.generateWeeklySummaryAi = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const resendVerification_1 = require("./resendVerification");
 const sendPasswordResetTrusted_1 = require("./sendPasswordResetTrusted");
 const signUpTrusted_1 = require("./signUpTrusted");
 const createCounselorAccountTrusted_1 = require("./createCounselorAccountTrusted");
+const syncAllowlistedEmailVerification_1 = require("./syncAllowlistedEmailVerification");
+Object.defineProperty(exports, "syncAllowlistedEmailVerificationTrusted", { enumerable: true, get: function () { return syncAllowlistedEmailVerification_1.syncAllowlistedEmailVerificationTrusted; } });
 const ensureConversationAdmin_1 = require("./ensureConversationAdmin");
 const studentCounselingOutcomeCounts_1 = require("./studentCounselingOutcomeCounts");
 const conversationMessagingPolicy_1 = require("./conversationMessagingPolicy");

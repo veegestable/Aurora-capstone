@@ -1,6 +1,7 @@
 import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  type User,
 } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../../../config/firebase'
@@ -11,6 +12,39 @@ import {
   readAuthEmailVerifiedEffective,
   syncEmailVerifiedFromAuthToFirestore,
 } from '../emailVerificationSync'
+import { syncAllowlistedEmailVerificationTrusted } from '../../trusted-backend.service'
+
+async function ensureEmailVerifiedForSignIn(
+  user: User,
+  emailForPolicy: string,
+): Promise<boolean> {
+  if (!isEmailVerificationRequiredForSignIn(emailForPolicy)) {
+    return true
+  }
+
+  let verified = await readAuthEmailVerifiedEffective(user)
+  if (verified) return true
+
+  try {
+    const { synced } = await syncAllowlistedEmailVerificationTrusted()
+    if (synced) {
+      await user.reload()
+      try {
+        await user.getIdToken(true)
+      } catch {
+        /* ignore */
+      }
+      verified = await readAuthEmailVerifiedEffective(user)
+    }
+  } catch (e) {
+    console.warn(
+      '[signIn] allowlist verification sync skipped:',
+      e instanceof Error ? e.message : e,
+    )
+  }
+
+  return verified
+}
 
 export const signIn = async (data: SignInData): Promise<UserProfile> => {
   try {
@@ -31,10 +65,8 @@ export const signIn = async (data: SignInData): Promise<UserProfile> => {
     }
 
     const emailForPolicy = (user.email ?? data.email).trim()
-    if (
-      isEmailVerificationRequiredForSignIn(emailForPolicy) &&
-      !user.emailVerified
-    ) {
+    const verified = await ensureEmailVerifiedForSignIn(user, emailForPolicy)
+    if (!verified) {
       await firebaseSignOut(auth)
       throw new Error(
         'Verify your email before signing in. Open the link we sent you, then try again. You can resend the email from this screen if needed.',

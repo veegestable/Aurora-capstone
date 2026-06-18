@@ -13,6 +13,7 @@ import { createResendRegistrationVerificationTrusted } from './resendVerificatio
 import { createSendPasswordResetTrusted } from './sendPasswordResetTrusted';
 import { createSignUpTrusted } from './signUpTrusted';
 import { createCreateCounselorAccountTrusted } from './createCounselorAccountTrusted';
+import { syncAllowlistedEmailVerificationTrusted } from './syncAllowlistedEmailVerification';
 import {
   ensureConversationDocument,
   resolveConversationCollegeCode,
@@ -275,6 +276,8 @@ export const signUpTrusted = createSignUpTrusted(enforceRateLimit);
 
 export const createCounselorAccountTrusted =
   createCreateCounselorAccountTrusted(getRoleForUid);
+
+export { syncAllowlistedEmailVerificationTrusted };
 
 type SendTextMessageTrustedInput = {
   conversationId: string;

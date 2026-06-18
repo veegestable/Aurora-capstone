@@ -13,6 +13,7 @@ import {
   resendRegistrationVerificationTrusted,
   sendPasswordResetTrusted,
   signUpTrusted,
+  syncAllowlistedEmailVerificationTrusted,
 } from "./trusted-backend.service";
 import {
   shouldFallbackToClientSignUp,
@@ -139,6 +140,38 @@ async function readAuthEmailVerifiedEffective(user: User): Promise<boolean> {
     authVerified,
     (user.email ?? "").trim(),
   );
+}
+
+async function ensureEmailVerifiedForSignIn(
+  user: User,
+  emailForPolicy: string,
+): Promise<boolean> {
+  if (!isEmailVerificationRequiredForSignIn(emailForPolicy)) {
+    return true;
+  }
+
+  let verified = await readAuthEmailVerifiedEffective(user);
+  if (verified) return true;
+
+  try {
+    const { synced } = await syncAllowlistedEmailVerificationTrusted();
+    if (synced) {
+      await user.reload();
+      try {
+        await user.getIdToken(true);
+      } catch {
+        /* ignore */
+      }
+      verified = await readAuthEmailVerifiedEffective(user);
+    }
+  } catch (e) {
+    console.warn(
+      "[signIn] allowlist verification sync skipped:",
+      e instanceof Error ? e.message : e,
+    );
+  }
+
+  return verified;
 }
 
 /** Keep `users/{uid}.email_verified` aligned with Auth (+ allowlisted QA emails). */
@@ -508,10 +541,8 @@ export const authService = {
       }
 
       const emailForPolicy = (user.email ?? data.email).trim();
-      if (
-        isEmailVerificationRequiredForSignIn(emailForPolicy) &&
-        !user.emailVerified
-      ) {
+      const verified = await ensureEmailVerifiedForSignIn(user, emailForPolicy);
+      if (!verified) {
         await signOut(auth);
         throw new Error(
           "Verify your email before signing in. Open the link we sent you, then try again. You can resend the email from this screen if needed.",
