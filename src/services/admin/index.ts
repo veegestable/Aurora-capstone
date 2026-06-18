@@ -4,6 +4,7 @@ import { getSchoolAnalytics } from './get/getSchoolAnalytics'
 import { getThresholdSnapshot } from './get/getThresholdSnapshot'
 import { getCollegeRosterCounts } from './get/getCollegeRosterCounts'
 import { updateCounselorApproval } from './post/updateCounselorApproval'
+import { createCounselorAccount } from './post/createCounselorAccount'
 import {
   getUsersWithPendingCollegeShifts,
   adminApproveCollegeShift,
@@ -26,6 +27,7 @@ export const adminService = {
   getThresholdSnapshot,
   getCollegeRosterCounts,
   updateCounselorApproval,
+  createCounselorAccount,
   getUsersWithPendingCollegeShifts,
   adminApproveCollegeShift,
   adminRejectCollegeShift,

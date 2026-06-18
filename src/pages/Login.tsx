@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { Eye, EyeOff, Heart, Brain, Users, Shield, Lock, Award } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { COLLEGES, isCollegeCode } from '../constants/colleges'
@@ -44,7 +45,6 @@ export default function Login() {
     email: registrationVerificationEmail ?? '',
     password: '',
     fullName: '',
-    role: 'student' as 'student' | 'counselor',
     collegeCode: '',
     program: '',
   })
@@ -143,9 +143,8 @@ export default function Login() {
           formData.email,
           formData.password,
           formData.fullName,
-          formData.role,
           formData.collegeCode,
-          formData.role === 'student' ? formData.program : undefined
+          formData.program,
         )
         if (result.success) {
           setSuccessMessage(result.message)
@@ -184,7 +183,6 @@ export default function Login() {
       ...prev,
       password: '',
       fullName: '',
-      role: 'student',
       collegeCode: '',
       program: ''
     }))
@@ -510,28 +508,6 @@ export default function Login() {
               {isSignUp && (
                 <>
                   <div>
-                    <label htmlFor="role" className="block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide">
-                      Role
-                    </label>
-                    <select
-                      id="role"
-                      name="role"
-                      value={formData.role}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-white/8 rounded-[12px] focus:ring-2 focus:ring-aurora-blue/30 focus:border-aurora-blue text-white bg-white/5 transition-all outline-hidden"
-                      required
-                    >
-                      <option value="student" className="bg-[#0B0D30] text-white">Student</option>
-                      <option value="counselor" className="bg-[#0B0D30] text-white">Counselor</option>
-                    </select>
-                    {formData.role === 'counselor' && (
-                      <p className="mt-1.5 text-xs text-amber-300">
-                        Counselor accounts require admin approval before access.
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
                     <label htmlFor="collegeCode" className="block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide">
                       College <span className="text-red-400">*</span>
                     </label>
@@ -553,7 +529,7 @@ export default function Login() {
                     </select>
                   </div>
 
-                  {formData.role === 'student' && formData.collegeCode && isCollegeCode(formData.collegeCode) && (
+                  {formData.collegeCode && isCollegeCode(formData.collegeCode) && (
                     <div>
                       <label htmlFor="program" className="block text-xs font-semibold text-aurora-text-sec mb-2 tracking-wide">
                         Program <span className="text-red-400">*</span>
@@ -577,6 +553,17 @@ export default function Login() {
                     </div>
                   )}
                 </>
+              )}
+
+              {!isSignUp && (
+                <div className="flex justify-end -mt-1">
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs text-aurora-blue hover:text-aurora-blue-light font-medium transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
               )}
 
               <button

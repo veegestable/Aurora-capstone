@@ -121,7 +121,7 @@ export default function AdminDashboard() {
           <AdminQuickActionRow
             to="/admin/counselors"
             title="Counselors"
-            description="Review and approve counselor signups"
+            description="Add and manage counselor accounts"
             icon={<Users className="w-6 h-6 text-aurora-blue" />}
           />
           <AdminQuickActionRow

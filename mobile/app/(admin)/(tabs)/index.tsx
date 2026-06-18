@@ -173,7 +173,7 @@ export default function AdminDashboardScreen() {
         </Text>
         <AdminQuickActionRow
           title="Counselors"
-          description="Review and approve counselor signups"
+          description="Add and manage counselor accounts"
           icon={<Users size={24} color={AURORA.blue} />}
           iconContainerStyle={{ backgroundColor: "transparent" }}
           onPress={() => router.push("/(admin)/counselors")}

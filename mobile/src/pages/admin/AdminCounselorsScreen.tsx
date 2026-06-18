@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Users, Check, X } from 'lucide-react-native';
+import { ArrowLeft, Users, Check, X, UserPlus } from 'lucide-react-native';
 import { firestoreService } from '../../services/firebase-firestore.service';
 import { authService } from '../../services/firebase-auth.service';
 import { AURORA } from '../../constants/aurora-colors';
@@ -30,6 +30,8 @@ import {
     type InfoGuideContent,
 } from '../../components/common/InfoGuideModal';
 import { buildFeedback } from '../../utils/aurora-feedback';
+import { AddCounselorModal } from '../../components/admin/AddCounselorModal';
+import { writeAuditLogTrusted } from '../../services/trusted-backend.service';
 
 interface CounselorUser {
     id: string;
@@ -65,6 +67,7 @@ export default function AdminCounselorsScreen() {
     const [approveCollege, setApproveCollege] = useState<CollegeCode | ''>('');
     const [feedback, setFeedback] = useState<InfoGuideContent | null>(null);
     const [rejectTarget, setRejectTarget] = useState<CounselorUser | null>(null);
+    const [addModalOpen, setAddModalOpen] = useState(false);
 
     const loadCounselors = async () => {
         try {
@@ -140,7 +143,22 @@ export default function AdminCounselorsScreen() {
                     ) : (
                         <View style={{ width: 34 }} />
                     )}
-                    <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '700' }}>Counselors</Text>
+                    <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '700', flex: 1 }}>Counselors</Text>
+                    <TouchableOpacity
+                        onPress={() => setAddModalOpen(true)}
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                            backgroundColor: AURORA.blue,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            borderRadius: 10,
+                        }}
+                    >
+                        <UserPlus size={18} color="#FFFFFF" />
+                        <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 13 }}>Add</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {loading ? (
@@ -170,8 +188,8 @@ export default function AdminCounselorsScreen() {
                             <View style={{ alignItems: 'center', paddingVertical: 60 }}>
                                 <Users size={48} color={AURORA.textMuted} style={{ marginBottom: 12 }} />
                                 <Text style={{ color: AURORA.textSec, fontSize: 16 }}>No counselors yet</Text>
-                                <Text style={{ color: AURORA.textMuted, fontSize: 13, marginTop: 4 }}>
-                                    Counselors sign up from the login screen and appear here for approval.
+                                <Text style={{ color: AURORA.textMuted, fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                    Use Add to provision counselor accounts. Legacy pending signups may still appear here.
                                 </Text>
                             </View>
                         ) : (
@@ -361,6 +379,12 @@ export default function AdminCounselorsScreen() {
                 <InfoGuideModal
                     guide={approveTarget ? null : feedback}
                     onClose={() => setFeedback(null)}
+                />
+
+                <AddCounselorModal
+                    visible={addModalOpen}
+                    onClose={() => setAddModalOpen(false)}
+                    onCreated={() => void loadCounselors()}
                 />
             </SafeAreaView>
         </View>

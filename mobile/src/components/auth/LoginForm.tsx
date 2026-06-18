@@ -114,18 +114,15 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
     contactNumber: "",
     collegeCode: "",
     program: "",
-    role: "student" as "student" | "counselor",
   });
 
   useEffect(() => {
-    if (formData.role !== "student") return;
     const list = [...getProgramsForCollege(formData.collegeCode)];
     setFormData((prev) => {
-      if (prev.role !== "student") return prev;
       if (!prev.program || list.includes(prev.program)) return prev;
       return { ...prev, program: "" };
     });
-  }, [formData.collegeCode, formData.role]);
+  }, [formData.collegeCode]);
 
   const updateFormData = (key: string, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
@@ -257,7 +254,6 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
 
     if (
       isSignUp &&
-      formData.role === "student" &&
       (!formData.program.trim() ||
         !isProgramInCollege(formData.collegeCode.trim(), formData.program.trim()))
     ) {
@@ -285,10 +281,10 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
           formData.email,
           formData.password,
           formData.fullName,
-          formData.role,
+          "student",
           formData.contactNumber.trim(),
           formData.collegeCode.trim(),
-          formData.role === "student" ? formData.program.trim() : undefined,
+          formData.program.trim(),
         );
         if (result.success) {
           setSignUpPhase("verifyEmail");
@@ -410,72 +406,6 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
                   <Text
                     style={[styles.roleLabel, compact && styles.roleLabelCompact]}
                   >
-                    Sign up as
-                  </Text>
-                  <View
-                    style={[styles.roleRow, compact && styles.roleRowCompact]}
-                  >
-                    <TouchableOpacity
-                      onPress={() => {
-                        triggerHaptic("light");
-                        setFormData((prev) => ({ ...prev, role: "student" }));
-                      }}
-                      style={[
-                        styles.roleBtn,
-                        compact && styles.roleBtnCompact,
-                        formData.role === "student" && styles.roleBtnActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.roleBtnText,
-                          compact && styles.roleBtnTextCompact,
-                          formData.role === "student" && styles.roleBtnTextActive,
-                        ]}
-                      >
-                        Student
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => {
-                        triggerHaptic("light");
-                        setFormData((prev) => ({
-                          ...prev,
-                          role: "counselor",
-                          program: "",
-                        }));
-                      }}
-                      style={[
-                        styles.roleBtn,
-                        compact && styles.roleBtnCompact,
-                        formData.role === "counselor" && styles.roleBtnActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.roleBtnText,
-                          compact && styles.roleBtnTextCompact,
-                          formData.role === "counselor" && styles.roleBtnTextActive,
-                        ]}
-                      >
-                        Counselor
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  {formData.role === "counselor" && (
-                    <Text
-                      className={`text-amber-300 ${compact ? "mt-0.5 text-xs leading-[16px]" : "text-xs mt-1"}`}
-                    >
-                      {compact
-                        ? "Counselor accounts require admin approval."
-                        : "Your account will need admin approval before you can access the counselor dashboard."}
-                    </Text>
-                  )}
-                </View>
-                <View>
-                  <Text
-                    style={[styles.roleLabel, compact && styles.roleLabelCompact]}
-                  >
                     College <Text style={{ color: "#FCA5A5" }}>*</Text>
                   </Text>
                   <TouchableOpacity
@@ -507,8 +437,7 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
                     <ChevronDown size={compact ? 18 : 20} color="#CBD5E1" />
                   </TouchableOpacity>
                 </View>
-                {formData.role === "student" &&
-                  formData.collegeCode.trim() &&
+                {formData.collegeCode.trim() &&
                   isCollegeCode(formData.collegeCode.trim()) && (
                     <View>
                       <Text
@@ -587,6 +516,20 @@ export default function LoginForm({ onSwitchToSignUp }: LoginFormProps) {
                 )}
               </TouchableOpacity>
             </View>
+
+            {!isSignUp && (
+              <TouchableOpacity
+                onPress={() => {
+                  triggerHaptic("light");
+                  router.push("/(auth)/forgot-password");
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Forgot password"
+                style={styles.forgotPasswordWrap}
+              >
+                <Text style={styles.forgotPasswordLink}>Forgot password?</Text>
+              </TouchableOpacity>
+            )}
 
             {!isSignUp && showMsuiitSignInResendOption && (
               <View style={styles.signInResendWrap}>
@@ -908,41 +851,19 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     marginBottom: 8,
   },
-  roleRow: { flexDirection: "row", gap: 12 },
-  roleBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.35)",
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center",
-  },
-  roleBtnActive: {
-    borderColor: "rgba(96, 165, 250, 0.8)",
-    backgroundColor: "rgba(59, 130, 246, 0.25)",
-  },
-  roleBtnText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#CBD5E1",
-  },
-  roleBtnTextActive: {
-    color: "#93C5FD",
-  },
   roleLabelCompact: {
     fontSize: 13,
     marginBottom: 6,
   },
-  roleRowCompact: { gap: 8 },
-  roleBtnCompact: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+  forgotPasswordWrap: {
+    alignSelf: "flex-end",
+    marginTop: -4,
+    marginBottom: 4,
   },
-  roleBtnTextCompact: {
-    fontSize: 14,
+  forgotPasswordLink: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#60A5FA",
   },
   collegeField: {
     flexDirection: "row",

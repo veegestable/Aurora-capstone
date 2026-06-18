@@ -10,7 +10,9 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { createResendRegistrationVerificationTrusted } from './resendVerification';
+import { createSendPasswordResetTrusted } from './sendPasswordResetTrusted';
 import { createSignUpTrusted } from './signUpTrusted';
+import { createCreateCounselorAccountTrusted } from './createCounselorAccountTrusted';
 import {
   ensureConversationDocument,
   resolveConversationCollegeCode,
@@ -266,7 +268,13 @@ async function enforceRateLimit(
 export const resendRegistrationVerificationTrusted =
   createResendRegistrationVerificationTrusted(enforceRateLimit);
 
+export const sendPasswordResetTrusted =
+  createSendPasswordResetTrusted(enforceRateLimit);
+
 export const signUpTrusted = createSignUpTrusted(enforceRateLimit);
+
+export const createCounselorAccountTrusted =
+  createCreateCounselorAccountTrusted(getRoleForUid);
 
 type SendTextMessageTrustedInput = {
   conversationId: string;

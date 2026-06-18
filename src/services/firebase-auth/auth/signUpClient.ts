@@ -14,25 +14,26 @@ import { toUserFacingEmailAuthError } from '../../../utils/firebase-auth-errors'
 
 /** Direct Firebase client registration (fallback when signUpTrusted is not deployed). */
 export async function signUpWithClientSdk(data: SignUpData): Promise<UserProfile> {
+  if (data.role !== 'student') {
+    throw new Error(
+      'Counselor accounts are created by an admin. Contact your institution if you need access.',
+    )
+  }
+
   const policyError = getSignupEmailRejectionMessage(data.email)
   if (policyError) throw new Error(policyError)
 
-  if (data.role === 'counselor' || data.role === 'student') {
-    if (!data.college_code || !isCollegeCode(data.college_code)) {
-      throw new Error('Select a valid college before singing up.')
-    }
+  if (!data.college_code || !isCollegeCode(data.college_code)) {
+    throw new Error('Select a valid college before singing up.')
   }
 
-  let studentProgramTrimmed: string | undefined
-  if (data.role === 'student') {
-    const prog = data.program?.trim() ?? ''
-    if (!prog || !data.college_code || !isProgramInCollege(data.college_code, prog)) {
-      throw new Error(
-        'Select a degree program that matches your college before singing up.',
-      )
-    }
-    studentProgramTrimmed = prog
+  const prog = data.program?.trim() ?? ''
+  if (!prog || !data.college_code || !isProgramInCollege(data.college_code, prog)) {
+    throw new Error(
+      'Select a degree program that matches your college before singing up.',
+    )
   }
+  const studentProgramTrimmed = prog
 
   const userCredential = await createUserWithEmailAndPassword(
     auth,
@@ -52,13 +53,8 @@ export async function signUpWithClientSdk(data: SignUpData): Promise<UserProfile
     full_name: data.fullName,
     role: data.role,
     email_verified: user.emailVerified,
-    ...(data.role === 'counselor' ? { approval_status: 'pending' as const } : {}),
-    ...(data.role === 'student' || data.role === 'counselor'
-      ? { college_code: data.college_code as CollegeCode }
-      : {}),
-    ...(data.role === 'student' && studentProgramTrimmed
-      ? { program: studentProgramTrimmed }
-      : {}),
+    college_code: data.college_code as CollegeCode,
+    program: studentProgramTrimmed,
     created_at: new Date(),
     updated_at: new Date(),
   }

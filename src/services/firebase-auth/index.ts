@@ -6,6 +6,7 @@ import { getCurrentFirebaseUser } from './user/getCurrentFirebaseUser'
 import { updateProfile } from './user/updateProfile'
 import { uploadAvatar } from './user/uploadAvatar'
 import { resendRegistrationVerificationEmail } from './auth/resendRegistrationVerificationEmail'
+import { sendPasswordReset } from './auth/sendPasswordReset'
 
 export * from './types'
 
@@ -18,4 +19,5 @@ export const authService = {
   updateProfile,
   uploadAvatar,
   resendRegistrationVerificationEmail,
+  sendPasswordReset,
 }

@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signOut,
   updateProfile,
   User,
@@ -10,12 +11,17 @@ import {
 import { FirebaseError } from "firebase/app";
 import {
   resendRegistrationVerificationTrusted,
+  sendPasswordResetTrusted,
   signUpTrusted,
 } from "./trusted-backend.service";
 import {
   shouldFallbackToClientSignUp,
   toUserFacingSignUpTrustedError,
 } from "../utils/signUpTrustedErrors";
+import {
+  shouldFallbackToClientPasswordReset,
+  toUserFacingPasswordResetError,
+} from "../utils/passwordResetTrustedErrors";
 import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "./firebase";
@@ -286,6 +292,12 @@ export interface UserProfile {
 
 export const authService = {
   async signUpWithClientSdk(data: SignUpData): Promise<UserProfile> {
+    if (data.role === "counselor") {
+      throw new Error(
+        "Counselor accounts are created by an admin. Contact your institution if you need access.",
+      );
+    }
+
     const contactTrim = data.contactNumber?.trim() ?? "";
 
     if (data.role === "counselor" || data.role === "student") {
@@ -353,31 +365,27 @@ export const authService = {
     try {
       console.log("🔥 Creating Firebase user");
 
-      if (data.role !== "student" && data.role !== "counselor") {
+      if (data.role === "counselor") {
+        throw new Error(
+          "Counselor accounts are created by an admin. Contact your institution if you need access.",
+        );
+      }
+
+      if (data.role !== "student") {
         return await this.signUpWithClientSdk(data);
       }
 
-      if (data.role === "counselor" || data.role === "student") {
-        if (!data.college_code || !isCollegeCode(data.college_code)) {
-          throw new Error("Select a valid college before signing up.");
-        }
+      if (!data.college_code || !isCollegeCode(data.college_code)) {
+        throw new Error("Select a valid college before signing up.");
       }
 
-      let studentProgramTrimmed: string | undefined;
-      if (data.role === "student") {
-        const prog = data.program?.trim() ?? "";
-        if (
-          !prog ||
-          !data.college_code ||
-          !isProgramInCollege(data.college_code, prog)
-        ) {
-          throw new Error(
-            "Select a degree program that matches your college before signing up.",
-          );
-        }
-        studentProgramTrimmed = prog;
+      const prog = data.program?.trim() ?? "";
+      if (!prog || !isProgramInCollege(data.college_code, prog)) {
+        throw new Error(
+          "Select a degree program that matches your college before signing up.",
+        );
       }
-
+      const studentProgramTrimmed = prog;
       const contactTrim = data.contactNumber?.trim() ?? "";
 
       try {
@@ -385,11 +393,9 @@ export const authService = {
           email: data.email.trim(),
           password: data.password,
           fullName: data.fullName,
-          role: data.role,
+          role: "student",
           college_code: data.college_code as CollegeCode,
-          ...(data.role === "student" && studentProgramTrimmed
-            ? { program: studentProgramTrimmed }
-            : {}),
+          program: studentProgramTrimmed,
           ...(contactTrim ? { contact_number: contactTrim } : {}),
         });
 
@@ -398,16 +404,11 @@ export const authService = {
           uid,
           email: data.email,
           full_name: data.fullName,
-          role: data.role,
+          role: "student",
           email_verified: false,
-          ...(data.role === "counselor"
-            ? { approval_status: "pending" as const }
-            : {}),
           ...(contactTrim ? { contact_number: contactTrim } : {}),
           college_code: data.college_code as CollegeCode,
-          ...(data.role === "student" && studentProgramTrimmed
-            ? { program: studentProgramTrimmed }
-            : {}),
+          program: studentProgramTrimmed,
           created_at: new Date(),
           updated_at: new Date(),
         };
@@ -697,6 +698,23 @@ export const authService = {
     } catch(error: unknown) {
       console.error("❌ Update counselor approval error:", error instanceof Error? error.message : error);
       throw new Error(error instanceof Error? error.message : "Unknown error");
+    }
+  },
+
+  async sendPasswordReset(email: string): Promise<void> {
+    const trimmed = email.trim().toLowerCase();
+    try {
+      await sendPasswordResetTrusted({ email: trimmed });
+    } catch (trustedErr: unknown) {
+      if (shouldFallbackToClientPasswordReset(trustedErr)) {
+        try {
+          await sendPasswordResetEmail(auth, trimmed);
+          return;
+        } catch (clientErr: unknown) {
+          throw toUserFacingPasswordResetError(clientErr);
+        }
+      }
+      throw toUserFacingPasswordResetError(trustedErr);
     }
   },
 };

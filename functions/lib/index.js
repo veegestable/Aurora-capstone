@@ -41,11 +41,13 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrateOldMoodLogs = exports.grantCounselorJournalAccessTrusted = exports.createSessionNotificationTrusted = exports.updateSessionRequestTrusted = exports.createCounselorSessionInviteTrusted = exports.sendSessionRequestTrusted = exports.sendTextMessageTrusted = exports.signUpTrusted = exports.resendRegistrationVerificationTrusted = exports.writeAuditLogTrusted = exports.cleanupUnverifiedAuthUsers = exports.generateWeeklyAnalyticsAi = exports.getStudentCounselingOutcomeCountsTrusted = exports.enqueueSessionReminders = exports.deliverSessionExpoPush = exports.generateWeeklySummaryAi = void 0;
+exports.migrateOldMoodLogs = exports.grantCounselorJournalAccessTrusted = exports.createSessionNotificationTrusted = exports.updateSessionRequestTrusted = exports.createCounselorSessionInviteTrusted = exports.sendSessionRequestTrusted = exports.sendTextMessageTrusted = exports.createCounselorAccountTrusted = exports.signUpTrusted = exports.sendPasswordResetTrusted = exports.resendRegistrationVerificationTrusted = exports.writeAuditLogTrusted = exports.cleanupUnverifiedAuthUsers = exports.generateWeeklyAnalyticsAi = exports.getStudentCounselingOutcomeCountsTrusted = exports.enqueueSessionReminders = exports.deliverSessionExpoPush = exports.generateWeeklySummaryAi = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const resendVerification_1 = require("./resendVerification");
+const sendPasswordResetTrusted_1 = require("./sendPasswordResetTrusted");
 const signUpTrusted_1 = require("./signUpTrusted");
+const createCounselorAccountTrusted_1 = require("./createCounselorAccountTrusted");
 const ensureConversationAdmin_1 = require("./ensureConversationAdmin");
 const studentCounselingOutcomeCounts_1 = require("./studentCounselingOutcomeCounts");
 const conversationMessagingPolicy_1 = require("./conversationMessagingPolicy");
@@ -222,7 +224,9 @@ async function enforceRateLimit(kind, key, windowMs, maxCount) {
     });
 }
 exports.resendRegistrationVerificationTrusted = (0, resendVerification_1.createResendRegistrationVerificationTrusted)(enforceRateLimit);
+exports.sendPasswordResetTrusted = (0, sendPasswordResetTrusted_1.createSendPasswordResetTrusted)(enforceRateLimit);
 exports.signUpTrusted = (0, signUpTrusted_1.createSignUpTrusted)(enforceRateLimit);
+exports.createCounselorAccountTrusted = (0, createCounselorAccountTrusted_1.createCreateCounselorAccountTrusted)(getRoleForUid);
 exports.sendTextMessageTrusted = (0, https_1.onCall)({ region: 'asia-southeast2' }, async (request) => {
     const uid = request.auth?.uid;
     if (!uid)

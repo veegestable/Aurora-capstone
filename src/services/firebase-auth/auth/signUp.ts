@@ -32,22 +32,24 @@ function buildUserProfileFromSignUp(uid: string, data: SignUpData): UserProfile 
 }
 
 function validateSignUpData(data: SignUpData): void {
+  if (data.role !== 'student') {
+    throw new Error(
+      'Counselor accounts are created by an admin. Contact your institution if you need access.',
+    )
+  }
+
   const policyError = getSignupEmailRejectionMessage(data.email)
   if (policyError) throw new Error(policyError)
 
-  if (data.role === 'counselor' || data.role === 'student') {
-    if (!data.college_code || !isCollegeCode(data.college_code)) {
-      throw new Error('Select a valid college before singing up.')
-    }
+  if (!data.college_code || !isCollegeCode(data.college_code)) {
+    throw new Error('Select a valid college before singing up.')
   }
 
-  if (data.role === 'student') {
-    const prog = data.program?.trim() ?? ''
-    if (!prog || !data.college_code || !isProgramInCollege(data.college_code, prog)) {
-      throw new Error(
-        'Select a degree program that matches your college before singing up.',
-      )
-    }
+  const prog = data.program?.trim() ?? ''
+  if (!prog || !data.college_code || !isProgramInCollege(data.college_code, prog)) {
+    throw new Error(
+      'Select a degree program that matches your college before singing up.',
+    )
   }
 }
 
@@ -61,11 +63,9 @@ export const signUp = async (data: SignUpData): Promise<UserProfile> => {
         email: data.email.trim(),
         password: data.password,
         fullName: data.fullName,
-        role: data.role,
+        role: 'student',
         college_code: data.college_code as CollegeCode,
-        ...(data.role === 'student' && data.program?.trim()
-          ? { program: data.program.trim() }
-          : {}),
+        ...(data.program?.trim() ? { program: data.program.trim() } : {}),
       })
       console.log('✅ User created via signUpTrusted:', uid)
       return buildUserProfileFromSignUp(uid, data)

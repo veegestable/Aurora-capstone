@@ -33,24 +33,17 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createSignUpTrusted = createSignUpTrusted;
+exports.createCreateCounselorAccountTrusted = createCreateCounselorAccountTrusted;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
-const authHelpers_1 = require("./authHelpers");
 const iitCollegePrograms_1 = require("./iitCollegePrograms");
 const signupEmailPolicy_1 = require("./signupEmailPolicy");
-const SIGNUP_IP_WINDOW_MS = 60 * 60 * 1000;
-const SIGNUP_IP_MAX = 5;
-/** Failed or successful registration attempts per email per hour. */
-const SIGNUP_EMAIL_ATTEMPT_WINDOW_MS = 60 * 60 * 1000;
-const SIGNUP_EMAIL_ATTEMPT_MAX = 3;
-function parseSignUpInput(data) {
+const authHelpers_1 = require("./authHelpers");
+function parseCreateCounselorInput(data) {
     const email = (0, authHelpers_1.normalizeEmail)(typeof data?.email === 'string' ? data.email : '');
     const password = typeof data?.password === 'string' ? data.password : '';
     const fullName = typeof data?.fullName === 'string' ? data.fullName.trim() : '';
-    const role = data?.role === 'student' ? data.role : null;
     const college_code = typeof data?.college_code === 'string' ? data.college_code.trim() : '';
-    const program = typeof data?.program === 'string' ? data.program.trim() : undefined;
     const contact_number = typeof data?.contact_number === 'string'
         ? data.contact_number.trim()
         : undefined;
@@ -58,21 +51,13 @@ function parseSignUpInput(data) {
         throw new https_1.HttpsError('invalid-argument', 'Enter a valid email address.');
     }
     if (password.length < 6) {
-        throw new https_1.HttpsError('invalid-argument', 'Choose a stronger password (at least 6 characters).');
+        throw new https_1.HttpsError('invalid-argument', 'Temporary password must be at least 6 characters.');
     }
     if (!fullName) {
-        throw new https_1.HttpsError('invalid-argument', 'Enter your full name.');
-    }
-    if (!role) {
-        throw new https_1.HttpsError('invalid-argument', 'Public registration is for students only. Counselor accounts are created by an admin.');
+        throw new https_1.HttpsError('invalid-argument', "Enter the counselor's full name.");
     }
     if (!(0, iitCollegePrograms_1.isCollegeCode)(college_code)) {
-        throw new https_1.HttpsError('invalid-argument', 'Select a valid college before signing up.');
-    }
-    if (role === 'student') {
-        if (!program || !(0, iitCollegePrograms_1.isProgramInCollege)(college_code, program)) {
-            throw new https_1.HttpsError('invalid-argument', 'Select a degree program that matches your college before signing up.');
-        }
+        throw new https_1.HttpsError('invalid-argument', 'Select a valid college.');
     }
     const policyError = (0, signupEmailPolicy_1.getSignupEmailRejectionMessage)(email);
     if (policyError) {
@@ -82,43 +67,46 @@ function parseSignUpInput(data) {
         email,
         password,
         fullName,
-        role,
         college_code,
-        ...(role === 'student' && program ? { program } : {}),
         ...(contact_number ? { contact_number } : {}),
     };
 }
-/** Rate-limited registration via Admin SDK (web + mobile). */
-function createSignUpTrusted(enforceRateLimit) {
+/** Admin-only counselor provisioning (replaces public counselor self-signup). */
+function createCreateCounselorAccountTrusted(getRoleForUid) {
     return (0, https_1.onCall)({ region: 'asia-southeast2' }, async (request) => {
-        const input = parseSignUpInput((request.data ?? {}));
-        const ip = (0, authHelpers_1.clientIpFromRequest)(request.rawRequest);
-        await enforceRateLimit('signup_ip', ip, SIGNUP_IP_WINDOW_MS, SIGNUP_IP_MAX);
-        await enforceRateLimit('signup_email_attempt', input.email, SIGNUP_EMAIL_ATTEMPT_WINDOW_MS, SIGNUP_EMAIL_ATTEMPT_MAX);
+        const callerUid = request.auth?.uid;
+        if (!callerUid) {
+            throw new https_1.HttpsError('unauthenticated', 'Sign in required.');
+        }
+        const callerRole = await getRoleForUid(callerUid);
+        if (callerRole !== 'admin') {
+            throw new https_1.HttpsError('permission-denied', 'Only admins can create counselor accounts.');
+        }
+        const input = parseCreateCounselorInput((request.data ?? {}));
         const auth = admin.auth();
+        const db = admin.firestore();
         try {
             await auth.getUserByEmail(input.email);
-            throw new https_1.HttpsError('already-exists', 'An account with this email already exists. Try signing in instead.');
+            throw new https_1.HttpsError('already-exists', 'An account with this email already exists.');
         }
         catch (err) {
+            if (err instanceof https_1.HttpsError)
+                throw err;
             const code = err && typeof err === 'object' && 'code' in err
                 ? String(err.code)
                 : '';
             if (code !== 'auth/user-not-found') {
-                if (err instanceof https_1.HttpsError)
-                    throw err;
-                console.error('[signUpTrusted] getUserByEmail', err);
-                throw new https_1.HttpsError('internal', 'Could not complete registration. Please try again.');
+                console.error('[createCounselorAccountTrusted] getUserByEmail', err);
+                throw new https_1.HttpsError('internal', 'Could not create counselor account. Please try again.');
             }
         }
         let uid;
-        const db = admin.firestore();
         try {
             const userRecord = await auth.createUser({
                 email: input.email,
                 password: input.password,
                 displayName: input.fullName,
-                emailVerified: false,
+                emailVerified: true,
             });
             uid = userRecord.uid;
             const now = admin.firestore.FieldValue.serverTimestamp();
@@ -126,27 +114,19 @@ function createSignUpTrusted(enforceRateLimit) {
                 uid,
                 email: input.email,
                 full_name: input.fullName,
-                role: input.role,
-                email_verified: false,
+                role: 'counselor',
+                email_verified: true,
+                approval_status: 'approved',
                 college_code: input.college_code,
+                provisioned_by_admin: true,
+                created_by_admin_uid: callerUid,
                 created_at: now,
                 updated_at: now,
             };
-            if (input.role === 'student' && input.program) {
-                profile.program = input.program;
-            }
             if (input.contact_number) {
                 profile.contact_number = input.contact_number;
             }
             await db.collection('users').doc(uid).set(profile);
-            const idToken = await (0, authHelpers_1.identityToolkitSignIn)(input.email, input.password);
-            if (!idToken) {
-                throw new https_1.HttpsError('unavailable', 'Could not send verification email right now. Please try again later.');
-            }
-            const sent = await (0, authHelpers_1.identityToolkitSendOobCode)('VERIFY_EMAIL', { idToken });
-            if (!sent) {
-                throw new https_1.HttpsError('unavailable', 'Could not send verification email right now. Please try again later.');
-            }
             return { ok: true, uid };
         }
         catch (err) {
@@ -155,13 +135,13 @@ function createSignUpTrusted(enforceRateLimit) {
                     await db.collection('users').doc(uid).delete();
                 }
                 catch (cleanupErr) {
-                    console.warn('[signUpTrusted] cleanup users doc failed', cleanupErr);
+                    console.warn('[createCounselorAccountTrusted] cleanup users doc failed', cleanupErr);
                 }
                 try {
                     await auth.deleteUser(uid);
                 }
                 catch (cleanupErr) {
-                    console.warn('[signUpTrusted] cleanup deleteUser failed', cleanupErr);
+                    console.warn('[createCounselorAccountTrusted] cleanup deleteUser failed', cleanupErr);
                 }
             }
             if (err instanceof https_1.HttpsError)
@@ -170,14 +150,14 @@ function createSignUpTrusted(enforceRateLimit) {
                 ? String(err.code)
                 : '';
             if (code === 'auth/email-already-exists') {
-                throw new https_1.HttpsError('already-exists', 'An account with this email already exists. Try signing in instead.');
+                throw new https_1.HttpsError('already-exists', 'An account with this email already exists.');
             }
             if (code === 'auth/weak-password') {
-                throw new https_1.HttpsError('invalid-argument', 'Choose a stronger password (at least 6 characters).');
+                throw new https_1.HttpsError('invalid-argument', 'Temporary password must be at least 6 characters.');
             }
-            console.error('[signUpTrusted] createUser/profile', err);
-            throw new https_1.HttpsError('internal', 'Could not complete registration. Please try again.');
+            console.error('[createCounselorAccountTrusted] createUser/profile', err);
+            throw new https_1.HttpsError('internal', 'Could not create counselor account. Please try again.');
         }
     });
 }
-//# sourceMappingURL=signUpTrusted.js.map
+//# sourceMappingURL=createCounselorAccountTrusted.js.map

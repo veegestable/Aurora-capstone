@@ -4,10 +4,11 @@ import { auditLogsService } from '../../services/audit-logs'
 import { StatusBadge } from '../../components/admin/StatusBadge'
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader'
 import { LetterAvatar } from '../../components/LetterAvatar'
-import { Users, Check, X, RefreshCw } from 'lucide-react'
+import { Users, Check, X, RefreshCw, UserPlus } from 'lucide-react'
 import type { CounselorApprovalStatus } from '../../types/user.types'
 import { useAuth } from '../../contexts/AuthContext'
 import { isCounselorPendingApproval } from '../../utils/counselorApprovalForAdmin'
+import { AddCounselorModal } from '../../components/admin/AddCounselorModal'
 
 export default function AdminCounselors() {
   const { user } = useAuth()
@@ -15,6 +16,7 @@ export default function AdminCounselors() {
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | CounselorApprovalStatus>('all')
+  const [addModalOpen, setAddModalOpen] = useState(false)
 
   const loadCounselors = async () => {
     setLoading(true)
@@ -65,16 +67,26 @@ export default function AdminCounselors() {
         kicker="Admin"
         title="Counselors"
         action={
-          <button
-            type="button"
-            onClick={loadCounselors}
-            disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-aurora-blue hover:bg-aurora-blue/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-            aria-label="Refresh counselor list"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAddModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-aurora-secondary-blue hover:bg-aurora-secondary-blue/90 rounded-lg transition-colors cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Add counselor</span>
+            </button>
+            <button
+              type="button"
+              onClick={loadCounselors}
+              disabled={loading}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-aurora-blue hover:bg-aurora-blue/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              aria-label="Refresh counselor list"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
         }
       />
 
@@ -114,7 +126,9 @@ export default function AdminCounselors() {
             {filter === 'all' ? 'No counselors yet.' : `No ${filter} counselors.`}
           </p>
           <p className="text-aurora-primary-dark/30 text-xs mt-1">
-            Counselors sign up from the login screen and appear here for approval.
+            {filter === 'all'
+              ? 'Use Add counselor to provision accounts. Legacy pending signups may still appear here.'
+              : `No ${filter} counselors.`}
           </p>
         </div>
       ) : (
@@ -167,6 +181,11 @@ export default function AdminCounselors() {
           ))}
         </div>
       )}
+      <AddCounselorModal
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onCreated={() => void loadCounselors()}
+      />
     </div>
   )
 }

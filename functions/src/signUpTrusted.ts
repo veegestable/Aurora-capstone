@@ -32,7 +32,7 @@ function parseSignUpInput(
   const email = normalizeEmail(typeof data?.email === 'string' ? data.email : '');
   const password = typeof data?.password === 'string' ? data.password : '';
   const fullName = typeof data?.fullName === 'string' ? data.fullName.trim() : '';
-  const role = data?.role === 'student' || data?.role === 'counselor' ? data.role : null;
+  const role = data?.role === 'student' ? data.role : null;
   const college_code =
     typeof data?.college_code === 'string' ? data.college_code.trim() : '';
   const program =
@@ -55,7 +55,10 @@ function parseSignUpInput(
     throw new HttpsError('invalid-argument', 'Enter your full name.');
   }
   if (!role) {
-    throw new HttpsError('invalid-argument', 'Select student or counselor.');
+    throw new HttpsError(
+      'invalid-argument',
+      'Public registration is for students only. Counselor accounts are created by an admin.',
+    );
   }
   if (!isCollegeCode(college_code)) {
     throw new HttpsError('invalid-argument', 'Select a valid college before signing up.');
@@ -152,9 +155,6 @@ export function createSignUpTrusted(
         created_at: now,
         updated_at: now,
       };
-      if (input.role === 'counselor') {
-        profile.approval_status = 'pending';
-      }
       if (input.role === 'student' && input.program) {
         profile.program = input.program;
       }

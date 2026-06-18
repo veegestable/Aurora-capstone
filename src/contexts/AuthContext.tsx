@@ -33,12 +33,11 @@ interface AuthContextType {
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (
-    email: string, 
-    password: string, 
-    fullName: string, 
-    role: 'student' | 'counselor',
+    email: string,
+    password: string,
+    fullName: string,
     collegeCode: string,
-    program?: string                // Ignored for Counselor
+    program?: string,
   ) => Promise<{ success: boolean; message: string }>
   signOut: () => void
   resendRegistrationVerificationEmail: (email: string, password: string) => Promise<void>
@@ -181,22 +180,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
     fullName: string,
-    role: 'student' | 'counselor',
     collegeCode: string,
     program?: string,
   ) => {
     try {
       console.log('🔥 Signing up user:', email)
-      const cc =
-        (role === 'counselor' || role === 'student') && isCollegeCode(collegeCode.trim())
-          ? (collegeCode.trim() as CollegeCode)
-          : undefined
-      const prog =
-        role === 'student' && cc && program?.trim()
-          ? program.trim()
-          : undefined
+      const cc = isCollegeCode(collegeCode.trim())
+        ? (collegeCode.trim() as CollegeCode)
+        : undefined
+      const prog = cc && program?.trim() ? program.trim() : undefined
 
-      if (role === 'student' && cc && (!prog || !isProgramInCollege(cc, prog))) {
+      if (cc && (!prog || !isProgramInCollege(cc, prog))) {
         return {
           success: false,
           message: 'Choose a degree program that matches your college.',
@@ -214,9 +208,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email,
           password,
           fullName,
-          role,
+          role: 'student',
           college_code: cc,
-          ...(role === 'student' && prog ? { program: prog } : {}),
+          ...(prog ? { program: prog } : {}),
         })
       } finally {
         signUpInProgressRef.current = false

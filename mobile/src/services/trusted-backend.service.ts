@@ -43,6 +43,27 @@ export async function createSessionNotificationTrusted(input: {
   await callable(input);
 }
 
+export async function createCounselorAccountTrusted(input: {
+  email: string;
+  password: string;
+  fullName: string;
+  college_code: string;
+  contact_number?: string;
+}): Promise<{ uid: string }> {
+  const callable = httpsCallable<
+    {
+      email: string;
+      password: string;
+      fullName: string;
+      college_code: string;
+      contact_number?: string;
+    },
+    { ok: boolean; uid: string }
+  >(functions, "createCounselorAccountTrusted");
+  const result = await callable(input);
+  return { uid: result.data.uid };
+}
+
 export async function grantCounselorJournalAccessTrusted(input: {
   studentId: string;
   counselorId: string;
@@ -96,6 +117,16 @@ export async function resendRegistrationVerificationTrusted(input: {
     { ok: boolean }
   >(functions, "resendRegistrationVerificationTrusted");
   await callable(input);
+}
+
+export async function sendPasswordResetTrusted(input: {
+  email: string;
+}): Promise<void> {
+  const callable = httpsCallable<{ email: string }, { ok: boolean }>(
+    functions,
+    "sendPasswordResetTrusted",
+  );
+  await callable({ email: input.email.trim().toLowerCase() });
 }
 
 export async function sendSessionRequestTrusted(input: {
