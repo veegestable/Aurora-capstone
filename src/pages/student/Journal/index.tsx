@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { JournalCalendar } from '../../../components/journal/JournalCalendar'
 import { AnalyticsTab } from '../../../components/journal/AnalyticsTab'
 import { Book, BarChart3 } from 'lucide-react'
+import { PrivacyNoticeBanner } from '../../../components/privacy/PrivacyNoticeBanner'
 
 export default function Journal() {
   const [activeTab, setActiveTab] = useState<'journal' | 'analytics'>('journal')
@@ -17,6 +18,8 @@ export default function Journal() {
           Track your moods, analyze patterns, and view your emotional history.
         </p>
       </div>
+
+      <PrivacyNoticeBanner />
 
       {/* Tab Navigation */}
       <div className="flex bg-aurora-bg/50 p-1.5 rounded-xl border border-white/5 w-fit">

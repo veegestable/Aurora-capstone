@@ -9,6 +9,7 @@ import { LetterAvatar } from '../LetterAvatar'
 import { ChatBubble } from './ChatBubble'
 import { ConversationReadOnlyBanner } from './ConversationReadOnlyBanner'
 import { SendSessionInviteModal } from '../counselor/SendSessionInviteModal'
+import { STUDENT_MESSAGES_PRIVACY_FOOTER } from '../../constants/student-privacy'
 import { SessionChatDetailsModal } from '../counselor/SessionChatDetailsModal'
 import { SessionAttendanceModal, type AttendanceStatus } from '../counselor/SessionAttendanceModal'
 import { Calendar, ArrowLeft, Send, CalendarPlus } from 'lucide-react'
@@ -485,7 +486,7 @@ export function DirectMessageView({
           </button>
         </div>
         <p className="text-[11px] text-aurora-gray-400 text-center mt-2">
-          Messages are encrypted and shared only with your counselor.
+          {STUDENT_MESSAGES_PRIVACY_FOOTER}
         </p>
         </>
         )}

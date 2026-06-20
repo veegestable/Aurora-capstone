@@ -7,6 +7,7 @@ import { computeStreak, computeStability, computeDailyInsight, type StabilityMet
 import { DashboardSessionRequestModal } from '../components/sessions/DashboardSessionRequestModal'
 import { AnnouncementBanner } from '../components/announcements/AnnouncementBanner'
 import { StudentSessionsPane } from '../components/student/StudentSessionsPane'
+import { PrivacyNoticeBanner } from '../components/privacy/PrivacyNoticeBanner'
 import {
   MessageSquare, BookOpen, CalendarPlus,
   Sparkles, ShieldCheck, CalendarClock, CircleHelp, X,
@@ -98,6 +99,8 @@ export default function StudentDashboard() {
           <CalendarClock className="w-5 h-5 text-aurora-blue" />
         </button>
       </div>
+
+      <PrivacyNoticeBanner className="mb-2" />
 
       {/* Mood Check-In Widget */}
       <MoodCheckIn onMoodLogged={loadStats} />

@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Home, MessageSquare, BookOpen, User, LogOut } from 'lucide-react'
 import { SignOutConfirmModal } from '../components/common/SignOutConfirmModal'
+import { StudentPrivacyProvider } from '../contexts/StudentPrivacyContext'
 
 const PRIMARY_NAV = [
   { path: '/', label: 'Home', icon: Home },
@@ -56,6 +57,7 @@ export default function StudentLayout() {
   }
 
   return (
+    <StudentPrivacyProvider>
     <div className="h-screen flex flex-col bg-aurora-bg overflow-hidden">
       {/* Header */}
       <header className="bg-aurora-card/50 backdrop-blur-xl border-b border-white/6 shrink-0 z-50">
@@ -163,5 +165,6 @@ export default function StudentLayout() {
         leaving={isSigningOut}
       />
     </div>
+    </StudentPrivacyProvider>
   )
 }

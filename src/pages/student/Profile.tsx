@@ -2,17 +2,18 @@ import { useMemo, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import {
-  Camera, Lock, Eye, Bell, LogOut, User, UtensilsCrossed,
-  Sunrise, Droplets, ChevronRight,
+  Camera, Bell, LogOut, User, UtensilsCrossed,
+  Sunrise, Droplets, ChevronRight, Shield,
 } from 'lucide-react'
 import { LetterAvatar } from '../../components/LetterAvatar'
 import { SectionHeader } from '../../components/profile/SectionHeader'
 import { InfoRow } from '../../components/profile/InfoRow'
 import { SettingsRow } from '../../components/profile/SettingsRow'
-import { PrivacyRow } from '../../components/student/PrivacyRow'
 import { ToggleRow } from '../../components/student/ToggleRow'
 import { EditProfileModal } from '../../components/student/EditProfileModal'
 import { SignOutConfirmModal } from '../../components/common/SignOutConfirmModal'
+import { PrivacyNoticeBanner } from '../../components/privacy/PrivacyNoticeBanner'
+import { useStudentPrivacy } from '../../contexts/StudentPrivacyContext'
 import { resolveCollegeCodeFromUserData, getCollegeName, isCollegeCode } from '../../constants/colleges'
 import { COLLEGES } from '../../constants/colleges'
 import { getProgramsForCollege } from '../../constants/college-programs-iit'
@@ -22,9 +23,6 @@ import { TimePickerModal } from '../../components/student/profile/TimePickerModa
 import { MealScheduleModal } from '../../components/student/profile/MealScheduleModal'
 import { useUserDaySettings } from '../../contexts/UserDaySettingsContext'
 import { formatYearLevelForDisplay, formatCounselorStudentSubtitle } from '../../constants/student/programs'
-
-const COUNSELOR_VISIBLE_CHECKIN_SUMMARY =
-  'Counselors can see each check-in’s date, time, and mood label from recent history. Notes, sleep, meals, bath, and photos are not shown unless you are in that counselor’s special population (session request or accepting their proposed time).'
 
 function toFriendlyTime(hhmm?: string): string {
   if (!hhmm) return ''
@@ -47,13 +45,13 @@ export default function StudentProfile() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const { settings, updateSettings } = useUserDaySettings()
+  const { openPrivacyAssurance } = useStudentPrivacy()
 
   const [showEditProfile, setShowEditProfile] = useState(false)
   const [mealOpen, setMealOpen] = useState(false)
   const [bathOpen, setBathOpen] = useState(false)
   const [wakeOpen, setWakeOpen] = useState(false)
   const [reminderOpen, setReminderOpen] = useState(false)
-  const [expandedPrivacyRow, setExpandedPrivacyRow] = useState<'visible' | 'private' | null>('visible')
   const [showSignOutModal, setShowSignOutModal] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [collegeShiftOpen, setCollegeShiftOpen] = useState(false)
@@ -161,6 +159,8 @@ export default function StudentProfile() {
         <p className="text-xs text-aurora-gray-400 mt-1">Profile {profileCompletion}% complete</p>
       </div>
 
+      <PrivacyNoticeBanner className="mb-2" />
+
       {/* Account Settings */}
       <div>
         <SectionHeader title="ACCOUNT SETTINGS" />
@@ -170,6 +170,11 @@ export default function StudentProfile() {
               icon={<User className="w-[18px] h-[18px] text-aurora-gray-500" />}
               label="Edit Profile"
               onClick={() => setShowEditProfile(true)}
+            />
+            <SettingsRow
+              icon={<Shield className="w-[18px] h-[18px] text-aurora-gray-500" />}
+              label="Privacy & data"
+              onClick={openPrivacyAssurance}
             />
             
             {resolvedCollege && !user?.college_shift_pending && (
@@ -265,37 +270,6 @@ export default function StudentProfile() {
         </div>
       </div>
 
-      {/* Privacy Transparency */}
-      <div>
-        <SectionHeader
-          icon={<Lock className="w-3.5 h-3.5 text-aurora-secondary-blue" />}
-          title="PRIVACY TRANSPARENCY"
-        />
-        <p className="text-xs text-aurora-gray-400 leading-relaxed mb-2">
-          How guidance can use your check-ins in Aurora (no toggle — policy is fixed for now).
-        </p>
-        <div className="card-aurora p-0! overflow-hidden">
-          <div className="px-5">
-            <PrivacyRow
-              icon={<Eye className="w-[18px] h-[18px] text-aurora-accent-green" />}
-              title="What counselors can see"
-              preview="Date, time, and mood for recent check-ins; directory info for scheduling."
-              expanded={expandedPrivacyRow === 'visible'}
-              onToggle={() => setExpandedPrivacyRow(prev => prev === 'visible' ? null : 'visible')}
-              description={`${COUNSELOR_VISIBLE_CHECKIN_SUMMARY} Stress/energy trend tiles unlock for a counselor only when you are in their special population (you requested a session with them, or you accepted a session time they proposed). That is self-report data, not a diagnosis.`}
-            />
-            <PrivacyRow
-              icon={<Lock className="w-[18px] h-[18px] text-aurora-secondary-blue" />}
-              title="What stays narrower until special population"
-              preview="Notes, sleep, meals, bath, and photos stay off counselor views until then."
-              expanded={expandedPrivacyRow === 'private'}
-              onToggle={() => setExpandedPrivacyRow(prev => prev === 'private' ? null : 'private')}
-              description="After special-population consent for that counselor, they can see the same journal detail you see in Aurora for support. There is no in-app switch to revoke that yet."
-            />
-          </div>
-        </div>
-      </div>
-
       {/* App Preferences */}
       <div>
         <SectionHeader title="APP PREFERENCES" />
@@ -310,7 +284,7 @@ export default function StudentProfile() {
             />
             <ToggleRow
               icon={<Bell className="w-[18px] h-[18px] text-aurora-gray-500" />}
-              label="Daily Check-in Reminders"
+              label="Daily reminders"
               checked={remindersEnabled}
               onChange={(v) => { void updateSettings({ remindersEnabled: v }) }}
             />

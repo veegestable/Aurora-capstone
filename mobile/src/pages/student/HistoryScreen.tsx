@@ -39,6 +39,7 @@ import {
   InfoGuideModal,
   type InfoGuideContent,
 } from "../../components/common/InfoGuideModal";
+import { PrivacyNoticeBanner } from "../../components/privacy/PrivacyNoticeBanner";
 
 const UI_TEXT_SECONDARY = "#C1CEE9";
 const UI_TEXT_MUTED = "#9AA9C8";
@@ -1353,6 +1354,10 @@ export default function HistoryScreen() {
                     }}>
                         <Settings2 size={18} color={AURORA.textSec} />
                     </TouchableOpacity> */}
+        </View>
+
+        <View style={{ paddingHorizontal: 16 }}>
+          <PrivacyNoticeBanner style={{ marginBottom: 0 }} />
         </View>
 
         <ScrollView

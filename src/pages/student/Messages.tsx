@@ -7,6 +7,8 @@ import { DirectMessageView } from '../../components/messages/DirectMessageView'
 import { SelectCounselorModal } from '../../components/messages/SelectCounselorModal'
 import type { CounselorContact } from '../../types/message.types'
 import { PenLine } from 'lucide-react'
+import { PrivacyNoticeBanner } from '../../components/privacy/PrivacyNoticeBanner'
+import { STUDENT_MESSAGES_PRIVACY_FOOTER } from '../../constants/student-privacy'
 
 type TabType = 'All messages' | 'Unread'
 
@@ -251,6 +253,11 @@ export default function Messages() {
           You are chatting with your assigned counselors here.
         </p>
       </header>
+
+      <PrivacyNoticeBanner
+        className="mt-3 mb-1"
+        message={`${STUDENT_MESSAGES_PRIVACY_FOOTER} Tap for full privacy details.`}
+      />
 
       {/* Filters — one horizontal row (mobile parity); scroll on narrow widths */}
       <div className="-mx-3 shrink-0 border-b border-white/8 sm:mx-0">

@@ -61,6 +61,8 @@ import {
 } from "../../components/common/AuroraActionSheetModal";
 import { buildFeedback } from "../../utils/aurora-feedback";
 import ConversationReadOnlyBanner from "../../components/messages/ConversationReadOnlyBanner";
+import { PrivacyNoticeBanner } from "../../components/privacy/PrivacyNoticeBanner";
+import { STUDENT_MESSAGES_PRIVACY_FOOTER } from "../../constants/student-privacy";
 
 type TabType = "All messages" | "Unread";
 
@@ -1110,7 +1112,7 @@ function DirectMessageView({
               paddingHorizontal: 16,
             }}
           >
-            {/* Messages are encrypted and shared only with your counselor. */}
+            {STUDENT_MESSAGES_PRIVACY_FOOTER}
           </Text>
           </>
           )}
@@ -1509,6 +1511,13 @@ export default function MessagesScreen() {
           <Text style={{ color: AURORA.textSec, fontSize: 12, marginTop: 2 }}>
             You are chatting with your assigned counselors here.
           </Text>
+        </View>
+
+        <View style={{ paddingHorizontal: 20 }}>
+          <PrivacyNoticeBanner
+            message={`${STUDENT_MESSAGES_PRIVACY_FOOTER} Tap for full privacy details.`}
+            style={{ marginTop: 8, marginBottom: 4 }}
+          />
         </View>
 
         {/* Tabs */}

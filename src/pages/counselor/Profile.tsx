@@ -19,6 +19,7 @@ import {
   isCollegeCode,
 } from '../../constants/colleges'
 import { userSettingsService } from '../../services/user-settings'
+import { MSUIIT_PRIVACY_POLICY_URL } from '../../constants/student-privacy'
 
 export default function CounselorProfile() {
   const { user, signOut } = useAuth()
@@ -218,12 +219,17 @@ export default function CounselorProfile() {
                 academic records and wellness logs only for assigned students. All session notes are
                 encrypted and stored securely.
               </p>
-              <button className="flex items-center gap-1.5 cursor-pointer group">
+              <a
+                href={MSUIIT_PRIVACY_POLICY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 group"
+              >
                 <span className="text-[13px] font-bold tracking-wide text-aurora-secondary-blue group-hover:underline">
                   READ FULL POLICY
                 </span>
                 <ExternalLink className="w-3.5 h-3.5 text-aurora-secondary-blue" />
-              </button>
+              </a>
             </div>
           </div>
         </div>

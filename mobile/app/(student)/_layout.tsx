@@ -26,6 +26,7 @@ import {
 import { AURORA } from "../../src/constants/aurora-colors";
 import { triggerHaptic } from "../../src/utils/haptics";
 import { useSyncStudentReminders } from "../../src/hooks/useSyncStudentReminders";
+import { StudentPrivacyProvider } from "../../src/stores/StudentPrivacyContext";
 import { AnimatedTabBarButton } from "../../src/components/navigation/AnimatedTabBarButton";
 import {
   STUDENT_TAB_BAR_FLOAT_BOTTOM,
@@ -208,11 +209,11 @@ export default function StudentLayout() {
 
   return (
     <ThemeProvider value={studentNavigationTheme}>
-      <>
+      <StudentPrivacyProvider>
         <StatusBar style="light" />
         <StudentReminderSync />
         <StudentTabs />
-      </>
+      </StudentPrivacyProvider>
     </ThemeProvider>
   );
 }

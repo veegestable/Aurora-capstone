@@ -10,17 +10,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import {
   X,
   Camera,
-  Eye,
   Lock,
   Bell,
   LogOut,
   User,
   UtensilsCrossed,
-  ChevronDown,
   ChevronRight,
   Sunrise,
   Droplets,
   GraduationCap,
+  Shield,
 } from "lucide-react-native";
 import { useAuth } from "../../stores/AuthContext";
 import { useUserDaySettings } from "../../stores/UserDaySettingsContext";
@@ -50,8 +49,9 @@ import {
   isProgramInCollege,
 } from "../../constants/college-programs-iit";
 import { firestoreService } from "../../services/firebase-firestore.service";
-import { COUNSELOR_VISIBLE_CHECKIN_SUMMARY } from "../../constants/counselor-checkin-policy";
 import type { MealScheduleItem } from "../../services/mood-firestore-v2.service";
+import { PrivacyNoticeBanner } from "../../components/privacy/PrivacyNoticeBanner";
+import { useStudentPrivacy } from "../../stores/StudentPrivacyContext";
 
 // ─── Section Header ───────────────────────────────────────────────────────────
 function SectionHeader({
@@ -154,68 +154,6 @@ function SettingsRow({
       </Text>
       {rightElement ||
         (onPress ? <ChevronRight size={18} color={AURORA.textMuted} /> : null)}
-    </TouchableOpacity>
-  );
-}
-
-// ─── Privacy Row ─────────────────────────────────────────────────────────────
-function PrivacyRow({
-  icon,
-  title,
-  description,
-  preview,
-  expanded,
-  onToggle,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  preview: string;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={onToggle}
-      style={{
-        flexDirection: "row",
-        alignItems: "flex-start",
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: AURORA.border,
-        gap: 12,
-      }}
-    >
-      <View style={{ marginTop: 2 }}>{icon}</View>
-      <View style={{ flex: 1 }}>
-        <Text
-          style={{
-            color: "#FFFFFF",
-            fontSize: 14,
-            fontWeight: "600",
-            marginBottom: 3,
-          }}
-        >
-          {title}
-        </Text>
-        <Text style={{ color: AURORA.textSec, fontSize: 12, lineHeight: 17 }}>
-          {expanded ? description : preview}
-        </Text>
-      </View>
-      {expanded ? (
-        <ChevronDown
-          size={16}
-          color={AURORA.textMuted}
-          style={{ marginTop: 2 }}
-        />
-      ) : (
-        <ChevronRight
-          size={16}
-          color={AURORA.textMuted}
-          style={{ marginTop: 2 }}
-        />
-      )}
     </TouchableOpacity>
   );
 }
@@ -779,6 +717,7 @@ export default function ProfileScreen() {
   }, []);
   const { user, signOut, updateUser, uploadAvatar, refreshUserProfile } =
     useAuth();
+  const { openPrivacyAssurance } = useStudentPrivacy();
   const {
     reminderHour,
     reminderMinute,
@@ -838,9 +777,6 @@ export default function ProfileScreen() {
   const [devicePermissionGranted, setDevicePermissionGranted] = useState<
     boolean | null
   >(null);
-  const [expandedPrivacyRow, setExpandedPrivacyRow] = useState<
-    "visible" | "private" | null
-  >("visible");
   const [mealDraft, setMealDraft] = useState<MealScheduleItem[]>([]);
   const profileCompletion = useMemo(() => {
     let score = 0;
@@ -1131,6 +1067,8 @@ export default function ProfileScreen() {
             </Text>
           </View>
 
+          <PrivacyNoticeBanner style={{ marginTop: 12, marginBottom: 20 }} />
+
           {/* ── Account Settings ──────────────────────────────── */}
 
           <SectionHeader title="ACCOUNT SETTINGS" />
@@ -1153,6 +1091,11 @@ export default function ProfileScreen() {
               icon={<User size={18} color={AURORA.textSec} />}
               label="Edit Profile"
               onPress={() => setShowEditProfile(true)}
+            />
+            <SettingsRow
+              icon={<Shield size={18} color={AURORA.textSec} />}
+              label="Privacy & data"
+              onPress={openPrivacyAssurance}
             />
             {resolveCollegeCodeFromUserData(
               user as Record<string, unknown> | null,
@@ -1308,56 +1251,6 @@ export default function ProfileScreen() {
               Student number is used for school identity verification. Contact
               number is for scheduling and urgent reach-out only.
             </Text> */}
-          </View>
-
-          {/* ── Privacy Transparency ─────────────────────────────── */}
-          <SectionHeader
-            icon={<Lock size={14} color={AURORA.blue} />}
-            title="PRIVACY TRANSPARENCY"
-          />
-          {/* <Text
-            style={{
-              color: AURORA.textMuted,
-              fontSize: 12,
-              lineHeight: 18,
-              marginBottom: 8,
-            }}
-          >
-            How guidance can use your check-ins in Aurora (no toggle — policy is fixed for now).
-          </Text> */}
-          <View
-            style={{
-              backgroundColor: AURORA.card,
-              borderRadius: 16,
-              paddingHorizontal: 16,
-              borderWidth: 1,
-              borderColor: AURORA.border,
-            }}
-          >
-            <PrivacyRow
-              icon={<Eye size={18} color={AURORA.green} />}
-              title="What counselors can see"
-              preview="Date, time, and mood for recent check-ins; directory info for scheduling."
-              expanded={expandedPrivacyRow === "visible"}
-              onToggle={() =>
-                setExpandedPrivacyRow((prev) =>
-                  prev === "visible" ? null : "visible",
-                )
-              }
-              description={`${COUNSELOR_VISIBLE_CHECKIN_SUMMARY} Stress/energy trend tiles unlock for a counselor only when you are in their special population (you requested a session with them, or you accepted a session time they proposed). That is self-report data, not a diagnosis.`}
-            />
-            <PrivacyRow
-              icon={<Lock size={18} color={AURORA.blue} />}
-              title="What stays narrower until special population"
-              preview="Notes, sleep, meals, bath, and photos stay off counselor views until then."
-              expanded={expandedPrivacyRow === "private"}
-              onToggle={() =>
-                setExpandedPrivacyRow((prev) =>
-                  prev === "private" ? null : "private",
-                )
-              }
-              description="After special-population consent for that counselor, they can see the same journal detail you see in Aurora for support. There is no in-app switch to revoke that yet."
-            />
           </View>
 
           {/* ── App Preferences ──────────────────────────────────── */}

@@ -72,6 +72,7 @@ import {
   isSessionDocOpenRequestExpired24h,
   parseSlotToDate,
 } from "../../utils/dateHelpers";
+import { PrivacyNoticeBanner } from "../../components/privacy/PrivacyNoticeBanner";
 
 // ─── Student sessions overview (dashboard sheet) ─────────────────────────────
 const STUDENT_SESSION_CLOSED = new Set([
@@ -1336,6 +1337,8 @@ export default function MoodLogScreen() {
             </View>
           </View>
 
+          <PrivacyNoticeBanner style={{ marginBottom: UI_SECTION_GAP }} />
+
           {/* ── How Are You Feeling Card ────────────────────────────── */}
           <View
             ref={tourMoodCardRef}
@@ -1785,7 +1788,7 @@ export default function MoodLogScreen() {
                 marginBottom: 18,
               }}
             >
-              Read the full wording under Privacy transparency in Profile.
+              Read the full details in any privacy banner or Profile → Privacy & data.
             </Text>
             <TouchableOpacity
               onPress={async () => {
