@@ -1,5 +1,5 @@
 import { sendPasswordResetEmail } from 'firebase/auth'
-import { auth } from '../../config/firebase'
+import { auth } from '../../../config/firebase'
 import { sendPasswordResetTrusted } from '../../trusted-backend.service'
 import {
   shouldFallbackToClientPasswordReset,

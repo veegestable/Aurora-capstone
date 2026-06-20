@@ -25,6 +25,7 @@ import {
 } from "lucide-react-native";
 import { AURORA } from "../../src/constants/aurora-colors";
 import { triggerHaptic } from "../../src/utils/haptics";
+import { useSyncStudentReminders } from "../../src/hooks/useSyncStudentReminders";
 import { AnimatedTabBarButton } from "../../src/components/navigation/AnimatedTabBarButton";
 import {
   STUDENT_TAB_BAR_FLOAT_BOTTOM,
@@ -52,6 +53,11 @@ function StudentTabBarGlass() {
       <View style={tabBarGlassStyles.tint} />
     </BlurView>
   );
+}
+
+function StudentReminderSync() {
+  useSyncStudentReminders();
+  return null;
 }
 
 function StudentTabs() {
@@ -204,6 +210,7 @@ export default function StudentLayout() {
     <ThemeProvider value={studentNavigationTheme}>
       <>
         <StatusBar style="light" />
+        <StudentReminderSync />
         <StudentTabs />
       </>
     </ThemeProvider>

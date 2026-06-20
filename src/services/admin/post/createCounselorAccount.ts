@@ -1,6 +1,6 @@
 import { FirebaseError } from 'firebase/app'
 import { createCounselorAccountTrusted } from '../../trusted-backend.service'
-import type { CollegeCode } from '../../constants/colleges'
+import type { CollegeCode } from '../../../constants/colleges'
 
 export type CreateCounselorAccountInput = {
   email: string

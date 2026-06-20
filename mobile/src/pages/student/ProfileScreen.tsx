@@ -32,11 +32,7 @@ import {
   type InfoGuideContent,
 } from "../../components/common/InfoGuideModal";
 import { SignOutConfirmModal } from "../../components/common/SignOutConfirmModal";
-import {
-  clearDailyCheckInReminder,
-  hasNotificationPermission,
-  scheduleDailyCheckInReminder
-} from "../../services/push-notifications.service";
+import { hasNotificationPermission, sendTestDailyCheckInNotification } from "../../services/push-notifications.service";
 import { syncExpoPushTokenToUserDoc } from "../../services/expo-push-token.service";
 import {
   formatCounselorStudentSubtitle,
@@ -1036,24 +1032,6 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
-    if (settingsLoading) return;
-    const run = async () => {
-      if (!remindersEnabled) {
-        await clearDailyCheckInReminder();
-        return;
-      }
-      const ok = await scheduleDailyCheckInReminder(reminderHour, reminderMinute);
-      if (!ok) {
-        showProfileFeedback(
-          "Notifications disabled",
-          "Please allow notification permission so Aurora can remind you on your phone.",
-        );
-      }
-    };
-    void run();
-  }, [remindersEnabled, reminderHour, reminderMinute, settingsLoading, showProfileFeedback]);
-
-  useEffect(() => {
     if (!user) return;
     setSessionPushEnabled(user.session_push_notifications_enabled !== false);
   }, [user]);
@@ -1403,10 +1381,20 @@ export default function ProfileScreen() {
             />
             <ToggleRow
               icon={<Bell size={18} color={AURORA.textSec} />}
-              label="Daily Check-in Reminders"
+              label="Daily reminders"
               value={remindersEnabled}
               onValueChange={(v) => {
-                void setRemindersEnabled(v);
+                void (async () => {
+                  await setRemindersEnabled(v);
+                  if (!v) return;
+                  const granted = await hasNotificationPermission();
+                  if (!granted) {
+                    showProfileFeedback(
+                      "Notifications disabled",
+                      "Please allow notification permission so Aurora can remind you on your phone.",
+                    );
+                  }
+                })();
               }}
             />
             {/* <ToggleRow

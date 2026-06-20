@@ -31,7 +31,6 @@ import {
 } from '../../components/common/InfoGuideModal';
 import { buildFeedback } from '../../utils/aurora-feedback';
 import { AddCounselorModal } from '../../components/admin/AddCounselorModal';
-import { writeAuditLogTrusted } from '../../services/trusted-backend.service';
 
 interface CounselorUser {
     id: string;

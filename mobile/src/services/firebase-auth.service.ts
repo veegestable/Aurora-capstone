@@ -333,7 +333,7 @@ export const authService = {
 
     const contactTrim = data.contactNumber?.trim() ?? "";
 
-    if (data.role === "counselor" || data.role === "student") {
+    if (data.role === "student") {
       if (!data.college_code || !isCollegeCode(data.college_code)) {
         throw new Error("Select a valid college before signing up.");
       }
@@ -372,11 +372,8 @@ export const authService = {
       full_name: data.fullName,
       role: data.role,
       email_verified: user.emailVerified,
-      ...(data.role === "counselor"
-        ? { approval_status: "pending" as const }
-        : {}),
       ...(contactTrim ? { contact_number: contactTrim } : {}),
-      ...(data.role === "student" || data.role === "counselor"
+      ...(data.role === "student"
         ? { college_code: data.college_code as CollegeCode }
         : {}),
       ...(data.role === "student" && studentProgramTrimmed

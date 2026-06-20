@@ -919,7 +919,6 @@ export default function CounselorHomeScreen() {
             if (!studentId) return null;
             try {
               let sessionStarted = false;
-              let lastLogDate: Date | undefined;
               let patternIndicators: CounselorPatternIndicator[] = [];
               if (counselorId) {
                 const settings = await getUserSettings(studentId);
@@ -937,7 +936,7 @@ export default function CounselorHomeScreen() {
               ]);
               patternIndicators = patterns;
               const latest = signalResult.logs[0] as { log_date?: Date } | undefined;
-              lastLogDate = latest?.log_date;
+              const lastLogDate = latest?.log_date;
               const rosterPill: CounselorStudentRosterPill = sessionStarted
                 ? "session_started"
                 : "no_session_yet";

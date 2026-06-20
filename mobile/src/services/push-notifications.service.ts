@@ -1,8 +1,19 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { BREATHING_EXERCISES } from "../features/breathing/breathing-data";
+import type { MealScheduleItem } from "./mood-firestore-v2.service";
 
 const DAILY_REMINDER_TYPE = "aurora_daily_checkin_reminder";
+
+export const WAKE_ROUTINE_REMINDER_TYPE = "aurora_wake_reminder";
+export const BATH_ROUTINE_REMINDER_TYPE = "aurora_bath_reminder";
+export const MEAL_ROUTINE_REMINDER_TYPE = "aurora_meal_reminder";
+
+const ROUTINE_REMINDER_TYPES = new Set([
+  WAKE_ROUTINE_REMINDER_TYPE,
+  BATH_ROUTINE_REMINDER_TYPE,
+  MEAL_ROUTINE_REMINDER_TYPE,
+]);
 
 /** Local scheduled push for Zen breathing reminder after mood check-in (skip / Done without Quick Reset). */
 export const ZEN_BREATHING_REMINDER_TYPE = "aurora_zen_breathing_reminder";
@@ -121,6 +132,130 @@ export async function scheduleDailyCheckInReminder(
       minute: m,
     },
   });
+
+  return true;
+}
+
+function parseHHmm(time: string): { hour: number; minute: number } | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec((time || "").trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (
+    !Number.isFinite(hour) ||
+    !Number.isFinite(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+  return { hour, minute };
+}
+
+export async function clearWellnessRoutineReminders(): Promise<void> {
+  configureNotificationHandler();
+  const all = await Notifications.getAllScheduledNotificationsAsync();
+  const ownIds = all
+    .filter((n) => {
+      const type = n.content?.data?.type;
+      return typeof type === "string" && ROUTINE_REMINDER_TYPES.has(type);
+    })
+    .map((n) => n.identifier);
+  await Promise.all(
+    ownIds.map((id) => Notifications.cancelScheduledNotificationAsync(id)),
+  );
+}
+
+async function scheduleRoutineDailyNotification(payload: {
+  type: string;
+  hour: number;
+  minute: number;
+  title: string;
+  body: string;
+  focusSection?: "sleep" | "meals" | "bath";
+  mealId?: string;
+}): Promise<void> {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: payload.title,
+      body: payload.body,
+      sound: true,
+      ...(Platform.OS === "android"
+        ? {
+            android: {
+              channelId: ANDROID_CHANNEL_WELLNESS,
+            },
+          }
+        : {}),
+      data: {
+        type: payload.type,
+        targetRoute: "/(student)/index",
+        ...(payload.focusSection
+          ? { focusSection: payload.focusSection }
+          : {}),
+        ...(payload.mealId ? { mealId: payload.mealId } : {}),
+      },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: payload.hour,
+      minute: payload.minute,
+    },
+  });
+}
+
+export async function scheduleWellnessRoutineReminders(opts: {
+  usualWakeTime: string;
+  usualBathTime: string;
+  mealSchedule: MealScheduleItem[];
+}): Promise<boolean> {
+  configureNotificationHandler();
+  await ensureWellnessAndroidChannel();
+  const permission = await ensureNotificationPermission();
+  if (!permission) return false;
+
+  await clearWellnessRoutineReminders();
+
+  const wake = parseHHmm(opts.usualWakeTime);
+  if (wake) {
+    await scheduleRoutineDailyNotification({
+      type: WAKE_ROUTINE_REMINDER_TYPE,
+      hour: wake.hour,
+      minute: wake.minute,
+      title: "Good morning from Aurora",
+      body: "How did you sleep? Tap to log your sleep quality in today's check-in.",
+      focusSection: "sleep",
+    });
+  }
+
+  const bath = parseHHmm(opts.usualBathTime);
+  if (bath) {
+    await scheduleRoutineDailyNotification({
+      type: BATH_ROUTINE_REMINDER_TYPE,
+      hour: bath.hour,
+      minute: bath.minute,
+      title: "Bath time reminder",
+      body: "When you're ready, open Aurora to log your bath in today's check-in.",
+      focusSection: "bath",
+    });
+  }
+
+  for (const meal of opts.mealSchedule) {
+    const parsed = parseHHmm(meal.time);
+    if (!parsed) continue;
+    const label = (meal.label || "Meal").trim() || "Meal";
+    await scheduleRoutineDailyNotification({
+      type: MEAL_ROUTINE_REMINDER_TYPE,
+      hour: parsed.hour,
+      minute: parsed.minute,
+      title: `Time for ${label}`,
+      body: `Log ${label.toLowerCase()} in Aurora when you're ready.`,
+      focusSection: "meals",
+      mealId: meal.id,
+    });
+  }
 
   return true;
 }
